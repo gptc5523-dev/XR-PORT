@@ -108,12 +108,44 @@ namespace Container.Crane.Sts
             shadow.effectDistance = new Vector2(2.4f, -2.4f);
         }
 
-        // 배경 이미지 스타일 — 유니티 내장 둥근 사각 스프라이트(Sliced)로 모서리를 둥글게. 라이브러리 불필요.
+        // 배경 이미지 스타일 — 둥근 사각 스프라이트(9-슬라이스)로 모서리를 둥글게. 라이브러리 불필요.
         static void StyleBg(Image img, Color color)
         {
             img.color = color;
-            var sp = Resources.GetBuiltinResource<Sprite>("UI/Skin/Background.psd");
+            var sp = RoundedBgSprite();
             if (sp != null) { img.sprite = sp; img.type = Image.Type.Sliced; }
+        }
+
+        static Sprite _roundedBg;
+
+        // 둥근 사각 배경 스프라이트를 절차 생성(한 번 만들어 캐시).
+        //   유니티 내장 "UI/Skin/Background.psd"는 빌트인 'extra' 리소스라 런타임 Resources.GetBuiltinResource로
+        //   못 읽고 "could not be loaded" 오류를 뱉었다(에디터 전용 AssetDatabase로만 접근). → 직접 만들어 의존 제거.
+        static Sprite RoundedBgSprite()
+        {
+            if (_roundedBg != null) return _roundedBg;
+            const int N = 32;
+            const float R = 8f;   // 모서리 반경(px)
+            var tex = new Texture2D(N, N, TextureFormat.RGBA32, false)
+            { name = "CraneHud_RoundedBg", wrapMode = TextureWrapMode.Clamp };
+            var px = new Color32[N * N];
+            for (int y = 0; y < N; y++)
+            for (int x = 0; x < N; x++)
+            {
+                // 모서리 4곳만 곡선, 나머지는 직선. 모서리 안쪽 중심에서의 거리로 알파(안티앨리어싱).
+                float dx = Mathf.Max(R - (x + 0.5f), (x + 0.5f) - (N - R));
+                float dy = Mathf.Max(R - (y + 0.5f), (y + 0.5f) - (N - R));
+                float a = (dx <= 0f || dy <= 0f)
+                    ? 1f                                                 // 가장자리 직선 영역
+                    : Mathf.Clamp01(R - Mathf.Sqrt(dx * dx + dy * dy) + 0.5f);  // 모서리 곡선(AA)
+                px[y * N + x] = new Color32(255, 255, 255, (byte)(a * 255f));
+            }
+            tex.SetPixels32(px);
+            tex.Apply(false);
+            // 9-슬라이스: 모서리 R는 안 늘이고 가운데만 늘여 어떤 크기에도 둥근 모서리 유지.
+            _roundedBg = Sprite.Create(tex, new Rect(0, 0, N, N), new Vector2(0.5f, 0.5f),
+                                       100f, 0, SpriteMeshType.FullRect, new Vector4(R, R, R, R));
+            return _roundedBg;
         }
 
         /// <summary>
@@ -159,8 +191,11 @@ namespace Container.Crane.Sts
             Transform best = null;
             foreach (var t in Object.FindObjectsByType<Transform>(FindObjectsInactive.Exclude, FindObjectsSortMode.None))
             {
-                if (!NameHas(t.name, side) || !NameHas(t.name, "controller")) continue;
-                if (requireHandless && NameHas(t.name, "hand")) continue;
+                if (!NameHas(t.name, side)) continue;
+                // 'controller' 또는 손 추적 앵커('Left Hand'/'Right Hand' 리그) 둘 다 컨트롤러 후보로 인정.
+                //   XR Origin Hands 리그는 컨트롤러 객체 이름이 'Right Hand'라 'controller' 단어가 없다.
+                if (!NameHas(t.name, "controller") && !NameHas(t.name, "hand")) continue;
+                if (requireHandless && NameHas(t.name, "hand")) continue;   // 1·2차는 controller 전용, 3차 폴백서 hand 허용
                 if (t.position.sqrMagnitude < 0.04f) continue;            // 원점 근처(미추적/씬 앵커) 제외
                 if (scope != null && !t.IsChildOf(scope)) continue;
                 if (best == null || t.name.Length < best.name.Length) best = t;

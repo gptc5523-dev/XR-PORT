@@ -45,6 +45,10 @@ namespace Container.Crane.Sts
         [Tooltip("갠트리 주행 — 실제 정격 ≈ 45 m/min = 0.75 m/s")]
         [SerializeField] float gantrySpeedMps = 0.75f;
 
+        [Header("이동(걷기) 속도")]
+        [Tooltip("이동모드 걷기 속도(m/s). 시작 시 XR 로코모션 Move Speed를 이 값으로 설정한다(인스펙터 기본 ~2.5보다 낮춤). 0 이하면 안 건드림.")]
+        [SerializeField] float walkSpeed = 1.2f;
+
         // 실제 m/s에 crane.ModelScale(=1/24)을 곱하면 모델(씬) 단위 m/s. 모델은 작아도 '실제 크레인이
         // 그 거리를 지나는 데 걸리는 시간(초)'은 현실과 동일. 축척은 StsCrane.ModelScale 단일 소스 참조.
 
@@ -86,7 +90,11 @@ namespace Container.Crane.Sts
 
         bool prevGrab, prevRelease, prevCycleBtn;
         bool stickCentered = true;   // 모드 스틱 플릭 엣지 검출(중앙 복귀 후에만 다음 플릭 인정)
-        readonly List<Behaviour> disabledLoco = new List<Behaviour>();
+        readonly List<Behaviour> locoProviders = new List<Behaviour>();   // 캐시된 XR 로코모션 프로바이더
+        bool locoCached;
+
+        // 시점 높이 조절은 별도 컴포넌트(CraneViewHeightAdjuster)가 담당 — 여기선 '조절 중' 상태만 참조.
+        CraneViewHeightAdjuster viewHeight;
 
         // XRI LocomotionProvider 타입을 리플렉션으로(컴파일 의존성 제거)
         static System.Type _locoType;
@@ -104,6 +112,21 @@ namespace Container.Crane.Sts
             }
         }
 
+        // SnapTurnProvider 타입(45° 스냅 회전) — 로코모션 토글에서 제외/항상 끄기 위해 별도로 식별.
+        static System.Type _snapTurnType;
+        static bool _snapTurnSearched;
+        static System.Type SnapTurnProviderType
+        {
+            get
+            {
+                if (_snapTurnSearched) return _snapTurnType;
+                _snapTurnSearched = true;
+                _snapTurnType = System.Type.GetType(
+                    "UnityEngine.XR.Interaction.Toolkit.Locomotion.Turning.SnapTurnProvider, Unity.XR.Interaction.Toolkit");
+                return _snapTurnType;
+            }
+        }
+
         void Awake()
         {
             crane = GetComponent<StsCrane>();
@@ -117,6 +140,7 @@ namespace Container.Crane.Sts
             mode = startInCraneMode ? Mode.Crane : Mode.Move;
             selectedIndex = (int)mode;
             ApplyMode();
+            ApplyWalkSpeed();
             if (debugLog) Debug.Log($"[Crane] VRController 활성 — 시작 모드 {ModeNames[(int)mode]}");
         }
 
@@ -131,12 +155,21 @@ namespace Container.Crane.Sts
         {
             if (crane == null) return;
 
+            // 매 프레임 로코모션 상태를 목표(이동모드 && 높이조절 아님)로 강제 — 모드 전환·높이조절이
+            // 어떻게 섞여도 '이동모드면 항상 걷기 가능'을 보장(아래 조기 return에 안 막히게 맨 앞에서).
+            EnforceLocomotion();
+
             var right = InputDevices.GetDeviceAtXRNode(XRNode.RightHand);
             var left = InputDevices.GetDeviceAtXRNode(XRNode.LeftHand);
 
             Vector2 rs = Vector2.zero, ls = Vector2.zero;
             if (right.isValid) right.TryGetFeatureValue(CommonUsages.primary2DAxis, out rs);
             if (left.isValid) left.TryGetFeatureValue(CommonUsages.primary2DAxis, out ls);
+
+            // ───── 시점 높이 조절은 CraneViewHeightAdjuster(별도 컴포넌트, 호스트/관전자 공통)가 담당 ─────
+            //   조종 컨트롤러는 '조절 중'이면 왼손 스틱을 높이 전용으로 양보(호이스트/갠트리 입력 무효화)한다.
+            //   걷기 정지는 EnforceLocomotion의 locoOn 조건이 ViewHeightActive()로 매 프레임 반영한다.
+            if (ViewHeightActive()) ls = Vector2.zero;
 
             // ───── 모드 선택: 스틱 위/아래로 '후보'만 이동 → B로 '확정' ─────
             //   스틱만으론 모드가 안 바뀜(후보 하이라이트만 이동). B를 눌러야 실제 전환.
@@ -283,30 +316,74 @@ namespace Container.Crane.Sts
         static bool Btn(UnityEngine.XR.InputDevice d, InputFeatureUsage<bool> usage)
             => d.isValid && d.TryGetFeatureValue(usage, out bool v) && v;
 
-        // 운전/갠트리(=조종 중)면 씬의 모든 XR 로코모션(+수동 지정분)을 끄고, 이동모드면 끈 것만 복구.
-        void ApplyMode()
+        // 로코모션(걷기·회전 등 + 수동 지정분)은 '이동모드 + 높이조절 중 아님'일 때만 켠다.
+        //   목록 추적(disable/enable 큐) 방식은 모드 사이클·높이조절이 섞이면 상태가 어긋나
+        //   '두 번째 이동모드에서 안 걸어지던' 버그가 났다. → 캐시한 프로바이더에 매 프레임 목표 상태를
+        //   '직접' 강제하는 선언적 방식으로 교체(자가 치유, 누적/엇갈림 원천 차단). Update와 전환 시 호출.
+        void ApplyMode() => EnforceLocomotion();
+
+        void EnforceLocomotion()
         {
-            bool operating = mode != Mode.Move;
-            if (operating)
-            {
-                // 이미 꺼둔 상태(운전↔갠트리 전환)면 재스캔 불필요 — 중복 등록 방지
-                if (disabledLoco.Count > 0) return;
-
-                if (suppressWhileControlling != null)
-                    foreach (var b in suppressWhileControlling)
-                        if (b != null && b.enabled) { b.enabled = false; disabledLoco.Add(b); }
-
-                var locoType = LocomotionProviderType;
-                if (locoType != null)
-                    foreach (var o in FindObjectsByType(locoType, FindObjectsInactive.Exclude, FindObjectsSortMode.None))
-                        if (o is Behaviour b && b.enabled) { b.enabled = false; disabledLoco.Add(b); }
-            }
-            else
-            {
-                foreach (var b in disabledLoco)
-                    if (b != null) b.enabled = true;
-                disabledLoco.Clear();
-            }
+            EnsureLocoProviders();
+            bool locoOn = (mode == Mode.Move) && !ViewHeightActive();
+            foreach (var b in locoProviders)
+                if (b != null && b.enabled != locoOn) b.enabled = locoOn;
+            if (suppressWhileControlling != null)
+                foreach (var b in suppressWhileControlling)
+                    if (b != null && b.enabled != locoOn) b.enabled = locoOn;
         }
+
+        // XR 로코모션 프로바이더를 한 번 찾아 캐시(리그가 늦게 뜰 수 있어 찾을 때까지 재시도).
+        void EnsureLocoProviders()
+        {
+            if (locoCached) return;
+            var locoType = LocomotionProviderType;
+            if (locoType == null) { locoCached = true; return; }   // XRI 없음 — 더 안 찾음
+            var snapType = SnapTurnProviderType;
+            foreach (var o in FindObjectsByType(locoType, FindObjectsInactive.Include, FindObjectsSortMode.None))
+            {
+                if (o is not Behaviour b) continue;
+                // SnapTurn(45° 점프 + 0.5s debounce)은 '딱딱 끊기는' 회전이라 항상 끄고 토글 목록에서도 제외.
+                //   (제외 안 하면 이동모드 진입마다 EnforceLocomotion이 도로 켜서 점프가 부활한다.)
+                //   같은 오른손 스틱의 ContinuousTurn('Turn' 액션)이 부드러운 회전을 이어받는다.
+                if (snapType != null && snapType.IsInstanceOfType(b)) { b.enabled = false; continue; }
+                if (!locoProviders.Contains(b)) locoProviders.Add(b);
+            }
+            if (locoProviders.Count > 0) locoCached = true;
+        }
+
+        // 별도 컴포넌트(CraneViewHeightAdjuster)의 '높이 조절 중' 상태 — 조절 중엔 걷기 정지 + 왼손 스틱 양보.
+        //   실제 높이 조절은 그 컴포넌트가 수행(호스트/관전자 공통). 여기선 입력 협조만 한다.
+        bool ViewHeightActive()
+        {
+            if (viewHeight == null) viewHeight = FindAnyObjectByType<CraneViewHeightAdjuster>();
+            return viewHeight != null && viewHeight.HeightHold;
+        }
+
+        // 걷기 속도 설정 — 로코모션 프로바이더 중 'moveSpeed' 속성을 가진 것(=ContinuousMove/DynamicMove)에 적용.
+        //   리플렉션이라 XRI 버전·프리팹 직렬화와 무관하게 시작 시 한 번 박는다. (다른 프로바이더는 moveSpeed 없어 무시)
+        void ApplyWalkSpeed()
+        {
+            if (walkSpeed <= 0f) return;
+            var locoType = LocomotionProviderType;
+            if (locoType == null) return;
+            int n = 0;
+            foreach (var o in FindObjectsByType(locoType, FindObjectsInactive.Exclude, FindObjectsSortMode.None))
+            {
+                var prop = o.GetType().GetProperty("moveSpeed");
+                if (prop != null && prop.CanWrite && prop.PropertyType == typeof(float))
+                {
+                    float old = (float)prop.GetValue(o);   // 설정 전 기존 속도(빠른지/느린지 판단용)
+                    prop.SetValue(o, walkSpeed);
+                    n++;
+                    if (debugLog)
+                        Debug.Log($"[Crane] 걷기 속도: '{o.name}' 기존 {old} m/s → {walkSpeed} m/s " +
+                                  $"({(walkSpeed < old ? "느려짐" : walkSpeed > old ? "빨라짐" : "동일")})");
+                }
+            }
+            if (debugLog && n == 0)
+                Debug.LogWarning("[Crane] 걷기 속도 적용 실패 — moveSpeed 가진 프로바이더 없음(리그에 ContinuousMove/DynamicMoveProvider 확인).");
+        }
+
     }
 }

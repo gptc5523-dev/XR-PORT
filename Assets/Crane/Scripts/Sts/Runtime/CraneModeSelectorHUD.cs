@@ -166,6 +166,8 @@ namespace Container.Crane.Sts
                 ? "<b>Y</b> 잡기 · <b>X</b> 놓기"
                 : "<b>Y</b> 잡기 · <b>X</b> 놓기 · <b>A</b> 운전실";
             sb.AppendLine($"<size=13><color=#7FFF7F>{btns}</color></size>");
+            // 시점 높이 조절 안내(모든 모드 공통) — 오른손 검지 트리거 누른 채 왼손 스틱 위/아래.
+            sb.AppendLine("<size=13><color=#7FFF7F>오른<b>트리거</b>+왼스틱 ↑↓ : 시점 높이</color></size>");
             return sb.ToString();
         }
     }

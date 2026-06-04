@@ -29,6 +29,7 @@ namespace Container.Crane.Sts.Net
 
         void OnEnable()
         {
+            AcquireMulticastLock();   // Quest/Android: 이 락이 없으면 OS가 브로드캐스트 '수신'을 차단 → 호스트 못 찾음
             try
             {
                 udp = new UdpClient { EnableBroadcast = true };
@@ -42,7 +43,36 @@ namespace Container.Crane.Sts.Net
         {
             try { udp?.Close(); } catch { }
             udp = null;
+            ReleaseMulticastLock();
         }
+
+        // ───────── Android(Quest) 멀티캐스트/브로드캐스트 수신 락 ─────────
+        //   안드로이드는 전력 절약을 위해 기본적으로 자신 앞으로 온 유니캐스트만 올려보내고
+        //   브로드캐스트/멀티캐스트 패킷은 버린다. WifiManager.MulticastLock을 잡아야 수신된다.
+#if UNITY_ANDROID && !UNITY_EDITOR
+        AndroidJavaObject multicastLock;
+        void AcquireMulticastLock()
+        {
+            try
+            {
+                using var player = new AndroidJavaClass("com.unity3d.player.UnityPlayer");
+                using var activity = player.GetStatic<AndroidJavaObject>("currentActivity");
+                using var wifi = activity.Call<AndroidJavaObject>("getSystemService", "wifi");
+                multicastLock = wifi.Call<AndroidJavaObject>("createMulticastLock", "STSCraneDiscovery");
+                multicastLock.Call("setReferenceCounted", true);
+                multicastLock.Call("acquire");
+            }
+            catch { multicastLock = null; }   // 실패해도 게임엔 영향 없음(수동 IP 폴백)
+        }
+        void ReleaseMulticastLock()
+        {
+            try { multicastLock?.Call("release"); multicastLock?.Dispose(); } catch { }
+            multicastLock = null;
+        }
+#else
+        void AcquireMulticastLock() { }
+        void ReleaseMulticastLock() { }
+#endif
 
         void Update()
         {

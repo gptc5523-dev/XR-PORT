@@ -30,7 +30,7 @@ namespace ContainerProject.EditorTools
         const string PaletteAsset = ContainerRoot + "/Container_Palette_Default.asset";
         const string PrefabAsset  = PrefabDir  + "/Container_20ft.prefab";
 
-        [MenuItem("Container/Build/Procedural Prefab")]
+        // [MenuItem("Container/컨테이너 프리팹 생성", false, 20)]   // 메뉴 숨김(미사용 — prefab 파이프라인 휴면) — 복구하려면 주석 해제
         public static void BuildAll()
         {
             EnsureFolder(ModelDir);
@@ -54,7 +54,7 @@ namespace ContainerProject.EditorTools
             EditorGUIUtility.PingObject(prefab);
         }
 
-        [MenuItem("Container/Regenerate Procedural Mesh")]
+        // [MenuItem("Container/절차 메시 재생성", false, 21)]   // 메뉴 숨김(미사용 — prefab 파이프라인 휴면) — 복구하려면 주석 해제
         public static void RegenerateMeshOnly()
         {
             EnsureFolder(ModelDir);

@@ -70,7 +70,9 @@ namespace Container.Crane.Sts
             // 운전모드일 때만 표시 — 컨트롤러의 CraneMode를 따른다(걷기/시점변경 모드면 숨김).
             //   컨트롤러를 못 찾으면(비VR/테스트 씬) 항상 표시(기존 동작 유지).
             if (controller == null) controller = FindController();
-            bool show = controller == null || controller.CraneMode;
+            // 관전자(순수 클라이언트)에겐 숨김 — 조종을 못 하니 운전 상태 출력이 무의미(ModeHUD/ArrowHUD와 동일 기준).
+            var nm = Unity.Netcode.NetworkManager.Singleton;
+            bool show = (nm == null || nm.IsServer) && (controller == null || controller.CraneMode);
             canvas.enabled = show;
             if (!show) { speedPrimed = false; return; }   // 숨길 땐 갱신 스킵 + 재표시 시 속도 재초기화
 

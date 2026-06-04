@@ -25,19 +25,19 @@ namespace ContainerProject.EditorTools
             new Color(0.85f, 0.78f, 0.58f),  // Beige
         };
 
-        [MenuItem("Container/Spawn/Procedural (1 unit)")]
+        [MenuItem("Container/컨테이너 생성 (1개)", false, 22)]
         public static void SpawnSingleProcedural()
         {
             SpawnSingle(length: ProceduralContainerMesh.Length20ft, suffix: "");
         }
 
-        [MenuItem("Container/Spawn/Procedural 40ft (1 unit)")]
+        [MenuItem("Container/컨테이너 생성 40ft (1개)", false, 23)]
         public static void SpawnSingleProcedural40ft()
         {
             SpawnSingle(length: ProceduralContainerMesh.Length40ft, suffix: "40ft");
         }
 
-        [MenuItem("Container/Spawn/Procedural 20ft + 40ft (each 1)")]
+        [MenuItem("Container/컨테이너 생성 20ft+40ft (각 1개)", false, 24)]
         public static void SpawnBothSizes()
         {
             // 기존 컨테이너 모두 삭제 (Std Set 동일 패턴)
@@ -95,7 +95,7 @@ namespace ContainerProject.EditorTools
             Debug.Log($"[VRTestMenu] Procedural 컨테이너 1개 스폰 (length={length}m, mesh bounds: {go.GetComponent<MeshFilter>().sharedMesh.bounds.size})");
         }
 
-        [MenuItem("Container/Spawn/Procedural (2x2)")]
+        [MenuItem("Container/컨테이너 생성 (2x2)", false, 25)]
         public static void SpawnProcedural2x2()
         {
             var existing = Object.FindObjectsByType<CubeReset>(FindObjectsSortMode.None);
@@ -147,7 +147,7 @@ namespace ContainerProject.EditorTools
 
         // Quay_Ground 아스팔트 위에 20ft·40ft 각 2개를 야드처럼 고정 배치.
         // CubeReset 미부착 → Play 시 카메라 앞으로 순간이동하지 않고 부두에 그대로 안착(크레인/손 집기 가능).
-        [MenuItem("Container/Place Containers on Quay")]
+        [MenuItem("Container/부두에 컨테이너 배치", false, 26)]
         public static void PlaceContainersOnQuay()
         {
             // 재실행 대비 — 기존 야드 컨테이너 제거
@@ -245,6 +245,9 @@ namespace ContainerProject.EditorTools
             var grab = root.AddComponent<XRGrabInteractable>();
             grab.useDynamicAttach = true;
             if (withReset) root.AddComponent<CubeReset>();
+
+            // 7. 적층 안정화(방식 A) — 컨테이너 한정(전역 물리 미변경). 기존 씬 컨테이너는 ContainerPhysicsStabilizer가 처리.
+            ContainerPhysics.Apply(rb, box);
 
             return root;
         }

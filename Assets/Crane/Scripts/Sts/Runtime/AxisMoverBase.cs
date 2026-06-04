@@ -20,9 +20,14 @@ namespace Container.Crane.Sts
         public void MoveTo(float value)
         {
             float clamped = Mathf.Clamp(value, LowerLimit, Max);
+            if (IsBlockedToward(clamped)) return;   // 진행 방향에 장애물(컨테이너 등) — 이동 정지(밀지 않음)
             WriteAxis(clamped);
             OnMoved(clamped);
         }
+
+        /// <summary>진행 방향(target)으로 가는 길에 장애물이 있으면 true → 그 방향 이동을 멈춘다.
+        /// 기본은 막힘 없음 — 충돌 정지가 필요한 축(GantryMover)만 override.</summary>
+        protected virtual bool IsBlockedToward(float target) => false;
 
         public void MoveToNormalized(float t01) => MoveTo(Mathf.Lerp(Min, Max, Mathf.Clamp01(t01)));
 

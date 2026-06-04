@@ -49,6 +49,7 @@ namespace Container.Crane.Sts.Net
         float nextFind;
         bool ipEntryMode;          // 참가 선택 후, 호스트 IP(마지막 옥텟) 입력 중
         int joinOctet = 10;        // 192.168.0.[joinOctet]
+        bool discoveredPrev;       // 자동 발견 엣지 검출(false→true 순간 한 번만 자동 접속)
         readonly StringBuilder sb = new StringBuilder(256);
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
@@ -137,21 +138,36 @@ namespace Container.Crane.Sts.Net
                 if (stepY != 0) selected = Mathf.Clamp(selected - stepY, 0, Options.Length - 1);  // ↑=위 항목
                 if (aNow && !aPrev)
                 {
-                    if (selected == 0) ui.BeginHost();        // 호스트는 바로 시작
-                    else { ipEntryMode = true; joinOctet = GuessOctet(); }  // 참가 → IP 입력 화면
+                    if (selected == 0) ui.BeginHost();              // 호스트는 바로 시작
+                    else if (ui.HostDiscovered)                     // 참가 — 이미 자동 발견됐으면 IP 입력 없이 즉시 접속
+                    {
+                        discoveredPrev = true;
+                        ui.BeginClient();
+                    }
+                    else { ipEntryMode = true; joinOctet = GuessOctet(); }  // 미발견 → 수동 입력 폴백
                 }
             }
             else
             {
-                // IP 입력 화면 — ↑↓ ±1, ←→ ±10 으로 마지막 숫자 맞춤. A 접속, B 뒤로.
-                if (stepY != 0) joinOctet = Mathf.Clamp(joinOctet + stepY, 0, 255);
-                if (stepX != 0) joinOctet = Mathf.Clamp(joinOctet + stepX * 10, 0, 255);
-                if (aNow && !aPrev)
+                // IP 입력(수동 폴백) 화면 — 그 사이 호스트가 자동 발견되면(엣지) 즉시 접속.
+                bool justDiscovered = ui.HostDiscovered && !discoveredPrev;
+                discoveredPrev = ui.HostDiscovered;
+                if (justDiscovered)
                 {
-                    ui.JoinIp = IpPrefix() + joinOctet;   // 192.168.0.[joinOctet]
-                    ui.BeginClient();
+                    ui.BeginClient();   // ui.JoinIp 는 LanDiscovery가 이미 호스트 IP로 채움
                 }
-                else if (bNow && !bPrev) ipEntryMode = false;   // 선택 화면으로 복귀
+                else
+                {
+                    // ↑↓ ±1, ←→ ±10 으로 마지막 숫자 맞춤. A 접속, B 뒤로.
+                    if (stepY != 0) joinOctet = Mathf.Clamp(joinOctet + stepY, 0, 255);
+                    if (stepX != 0) joinOctet = Mathf.Clamp(joinOctet + stepX * 10, 0, 255);
+                    if (aNow && !aPrev)
+                    {
+                        ui.JoinIp = IpPrefix() + joinOctet;   // 192.168.0.[joinOctet]
+                        ui.BeginClient();
+                    }
+                    else if (bNow && !bPrev) ipEntryMode = false;   // 선택 화면으로 복귀
+                }
             }
 
             aPrev = aNow; bPrev = bNow;
@@ -236,14 +252,22 @@ namespace Container.Crane.Sts.Net
 
             if (ipEntryMode)
             {
-                // ── 호스트 IP 입력 화면 ──
+                // ── 호스트 IP 입력 화면(수동 폴백) ──
                 sb.AppendLine("<color=#5FE0FF><b>호스트 IP 입력</b></color>");
                 sb.AppendLine();
-                sb.AppendLine($"<size=34><b>{IpPrefix()}<color=#FFD060>{joinOctet}</color></b></size>");
-                sb.AppendLine();
-                sb.AppendLine("<size=16><color=#BBBBBB>호스트 화면의 '내 IP' 마지막 숫자에 맞추세요.</color></size>");
-                sb.AppendLine();
-                sb.AppendLine("<size=15><color=#7FFF7F>스틱 ↑↓ ±1 · ←→ ±10 · A 접속 · B 뒤로</color></size>");
+                if (ui.HostDiscovered)
+                {
+                    sb.AppendLine($"<size=18><color=#7FFF7F>호스트 자동 발견: <b>{ui.JoinIp}</b></color></size>");
+                    sb.AppendLine("<size=16><color=#7FFF7F>접속 중...</color></size>");
+                }
+                else
+                {
+                    sb.AppendLine($"<size=34><b>{IpPrefix()}<color=#FFD060>{joinOctet}</color></b></size>");
+                    sb.AppendLine();
+                    sb.AppendLine("<size=16><color=#BBBBBB>호스트가 자동 발견되면 바로 접속됩니다. 안 되면 호스트 화면 '내 IP' 마지막 숫자에 맞추세요.</color></size>");
+                    sb.AppendLine();
+                    sb.AppendLine("<size=15><color=#7FFF7F>스틱 ↑↓ ±1 · ←→ ±10 · A 접속 · B 뒤로</color></size>");
+                }
                 return sb.ToString();
             }
 
@@ -256,8 +280,10 @@ namespace Container.Crane.Sts.Net
             sb.AppendLine();
             if (selected == 0)
                 sb.AppendLine($"<size=16><color=#BBBBBB>내 IP: <b>{ui.LocalIp}</b> (참가자에게 불러주세요) · 최대 {ui.MaxPlayers}인</color></size>");
+            else if (ui.HostDiscovered)
+                sb.AppendLine($"<size=16><color=#7FFF7F>호스트 자동 발견됨(<b>{ui.JoinIp}</b>) · A로 바로 접속</color></size>");
             else
-                sb.AppendLine($"<size=16><color=#BBBBBB>참가: 다음 화면에서 호스트 IP 마지막 숫자를 입력합니다.</color></size>");
+                sb.AppendLine($"<size=16><color=#BBBBBB>참가: 호스트를 자동으로 찾습니다(못 찾으면 다음 화면에서 수동 입력).</color></size>");
             sb.AppendLine();
             sb.AppendLine("<size=15><color=#7FFF7F>오른쪽 스틱 ↑↓ 선택 · A 버튼 확정</color></size>");
             return sb.ToString();

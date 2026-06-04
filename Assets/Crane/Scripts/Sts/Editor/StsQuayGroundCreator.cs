@@ -45,7 +45,7 @@ namespace Container.Crane.Sts.EditorTools
 
         static Mesh _unitQuad;
 
-        [MenuItem("Container/Create Quay Ground")]
+        [MenuItem("Container/부두 바닥 생성", false, 1)]
         public static void CreateFromMenu()
         {
             var prev = GameObject.Find(RootName);
