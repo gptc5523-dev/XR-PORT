@@ -101,7 +101,7 @@ namespace Container.Crane.Sts
         Transform FindPart(string partName)
         {
             foreach (var t in crane.GetComponentsInChildren<Transform>(true))
-                if (t.name == partName) return t;
+                if (CraneHud.BaseName(t.name) == partName) return t;
             return null;
         }
 

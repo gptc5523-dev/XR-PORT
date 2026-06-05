@@ -282,7 +282,7 @@ namespace Container.Crane.Sts
         {
             if (!string.IsNullOrEmpty(cabAnchorName))
                 foreach (var t in trolleyT.GetComponentsInChildren<Transform>(true))
-                    if (t.name == cabAnchorName) return t;
+                    if (CraneHud.BaseName(t.name) == cabAnchorName) return t;
             return trolleyT;
         }
 

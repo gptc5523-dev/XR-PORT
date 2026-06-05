@@ -161,6 +161,21 @@ namespace Container.Crane.Sts
                 canvas.rotation = Quaternion.LookRotation(dir.normalized, Vector3.up);
         }
 
+        /// <summary>파츠 이름 끝의 "_번호" 접미사를 떼고 원래 이름을 반환(StsCraneCreator가 부품을 _1,_2…로 번호매김 →
+        /// 이름 '==' 비교가 깨지지 않게). "Twistlock_Cone_3" → "Twistlock_Cone". 숫자 접미사가 없으면 그대로 반환.</summary>
+        public static string BaseName(string n)
+        {
+            if (string.IsNullOrEmpty(n)) return n;
+            int i = n.LastIndexOf('_');
+            if (i > 0 && i < n.Length - 1)
+            {
+                for (int k = i + 1; k < n.Length; k++)
+                    if (!char.IsDigit(n[k])) return n;   // 끝이 순수 숫자가 아니면 접미사 아님
+                return n.Substring(0, i);
+            }
+            return n;
+        }
+
         /// <summary>씬에 T가 없으면 자동 스폰(이미 있으면 스킵). 각 HUD의 RuntimeInitializeOnLoadMethod 본문 공용화.</summary>
         public static void EnsureSpawned<T>(string logTag) where T : MonoBehaviour
         {

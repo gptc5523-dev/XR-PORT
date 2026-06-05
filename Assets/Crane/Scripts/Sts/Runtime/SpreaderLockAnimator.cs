@@ -30,7 +30,7 @@ namespace Container.Crane.Sts
         void Collect(string partName)
         {
             foreach (var t in GetComponentsInChildren<Transform>(true))
-                if (t.name == partName)
+                if (CraneHud.BaseName(t.name) == partName)
                     parts.Add(new Part { t = t, restPos = t.localPosition, restRot = t.localRotation });
         }
 

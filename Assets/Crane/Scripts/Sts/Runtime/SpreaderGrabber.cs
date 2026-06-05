@@ -51,7 +51,7 @@ namespace Container.Crane.Sts
 
             var list = new List<Transform>();
             foreach (var t in GetComponentsInChildren<Transform>(true))
-                if (t.name == "Twistlock_Cone") list.Add(t);
+                if (CraneHud.BaseName(t.name) == "Twistlock_Cone") list.Add(t);
             twistlocks = list.ToArray();
 
             Refresh();

@@ -45,7 +45,7 @@ namespace Container.Crane.Sts
             {
                 var list = new List<Collider>();
                 foreach (var t in GetComponentsInChildren<Transform>(true))
-                    if (t.name == "Leg_Collider")
+                    if (CraneHud.BaseName(t.name) == "Leg_Collider")
                     {
                         var c = t.GetComponent<Collider>();
                         if (c != null) list.Add(c);
