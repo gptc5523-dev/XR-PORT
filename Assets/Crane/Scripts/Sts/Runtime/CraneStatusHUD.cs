@@ -38,6 +38,8 @@ namespace Container.Crane.Sts
         StsCraneVRController controller;    // 운전모드 여부 판단(이 모드일 때만 HUD 표시)
         SpreaderLockAnimator lockAnim;      // 트위스트락 잠금 상태(적재 표시 보강용)
         readonly StringBuilder sb = new StringBuilder(512);
+        string lastText;          // 직전 표시 문자열 — 바뀔 때만 Text.text 대입(캔버스 리빌드 절감)
+        float nextTextRefresh;    // 다음 텍스트 갱신 시각(CraneHud.TextHz 스로틀 — 매 프레임 문자열 생성/GC 방지)
 
         // ─── 속도 측정 ───
         // 크레인이 실척의 1/24로 생성됨(StsCraneCreator.Scale=1/24). 모델 속도(units/s)를 ÷Scale 하면 실척 m/s.
@@ -76,26 +78,14 @@ namespace Container.Crane.Sts
             canvas.enabled = show;
             if (!show) { speedPrimed = false; return; }   // 숨길 땐 갱신 스킵 + 재표시 시 속도 재초기화
 
-            // 카메라 부착 안 됐으면 재시도(XR Rig 초기화가 늦는 경우)
+            // 카메라 부착 안 됐으면 재시도(XR Rig 초기화가 늦는 경우). 빌보드 회전은 부착 시 1회만 설정한다
+            //   — 캔버스가 카메라 자식이라 카메라를 향하는 로컬 회전은 매 프레임 동일(상수)이므로 재계산 불필요.
             if (canvas.transform.parent == null || canvas.transform.parent == transform)
                 TryAttachToCamera();
 
-            // 매 프레임 캔버스가 카메라를 '정확히' 바라보게 + 180° Y 플립으로 거울 효과 해소.
-            //   (LookRotation 만으로는 캔버스 뒷면이 보여 거울처럼 보였음 — 양면 렌더링 + 글자 좌우 반전)
-            if (canvas.transform.parent != null && canvas.transform.parent != transform)
-            {
-                Vector3 toCam = -canvas.transform.localPosition;
-                if (toCam.sqrMagnitude > 1e-6f)
-                {
-                    canvas.transform.localRotation =
-                        Quaternion.LookRotation(toCam.normalized, Vector3.up)
-                        * Quaternion.Euler(0f, 180f, 0f)                              // ← 거울 효과 해소
-                        * Quaternion.Euler(tiltPitchDeg, tiltYawDeg, 0f);
-                }
-            }
-
-            UpdateSpeeds();
-            text.text = BuildText();
+            UpdateSpeeds();   // 속도 평활은 매 프레임(정확도) — 텍스트 생성/대입만 스로틀.
+            if (CraneHud.Due(ref nextTextRefresh, CraneHud.TextHz))
+                CraneHud.SetTextIfChanged(text, ref lastText, BuildText());
         }
 
         // ───────── 축별 현재 속도 측정(실척 m/min) ─────────
@@ -158,7 +148,7 @@ namespace Container.Crane.Sts
             }
             canvas.transform.SetParent(cam.transform, worldPositionStays: false);
             canvas.transform.localPosition = hmdOffset;
-            // 회전은 LateUpdate에서 매 프레임 LookRotation으로 카메라를 정확히 향하도록 갱신함.
+            CraneHud.FaceCameraChild(canvas.transform, hmdOffset, tiltPitchDeg, tiltYawDeg);   // 카메라 향함 — 부착 시 1회
 
             Debug.Log($"[HUD] '{cam.name}'(stereoEnabled={cam.stereoEnabled}, MainCamera tag={cam.CompareTag("MainCamera")}) 부착 완료. " +
                       $"localPos={hmdOffset}, 월드={canvas.transform.position:F2}, 카메라 월드={cam.transform.position:F2}");

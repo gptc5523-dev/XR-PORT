@@ -31,6 +31,8 @@ namespace Container.Crane.Sts
 
         Canvas canvas;
         Text text;
+        string lastText;        // 바뀔 때만 Text.text 대입(모드 바뀔 때만 변함 → 캔버스 리빌드 절감)
+        float nextTextRefresh;  // 텍스트 생성/대입 스로틀(CraneHud.TextHz) — 매 프레임 문자열 생성 방지
         readonly StringBuilder sb = new StringBuilder(512);
 
         // 일단 주석처리(사용자 요청) — '조작' 안내 HUD 비표시. 복구하려면 주석 해제
@@ -47,19 +49,12 @@ namespace Container.Crane.Sts
         void LateUpdate()
         {
             if (canvas == null || text == null) return;
+            // 빌보드 회전은 부착 시 1회만 설정 — 캔버스가 카메라 자식이라 향하는 로컬 회전은 매 프레임 동일(상수).
             if (canvas.transform.parent == null || canvas.transform.parent == transform)
                 TryAttachToCamera();
 
-            // 매 프레임 카메라를 향하게 + 180° Y 플립으로 거울 효과 해소(상태 HUD와 동일 패턴)
-            if (canvas.transform.parent != null && canvas.transform.parent != transform)
-            {
-                Vector3 toCam = -canvas.transform.localPosition;
-                if (toCam.sqrMagnitude > 1e-6f)
-                    canvas.transform.localRotation =
-                        Quaternion.LookRotation(toCam.normalized, Vector3.up) * Quaternion.Euler(0f, 180f, 0f);
-            }
-
-            text.text = BuildText();
+            if (CraneHud.Due(ref nextTextRefresh, CraneHud.TextHz))
+                CraneHud.SetTextIfChanged(text, ref lastText, BuildText());
         }
 
         void TryAttachToCamera()
@@ -69,6 +64,7 @@ namespace Container.Crane.Sts
             if (cam == null) return;
             canvas.transform.SetParent(cam.transform, worldPositionStays: false);
             canvas.transform.localPosition = hmdOffset;
+            CraneHud.FaceCameraChild(canvas.transform, hmdOffset);   // 카메라 향함 + 거울 해소 — 부착 시 1회
         }
 
         // ───────── Canvas/배경/텍스트 자동 생성 ─────────

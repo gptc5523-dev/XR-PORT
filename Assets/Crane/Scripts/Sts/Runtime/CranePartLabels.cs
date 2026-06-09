@@ -58,10 +58,12 @@ namespace Container.Crane.Sts
             public LineRenderer line;    // anchor→말풍선 지시선(없으면 null)
             public float prevPos, speedMpm;
             public bool primed;
+            public string lastText;   // 직전 표시 문자열 — 바뀔 때만 Text.text 대입(캔버스 리빌드 절감)
         }
 
         readonly List<Label> labels = new List<Label>();
         readonly StringBuilder sb = new StringBuilder(160);
+        float nextTextRefresh;   // 라벨 텍스트 생성/대입 스로틀(CraneHud.TextHz). 위치/빌보드는 매 프레임 갱신.
         SpreaderAttach attach;
         SpreaderLockAnimator lockAnim;
         Material leaderMat;
@@ -69,10 +71,17 @@ namespace Container.Crane.Sts
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void AutoSpawn() => CraneHud.EnsureSpawned<CranePartLabels>("PartLabels");
 
-        void Start()
+        bool built;   // 라벨 1회 생성 완료 여부(크레인이 절차 생성이라 늦게 나타날 수 있음 → 폴링 재시도)
+
+        void Start() => EnsureBuilt();
+
+        // 크레인이 아직 없으면(절차 생성 전) 비활성화하지 말고 매 프레임 재시도 → 늦게 생성돼도 라벨이 뜬다.
+        // (예전: crane==null이면 enabled=false로 영구 비활성 → 라벨이 영원히 안 보이던 버그)
+        void EnsureBuilt()
         {
+            if (built) return;
             if (crane == null) crane = FindAnyObjectByType<StsCrane>();
-            if (crane == null) { enabled = false; return; }
+            if (crane == null) return;
 
             attach = crane.Attach;
             var spreaderT = (crane.Spreader as Component)?.transform;
@@ -95,6 +104,8 @@ namespace Container.Crane.Sts
             // BuildLabel(Kind.Static, FindPart("Operator_Cab"), null, "운전실", "운전사 탑승", up);
             // BuildLabel(Kind.Static, FindPart("Boom_Girder"), null, "붐 거더", "트롤리 레일", up);
             // BuildLabel(Kind.Static, FindPart("Counterweight"), null, "평형추", "붐 균형추", up);
+
+            built = true;
         }
 
         // 크레인 하위에서 이름으로 부품 찾기(첫 매치). 정적 라벨 앵커용.
@@ -153,8 +164,11 @@ namespace Container.Crane.Sts
 
         void LateUpdate()
         {
+            if (!built) { EnsureBuilt(); if (!built) return; }   // 크레인 늦게 생성돼도 라벨 생성 재시도
+
             var cam = targetCamera != null ? targetCamera : Camera.main;
             if (cam == null) return;
+            bool refreshText = CraneHud.Due(ref nextTextRefresh, CraneHud.TextHz);   // 텍스트 생성은 이 빈도로만
             Vector3 camPos = cam.transform.position;
             Vector3 camFwd = cam.transform.forward;
             float dt = Time.deltaTime;
@@ -196,7 +210,9 @@ namespace Container.Crane.Sts
                     L.line.SetPosition(1, bubblePos - Vector3.up * halfH);
                 }
 
-                if (L.kind != Kind.Static) L.text.text = BuildText(L);   // 고정 라벨은 BuildLabel에서 1회 설정 끝
+                // 가동 라벨만, 스로틀 주기에 한해, 내용이 바뀔 때만 대입. 고정 라벨은 1회 설정 끝.
+                if (L.kind != Kind.Static && refreshText)
+                    CraneHud.SetTextIfChanged(L.text, ref L.lastText, BuildText(L));
             }
         }
 

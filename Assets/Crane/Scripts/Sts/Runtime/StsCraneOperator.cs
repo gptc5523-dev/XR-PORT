@@ -67,9 +67,11 @@ namespace Container.Crane.Sts
         /// <summary>현재 정규화 위치에서 target(0~1)까지 일정 속도로 이동.</summary>
         static IEnumerator MoveAxis(IAxisMover m, float target, float speed)
         {
+            target = Mathf.Clamp01(target);                          // 정규화 범위 밖 값 방지
             float cur = Mathf.InverseLerp(m.Min, m.Max, m.Current);
             float spd = Mathf.Max(0.01f, speed);
-            while (cur != target)
+            // MoveTowards가 target에 정확히 안착하지만, 부동소수 '!=' 대신 허용오차로 종료를 견고하게.
+            while (!Mathf.Approximately(cur, target))
             {
                 cur = Mathf.MoveTowards(cur, target, spd * Time.deltaTime);
                 m.MoveToNormalized(cur);

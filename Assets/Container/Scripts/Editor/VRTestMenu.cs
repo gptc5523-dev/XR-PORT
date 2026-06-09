@@ -98,41 +98,41 @@ namespace ContainerProject.EditorTools
         [MenuItem("Container/컨테이너 생성 (2x2)", false, 25)]
         public static void SpawnProcedural2x2()
         {
-            var existing = Object.FindObjectsByType<CubeReset>(FindObjectsSortMode.None);
-            foreach (var c in existing) Undo.DestroyObjectImmediate(c.gameObject);
+            // 재실행 대비 — 기존 절차 컨테이너 제거(CubeReset 유무 무관, 이름으로)
+            foreach (var existing in Object.FindObjectsByType<GameObject>(FindObjectsSortMode.None))
+                if (existing.name.StartsWith("Container_Procedural")) Undo.DestroyObjectImmediate(existing);
 
-            // 미니어처 크기 (1/24): 폭(Z) 0.102m, 높이(Y) 0.108m
-            const float gap = 0.005f;
-            const float containerWidth  = 2.438f / 24f;
-            const float containerHeight = 2.591f / 24f;
-            float halfH = (containerWidth + gap) * 0.5f;
-            float stackV = containerHeight + gap;
+            var quay = GameObject.Find("Quay_Ground");
+            if (quay == null)
+                Debug.LogWarning("[VRTestMenu] Quay_Ground 가 없습니다 — 월드 원점 기준 배치. 먼저 'Container/부두 바닥 생성' 권장.");
 
-            // (h, v) = (horizontalOffset, verticalOffset) — 좌하/우하/좌상/우상
-            var positions = new (float h, float v)[]
+            // 부두 야드('부두에 컨테이너 배치', X 0.60~1.08) 바다쪽 옆에 2x2 블록을 '고정' 배치.
+            //   ★ CubeReset 미부착(withReset:false) → Play 시 카메라 앞 절대높이로 순간이동하지 않고 부두에 안착.
+            //     (기존엔 CubeReset이 카메라 앞 1.4m로 옮겨, 1/24 리그에선 크레인 높이로 떠버렸음 — 그래서 부두 고정으로 변경.)
+            //   긴 축 Z(야드와 동일 정렬), 좌/우 칸은 X로 폭만큼 벌리고 위 칸은 Y로 적층.
+            const float yRest = 0.002f;
+            const float ContainerH = ProceduralContainerMesh.HeightStd * ProceduralContainerMesh.DefaultMiniatureScale;
+            const float yStack = yRest + ContainerH + 0.002f;
+            const float colGap = ProceduralContainerMesh.StdWidth * ProceduralContainerMesh.DefaultMiniatureScale + 0.006f;
+            const float baseX = 1.22f;   // 야드 마지막(1.08) 바다쪽 옆
+            var rot = Quaternion.Euler(0f, 90f, 0f);
+
+            var specs = new (Vector3 pos, string name)[]
             {
-                (-halfH, 0f),
-                (+halfH, 0f),
-                (-halfH, stackV),
-                (+halfH, stackV),
+                (new Vector3(baseX,          yRest,  0f), "Container_Procedural_BL"),
+                (new Vector3(baseX + colGap, yRest,  0f), "Container_Procedural_BR"),
+                (new Vector3(baseX,          yStack, 0f), "Container_Procedural_TL"),
+                (new Vector3(baseX + colGap, yStack, 0f), "Container_Procedural_TR"),
             };
-            Color[] colors = { PaletteColors[0], PaletteColors[1], PaletteColors[2], PaletteColors[3] };
-            string[] names = { "Container_Procedural_BL", "Container_Procedural_BR", "Container_Procedural_TL", "Container_Procedural_TR" };
 
             GameObject last = null;
-            for (int i = 0; i < 4; i++)
+            for (int i = 0; i < specs.Length; i++)
             {
-                var go = BuildOne(colors[i], names[i]);
-                var reset = go.GetComponent<CubeReset>();
-                if (reset != null)
-                {
-                    reset.SetHorizontalOffset(positions[i].h);
-                    reset.SetVerticalOffset(positions[i].v);
-                }
-                // 4개가 동시에 (0,0,0)에서 시작 → 콜라이더 겹쳐서 서로 튕기는 문제 방지.
-                // 스폰 직후엔 kinematic 고정. 사용자가 그랩 후 놓으면 CubeReset 이 자동으로 풀어줌.
+                var go = BuildOne(PaletteColors[i % PaletteColors.Length], specs[i].name, withReset: false);
+                go.transform.SetPositionAndRotation(specs[i].pos, rot);
+                if (quay != null) go.transform.SetParent(quay.transform, worldPositionStays: true);
                 var rb = go.GetComponent<Rigidbody>();
-                if (rb != null) rb.isKinematic = true;
+                if (rb != null) { rb.isKinematic = false; rb.useGravity = true; }   // 부두에 중력 안착, 집으면 풀림
                 Undo.RegisterCreatedObjectUndo(go, "Spawn Procedural 2x2");
                 last = go;
             }
@@ -142,7 +142,7 @@ namespace ContainerProject.EditorTools
                 var sv = SceneView.lastActiveSceneView;
                 if (sv != null) sv.FrameSelected();
             }
-            Debug.Log("[VRTestMenu] Procedural 컨테이너 4개 (2x2) 스폰 — kinematic 으로 고정. 그랩 후 놓으면 물리 활성화.");
+            Debug.Log("[VRTestMenu] 절차 컨테이너 2x2 — 부두 야드 바다쪽 옆에 고정 배치(CubeReset 없음 → 카메라 앞으로 안 튐).");
         }
 
         // Quay_Ground 아스팔트 위에 20ft·40ft 각 2개를 야드처럼 고정 배치.

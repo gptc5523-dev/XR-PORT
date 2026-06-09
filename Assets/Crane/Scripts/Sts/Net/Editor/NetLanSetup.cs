@@ -11,7 +11,7 @@ namespace Container.Crane.Sts.Net.EditorTools
     ///   1) 플레이어 아바타 프리팹(머리+양손) 생성 → Assets/Crane/Net/PlayerAvatar.prefab
     ///   2) 씬에 NetworkManager(+UnityTransport, NetLanUI, LanDiscovery) 생성·연결
     ///   3) 씬에 CraneNetSync(+NetworkObject) 생성
-    /// 메뉴: Tool ▸ LAN 멀티플레이 셋업 (5인)
+    /// 메뉴: Container ▸ LAN 멀티플레이 셋업 (5인)
     ///
     /// 손으로 NetworkObject를 붙이는 실수 위험을 없앤다. 셋업 후 씬을 저장하면 끝.
     /// </summary>
@@ -20,7 +20,7 @@ namespace Container.Crane.Sts.Net.EditorTools
         const string PrefabDir = "Assets/Crane/Net";
         const string PrefabPath = PrefabDir + "/PlayerAvatar.prefab";
 
-        [MenuItem("Tool/LAN 멀티플레이 셋업 (5인)")]
+        [MenuItem("Container/LAN 멀티플레이 셋업 (5인)")]
         public static void Setup()
         {
             var avatar = CreateOrLoadAvatarPrefab();
@@ -36,7 +36,7 @@ namespace Container.Crane.Sts.Net.EditorTools
         }
 
         // ───────── 1) 아바타 프리팹 ─────────
-        // 항만 작업자(안전모+보안경) 실루엣으로 조형 — 단순 큐브 placeholder 대신 의도된 모양.
+        // 매끈한 차콜 픽토그램(이목구비 없는 3D 마네킹) — 머리+양손. 언캐니 회피 위해 단순 조형.
         // 매번 새로 만들어 같은 경로에 덮어쓴다(GUID 유지 → NetworkManager.PlayerPrefab 참조 보존).
         // 디자인을 바꾸려면 이 함수의 오프셋/스케일/색을 수정 후 셋업 메뉴를 다시 실행.
         static GameObject CreateOrLoadAvatarPrefab()
@@ -44,36 +44,32 @@ namespace Container.Crane.Sts.Net.EditorTools
             if (!AssetDatabase.IsValidFolder(PrefabDir))
                 AssetDatabase.CreateFolder("Assets/Crane", "Net");
 
+            // 매끈한 차콜 픽토그램(이목구비 없는 3D 마네킹 스타일). 머리가 참가자색 tint 대상.
+            var CHARCOAL = new Color(0.20f, 0.21f, 0.24f);
+
             var root = new GameObject("PlayerAvatar");
             root.AddComponent<NetworkObject>();
             var sync = root.AddComponent<PlayerAvatarSync>();
 
-            // 머리(피부색 구) — 회전이 안전모/보안경에 전달되도록 부모로 사용. 자식 좌표는 머리 로컬 기준.
+            // 머리(매끈한 구) — 회전이 목에 전달되도록 부모. 참가자색은 이 머리에 칠해짐(tintTarget).
             var head = MakeVisual(PrimitiveType.Sphere, "Head", root.transform,
-                Vector3.zero, new Vector3(0.19f, 0.21f, 0.19f), new Color(0.86f, 0.68f, 0.56f));
+                Vector3.zero, new Vector3(0.198f, 0.214f, 0.198f), CHARCOAL, 0.55f);
+            var H = head.transform;
 
-            // 안전모 돔(머리 위 약간 납작한 구) — 이 렌더러에 참가자별 색이 칠해짐(tintTarget)
-            var helmet = MakeVisual(PrimitiveType.Sphere, "Helmet", head.transform,
-                new Vector3(0f, 0.28f, 0f), new Vector3(1.2f, 0.85f, 1.2f), new Color(0.96f, 0.74f, 0.12f));
-            // 안전모 챙(얇은 원기둥) — 이마 앞으로 살짝 튀어나옴
-            MakeVisual(PrimitiveType.Cylinder, "Brim", head.transform,
-                new Vector3(0f, 0.10f, 0.04f), new Vector3(1.5f, 0.05f, 1.5f), new Color(0.92f, 0.70f, 0.10f));
-            // 보안경/바이저(눈 위치 어두운 띠)
-            MakeVisual(PrimitiveType.Cube, "Visor", head.transform,
-                new Vector3(0f, 0.0f, 0.44f), new Vector3(0.95f, 0.30f, 0.30f), new Color(0.05f, 0.05f, 0.08f));
+            // 짧은 목(머리 아래) — 머리 로컬 기준
+            MakeVisual(PrimitiveType.Sphere, "Neck", H,
+                new Vector3(0f, -0.4907f, 0.0505f), new Vector3(0.4545f, 0.4673f, 0.4545f), CHARCOAL, 0.45f);
 
-            // 양손 — 작업 장갑 느낌의 둥근 모양(납작한 구)
-            var lh = MakeVisual(PrimitiveType.Sphere, "LeftHand", root.transform,
-                Vector3.zero, new Vector3(0.09f, 0.075f, 0.11f), new Color(0.22f, 0.24f, 0.28f));
-            var rh = MakeVisual(PrimitiveType.Sphere, "RightHand", root.transform,
-                Vector3.zero, new Vector3(0.09f, 0.075f, 0.11f), new Color(0.22f, 0.24f, 0.28f));
+            // 양손(둥근 주먹) — 위치는 런타임에 컨트롤러를 따라가므로 형상만, localPos는 0.
+            var lh = MakeVisual(PrimitiveType.Sphere, "LeftHand",  root.transform, Vector3.zero, new Vector3(0.11f, 0.10f, 0.132f), CHARCOAL, 0.5f);
+            var rh = MakeVisual(PrimitiveType.Sphere, "RightHand", root.transform, Vector3.zero, new Vector3(0.11f, 0.10f, 0.132f), CHARCOAL, 0.5f);
 
             // 직렬화 private 필드 연결
             var so = new SerializedObject(sync);
             so.FindProperty("head").objectReferenceValue = head.transform;
             so.FindProperty("leftHand").objectReferenceValue = lh.transform;
             so.FindProperty("rightHand").objectReferenceValue = rh.transform;
-            so.FindProperty("tintTarget").objectReferenceValue = helmet.GetComponent<Renderer>();
+            so.FindProperty("tintTarget").objectReferenceValue = head.GetComponent<Renderer>();
             so.ApplyModifiedPropertiesWithoutUndo();
 
             var prefab = PrefabUtility.SaveAsPrefabAsset(root, PrefabPath);
@@ -82,7 +78,7 @@ namespace Container.Crane.Sts.Net.EditorTools
         }
 
         static GameObject MakeVisual(PrimitiveType type, string name, Transform parent,
-                                     Vector3 localPos, Vector3 localScale, Color color)
+                                     Vector3 localPos, Vector3 localScale, Color color, float smoothness = 0.5f)
         {
             var go = GameObject.CreatePrimitive(type);
             go.name = name;
@@ -93,6 +89,7 @@ namespace Container.Crane.Sts.Net.EditorTools
             go.transform.localScale = localScale;
 
             var mat = new Material(Shader.Find("Universal Render Pipeline/Lit")) { color = color };
+            mat.SetFloat("_Smoothness", smoothness);   // 매끈한 광택(픽토그램 느낌)
             go.GetComponent<Renderer>().sharedMaterial = mat;
             return go;
         }

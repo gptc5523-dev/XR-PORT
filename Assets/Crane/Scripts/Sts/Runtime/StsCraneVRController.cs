@@ -17,7 +17,7 @@ namespace Container.Crane.Sts
     ///   - 이동모드: 스틱 무시, XR 로코모션(걷기) 활성
     /// [공통] Y 버튼(왼손) → 집기,  X 버튼(왼손) → 놓기
     ///   (집기/놓기를 X·Y에 둬서 트리거/그립은 손 직접 집기[XRGrabInteractable]와 겹치지 않음)
-    /// A 버튼(오른손 주): 운전/갠트리 모드일 때 운전실 시점(트롤리 위로 시점 이동, 고개 숙여 내려다봄) 토글.
+    /// A 버튼(오른손 주): 운전/갠트리 모드일 때 운전실 시점(운전실 좌석 눈높이로 이동·스프레더 향, 고개 숙여 내려다봄) 토글.
     /// 운전/갠트리 모드일 때만 씬의 XR 로코모션을 끄고, 이동모드면 복구한다.
     /// </summary>
     [AddComponentMenu("Container/STS Crane/STS Crane VR Controller")]
@@ -36,8 +36,8 @@ namespace Container.Crane.Sts
         [SerializeField] Behaviour[] suppressWhileControlling;
 
         [Header("속도 (실제 m/s, 스틱 최대 시 — 모델 1/24 축척 자동 반영)")]
-        [Tooltip("트롤리 횡행 — 실제 STS 정격 ≈ 240 m/min = 4 m/s")]
-        [SerializeField] float trolleySpeedMps = 4f;
+        [Tooltip("트롤리 횡행 — 실제 STS 정격 ≈ 198 m/min = 3.3 m/s (240/4.0에서 묵직하게 하향)")]
+        [SerializeField] float trolleySpeedMps = 3.3f;
         [Tooltip("호이스트 공하(빈 스프레더) 권상/권하 ≈ 2.7 m/s — 컨테이너 안 잡았을 때")]
         [SerializeField] float hoistEmptySpeedMps = 2.7f;
         [Tooltip("호이스트 만재(컨테이너 적재) 권상/권하 ≈ 1.3 m/s — 컨테이너 잡으면 자동 적용")]
@@ -46,8 +46,8 @@ namespace Container.Crane.Sts
         [SerializeField] float gantrySpeedMps = 0.75f;
 
         [Header("이동(걷기) 속도")]
-        [Tooltip("이동모드 걷기 속도(m/s). 시작 시 XR 로코모션 Move Speed를 이 값으로 설정한다(인스펙터 기본 ~2.5보다 낮춤). 0 이하면 안 건드림.")]
-        [SerializeField] float walkSpeed = 1.2f;
+        [Tooltip("이동모드 걷기 속도(m/s, 체감). 시작 시 XR 로코모션 Move Speed를 이 값으로 설정한다. 0 이하면 안 건드림. 수직이동(ViewHeightSpeed)과 동일한 8로 맞춤. 너무 빠르면/느리면 이 값만 조정.")]
+        [SerializeField] float walkSpeed = 8f;
 
         // 실제 m/s에 crane.ModelScale(=1/24)을 곱하면 모델(씬) 단위 m/s. 모델은 작아도 '실제 크레인이
         // 그 거리를 지나는 데 걸리는 시간(초)'은 현실과 동일. 축척은 StsCrane.ModelScale 단일 소스 참조.
@@ -244,7 +244,7 @@ namespace Container.Crane.Sts
             if (debugLog) Debug.Log($"[Crane] 모드 → {ModeNames[(int)mode]}");
         }
 
-        // ───────── 운전실 시점 (시점만 트롤리 위로 이동, 크기 변경 없음) ─────────
+        // ───────── 운전실 시점 (카메라를 운전실 좌석 눈높이 앵커로 이동, 크기 변경 없음) ─────────
         void EnterCabView()
         {
             var cam = Camera.main;
@@ -254,7 +254,7 @@ namespace Container.Crane.Sts
                 if (debugLog) Debug.LogWarning("[Crane] 운전실 시점 실패 — Main 카메라 또는 트롤리를 못 찾음");
                 return;
             }
-            cabAnchor = FindCabAnchor(trolleyT);
+            cabAnchor = FindCabAnchor(trolleyT, out bool dedicated);
             rig = cam.transform.root;          // XR Origin 루트 이동(카메라+컨트롤러 함께)
             savedRigPos = rig.position;
             savedRigRot = rig.rotation;
@@ -266,20 +266,35 @@ namespace Container.Crane.Sts
             foreach (var c in rig.GetComponentsInChildren<Collider>(true))
                 if (c.enabled) { c.enabled = false; rigColliders.Add(c); }
 
-            // 카메라가 운전실(기준 부품 + 오프셋)에 오도록 리그를 평행 이동. 시선 방향은 사용자 머리에 맡김(VR).
-            //   오프셋은 크레인 방향(트롤리 회전)으로만 회전시키고 스케일은 안 곱함 → 1/24 모델에서도 m 단위 그대로.
-            Vector3 target = cabAnchor.position + trolleyT.rotation * cabLocalOffset;
-            rig.position += target - cam.transform.position;
+            // 카메라가 운전실 시점에 오도록 리그를 평행 이동.
+            //   전용 앵커(Cab_Viewpoint)면 그 좌표가 곧 좌석 눈높이 → 오프셋 0. 아니면 레거시(기준부품 + 오프셋, 트롤리 회전만 반영·스케일 안 곱함).
+            Vector3 target = dedicated ? cabAnchor.position
+                                       : cabAnchor.position + trolleyT.rotation * cabLocalOffset;
+            // 전용 앵커면 시선(요)을 운전실 전방(스프레더/바다쪽)에 정렬 — 상하 피치는 머리에 맡김(고개 숙여 내려다봄).
+            if (dedicated)
+            {
+                Vector3 fwd = cabAnchor.forward; fwd.y = 0f;
+                Vector3 camFwd = cam.transform.forward; camFwd.y = 0f;
+                if (fwd.sqrMagnitude > 1e-4f && camFwd.sqrMagnitude > 1e-4f)
+                    rig.rotation = Quaternion.FromToRotation(camFwd.normalized, fwd.normalized) * rig.rotation;
+            }
+            rig.position += target - cam.transform.position;   // (회전 후) 카메라를 시점으로 정렬
             lastTrolleyPos = trolleyT.position;
 
             cabView = true;
             Haptic(InputDevices.GetDeviceAtXRNode(XRNode.RightHand), 0.4f, 0.06f);
-            if (debugLog) Debug.Log($"[Crane] A → 운전실 시점 ON — 기준 '{cabAnchor.name}', 오프셋 {cabLocalOffset} (고개 숙여 아래를 보세요)");
+            if (debugLog) Debug.Log($"[Crane] A → 운전실 시점 ON — 기준 '{cabAnchor.name}'" +
+                (dedicated ? " (전용 좌석 앵커·시선 스프레더 정렬)" : $", 오프셋 {cabLocalOffset}") + " (고개 숙여 아래를 보세요)");
         }
 
-        // 시점 기준 부품 찾기 — 트롤리 하위에서 이름으로(재귀). 못 찾으면 트롤리 본체.
-        Transform FindCabAnchor(Transform trolleyT)
+        // 시점 기준 부품 찾기 — 트롤리 하위에서 이름으로(재귀).
+        //   우선순위: 전용 'Cab_Viewpoint'(운전실 좌석 눈높이 앵커, 생성기가 심음) → 직렬화된 cabAnchorName → 트롤리 본체.
+        //   전용 앵커면 dedicated=true → EnterCabView가 오프셋 0 + 전방(스프레더) 시선정렬을 적용.
+        Transform FindCabAnchor(Transform trolleyT, out bool dedicated)
         {
+            dedicated = false;
+            foreach (var t in trolleyT.GetComponentsInChildren<Transform>(true))
+                if (CraneHud.BaseName(t.name) == "Cab_Viewpoint") { dedicated = true; return t; }
             if (!string.IsNullOrEmpty(cabAnchorName))
                 foreach (var t in trolleyT.GetComponentsInChildren<Transform>(true))
                     if (CraneHud.BaseName(t.name) == cabAnchorName) return t;
@@ -362,11 +377,20 @@ namespace Container.Crane.Sts
 
         // 걷기 속도 설정 — 로코모션 프로바이더 중 'moveSpeed' 속성을 가진 것(=ContinuousMove/DynamicMove)에 적용.
         //   리플렉션이라 XRI 버전·프리팹 직렬화와 무관하게 시작 시 한 번 박는다. (다른 프로바이더는 moveSpeed 없어 무시)
+        /// <summary>리그 스케일이 바뀐 뒤(CranePlayerRigScale 등) 걷기 속도를 다시 적용한다(호환용 — 스케일 무관, walkSpeed 그대로).</summary>
+        public void ReapplyWalkSpeed() => ApplyWalkSpeed();
+
         void ApplyWalkSpeed()
         {
             if (walkSpeed <= 0f) return;
             var locoType = LocomotionProviderType;
             if (locoType == null) return;
+            // ★ rigScale을 곱하지 않는다(중요). XRI ContinuousMoveProvider는 이동량 계산 시 이미
+            //   `m_MoveSpeed * deltaTime * originTransform.localScale.x`로 리그 스케일(1/24)을 곱한다
+            //   ("Adjust speed with user scale"). 여기서 또 walkSpeed×rigScale을 넣으면 1/24 × 1/24 = 1/576이라
+            //   걷기가 사실상 0이 된다(턴은 회전이라 스케일 무관 → 정상 → '오른쪽만 되고 왼쪽 걷기 안 됨').
+            //   → moveSpeed에는 원하는 '체감' 속도(walkSpeed)를 그대로 넣고, 월드 축소 반영은 XRI에 맡긴다.
+            float effective = walkSpeed;
             int n = 0;
             foreach (var o in FindObjectsByType(locoType, FindObjectsInactive.Exclude, FindObjectsSortMode.None))
             {
@@ -374,11 +398,10 @@ namespace Container.Crane.Sts
                 if (prop != null && prop.CanWrite && prop.PropertyType == typeof(float))
                 {
                     float old = (float)prop.GetValue(o);   // 설정 전 기존 속도(빠른지/느린지 판단용)
-                    prop.SetValue(o, walkSpeed);
+                    prop.SetValue(o, effective);
                     n++;
                     if (debugLog)
-                        Debug.Log($"[Crane] 걷기 속도: '{o.name}' 기존 {old} m/s → {walkSpeed} m/s " +
-                                  $"({(walkSpeed < old ? "느려짐" : walkSpeed > old ? "빨라짐" : "동일")})");
+                        Debug.Log($"[Crane] 걷기 속도: '{o.name}' 기존 {old} → {effective} m/s (walkSpeed 그대로, 리그 스케일은 XRI가 반영)");
                 }
             }
             if (debugLog && n == 0)

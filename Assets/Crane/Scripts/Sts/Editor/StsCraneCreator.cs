@@ -102,9 +102,6 @@ namespace Container.Crane.Sts.EditorTools
         [MenuItem("Container/STS 크레인 생성", false, 0)]
         public static void CreateFromMenu40ft() => CreateAtContainer(SpreaderHalf40);
 
-        // [MenuItem("Container/Create STS Crane 20ft")]   // 메뉴 숨김(사용자 요청, 일단) — 40ft 크레인이 텔레스코픽으로 20ft 커버
-        public static void CreateFromMenu20ft() => CreateAtContainer(SpreaderHalf20);
-
         // 컨테이너 위치에 지정 스프레더 사이즈(반길이)로 생성 — 기존 인스턴스는 교체.
         static void CreateAtContainer(float spreaderHalf)
         {
@@ -288,13 +285,15 @@ namespace Container.Crane.Sts.EditorTools
                             for (int w = -1; w <= 1; w += 2)
                             {
                                 float wz = sbz + w * bz * 0.18f;
+                                // 바퀴 중심 y=0.021 — 레일 윗면(0.008) + 바퀴 반경(0.013) → 트레드가 레일에 접지.
+                                //   (이전 0.014는 바퀴 하단 0.001로 레일을 7mm 관통, 트레드가 아스팔트에 닿았음)
                                 Rod(root, "Wheel",
-                                    new Vector3(x - LegSec * 0.62f, 0.014f, wz),
-                                    new Vector3(x + LegSec * 0.62f, 0.014f, wz), 0.013f, wheelC);
+                                    new Vector3(x - LegSec * 0.62f, 0.021f, wz),
+                                    new Vector3(x + LegSec * 0.62f, 0.021f, wz), 0.013f, wheelC);
                                 for (int hs = -1; hs <= 1; hs += 2)
                                     Rod(root, "Wheel_Hub",
-                                        new Vector3(x + hs * LegSec * 0.5f, 0.014f, wz),
-                                        new Vector3(x + hs * LegSec * 0.66f, 0.014f, wz), 0.006f, CDark);
+                                        new Vector3(x + hs * LegSec * 0.5f, 0.021f, wz),
+                                        new Vector3(x + hs * LegSec * 0.66f, 0.021f, wz), 0.006f, CDark);
                                 Box(root, "Bogie_AxleBox", new Vector3(x, 0.024f, wz),
                                     new Vector3(LegSec * 0.5f, 0.012f, 0.01f), CMachine);
                             }
@@ -993,7 +992,7 @@ namespace Container.Crane.Sts.EditorTools
                 Cone(trolley, "Rope_Socket_Basket",
                     sk + new Vector3(0f, -0.016f, 0f), sk + new Vector3(0f, -0.004f, 0f), 0.003f, 0.007f, CDark);
             }
-            // 운전실(운전석) — 재설계. 스프레더 뒤(-X)에 매달려 전면(+X) 경사창으로 화물을 내려다본다.
+            // 운전실(운전석) — 현실 STS대로 바다쪽(+X)에 매달려 전면 경사창으로 발밑 화물을 내려다본다(내부 180° 미러).
             BuildOperatorCab(trolley);
 
             // (내가 추가했던 Trolley_Gearbox·Trolley_Cabinet·Trolley_DriveShaft·모터 부속(핀/팬커버/플랜지/감속기) 전부 제거
@@ -1059,18 +1058,24 @@ namespace Container.Crane.Sts.EditorTools
                     new Vector3(0.003f, 0.003f, 2f * hz), CDark);
         }
 
-        // 운전실(운전석) 재설계 — 트롤리 하부, 스프레더 뒤(-X)에 매달려 전면(+X)으로 화물을 내려다본다.
+        // 운전실(운전석) — 현실 STS대로 트롤리 하부 '바다쪽(+X)'에 매달려 전면 경사창으로 발밑 화물(스프레더/선박)을 내려다본다.
+        //   [배치] 좌표 산식은 트롤리-로컬 그대로(cx=-0.078 등)지만, 'cab' 홀더를 트롤리 원점 기준 180°Y 회전시켜
+        //          전체를 x=0 대칭 미러 → 본체가 바다쪽(+X)으로 가고 전면이 스프레더(-X 방향)를 향한다.
         //   실제 STS 운전실: 전면 하부 '경사창'(내려다보기) + 좌석/콘솔 + 측·후면 도어 + 지붕 + 하부 작업등 + 후면 접근 플랫폼.
-        //   좌표는 트롤리 로컬. 본체(y≥-0.05)·헤드(x∈±0.035)·로프소켓(x≈-0.03)과 안 겹치게: 운전실은 x≤-0.042, y≤-0.052.
+        //   본체(y≥-0.05)·헤드(x∈±0.035)·로프소켓(x≈-0.03)과 안 겹치게(미러 후 |x|≥0.042 대칭 유지): y≤-0.052.
         static void BuildOperatorCab(Transform trolley)
         {
+            // 바다쪽 매달림 — 트롤리 원점 기준 180°Y 회전 홀더(정상회전이라 노멀/와인딩 보존). 이하 모든 부품을 'cab' 자식에 빌드.
+            Transform cab = new GameObject("OperatorCab").transform;
+            cab.SetParent(trolley, false);
+            cab.localRotation = Quaternion.Euler(0f, 180f, 0f);
             // ============================================================================
-            //  OPERATOR CAB — 처음부터 새로(기존 폐기). SOLID & SEALED by construction:
+            //  OPERATOR CAB — SOLID & SEALED by construction:
             //  닫힌 하부 박스 + 사방 솔리드 프레임(4기둥+레일)으로 둘러싸고 유리는 '채움'만 →
             //  뚫린 틈·떠다니는 부품이 구조적으로 불가능. 그레이 몸체 + 슬림 오렌지 액센트 + 전방 바이저.
-            //  전부 x<0(스프레더 뒤), 지붕 top < 헤드 하단(-0.0725).
+            //  cab-local x<0(미러 전 기준), 지붕 top < 헤드 하단(-0.0725).
             // ============================================================================
-            float hx = 0.034f, hz = 0.040f, cx = -0.078f;       // 반깊이/반폭, 중심 X
+            float hx = 0.034f, hz = 0.040f, cx = -0.078f;       // 반깊이/반폭, 중심 X (cab-local; 홀더 180°로 +X 미러됨)
             float roofY = -0.077f, floorY = -0.152f;            // 지붕 top=-0.074<-0.0725; 높이 0.075(~1.8m)
             float h = roofY - floorY, midY = (floorY + roofY) * 0.5f;
             float frontX = cx + hx, backX = cx - hx;            // 전 -0.044, 후 -0.112 (둘 다 <0)
@@ -1080,69 +1085,78 @@ namespace Container.Crane.Sts.EditorTools
 
             // ---- 솔리드 하부 박스(floor->sill): 닫힌 박스 1개 = 밀폐 베이스 ----
             float lwY = (floorY + sillY) * 0.5f, lwH = sillY - floorY;
-            PbBox(trolley, "Cab_LowerBox", new Vector3(cx, lwY, 0f), new Vector3(2f * hx, lwH, 2f * hz), bodyC);
-            PbBox(trolley, "Cab_Kick", new Vector3(cx, floorY + lwH * 0.14f, 0f), new Vector3(2f * hx + 0.004f, lwH * 0.30f, 2f * hz + 0.004f), frame);  // 다크 토킥
-            PbBox(trolley, "Cab_Waistline", new Vector3(cx, sillY - 0.003f, 0f), new Vector3(2f * hx + 0.004f, 0.005f, 2f * hz + 0.004f), accent);      // 오렌지 허리선
+            PbBox(cab, "Cab_LowerBox", new Vector3(cx, lwY, 0f), new Vector3(2f * hx, lwH, 2f * hz), bodyC);
+            PbBox(cab, "Cab_Kick", new Vector3(cx, floorY + lwH * 0.14f, 0f), new Vector3(2f * hx + 0.004f, lwH * 0.30f, 2f * hz + 0.004f), frame);  // 다크 토킥
+            PbBox(cab, "Cab_Waistline", new Vector3(cx, sillY - 0.003f, 0f), new Vector3(2f * hx + 0.004f, 0.005f, 2f * hz + 0.004f), accent);      // 오렌지 허리선
             for (int sz = -1; sz <= 1; sz += 2)
-                PbBox(trolley, "Cab_SideAccent", new Vector3(cx, floorY + lwH * 0.62f, sz * (hz + 0.0015f)), new Vector3(2f * hx * 0.9f, lwH * 0.4f, 0.002f), accent);
+                PbBox(cab, "Cab_SideAccent", new Vector3(cx, floorY + lwH * 0.62f, sz * (hz + 0.0015f)), new Vector3(2f * hx * 0.9f, lwH * 0.4f, 0.002f), accent);
 
             // ---- 창 밴드(sill->header): 솔리드 프레임(4기둥+상단레일) + 유리 채움 ----
             float ubY = (sillY + hdrY) * 0.5f, ubH = hdrY - sillY;
             for (int sx = -1; sx <= 1; sx += 2)
             for (int sz = -1; sz <= 1; sz += 2)
-                PbBox(trolley, "Cab_Post", new Vector3(cx + sx * hx, ubY, sz * hz), new Vector3(0.007f, ubH + 0.006f, 0.007f), frame);  // 4 솔리드 코너 기둥(수직 봉인)
-            PbBox(trolley, "Cab_HeaderRail", new Vector3(cx, hdrY, 0f), new Vector3(2f * hx + 0.004f, 0.005f, 2f * hz + 0.004f), frame);  // 상단 레일(밴드 상단 봉인)
+                PbBox(cab, "Cab_Post", new Vector3(cx + sx * hx, ubY, sz * hz), new Vector3(0.007f, ubH + 0.006f, 0.007f), frame);  // 4 솔리드 코너 기둥(수직 봉인)
+            PbBox(cab, "Cab_HeaderRail", new Vector3(cx, hdrY, 0f), new Vector3(2f * hx + 0.004f, 0.005f, 2f * hz + 0.004f), frame);  // 상단 레일(밴드 상단 봉인)
             // 유리(전 + 양측 + 후) — 거의 full폭이라 가장자리가 기둥 밑으로 들어가 봉인
-            PbBox(trolley, "Cab_GlassFront", new Vector3(frontX, ubY, 0f), new Vector3(0.002f, ubH, 2f * hz * 0.94f), CGlass);
+            PbBox(cab, "Cab_GlassFront", new Vector3(frontX, ubY, 0f), new Vector3(0.002f, ubH, 2f * hz * 0.94f), CGlass);
             for (int sz = -1; sz <= 1; sz += 2)
-                PbBox(trolley, "Cab_GlassSide", new Vector3(cx, ubY, sz * hz), new Vector3(2f * hx * 0.94f, ubH, 0.002f), CGlass);
+                PbBox(cab, "Cab_GlassSide", new Vector3(cx, ubY, sz * hz), new Vector3(2f * hx * 0.94f, ubH, 0.002f), CGlass);
             // 솔리드 뒷벽 — 밴드 개구부를 꽉 채워(폭 2hz=기둥까지, 높이 sill~header) 봉인. 떠 보이던 작은 유리 교체.
-            PbBox(trolley, "Cab_BackWall", new Vector3(backX, ubY, 0f), new Vector3(0.004f, ubH + 0.004f, 2f * hz), bodyC);
-            PbBox(trolley, "Cab_BackWindow", new Vector3(backX - 0.0006f, ubY + ubH * 0.16f, 0f), new Vector3(0.002f, ubH * 0.42f, 2f * hz * 0.46f), CGlass);   // 뒷벽 소창(솔리드 벽에 인셋 → 안 떠다님)
+            PbBox(cab, "Cab_BackWall", new Vector3(backX, ubY, 0f), new Vector3(0.004f, ubH + 0.004f, 2f * hz), bodyC);
+            PbBox(cab, "Cab_BackWindow", new Vector3(backX - 0.0006f, ubY + ubH * 0.16f, 0f), new Vector3(0.002f, ubH * 0.42f, 2f * hz * 0.46f), CGlass);   // 뒷벽 소창(솔리드 벽에 인셋 → 안 떠다님)
             for (int m = -1; m <= 1; m += 2)                                                       // 슬림 멀리언(전면 2)
-                PbBox(trolley, "Cab_MullF", new Vector3(frontX + 0.0006f, ubY, m * hz * 0.42f), new Vector3(0.003f, ubH, 0.003f), frame);
+                PbBox(cab, "Cab_MullF", new Vector3(frontX + 0.0006f, ubY, m * hz * 0.42f), new Vector3(0.003f, ubH, 0.003f), frame);
             for (int sz = -1; sz <= 1; sz += 2)                                                    // 측면 멀리언 1씩
-                PbBox(trolley, "Cab_MullS", new Vector3(cx, ubY, sz * (hz + 0.0006f)), new Vector3(0.003f, ubH, 0.003f), frame);
+                PbBox(cab, "Cab_MullS", new Vector3(cx, ubY, sz * (hz + 0.0006f)), new Vector3(0.003f, ubH, 0.003f), frame);
 
             // ---- 솔리드 헤더 + 지붕(상단 봉인, 지붕 오버행 < 헤드) ----
             float hbY = (hdrY + roofY) * 0.5f, hbH = roofY - hdrY;
-            PbBox(trolley, "Cab_HeaderBox", new Vector3(cx, hbY, 0f), new Vector3(2f * hx, hbH, 2f * hz), bodyC);
-            PbBox(trolley, "Cab_Roof", new Vector3(cx, roofY, 0f), new Vector3(2f * hx + 0.014f, 0.006f, 2f * hz + 0.014f), frame);  // top -0.074
-            PbBox(trolley, "Cab_Visor", new Vector3(frontX + 0.009f, roofY - 0.0015f, 0f), new Vector3(0.020f, 0.004f, 2f * hz + 0.008f), frame);  // 전방 바이저
+            PbBox(cab, "Cab_HeaderBox", new Vector3(cx, hbY, 0f), new Vector3(2f * hx, hbH, 2f * hz), bodyC);
+            PbBox(cab, "Cab_Roof", new Vector3(cx, roofY, 0f), new Vector3(2f * hx + 0.014f, 0.006f, 2f * hz + 0.014f), frame);  // top -0.074
+            PbBox(cab, "Cab_Visor", new Vector3(frontX + 0.009f, roofY - 0.0015f, 0f), new Vector3(0.020f, 0.004f, 2f * hz + 0.008f), frame);  // 전방 바이저
 
             // ---- 현수: 지붕 모서리 -> 트롤리 본체 하단(y=-0.05, 본체 발자국 안) ----
             for (int sz = -1; sz <= 1; sz += 2)
             {
-                Strut(trolley, "Cab_Hanger", new Vector3(frontX, roofY, sz * hz * 0.6f), new Vector3(-0.045f, -0.05f, sz * hz * 0.45f), 0.004f, CStruct);
-                Strut(trolley, "Cab_Hanger", new Vector3(backX,  roofY, sz * hz * 0.6f), new Vector3(-0.055f, -0.05f, sz * hz * 0.45f), 0.004f, CStruct);
+                Strut(cab, "Cab_Hanger", new Vector3(frontX, roofY, sz * hz * 0.6f), new Vector3(-0.045f, -0.05f, sz * hz * 0.45f), 0.004f, CStruct);
+                Strut(cab, "Cab_Hanger", new Vector3(backX,  roofY, sz * hz * 0.6f), new Vector3(-0.055f, -0.05f, sz * hz * 0.45f), 0.004f, CStruct);
             }
 
             // ---- 내부(좌석+콘솔+조이스틱+모니터) — 유리 너머로 보임 ----
             float seatX = cx + 0.004f, seatY = floorY + 0.014f;
-            PbBox(trolley, "Cab_SeatPedestal", new Vector3(seatX - 0.002f, floorY + 0.007f, 0f), new Vector3(0.008f, 0.014f, 0.010f), bodyC);
-            PbBox(trolley, "Cab_Seat",      new Vector3(seatX, seatY, 0f),                   new Vector3(0.016f, 0.006f, 0.018f), frame);
-            PbBox(trolley, "Cab_SeatBack",  new Vector3(seatX - 0.010f, seatY + 0.016f, 0f), new Vector3(0.005f, 0.028f, 0.018f), frame);
-            PbBox(trolley, "Cab_HeadRest",  new Vector3(seatX - 0.009f, seatY + 0.034f, 0f), new Vector3(0.005f, 0.008f, 0.012f), frame);
+            PbBox(cab, "Cab_SeatPedestal", new Vector3(seatX - 0.002f, floorY + 0.007f, 0f), new Vector3(0.008f, 0.014f, 0.010f), bodyC);
+            PbBox(cab, "Cab_Seat",      new Vector3(seatX, seatY, 0f),                   new Vector3(0.016f, 0.006f, 0.018f), frame);
+            PbBox(cab, "Cab_SeatBack",  new Vector3(seatX - 0.010f, seatY + 0.016f, 0f), new Vector3(0.005f, 0.028f, 0.018f), frame);
+            PbBox(cab, "Cab_HeadRest",  new Vector3(seatX - 0.009f, seatY + 0.034f, 0f), new Vector3(0.005f, 0.008f, 0.012f), frame);
             for (int sz = -1; sz <= 1; sz += 2)
             {
-                PbBox(trolley, "Cab_ArmRest", new Vector3(seatX + 0.002f, seatY + 0.010f, sz * 0.011f), new Vector3(0.014f, 0.003f, 0.004f), frame);
-                PbBox(trolley, "Cab_Console", new Vector3(seatX + 0.012f, seatY + 0.006f, sz * 0.014f), new Vector3(0.014f, 0.007f, 0.007f), bodyC);
-                Rod(trolley,  "Cab_Joystick", new Vector3(seatX + 0.014f, seatY + 0.010f, sz * 0.014f), new Vector3(seatX + 0.015f, seatY + 0.020f, sz * 0.014f), 0.0015f, frame);
-                Ball(trolley, "Cab_JoystickKnob", new Vector3(seatX + 0.015f, seatY + 0.0205f, sz * 0.014f), new Vector3(0.0038f, 0.0038f, 0.0038f), frame);
+                PbBox(cab, "Cab_ArmRest", new Vector3(seatX + 0.002f, seatY + 0.010f, sz * 0.011f), new Vector3(0.014f, 0.003f, 0.004f), frame);
+                PbBox(cab, "Cab_Console", new Vector3(seatX + 0.012f, seatY + 0.006f, sz * 0.014f), new Vector3(0.014f, 0.007f, 0.007f), bodyC);
+                Rod(cab,  "Cab_Joystick", new Vector3(seatX + 0.014f, seatY + 0.010f, sz * 0.014f), new Vector3(seatX + 0.015f, seatY + 0.020f, sz * 0.014f), 0.0015f, frame);
+                Ball(cab, "Cab_JoystickKnob", new Vector3(seatX + 0.015f, seatY + 0.0205f, sz * 0.014f), new Vector3(0.0038f, 0.0038f, 0.0038f), frame);
             }
-            PbBox(trolley, "Cab_Monitor",       new Vector3(seatX + 0.020f, seatY + 0.016f, 0f), new Vector3(0.004f, 0.010f, 0.013f), bodyC);
-            PbBox(trolley, "Cab_MonitorScreen", new Vector3(seatX + 0.0222f, seatY + 0.016f, 0f), new Vector3(0.001f, 0.008f, 0.011f), CLight);
+            PbBox(cab, "Cab_Monitor",       new Vector3(seatX + 0.020f, seatY + 0.016f, 0f), new Vector3(0.004f, 0.010f, 0.013f), bodyC);
+            PbBox(cab, "Cab_MonitorScreen", new Vector3(seatX + 0.0222f, seatY + 0.016f, 0f), new Vector3(0.001f, 0.008f, 0.011f), CLight);
+
+            // ── 운전실 시점 앵커(빈 오브젝트) — VR 운전 시 카메라가 여기로 정렬(좌석 눈높이, 발밑 화물 향) ──
+            //   StsCraneVRController가 'Cab_Viewpoint'를 최우선 앵커로 잡아 카메라를 이 좌표·전방에 둠(오프셋 0).
+            //   cab-local: 좌석 앞쪽 + 눈높이(floorY+0.044≈바닥 위 ~1m). 전방=스프레더(+X)·아래(-Y)
+            //   → 180° 홀더로 트롤리 -X(발밑 스프레더/선박) 향. 시선 상하는 사용자 머리에 맡김.
+            var viewpoint = new GameObject("Cab_Viewpoint").transform;
+            viewpoint.SetParent(cab, false);
+            viewpoint.localPosition = new Vector3(cx + 0.018f, floorY + 0.044f, 0f);
+            viewpoint.localRotation = Quaternion.LookRotation(new Vector3(1f, -0.7f, 0f).normalized, Vector3.up);
 
             // ---- 외부: 노즈 하부 작업등 + 후면 안테나 ----
             for (int i = -1; i <= 1; i++)
             {
-                PbBox(trolley, "Cab_FloodHousing", new Vector3(frontX - 0.002f, floorY - 0.002f, i * 0.022f), new Vector3(0.008f, 0.006f, 0.012f), bodyC);
-                Ball(trolley,  "Cab_Floodlight",   new Vector3(frontX - 0.003f, floorY - 0.005f, i * 0.022f), new Vector3(0.009f, 0.006f, 0.009f), CLight);
+                PbBox(cab, "Cab_FloodHousing", new Vector3(frontX - 0.002f, floorY - 0.002f, i * 0.022f), new Vector3(0.008f, 0.006f, 0.012f), bodyC);
+                Ball(cab,  "Cab_Floodlight",   new Vector3(frontX - 0.003f, floorY - 0.005f, i * 0.022f), new Vector3(0.009f, 0.006f, 0.009f), CLight);
             }
             float antX = backX, antZ = 0.020f;
-            PbBox(trolley, "Cab_AntennaBase", new Vector3(antX, roofY + 0.003f, antZ), new Vector3(0.008f, 0.005f, 0.008f), frame);
-            Rod(trolley, "Cab_Antenna", new Vector3(antX, roofY + 0.005f, antZ), new Vector3(antX, roofY + 0.030f, antZ), 0.0022f, CStruct);
-            Ball(trolley, "Cab_AntennaTip", new Vector3(antX, roofY + 0.031f, antZ), new Vector3(0.0035f, 0.0035f, 0.0035f), CWarn);
+            PbBox(cab, "Cab_AntennaBase", new Vector3(antX, roofY + 0.003f, antZ), new Vector3(0.008f, 0.005f, 0.008f), frame);
+            Rod(cab, "Cab_Antenna", new Vector3(antX, roofY + 0.005f, antZ), new Vector3(antX, roofY + 0.030f, antZ), 0.0022f, CStruct);
+            Ball(cab, "Cab_AntennaTip", new Vector3(antX, roofY + 0.031f, antZ), new Vector3(0.0035f, 0.0035f, 0.0035f), CWarn);
         }
 
         // 스프레더 — 중앙 고정부(항상 20ft) + 좌/우 텔레스코픽 암(끝빔 + 트위스트락).
@@ -1290,7 +1304,9 @@ namespace Container.Crane.Sts.EditorTools
         static void BuildHoistRopes(Transform spreaderRoot, Transform spreader)
         {
             float topY = -0.02f;               // 로프 상단(트롤리 헤드 아래)
-            float attachOffsetY = 0.05f;       // 스프레더 원점 → 헤드블록 상단(로프 하단)
+            // 로프 하단 = 헤드블록 데드엔드 소켓 베이스(스프레더-로컬 hbY+0.011≈0.069). 이전 0.05는
+            //   소켓(0.069)보다 19mm 아래서 끝나 로프가 소켓에 안 닿고 헤드블록을 관통했음 → 0.07로 봉합.
+            float attachOffsetY = 0.07f;       // 스프레더 원점 → 헤드블록 소켓 베이스(로프 하단 정착점)
             float radius = 0.0035f;
             float restBotY = SpreaderRestY + attachOffsetY;
 
@@ -1321,7 +1337,7 @@ namespace Container.Crane.Sts.EditorTools
         //   시브↔뒷면 reeving은 트롤리 내부라 암시(페어리드까지만). z측당 1줄.
         static void BuildBoomHoistRopes(Transform boom, Transform trolley)
         {
-            const int segPer = 6;
+            const int segPer = 12;   // 토막↑ → 곡선 매끈(이질감 완화)
             const float radius = 0.0035f;
             const float sagFactor = 0.02f;
             const float laneY = -0.02f;    // 붐 밑(거더 밑면 0.015 아래)

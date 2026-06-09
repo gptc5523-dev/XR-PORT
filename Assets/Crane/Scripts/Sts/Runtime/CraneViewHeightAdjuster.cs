@@ -18,12 +18,12 @@ namespace Container.Crane.Sts
     [DisallowMultipleComponent]
     public sealed class CraneViewHeightAdjuster : MonoBehaviour
     {
-        [Tooltip("눈높이 변경 속도(m/s). 스틱을 끝까지 밀었을 때.")]
-        [SerializeField] float viewHeightSpeed = 0.6f;
-        [Tooltip("기본 눈높이 대비 최저 오프셋(m, 음수=앉기).")]
-        [SerializeField] float viewHeightMin = -0.9f;
-        [Tooltip("기본 눈높이 대비 최고 오프셋(m).")]
-        [SerializeField] float viewHeightMax = 0.3f;
+        [Tooltip("눈높이 변경 속도(체감 m/s). 스틱 최대일 때. 크레인 정상(~56m)까지 오르므로 빠르게 — 살짝 밀면 비례해 느려져 미세 조절도 됨. 리그 1/24라도 오프셋=체감 m라 그대로 적용.")]
+        [SerializeField] float viewHeightSpeed = 8f;
+        [Tooltip("기본 눈높이 대비 최저 오프셋(체감 m, 음수=앉기/낮추기). 바닥 클램프가 별도로 더 내려가는 걸 막음.")]
+        [SerializeField] float viewHeightMin = -1.2f;
+        [Tooltip("기본 눈높이 대비 최고 오프셋(체감 m). 크레인 최상단(피뢰침 ~56m) 위로 올라가 내려다볼 수 있게 +60m.")]
+        [SerializeField] float viewHeightMax = 60f;
         [Tooltip("이 값 이상 당기면 트리거를 '누른 것'으로 인정(0~1).")]
         [SerializeField, Range(0.1f, 0.95f)] float triggerHoldThreshold = 0.6f;
         [Tooltip("바닥 월드 Y(부두 바닥 윗면). 기본 0 — 부두가 다른 높이면 맞춰 설정.")]
@@ -67,10 +67,13 @@ namespace Container.Crane.Sts
                 viewHeightOffset + stickY * viewHeightSpeed * Time.deltaTime, viewHeightMin, viewHeightMax);
             ApplyCameraOffsetY(newOffset);
 
-            // 바닥 밑으로는 절대 안 내려가게 — 적용 후 카메라 월드 Y가 (바닥+여유)보다 낮으면 그만큼 다시 올림.
-            float floorMinY = floorWorldY + minEyeAboveFloor;
+            // 바닥 밑으로는 안 내려가게 — 단 리그 스케일 인지로. (안 그러면 1/24에선 minEyeAboveFloor(0.1 월드)이
+            //   미니어처 플레이어의 낮은 눈높이(월드 ~0.057m)보다 높아, 억지로 눈을 끌어올려 max에 고정·1:1처럼 떠 보임.)
+            //   floorMinY는 월드 기준값을 스케일로 줄이고, below(월드)는 로컬 오프셋으로 환산해 더한다.
+            float rigScale = cameraOffset.parent != null ? cameraOffset.parent.lossyScale.y : 1f;
+            float floorMinY = floorWorldY + minEyeAboveFloor * rigScale;
             float below = floorMinY - camT.position.y;
-            if (below > 0f) { newOffset += below; ApplyCameraOffsetY(newOffset); }
+            if (below > 0f) { newOffset += below / Mathf.Max(rigScale, 1e-4f); ApplyCameraOffsetY(newOffset); }
 
             viewHeightOffset = newOffset;
         }

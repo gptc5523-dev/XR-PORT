@@ -17,17 +17,22 @@ namespace Container.Crane.Sts.Net
         [SerializeField] Transform head;
         [SerializeField] Transform leftHand;
         [SerializeField] Transform rightHand;
-        [Tooltip("참가자 구분용 색을 입힐 렌더러(안전모). 접속자마다 다른 색이 칠해진다.")]
+        [Tooltip("참가자 구분용 색을 입힐 렌더러(머리). 접속자마다 다른 색이 칠해진다.")]
         [SerializeField] Renderer tintTarget;
         [Tooltip("원격 아바타 보간 속도(클수록 즉각).")]
         [SerializeField] float smooth = 16f;
+        [Tooltip("내 포즈 전송 주기(Hz). 매 프레임(72~90Hz) 전송 시 인원수만큼 대역폭이 폭증하므로 제한. 원격은 보간하므로 20~30이면 충분. 0이면 매 프레임.")]
+        [SerializeField] float sendRate = 25f;
 
-        // 참가자(OwnerClientId)별 안전모 색 — 서로 구분되게.
+        Camera cam;        // Camera.main 캐시(매 프레임 태그 검색 방지)
+        float nextSend;
+
+        // 참가자(OwnerClientId)별 색 — 선명한 밝은 색으로 서로 구분.
         static readonly Color[] Palette =
         {
-            new Color(0.90f, 0.25f, 0.25f), new Color(0.25f, 0.55f, 0.95f),
-            new Color(0.30f, 0.80f, 0.40f), new Color(0.96f, 0.74f, 0.12f),
-            new Color(0.70f, 0.45f, 0.90f),
+            new Color(0.95f, 0.42f, 0.42f), new Color(0.40f, 0.66f, 0.96f),
+            new Color(0.48f, 0.84f, 0.52f), new Color(0.98f, 0.82f, 0.36f),
+            new Color(0.80f, 0.58f, 0.94f),
         };
 
         struct RigPose : INetworkSerializable, System.IEquatable<RigPose>
@@ -71,7 +76,7 @@ namespace Container.Crane.Sts.Net
         // ─── 소유자: 자기 XR 리그(머리/양손) 월드 포즈를 네트워크에 올림 ───
         void WriteLocalPose()
         {
-            var cam = Camera.main;
+            if (cam == null) cam = Camera.main;   // 한 번만 검색해 캐시(매 프레임 태그 스캔 방지)
             if (cam == null) return;
             Transform space = cam.transform.parent;   // Camera Offset = XR 트래킹 공간 원점
 
@@ -81,10 +86,16 @@ namespace Container.Crane.Sts.Net
             };
             DevicePose(UnityEngine.XR.XRNode.LeftHand,  space, out p.lP, out p.lR);
             DevicePose(UnityEngine.XR.XRNode.RightHand, space, out p.rP, out p.rR);
-            nPose.Value = p;
 
-            // 소유자도 자기 자식 Transform은 맞춰둠(다른 컴포넌트가 참조할 수 있으므로)
+            // 소유자 본인 자식 Transform은 매 프레임 부드럽게 맞춰둠(다른 컴포넌트 참조 대비).
             Apply(p, 1f);
+
+            // 네트워크 전송은 sendRate(Hz)로 제한 — 인원수×프레임레이트 폭주 방지. (값이 바뀔 때만 전송됨.)
+            if (sendRate <= 0f || Time.unscaledTime >= nextSend)
+            {
+                if (sendRate > 0f) nextSend = Time.unscaledTime + 1f / sendRate;
+                nPose.Value = p;
+            }
         }
 
         static void DevicePose(UnityEngine.XR.XRNode node, Transform space, out Vector3 pos, out Quaternion rot)

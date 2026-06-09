@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -19,7 +20,19 @@ namespace Container.Crane.Sts
             "Arial Unicode MS", "Arial"
         };
 
-        public static Font CreateKoreanFont(int size) => Font.CreateDynamicFontFromOSFont(KoreanFonts, size);
+        // 동적 폰트는 크기별로 1개만 만들어 공유 — 예전엔 Text마다 새로 만들어(HUD ~9개) 폰트 인스턴스·
+        // 글리프 아틀라스가 따로 떠 Quest에서 메모리·텍스처 리빌드 낭비였다.
+        static readonly Dictionary<int, Font> _fontCache = new();
+
+        public static Font CreateKoreanFont(int size)
+        {
+            if (_fontCache.TryGetValue(size, out var f) && f != null) return f;
+            f = Font.CreateDynamicFontFromOSFont(KoreanFonts, size);
+            // OS에 후보 폰트가 하나도 없으면 null → 한글이 빈칸으로 렌더되므로 내장 폰트로 폴백.
+            if (f == null) f = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            _fontCache[size] = f;
+            return f;
+        }
 
         /// <summary>
         /// world-space 패널 1개 생성: Canvas + 반투명 BG Image + 안쪽 여백(inset) 둔 Text.
@@ -155,10 +168,47 @@ namespace Container.Crane.Sts
         public static void FaceCameraAbove(Transform canvas, Transform anchor, float worldHeight, Camera cam)
         {
             if (canvas == null || anchor == null || cam == null) return;
-            canvas.position = anchor.position + Vector3.up * worldHeight;
+            // 리그가 1/24로 축소되면 anchor(손)도 축소되므로, 띄울 높이도 같은 비율로 줄여 손 위 같은 상대위치 유지.
+            //   (스케일 1이면 lossyScale=1이라 기존과 동일 — 하위호환.) 캔버스 크기는 부모(축소된 손) 상속으로 자동 비례.
+            float s = anchor.lossyScale.y;
+            canvas.position = anchor.position + Vector3.up * (worldHeight * s);
             Vector3 dir = canvas.position - cam.transform.position;
             if (dir.sqrMagnitude > 1e-6f)
                 canvas.rotation = Quaternion.LookRotation(dir.normalized, Vector3.up);
+        }
+
+        /// <summary>카메라(부모)의 자식인 캔버스가 카메라를 정면으로 향하게 하는 '로컬' 회전을 설정.
+        /// localOffset이 고정이면 결과가 상수이므로 부착 시 1회만 호출하면 된다(매 프레임 재계산 불필요).
+        /// 180° Y플립으로 거울 효과 해소, tilt로 시야각 기울임. (앵커를 따라다니는 경우는 FaceCameraAbove 사용.)</summary>
+        public static void FaceCameraChild(Transform canvas, Vector3 localOffset, float tiltPitch = 0f, float tiltYaw = 0f)
+        {
+            if (canvas == null) return;
+            Vector3 toCam = -localOffset;
+            if (toCam.sqrMagnitude < 1e-6f) return;
+            canvas.localRotation =
+                Quaternion.LookRotation(toCam.normalized, Vector3.up)
+                * Quaternion.Euler(0f, 180f, 0f)
+                * Quaternion.Euler(tiltPitch, tiltYaw, 0f);
+        }
+
+        /// <summary>HUD 텍스트 갱신 주기(Hz) 공통값 — 매 프레임 문자열 생성/캔버스 리빌드 대신 이 빈도로 갱신.</summary>
+        public const float TextHz = 8f;
+
+        /// <summary>next 시각이 지났으면 true + next를 1/hz 뒤로 민다. hz≤0이면 항상 true(매 프레임). HUD 공용 스로틀.</summary>
+        public static bool Due(ref float next, float hz)
+        {
+            if (hz <= 0f) return true;
+            if (Time.unscaledTime < next) return false;
+            next = Time.unscaledTime + 1f / hz;
+            return true;
+        }
+
+        /// <summary>문자열이 바뀐 경우에만 Text.text에 대입(불필요한 캔버스 리빌드 방지). HUD 공용 dirty-check.</summary>
+        public static void SetTextIfChanged(Text t, ref string last, string s)
+        {
+            if (t == null || s == last) return;
+            t.text = s;
+            last = s;
         }
 
         /// <summary>파츠 이름 끝의 "_번호" 접미사를 떼고 원래 이름을 반환(StsCraneCreator가 부품을 _1,_2…로 번호매김 →
@@ -211,7 +261,12 @@ namespace Container.Crane.Sts
                 //   XR Origin Hands 리그는 컨트롤러 객체 이름이 'Right Hand'라 'controller' 단어가 없다.
                 if (!NameHas(t.name, "controller") && !NameHas(t.name, "hand")) continue;
                 if (requireHandless && NameHas(t.name, "hand")) continue;   // 1·2차는 controller 전용, 3차 폴백서 hand 허용
-                if (t.position.sqrMagnitude < 0.04f) continue;            // 원점 근처(미추적/씬 앵커) 제외
+                // 미추적 컨트롤러는 리그 로컬 원점(=리그 루트 위치)에 머문다. 리그가 1/24로 축소되면 추적된 손도
+                //   리그에 바짝 붙으므로, 월드 원점이 아니라 '리그 루트로부터의 거리'를 스케일에 맞춰 본다.
+                //   (scope=리그, 스케일 1이면 0.2m로 기존과 동일 — 하위호환.)
+                float minD = 0.2f * (scope != null ? Mathf.Max(scope.lossyScale.x, 1e-4f) : 1f);
+                Vector3 refP = scope != null ? scope.position : Vector3.zero;
+                if ((t.position - refP).sqrMagnitude < minD * minD) continue;   // 리그 원점 근처(미추적) 제외
                 if (scope != null && !t.IsChildOf(scope)) continue;
                 if (best == null || t.name.Length < best.name.Length) best = t;
             }

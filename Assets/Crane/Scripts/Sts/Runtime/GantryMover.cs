@@ -32,28 +32,20 @@ namespace Container.Crane.Sts
         [SerializeField] bool stopOnObstacle = true;
         [Tooltip("장애물 감지 여유 거리(m).")]
         [SerializeField] float obstacleSkin = 0.03f;
+        [Tooltip("장애물로 감지할 레이어(기본 전체). 화물(Rigidbody)만 정지시키므로 보통 그대로 둬도 됨.")]
+        [SerializeField] LayerMask obstacleMask = ~0;
 
         Collider[] legColliders;
-        bool legsCached;
+        float nextLegResolve;   // 빈 캐시일 때만 ~1s마다 재탐색(매 프레임 전체 탐색 방지)
+        bool legWarned;
 
         // 진행 방향으로 각 다리 콜라이더(Leg_Collider)를 BoxCast — 크레인 자신·잡은 화물 외의
         //   콜라이더에 닿으면 막힘(정지). 반대 방향(빠져나가기)은 막지 않는다.
         protected override bool IsBlockedToward(float target)
         {
             if (!stopOnObstacle) return false;
-            if (!legsCached)
-            {
-                var list = new List<Collider>();
-                foreach (var t in GetComponentsInChildren<Transform>(true))
-                    if (CraneHud.BaseName(t.name) == "Leg_Collider")
-                    {
-                        var c = t.GetComponent<Collider>();
-                        if (c != null) list.Add(c);
-                    }
-                legColliders = list.ToArray();
-                legsCached = true;
-            }
-            if (legColliders.Length == 0) return false;   // 콜라이더 없는 구버전 크레인 — 정지 기능 비활성(재생성 필요)
+            ResolveLegsIfNeeded();
+            if (legColliders == null || legColliders.Length == 0) return false;   // 콜라이더 못 찾음 — 정지 기능 비활성(경고 후 주기 재시도)
 
             float dz = target - transform.localPosition.z;
             if (Mathf.Abs(dz) < 1e-5f) return false;
@@ -67,12 +59,45 @@ namespace Container.Crane.Sts
             {
                 if (col == null) continue;
                 Bounds b = col.bounds;
-                if (Physics.BoxCast(b.center, b.extents, dir, out RaycastHit hit,
-                                    transform.rotation, dist, ~0, QueryTriggerInteraction.Ignore)
-                    && !hit.collider.transform.IsChildOf(transform))
-                    return true;   // 자기(크레인·잡은 화물) 외의 장애물 — 정지
+                // BoxCastAll: 가까운 것부터 1개만 보는 BoxCast와 달리 경로상 모두 검사 →
+                //   자기 부품이 먼저 맞아도 뒤의 진짜 화물을 놓치지 않음.
+                var hits = Physics.BoxCastAll(b.center, b.extents, dir, transform.rotation,
+                                              dist, obstacleMask, QueryTriggerInteraction.Ignore);
+                foreach (var hit in hits)
+                {
+                    if (hit.collider == null) continue;
+                    if (hit.collider.transform.IsChildOf(transform)) continue;   // 자기(크레인·잡은 화물) 제외
+                    // 바닥/안벽/통로/플레이어 리그 등 '정적 구조물'은 무시 — 자유 화물(Rigidbody)만 장애물로 정지.
+                    //   (프로젝트 전반에서 '집을 수 있는 화물 = Rigidbody' 규약: SpreaderGrabber/CraneNetSync와 동일)
+                    if (hit.collider.attachedRigidbody == null) continue;
+                    return true;
+                }
             }
             return false;
+        }
+
+        // legColliders가 비어 있을 때만(초기/구버전 크레인) ~1s마다 재탐색 + 1회 경고.
+        //   IsBlockedToward는 주행 중 매 프레임 호출되므로 전체 계층 탐색을 빈 경우로만 제한한다.
+        void ResolveLegsIfNeeded()
+        {
+            if (legColliders != null && legColliders.Length > 0) return;
+            if (Time.unscaledTime < nextLegResolve) return;
+            nextLegResolve = Time.unscaledTime + 1f;
+
+            var list = new List<Collider>();
+            foreach (var t in GetComponentsInChildren<Transform>(true))
+                if (CraneHud.BaseName(t.name) == "Leg_Collider")
+                {
+                    var c = t.GetComponent<Collider>();
+                    if (c != null) list.Add(c);
+                }
+            legColliders = list.ToArray();
+
+            if (legColliders.Length == 0 && !legWarned)
+            {
+                legWarned = true;
+                Debug.LogWarning("[Gantry] Leg_Collider를 못 찾음 — 장애물 정지 비활성. 크레인을 재생성해야 할 수 있습니다.");
+            }
         }
 
         /// <summary>Builder가 한 번에 셋업할 때 사용. min/max는 절대 로컬 Z(생성 시 초기 위치 기준 ±range로 줄 것).</summary>

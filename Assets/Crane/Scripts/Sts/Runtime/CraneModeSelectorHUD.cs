@@ -37,6 +37,8 @@ namespace Container.Crane.Sts
 
         Canvas canvas;
         Text text;
+        string lastText;   // 바뀔 때만 Text.text 대입(모드/커서 바뀔 때만 변함 → 캔버스 리빌드 절감)
+        float nextTextRefresh;   // 텍스트 생성/대입 스로틀(CraneHud.TextHz) — 매 프레임 문자열 생성 방지
         bool attachedToController;
         float nextAttachTry;   // 폴백 상태에서 전체 씬 스캔을 매 프레임 말고 ~0.5s마다만 재시도
         readonly StringBuilder sb = new StringBuilder(256);
@@ -76,7 +78,8 @@ namespace Container.Crane.Sts
                 CraneHud.FaceCameraAbove(canvas.transform, rightController, aboveHeight,
                     fallbackCamera != null ? fallbackCamera : Camera.main);
 
-            text.text = BuildText();
+            if (CraneHud.Due(ref nextTextRefresh, CraneHud.TextHz))
+                CraneHud.SetTextIfChanged(text, ref lastText, BuildText());
         }
 
         // ───────── 부착(오른쪽 컨트롤러 우선, 실패 시 카메라) ─────────

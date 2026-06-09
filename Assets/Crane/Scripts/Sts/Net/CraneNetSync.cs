@@ -30,6 +30,8 @@ namespace Container.Crane.Sts.Net
         [SerializeField] float smooth = 30f;
         [Tooltip("컨테이너 매칭 허용 반경(m) — 잡힌 컨테이너를 클라이언트에서 위치로 찾을 때.")]
         [SerializeField] float containerMatchRadius = 1.0f;
+        [Tooltip("연속 축 값(갠트리/트롤리/호이스트) 전송 주기(Hz). 매 프레임(72~90Hz) 전송 시 Quest Wi-Fi가 포화되므로 제한. 클라이언트는 보간하므로 20~30이면 충분. 0이면 매 프레임.")]
+        [SerializeField] float sendRate = 25f;
 
         // 서버 write / 모두 read 권한 — 호스트(조종자)만 값을 쓴다.
         static NetworkVariableWritePermission S => NetworkVariableWritePermission.Server;
@@ -54,17 +56,35 @@ namespace Container.Crane.Sts.Net
         SpreaderLockAnimator lockAnim;
         SpreaderAttach attach;
 
+        // 호스트 송신 스로틀(연속 축 값만 제한 — 이산 그랩/릴리스는 즉시)
+        float nextSend;
+
         // 클라이언트 보간 상태
         float gantryCur, trolleyCur, hoistCur;
         bool clientConfigured;
         bool clientHasContainer;   // 클라이언트가 마지막으로 반영한 적재 상태(전환 감지용)
         Transform clientHeld;   // 클라이언트가 시각적으로 매단 컨테이너
 
+        // 클라이언트에서 비활성화한 조종 컴포넌트들 — 세션 종료 시 되살리기 위해 보관.
+        readonly List<Behaviour> disabledOnClient = new();
+
         public override void OnNetworkSpawn()
         {
             EnsureRefs();
             if (!IsServer)
                 DisableControlOnClient();   // 관전자: 조종 입력/로직 정지
+        }
+
+        // 세션 종료/디스폰(호스트 끊김 포함) 시 정리 — 안 하면 클라이언트가 든 컨테이너가 키네마틱·부유
+        // 상태로 얼어붙고, 비활성화했던 조종 컴포넌트가 영구히 꺼진 채 남는다.
+        public override void OnNetworkDespawn()
+        {
+            if (clientHeld != null) ClientDetach();   // 들고 있던 컨테이너 놓아 물리 복원
+            foreach (var b in disabledOnClient)
+                if (b != null) b.enabled = true;       // 끈 조종 컴포넌트 복원
+            disabledOnClient.Clear();
+            clientHasContainer = false;
+            clientConfigured = false;
         }
 
         void EnsureRefs()
@@ -83,7 +103,11 @@ namespace Container.Crane.Sts.Net
             foreach (var name in disableOnClient)
             {
                 foreach (var b in crane.GetComponentsInChildren<Behaviour>(true))
-                    if (b != null && b.GetType().Name == name) b.enabled = false;
+                    if (b != null && b.enabled && b.GetType().Name == name)
+                    {
+                        b.enabled = false;
+                        disabledOnClient.Add(b);   // 종료 시 되살리기 위해 기록
+                    }
             }
         }
 
@@ -103,13 +127,20 @@ namespace Container.Crane.Sts.Net
         // ───────── 호스트: 현재 크레인 상태를 네트워크 변수에 기록 ─────────
         void ServerWrite()
         {
-            if (crane.Gantry  != null) nGantry.Value  = crane.Gantry.Current;
-            if (crane.Trolley != null) nTrolley.Value = crane.Trolley.Current;
-            if (crane.Spreader != null) nHoist.Value  = crane.Spreader.Current;
-            if (hoist != null) nHoistFloor.Value = hoist.FloorOffset;
-            if (telescope != null) nIs40.Value = telescope.Is40;
-            if (lockAnim != null) nLocked.Value = lockAnim.Locked;
+            // 연속 축 값은 sendRate(Hz)로 제한 — 매 프레임 쓰면 이동 중 72~90Hz로 전송돼 LAN/Wi-Fi가 포화.
+            // (NetworkVariable은 '값이 바뀔 때만' 보내므로, 정지 중엔 throttle과 무관하게 0건.)
+            if (sendRate <= 0f || Time.unscaledTime >= nextSend)
+            {
+                if (sendRate > 0f) nextSend = Time.unscaledTime + 1f / sendRate;
+                if (crane.Gantry  != null) nGantry.Value  = crane.Gantry.Current;
+                if (crane.Trolley != null) nTrolley.Value = crane.Trolley.Current;
+                if (crane.Spreader != null) nHoist.Value  = crane.Spreader.Current;
+                if (hoist != null) nHoistFloor.Value = hoist.FloorOffset;
+                if (telescope != null) nIs40.Value = telescope.Is40;
+                if (lockAnim != null) nLocked.Value = lockAnim.Locked;
+            }
 
+            // 그랩/릴리스(이산 상태 전환)는 매 프레임 감지 — 지연 없이 즉시 반영(어차피 변할 때만 전송).
             bool has = attach != null && attach.HasContainer;
             if (has != nHasContainer.Value)
             {

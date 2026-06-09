@@ -15,8 +15,11 @@ namespace Container.Crane.Sts
     public sealed class SpreaderGrabber : MonoBehaviour
     {
         [Header("잡기")]
-        [Tooltip("트위스트락(콘)에서 이 거리 안의 가장 가까운 컨테이너를 잡는다(m)")]
+        [Tooltip("트위스트락(콘)에서 이 거리 안의 가장 가까운 컨테이너를 잡는다(m). 단 maxGrabRange로 상한이 걸린다.")]
         [SerializeField] float grabRange = 0.35f;
+        [Tooltip("잡기 인식 반경의 상한(m). 1/24 미니어처라 grabRange가 커도 실제 반경은 이 값으로 제한된다. " +
+                 "잡기 범위를 실제로 넓히려면 grabRange가 아니라 이 값을 올릴 것(기존 코드 상한 0.1을 인스펙터로 노출).")]
+        [SerializeField] float maxGrabRange = 0.1f;
         [Tooltip("잡은 컨테이너 긴 축이 이 길이를 넘으면 40ft로 자동 신축(20ft≈0.25 / 40ft≈0.51, m)")]
         [SerializeField] float sizeThreshold = 0.38f;
         [Tooltip("Console에 집기 진단 로그 출력")]
@@ -37,8 +40,13 @@ namespace Container.Crane.Sts
         SpreaderTelescope telescope;   // 잡은 컨테이너 크기에 맞춰 20/40ft 신축
         SpreaderHoist spreaderHoist;   // 잡은 컨테이너 밑면 기준으로 하강 바닥 한계 설정
         Transform[] twistlocks;   // Twistlock_Cone들 — 잡기 기준점
-        Rigidbody[] bodies = System.Array.Empty<Rigidbody>();   // 크레인 외부의 집을 수 있는 강체들
+        readonly List<Rigidbody> bodies = new List<Rigidbody>();   // 크레인 외부의 집을 수 있는 강체들(재사용 버퍼 — 매 갱신 새 할당 방지)
         float nextRefresh;
+
+        // 화물은 씬 배치라 런타임에 거의 안 변함 → 무거운 전수 스캔(FindObjectsByType)의 최소 간격.
+        // 직렬화된 refreshInterval(기존 0.5s)이 작아도 이 값 이하로는 안 내려가 스캔/GC 빈도를 낮춘다.
+        // (잡힌/놓인 상태는 매 프레임 IsChildOf로 거르므로 목록을 자주 다시 만들 필요가 없다.)
+        const float MinRescanInterval = 3f;
 
         Transform AttachPoint => (crane != null && crane.Attach != null) ? crane.Attach.transform : null;
 
@@ -62,18 +70,18 @@ namespace Container.Crane.Sts
             // 이 줄이 Play 시 Console에 안 보이면 = SpreaderGrabber가 안 돌고 있는 것(컴파일/재생성 문제)
             if (debugLog)
                 Debug.Log($"[Crane] SpreaderGrabber 활성 — 트위스트락 {twistlocks.Length}개, " +
-                          $"집을수있는강체 {bodies.Length}개, 통과방지 {blockPassThrough}");
+                          $"집을수있는강체 {bodies.Count}개, 통과방지 {blockPassThrough}");
         }
 
         void Refresh()
         {
-            // 크레인 자신(스프레더/부착된 화물 포함) 아래의 강체는 제외 — 외부 자유 강체만 후보
+            // 크레인 자신(스프레더/부착된 화물 포함) 아래의 강체는 제외 — 외부 자유 강체만 후보.
+            // 버퍼(bodies)를 비우고 다시 채워 매 갱신 새 List/배열 할당을 피한다(주기적 GC 절감).
             var all = FindObjectsByType<Rigidbody>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
-            var list = new List<Rigidbody>(all.Length);
+            bodies.Clear();
             foreach (var rb in all)
-                if (rb != null && !rb.transform.IsChildOf(transform)) list.Add(rb);
-            bodies = list.ToArray();
-            nextRefresh = Time.time + refreshInterval;
+                if (rb != null && !rb.transform.IsChildOf(transform)) bodies.Add(rb);
+            nextRefresh = Time.time + Mathf.Max(refreshInterval, MinRescanInterval);
         }
 
         // 트위스트락 콘들의 중심(없으면 부착점) — 잡기 기준점
@@ -97,7 +105,7 @@ namespace Container.Crane.Sts
             Vector3 gp = GrabPoint();
             var c = FindNearest(gp, out float dist);
             if (debugLog)
-                Debug.Log($"[Crane] 집기 시도 — 기준점(트위스트락) {gp}, 후보 {bodies.Length}개, " +
+                Debug.Log($"[Crane] 집기 시도 — 기준점(트위스트락) {gp}, 후보 {bodies.Count}개, " +
                           $"최근접 {(c != null ? $"{c.name} (거리 {dist:F3} / 허용 {grabRange})" : "없음")}");
             if (c == null) return;
 
@@ -197,7 +205,7 @@ namespace Container.Crane.Sts
             foreach (var rb in bodies)
             {
                 if (rb == null) continue;
-                // 크레인 자식(스프레더/방금 잡은 컨테이너)은 제외. bodies는 0.5s마다만 갱신돼
+                // 크레인 자식(스프레더/방금 잡은 컨테이너)은 제외. bodies는 주기적으로만 갱신돼
                 // 잡은 직후 자기 자신이 목록에 남아 '자기 윗면'을 받침으로 오인 → 끝까지 치솟던 버그 방지.
                 if (rb.transform.IsChildOf(transform)) continue;
                 if (!TryBounds(rb.transform, out Bounds b)) continue;
@@ -212,16 +220,11 @@ namespace Container.Crane.Sts
             if (refBottomY < limit) hoist.MoveTo(hoist.Current + (limit - refBottomY));   // 로컬 Y ≈ 월드 Y
         }
 
-        // 1/24 미니어처에서 집기 인식 반경의 코드 상한(m). 씬에 저장된 크레인의 grabRange(기본 0.35)는
-        // 실측 ≈8.4m로 너무 넓어 '조금만 옆으로 가도 인식'됐다. 직렬화 값을 못 바꾸는 경우에도
-        // 타이트하게 동작하도록 효과 반경을 이 값 이하로 제한한다(더 작게 튜닝은 허용).
-        const float MaxGrabRange = 0.1f;
-
-        // 기준점에서 (제한된) grabRange 안의 가장 가까운 컨테이너(콜라이더 있으면 그것 우선)
+        // 기준점에서 (상한 적용된) grabRange 안의 가장 가까운 컨테이너(콜라이더 있으면 그것 우선)
         Transform FindNearest(Vector3 gp, out float dist)
         {
             dist = float.MaxValue;
-            float range = Mathf.Min(grabRange, MaxGrabRange);
+            float range = Mathf.Min(grabRange, maxGrabRange);
 
             // 콜라이더 기반 우선 — range 안의 콜라이더 중 크레인 외부 Rigidbody가 달린 것들 중 '가장 가까운' 1개
             //   (예전: 첫 hit을 그대로 잡아 원치 않는 컨테이너가 짚히던 문제 → 최근접으로 선택)

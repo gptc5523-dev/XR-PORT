@@ -79,29 +79,36 @@ namespace Container.Crane.Sts
             if (debugLog) Debug.Log($"[PlayerStartPlacer] 마커 위치에서 시작 — pos {pos}, facing {faceDir}.");
         }
 
-        // 해당 X/Z 위치의 '바닥' 월드 Y를 찾는다 — 마커 높이와 무관하게 항상 바닥에 발이 닿게.
-        //   1) 부두(Quay_Ground) 윗면(시각 바닥, ≈0)  2) 위에서 아래로 레이캐스트(콜라이더 바닥)  3) 폴백 0.
+        // 해당 X/Z 위치의 '바닥' 월드 Y를 찾는다 — 마커 높이와 무관하게 항상 '걷는 면'에 발이 닿게.
+        //   ★ 핵심 수정: 부두(Quay_Ground) '전체' bounds.max.y는 레일/구조물 꼭대기(≈0.22m)라, 거기에 플레이어를
+        //     세우면 컨테이너(Y≈0)를 5m 위에서 내려다보는 '거대' 증상이 났다. 걷는 면=아스팔트 슬래브(수평 면적이
+        //     가장 큰 렌더러)만 골라 그 윗면을 쓴다. 못 찾으면 레이캐스트→0 폴백.
         static float ResolveFloorY(Vector3 at)
         {
             var quay = GameObject.Find(QuayName);
-            if (quay != null && TryWorldBounds(quay.transform, out Bounds qb)) return qb.max.y;
+            if (quay != null)
+            {
+                Renderer ground = null; float bestArea = 0f;
+                foreach (var r in quay.GetComponentsInChildren<Renderer>())
+                {
+                    Vector3 e = r.bounds.size;
+                    float area = e.x * e.z;                 // 수평 면적 — 아스팔트 슬래브가 압도적으로 큼(레일/차선은 가늘다)
+                    if (area > bestArea) { bestArea = area; ground = r; }
+                }
+                if (ground != null)
+                {
+                    float y = ground.bounds.max.y;          // 걷는 면 윗면(아스팔트 ≈0) — 레일 꼭대기 무시
+                    Debug.Log($"[PlayerStartPlacer] 바닥 Y={y:0.###} (걷는 면 '{ground.name}' 윗면). " +
+                              $"※ 0.22 같은 값이면 아직 구조물 꼭대기를 잡은 것.");
+                    return y;
+                }
+            }
 
             Vector3 from = new Vector3(at.x, at.y + 5f, at.z);
             if (Physics.Raycast(from, Vector3.down, out RaycastHit hit, 50f, ~0, QueryTriggerInteraction.Ignore))
                 return hit.point.y;
 
             return 0f;
-        }
-
-        // 자식 Renderer들의 월드 AABB(StsQuayGroundCreator와 동일 방식).
-        static bool TryWorldBounds(Transform t, out Bounds b)
-        {
-            b = default;
-            var rends = t.GetComponentsInChildren<Renderer>();
-            if (rends == null || rends.Length == 0) return false;
-            b = rends[0].bounds;
-            for (int i = 1; i < rends.Length; i++) b.Encapsulate(rends[i].bounds);
-            return true;
         }
     }
 }

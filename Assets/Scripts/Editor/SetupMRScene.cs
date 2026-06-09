@@ -5,7 +5,7 @@ using UnityEngine.XR.ARFoundation;
 
 public static class SetupMRScene
 {
-    [MenuItem("Tool/Setup MR Scene")]
+    [MenuItem("Container/MR 씬 셋업")]
     public static void Setup()
     {
         int added = 0;
