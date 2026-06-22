@@ -23,21 +23,25 @@ namespace Container.Crane.Sts
         [SerializeField] Camera targetCamera;
 
         [Header("배치/크기")]
-        [Tooltip("부품 기준 말풍선을 띄울 높이(월드 m, 위로).")]
-        [SerializeField] float labelHeight = 0.14f;
+        [Tooltip("부품 기준 말풍선을 띄울 높이(월드 m, 위로). 중간시점 가독 위해 낮춤 — 부품에 더 붙임.")]
+        [SerializeField] float labelHeight = 0.08f;
         [Tooltip("트롤리/스프레더 말풍선을 좌우(Z)로 벌려 겹침 방지하는 양(월드 m).")]
         [SerializeField] float sideStagger = 0.16f;
         [Tooltip("패널 크기 배율(1px=이 값 m). 모델이 1/24라 작게.")]
-        [SerializeField] float worldScale = 0.0006f;
+        [SerializeField] float worldScale = 0.0009f;   // 가독성 ↑ (0.0006→0.0009, 50% 크게)
         [SerializeField] Vector2 panelPixels = new Vector2(360f, 150f);
-        [SerializeField] Color bgColor = new Color(0f, 0f, 0f, 0.8f);
-        [SerializeField] int fontSize = 22;
+        [SerializeField] Color bgColor = new Color(0f, 0f, 0f, CraneHud.PanelBgAlpha);   // 패널 배경 알파 표준(공용 토큰)
+        [SerializeField] int fontSize = 26;   // 가독성 ↑ (22→26)
 
         [Header("표시 규칙(난잡 방지)")]
         [Tooltip("이 거리(m)보다 멀면 라벨 숨김(가독성). 0이면 항상 표시.")]
         [SerializeField] float hideBeyond = 8f;
         [Tooltip("고정 부품(기계실/운전실/붐/평형추) 라벨은 시선이 이 각도(°) 안에 들 때만 표시 → 쳐다보는 것만 뜸.")]
         [SerializeField] float staticLookAngle = 14f;
+        [Tooltip("이 거리(m)까지는 기본 크기, 그보다 멀면 거리에 비례해 키워 멀리서도 읽히게(각크기 유지).")]
+        [SerializeField] float labelRefDist = 2.5f;
+        [Tooltip("거리비례 확대 상한(기본 크기의 N배). 너무 크면 가까운 듯 보이므로 클램프.")]
+        [SerializeField] float labelMaxScale = 3.5f;
 
         [Header("지시선(말풍선 꼬리)")]
         [SerializeField] bool showLeader = true;
@@ -66,6 +70,7 @@ namespace Container.Crane.Sts
         float nextTextRefresh;   // 라벨 텍스트 생성/대입 스로틀(CraneHud.TextHz). 위치/빌보드는 매 프레임 갱신.
         SpreaderAttach attach;
         SpreaderLockAnimator lockAnim;
+        SpreaderGrabber grabber;
         Material leaderMat;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
@@ -84,6 +89,7 @@ namespace Container.Crane.Sts
             if (crane == null) return;
 
             attach = crane.Attach;
+            grabber = crane.GetComponent<SpreaderGrabber>();
             var spreaderT = (crane.Spreader as Component)?.transform;
             if (spreaderT != null) lockAnim = spreaderT.GetComponent<SpreaderLockAnimator>();
             if (lockAnim == null) lockAnim = FindAnyObjectByType<SpreaderLockAnimator>();
@@ -96,14 +102,14 @@ namespace Container.Crane.Sts
                        up - Vector3.forward * sideStagger);
             // 갠트리 주행 — 위치%/속도(m/min). 다리 포스트에 앵커.
             //   다리에 박히지 않게 앞(+X=붐 아웃리치/크레인 앞쪽)으로 빼고 조금 더 올림. 지시선이 다리를 가리킴.
-            BuildLabel(Kind.Axis, FindPart("Leg_Post"), crane.Gantry, "갠트리 주행", null,
+            BuildLabel(Kind.Axis, FindPart(StsPartNames.LegPost), crane.Gantry, "갠트리 주행", null,
                        up * 1.3f + Vector3.right * 0.22f);
             // 고정 부품(이름 + 역할) — 쳐다볼 때만 표시
             // 일단 주석처리(사용자 요청) — 복구하려면 주석 해제
-            // BuildLabel(Kind.Static, FindPart("Machinery_House"), null, "기계실", "권상기계·전장실", up);
-            // BuildLabel(Kind.Static, FindPart("Operator_Cab"), null, "운전실", "운전사 탑승", up);
-            // BuildLabel(Kind.Static, FindPart("Boom_Girder"), null, "붐 거더", "트롤리 레일", up);
-            // BuildLabel(Kind.Static, FindPart("Counterweight"), null, "평형추", "붐 균형추", up);
+            // BuildLabel(Kind.Static, FindPart(StsPartNames.MachineryHouse), null, "기계실", "권상기계·전장실", up);
+            // BuildLabel(Kind.Static, FindPart(StsPartNames.OperatorCab), null, "운전실", "운전사 탑승", up);
+            // BuildLabel(Kind.Static, FindPart(StsPartNames.BoomGirder), null, "붐 거더", "트롤리 레일", up);
+            // BuildLabel(Kind.Static, FindPart(StsPartNames.Counterweight), null, "평형추", "붐 균형추", up);
 
             built = true;
         }
@@ -153,10 +159,12 @@ namespace Container.Crane.Sts
             if (kind == Kind.Static) label.text.text = BuildText(label);
         }
 
-        // 지시선용 머티리얼 — 빌드에 거의 항상 포함되는 셰이더 우선 탐색(없으면 지시선 생략).
+        // 지시선용 머티리얼 — 라벨과 동일한 "항상 위" 오버레이 셰이더 사용(구조물에 안 가림).
+        //   전용 셰이더가 없으면(폴백) 깊이테스트가 남는 일반 셰이더로 — 지시선만 가릴 수 있으나 표시는 됨.
         static Material MakeLeaderMaterial()
         {
-            Shader sh = Shader.Find("Sprites/Default");
+            Shader sh = Shader.Find("Container/CraneHudOverlay");
+            if (sh == null) sh = Shader.Find("Sprites/Default");
             if (sh == null) sh = Shader.Find("Unlit/Color");
             if (sh == null) sh = Shader.Find("UI/Default");
             return sh != null ? new Material(sh) : null;
@@ -198,16 +206,20 @@ namespace Container.Crane.Sts
                 if (L.line != null) L.line.enabled = show;
                 if (!show) continue;
 
-                // 위치 + 빌보드(카메라 정면)
+                // 거리비례 스케일 — 멀수록 키워 각크기(읽히는 정도)를 유지. refDist 이내는 기본, 이후 비례 확대(상한 클램프).
+                float distScale = Mathf.Clamp(dist / Mathf.Max(labelRefDist, 0.01f), 1f, labelMaxScale);
+
+                // 위치 + 빌보드(카메라 정면) + 거리비례 크기
                 L.canvas.transform.position = bubblePos;
+                L.canvas.transform.localScale = Vector3.one * (worldScale * distScale);
                 if (toBubble.sqrMagnitude > 1e-6f)
                     L.canvas.transform.rotation = Quaternion.LookRotation(toBubble.normalized, Vector3.up);
 
-                // 지시선 — 부품(anchor)에서 말풍선 아래 가장자리로 (callout 꼬리)
+                // 지시선 — 부품(anchor)에서 말풍선 아래 가장자리로 (callout 꼬리). 끝점도 확대된 말풍선 높이에 맞춤.
                 if (L.line != null)
                 {
                     L.line.SetPosition(0, anchorPos);
-                    L.line.SetPosition(1, bubblePos - Vector3.up * halfH);
+                    L.line.SetPosition(1, bubblePos - Vector3.up * (halfH * distScale));
                 }
 
                 // 가동 라벨만, 스로틀 주기에 한해, 내용이 바뀔 때만 대입. 고정 라벨은 1회 설정 끝.
@@ -238,13 +250,38 @@ namespace Container.Crane.Sts
                     sb.AppendLine();
                     if (has)
                     {
+                        string id = attach.AttachedDisplayId;   // ISO6346 식별번호(잡는 순간 결정적 확정)
+                        if (!string.IsNullOrEmpty(id))
+                            sb.AppendLine($"<color=#7FFF7F>{id}</color>");
                         float t = attach.AttachedMassKg / 1000f;
-                        if (t > 0.05f) sb.AppendLine($"하중 <color=#FFD25F>{t:0.#} t</color>");
+                        if (t > 0.05f)
+                        {
+                            var g = ContainerProject.ContainerLoad.Grade(t);
+                            string hex = ColorUtility.ToHtmlStringRGB(ContainerProject.ContainerLoad.GradeColor(g));
+                            sb.AppendLine($"하중 <color=#{hex}>{t:0.#} t — {ContainerProject.ContainerLoad.GradeLabel(g)}</color>");
+                        }
                         else sb.AppendLine("<color=#7FFF7F>적재 중</color>");
-                        bool locked = lockAnim != null ? lockAnim.Locked : has;
-                        sb.Append(locked ? "잠금 <color=#7FFF7F>OK</color>" : "잠금 <color=#FF6666>해제</color>");
+                        // 잠금 상태는 애니메이터(지령값)로만 판정. 없으면 '불명(--)' — 컨테이너 유무로 추정 금지(미체결을 OK로 오표시→안전 위험).
+                        if (lockAnim != null)
+                            sb.Append(lockAnim.Locked ? "잠금 <color=#7FFF7F>OK</color>" : "잠금 <color=#FF6666>해제</color>");
+                        else
+                            sb.Append("잠금 <color=#999999>--</color>");
                     }
                     else sb.Append("<color=#999999>공차(빈 스프레더)</color>");
+                    AppendFault(CraneFault.EvaluateSpreader(crane));   // 과부하/호이스트 끝단
+                    if (grabber != null && grabber.IsLanded)           // 안착(정상 안내)
+                    {
+                        sb.AppendLine();
+                        sb.Append("<color=#7FFF7F>✓ 안착</color>");
+                        // 빈 스프레더가 컨테이너 위에 얹혔는데 아직 안 잡음 → '체결 대기' 액션 큐.
+                        //   들고 있을 때(has)는 잠글 게 아니라 놓는 상황이라 제외. 호박색=액션 필요('해제' 빨강과 구분).
+                        bool lockedNow = lockAnim != null ? lockAnim.Locked : has;
+                        if (!has && !lockedNow)
+                        {
+                            sb.AppendLine();
+                            sb.Append("<color=#FFD25F>⊘ 체결 대기</color>");
+                        }
+                    }
                     break;
 
                 case Kind.Axis:   // 트롤리·갠트리 — 위치% · 속도
@@ -252,6 +289,8 @@ namespace Container.Crane.Sts
                     sb.Append(Pct(L.mover));
                     sb.Append("  ·  ");
                     sb.Append($"<color=#5FE0FF>{Mathf.RoundToInt(L.speedMpm)} m/min</color>");
+                    AppendFault(L.mover == crane.Trolley ? CraneFault.EvaluateTrolley(crane)
+                                                         : CraneFault.EvaluateGantry(crane));
                     break;
 
                 case Kind.Static:   // 고정 부품 — 역할 설명
@@ -263,6 +302,15 @@ namespace Container.Crane.Sts
                     break;
             }
             return sb.ToString();
+        }
+
+        // 부품 말풍선에 활성 알람 한 줄 추가(코드북 Sev색). 없으면 아무것도 안 함.
+        void AppendFault(FaultDef f)
+        {
+            if (!f.IsValid) return;
+            sb.AppendLine();
+            string hex = ColorUtility.ToHtmlStringRGB(CraneFault.SevColor(f.Sev));
+            sb.Append($"<color=#{hex}>⚠ {CraneFault.Format(f)}</color>");
         }
 
         static string Pct(IAxisMover m)

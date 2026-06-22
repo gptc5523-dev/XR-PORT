@@ -17,10 +17,10 @@ namespace Container.Crane.Sts.Net
     [DisallowMultipleComponent]
     public sealed class NetLanUI : MonoBehaviour
     {
-        [SerializeField] ushort port = 7777;
+        [SerializeField] ushort port = NetConfig.DefaultPort;            // [H3] SSOT
         [Tooltip("호스트 포함 최대 동시 인원")]
-        [SerializeField] int maxPlayers = 5;
-        [SerializeField] string joinIp = "192.168.0.10";
+        [SerializeField] int maxPlayers = NetConfig.MaxPlayers;          // [H3] SSOT
+        [SerializeField] string joinIp = NetConfig.DefaultJoinIp;        // [H3] SSOT (static readonly — 인스턴스 필드 초기자에서 정적 멤버 참조는 합법)
 
         string localIp = "...";
         bool hostDiscovered;
@@ -105,7 +105,7 @@ namespace Container.Crane.Sts.Net
             string ip = joinIp.Trim();
             if (!IPAddress.TryParse(ip, out _))
             {
-                Debug.LogWarning($"[NetLanUI] 참가 IP가 올바르지 않습니다: '{ip}'. 호스트 IP(예: 192.168.0.10)를 정확히 입력하세요.");
+                Debug.LogWarning($"[NetLanUI] 참가 IP가 올바르지 않습니다: '{ip}'. 호스트 IP(예: {NetConfig.DefaultJoinIp})를 정확히 입력하세요.");
                 return;
             }
 

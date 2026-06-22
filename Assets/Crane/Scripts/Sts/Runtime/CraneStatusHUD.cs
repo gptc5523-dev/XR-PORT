@@ -21,7 +21,9 @@ namespace Container.Crane.Sts
         [SerializeField] Camera targetCamera;
 
         [Header("HMD 우상단 위치 (카메라 로컬 좌표, m)")]
-        [SerializeField] Vector3 hmdOffset = new Vector3(0.32f, 0.20f, 0.8f);   // x=오른쪽, y=위, z=앞
+        // 우측 ≈15°·위 ≈6°(z=0.85 기준) — 기존 22°/14°는 주변시야라 보기 불편했다. 시야 안쪽으로 당기고
+        //   거리도 0.8→0.85로 살짝 늘려 양안 초점 부담을 줄임. (가림은 CraneHud ZTest Always로 별도 해결.)
+        [SerializeField] Vector3 hmdOffset = new Vector3(0.22f, 0.09f, CraneHud.HudDistance);   // x=오른쪽, y=위, z=공용거리
         [Tooltip("카메라 정면을 기준으로 약간 안쪽으로 기울이기(편안한 시야각). 0이면 정면.")]
         [SerializeField, Range(-30f, 30f)] float tiltYawDeg = -15f;
         [SerializeField, Range(-30f, 30f)] float tiltPitchDeg = 8f;
@@ -29,15 +31,17 @@ namespace Container.Crane.Sts
         [Header("패널/텍스트")]
         [SerializeField] Vector2 panelPixels = new Vector2(500f, 240f);   // fitToText 사용 시 무시(글자에 맞춰 자동)
         [SerializeField] float worldScale = 0.00075f;   // 줌 축소(1 px ≈ 0.75 mm)
-        [SerializeField] Color bgColor = new Color(0f, 0f, 0f, 0.85f);
+        [SerializeField] Color bgColor = new Color(0f, 0f, 0f, CraneHud.PanelBgAlpha);   // 패널 배경 알파 표준(공용 토큰)
         [SerializeField] Color textColor = Color.white;
         [SerializeField] int fontSize = 18;
 
         Canvas canvas;
         Text text;                          // 한글 지원 위해 legacy UI.Text + 시스템 폰트 동적 로드
-        StsCraneVRController controller;    // 운전모드 여부 판단(이 모드일 때만 HUD 표시)
+        StsCraneVRController controller;    // 조종모드 여부 판단(이 모드일 때만 HUD 표시)
         SpreaderLockAnimator lockAnim;      // 트위스트락 잠금 상태(적재 표시 보강용)
+        SpreaderGrabber grabber;            // 빈 스프레더 코너 안착 정렬 상태(체결 안내 표시용)
         readonly StringBuilder sb = new StringBuilder(512);
+        readonly FaultDef[] faultBuf = new FaultDef[4];   // 동시 활성 알람(주입 1 + 축 3 = 최대 4) — 재사용 버퍼(무할당)
         string lastText;          // 직전 표시 문자열 — 바뀔 때만 Text.text 대입(캔버스 리빌드 절감)
         float nextTextRefresh;    // 다음 텍스트 갱신 시각(CraneHud.TextHz 스로틀 — 매 프레임 문자열 생성/GC 방지)
 
@@ -61,6 +65,8 @@ namespace Container.Crane.Sts
                 if (spreaderT != null) lockAnim = spreaderT.GetComponent<SpreaderLockAnimator>();
             }
             if (lockAnim == null) lockAnim = FindAnyObjectByType<SpreaderLockAnimator>();
+            if (crane != null) grabber = crane.GetComponent<SpreaderGrabber>();
+            if (grabber == null) grabber = FindAnyObjectByType<SpreaderGrabber>();
             BuildCanvas();
             TryAttachToCamera();
         }
@@ -69,12 +75,12 @@ namespace Container.Crane.Sts
         {
             if (canvas == null || text == null) return;
 
-            // 운전모드일 때만 표시 — 컨트롤러의 CraneMode를 따른다(걷기/시점변경 모드면 숨김).
+            // 조종모드일 때만 표시 — 컨트롤러의 CraneMode를 따른다(걷기/시점변경 모드면 숨김).
             //   컨트롤러를 못 찾으면(비VR/테스트 씬) 항상 표시(기존 동작 유지).
             if (controller == null) controller = FindController();
-            // 관전자(순수 클라이언트)에겐 숨김 — 조종을 못 하니 운전 상태 출력이 무의미(ModeHUD/ArrowHUD와 동일 기준).
-            var nm = Unity.Netcode.NetworkManager.Singleton;
-            bool show = (nm == null || nm.IsServer) && (controller == null || controller.CraneMode);
+            // 조종(ControlActive)일 때만 표시 — 관찰(기본)이면 숨김. 모드선택 등 다른 조종 HUD와 동일 게이트.
+            //   controller 못 찾으면(비VR/테스트 씬)만 기존처럼 표시.
+            bool show = controller == null || controller.ControlActive;
             canvas.enabled = show;
             if (!show) { speedPrimed = false; return; }   // 숨길 땐 갱신 스킵 + 재표시 시 속도 재초기화
 
@@ -112,7 +118,7 @@ namespace Container.Crane.Sts
 
         static float Cur(IAxisMover m) => m != null ? m.Current : 0f;
 
-        // 운전모드를 알려줄 VR 컨트롤러 탐색 — 크레인에 붙어 있음(RequireComponent). 없으면 씬 전체 탐색.
+        // 조종모드를 알려줄 VR 컨트롤러 탐색 — 크레인에 붙어 있음(RequireComponent). 없으면 씬 전체 탐색.
         StsCraneVRController FindController()
         {
             if (crane != null)
@@ -171,7 +177,7 @@ namespace Container.Crane.Sts
         void BuildCanvas()
         {
             // fitToText: 배경이 글자 분량에 맞춰 자동 축소(빈 여백 제거). inset이 글자~배경 여백(padding)이 됨.
-            canvas = CraneHud.BuildPanel(transform, "CraneStatusCanvas", panelPixels, worldScale,
+            canvas = CraneHud.BuildPanel(transform, StsPartNames.CraneStatusCanvas, panelPixels, worldScale,
                 bgColor, fontSize, textColor, TextAnchor.UpperLeft, new Vector2(12, 10), out text, fitToText: true);
             text.text = "...";
         }
@@ -184,9 +190,36 @@ namespace Container.Crane.Sts
             sb.AppendLine();
             if (crane == null)
             {
-                sb.AppendLine("<color=#FF6666>StsCrane 없음</color>");
+                sb.AppendLine($"<color=#{CraneHud.Hex(CraneHud.HudColor.Danger)}>StsCrane 없음</color>");
                 return sb.ToString();
             }
+
+            // 운영상태(운전/정지/이상) — 지표4 핵심. 네트워크면 호스트 권위값(관전자도 동일), 아니면 로컬 판정.
+            var op = Net.CraneNetSync.ActiveOpMode(crane);
+            string ophex = ColorUtility.ToHtmlStringRGB(CraneOpMode.ModeColor(op));
+            sb.AppendLine($"운전모드 <b><color=#{ophex}>● {CraneOpMode.Label(op)}</color></b>");   // 라벨='운전모드'(크레인 운영상태), 값=정지/운전/이상
+
+            // O&M 관찰 뷰 — 조종/관찰·호스트/관전자 무관하게 상세 상태를 '항상' 표시(관찰이 곧 O&M 시각화의 핵심).
+            //   (이전엔 조종모드에서만 상세를 보여 관찰자가 상태를 못 보던 문제 → 관찰 기본 분리 후 항상 표시로 변경.)
+            sb.AppendLine();
+
+            // 경보를 최상단으로 — 평가지표4(상태 표시 정확도) 핵심이라 '알람 유무'를 가장 먼저 보이게.
+            //   동시 다발 시 심각도순 리스트(코드북 §7): 1위는 굵게/크게, 2위 이하는 작은 점머리로. 축별 1건이라 최대 3.
+            int nFault = CraneFault.EvaluateAll(crane, faultBuf);
+            if (nFault > 0)
+            {
+                var lead = faultBuf[0];
+                string lhex = ColorUtility.ToHtmlStringRGB(CraneFault.SevColor(lead.Sev));
+                sb.AppendLine($"<size=21><b><color=#{lhex}>⚠ {CraneFault.Format(lead)}</color></b></size>");
+                for (int i = 1; i < nFault; i++)
+                {
+                    var f = faultBuf[i];
+                    string fhex = ColorUtility.ToHtmlStringRGB(CraneFault.SevColor(f.Sev));
+                    sb.AppendLine($"<size=15><color=#{fhex}>• {CraneFault.Format(f)}</color></size>");
+                }
+                sb.AppendLine($"<color=#{lhex}>━━━━━━━━━━━━━━</color>");
+            }
+
             AppendAxis("트롤리   ", crane.Trolley, spdTrolley);
             AppendAxis("호이스트 ", crane.Spreader, spdHoist);
             AppendAxis("갠트리   ", crane.Gantry, spdGantry);
@@ -197,21 +230,58 @@ namespace Container.Crane.Sts
             sb.Append("적재     ");
             if (has)
             {
-                sb.Append($"<color=#7FFF7F>{attach.AttachedContainer.name}</color>");
+                sb.Append($"<color=#{CraneHud.Hex(CraneHud.HudColor.Ok)}>{attach.AttachedDisplayId}</color>");
                 float t = attach.AttachedMassKg / 1000f;
-                if (t > 0.05f) sb.Append($"  <color=#FFD25F>{t:0.#} t</color>");   // 하중(t) — 질량 있을 때만
+                if (t > 0.05f)   // 하중(t) + 등급(정상/주의/이상) 색
+                {
+                    var g = ContainerProject.ContainerLoad.Grade(t);
+                    string hex = ColorUtility.ToHtmlStringRGB(ContainerProject.ContainerLoad.GradeColor(g));
+                    sb.Append($"  <color=#{hex}>{t:0.#} t — {ContainerProject.ContainerLoad.GradeLabel(g)}</color>");
+                }
             }
-            else sb.Append("<color=#888888>없음</color>");
+            else sb.Append($"<color=#{CraneHud.Hex(CraneHud.HudColor.IdleDim)}>없음</color>");
             sb.AppendLine();
 
             // 잠금(트위스트락) — 애니메이터가 있으면 지령 상태, 없으면 적재 여부로 추정
             sb.Append("잠금     ");
             bool locked = lockAnim != null ? lockAnim.Locked : has;
-            sb.AppendLine(locked ? "<color=#7FFF7F>OK (체결)</color>" : "<color=#FF6666>해제</color>");
+            if (locked)
+                sb.AppendLine($"<color=#{CraneHud.Hex(CraneHud.HudColor.Ok)}>OK (체결)</color>");
+            else if (grabber != null && grabber.ReadyToLock)        // 빈 스프레더가 코너 위 안착 정렬 → 체결 안내
+                sb.AppendLine($"<color=#{CraneHud.Hex(CraneHud.HudColor.Ok)}>정렬됨 ▸ Y로 체결</color>");
+            else if (grabber != null && grabber.NearButUnseated)    // 근처지만 미정렬 → 코너 맞추라는 안내
+                sb.AppendLine($"<color=#{CraneHud.Hex(CraneHud.HudColor.Accent)}>모서리 정렬 필요</color>");
+            else
+                sb.AppendLine($"<color=#{CraneHud.Hex(CraneHud.HudColor.Danger)}>해제</color>");
+
+            // 경보 — 활성 알람은 위(최상단)에 강조 표시했으므로, 여기선 '이상 없음'만 보조로.
+            if (nFault == 0)
+                sb.AppendLine($"경보     <color=#{CraneHud.Hex(CraneHud.HudColor.Ok)}>이상 없음</color>");
 
             // 운전실 시점(A 토글) 활성 시에만 한 줄 표시
             if (controller != null && controller.CabView)
                 sb.AppendLine("<color=#5FE0FF>● 운전실 시점</color>");
+
+            // 모드 선택 — 한 줄 탭(별도 패널 대신 상태판에 합침). 현재 모드=청록●, 스틱 후보=▸.
+            if (controller != null)
+            {
+                int cur = (int)controller.CurrentMode;
+                int sel = controller.SelectedIndex;
+                string acc = CraneHud.Hex(CraneHud.HudColor.Accent);
+                sb.AppendLine($"<color=#{acc}>────────────</color>");
+                sb.Append("모드  ");
+                var names = StsCraneVRController.ModeNames;
+                for (int i = 0; i < names.Length; i++)
+                {
+                    string nm = names[i].Replace("모드", "");   // "조종모드"→"조종"
+                    if (i == cur)      sb.Append($"<b><color=#{acc}>{(i == sel ? "▸" : "")}{nm}●</color></b>");
+                    else if (i == sel) sb.Append($"<color=#{acc}>▸{nm}</color>");
+                    else               sb.Append($"<color=#999999>{nm}</color>");
+                    if (i < names.Length - 1) sb.Append("   ");
+                }
+                sb.AppendLine();
+                sb.AppendLine($"<size=13><color=#{acc}>스틱↑↓ 모드·B 확정 · Y/X 집기/놓기 · A 운전실</color></size>");
+            }
             return sb.ToString();
         }
 
@@ -230,8 +300,8 @@ namespace Container.Crane.Sts
             sb.Append("] ");
             // 현재 속도(실척 m/min) — 멈춰 있으면 회색, 움직이면 청록 강조
             int mpm = Mathf.RoundToInt(speedMpm);
-            if (mpm > 0) sb.Append($"<color=#5FE0FF>{mpm,3} m/min</color>");
-            else sb.Append("<color=#888888>  0 m/min</color>");
+            if (mpm > 0) sb.Append($"<color=#{CraneHud.Hex(CraneHud.HudColor.Accent)}>{mpm,3} m/min</color>");
+            else sb.Append($"<color=#{CraneHud.Hex(CraneHud.HudColor.IdleDim)}>  0 m/min</color>");
             sb.AppendLine();
         }
     }

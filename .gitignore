@@ -57,3 +57,7 @@ ExportedObj/
 # Android signing keys (secret — never commit)
 *.keystore
 *.jks
+
+# 문서(코드 백업에서 제외)
+문서/
+운전실_배치도.png

@@ -12,7 +12,7 @@ namespace Container.Crane.Sts
     ///   - 오른쪽 스틱 위/아래(상하) 플릭 → 모드 후보 이동(하이라이트만, 좌우=트롤리와 안 겹치게 가드)
     ///   - B 버튼(오른손 보조) → 현재 후보를 실제 모드로 확정 (스틱만으론 안 바뀜 → 조종 중 충돌 방지)
     /// [조종]
-    ///   - 운전모드: 오른손 스틱 X → 트롤리,  왼손 스틱 Y → 호이스트(위=올림)
+    ///   - 조종모드: 오른손 스틱 X → 트롤리,  왼손 스틱 Y → 호이스트(위=올림)
     ///   - 갠트리모드: 왼손 스틱 X → 갠트리(크레인 전체 좌우 주행)
     ///   - 이동모드: 스틱 무시, XR 로코모션(걷기) 활성
     /// [공통] Y 버튼(왼손) → 집기,  X 버튼(왼손) → 놓기
@@ -27,10 +27,10 @@ namespace Container.Crane.Sts
     {
         public enum Mode { Move = 0, Crane = 1, Gantry = 2 }
         /// <summary>모드 목록 표시명(인덱스 = Mode 값). HUD가 공유.</summary>
-        public static readonly string[] ModeNames = { "이동모드", "운전모드", "갠트리모드" };
+        public static readonly string[] ModeNames = { "이동모드", "조종모드", "갠트리모드" };
 
         [Header("모드")]
-        [Tooltip("시작 시 바로 운전모드 (테스트 편의). 게임 흐름에선 false(이동모드 시작) 권장.")]
+        [Tooltip("시작 시 바로 조종모드 (테스트 편의). 게임 흐름에선 false(이동모드 시작) 권장.")]
         [SerializeField] bool startInCraneMode = false;
         [Tooltip("운전/갠트리 모드일 때 끌 커스텀 이동 스크립트(있으면). XR 표준 로코모션은 자동 탐색됨.")]
         [SerializeField] Behaviour[] suppressWhileControlling;
@@ -40,8 +40,14 @@ namespace Container.Crane.Sts
         [SerializeField] float trolleySpeedMps = 3.3f;
         [Tooltip("호이스트 공하(빈 스프레더) 권상/권하 ≈ 2.7 m/s — 컨테이너 안 잡았을 때")]
         [SerializeField] float hoistEmptySpeedMps = 2.7f;
-        [Tooltip("호이스트 만재(컨테이너 적재) 권상/권하 ≈ 1.3 m/s — 컨테이너 잡으면 자동 적용")]
-        [SerializeField] float hoistLoadedSpeedMps = 1.3f;
+        [Tooltip("호이스트 적재-경하중(가벼운 컨테이너) 권상/권하 ≈ 1.8 m/s")]
+        [SerializeField] float hoistLoadedLightMps = 1.8f;
+        [Tooltip("호이스트 적재-정격(무거운 컨테이너) 권상/권하 ≈ 0.9 m/s — 무게 클수록 이 값에 수렴")]
+        [SerializeField] float hoistLoadedHeavyMps = 0.9f;
+        [Tooltip("권상 속도 보간의 경하중 톤수 브레이크포인트(이하면 light 속도). 정격 용량 바꾸면 여기를 조정.")]
+        [SerializeField] float hoistLightLoadTons = 8f;
+        [Tooltip("권상 속도 보간의 정격 톤수 브레이크포인트(이상이면 heavy 속도). 정격 용량 바꾸면 여기를 조정.")]
+        [SerializeField] float hoistRatedLoadTons = 32f;
         [Tooltip("갠트리 주행 — 실제 정격 ≈ 45 m/min = 0.75 m/s")]
         [SerializeField] float gantrySpeedMps = 0.75f;
 
@@ -59,11 +65,21 @@ namespace Container.Crane.Sts
         [Tooltip("Console에 입력/모드 로그 출력")]
         [SerializeField] bool debugLog = true;
 
-        [Header("운전실 시점 (운전모드에서 A 버튼 토글)")]
+        [Header("운전실 시점 (조종모드에서 A 버튼 토글)")]
         [Tooltip("시점을 붙일 트롤리 하위 부품 이름(예: Trolley_Head, Operator_Cab). 못 찾으면 트롤리 본체 기준.")]
-        [SerializeField] string cabAnchorName = "Trolley_Head";
+        [SerializeField] string cabAnchorName = StsPartNames.TrolleyHead;
         [Tooltip("위 부품 기준 카메라 오프셋(크레인 로컬 m, 스케일 무관). x=앞뒤(-=기계실/육지, +=바다), y=상하, z=좌우.")]
         [SerializeField] Vector3 cabLocalOffset = new Vector3(-0.035f, -0.03f, -0.05f);
+        [Tooltip("운전실 '바닥' 부품 이름 — 전용 시점일 때 눈 위치를 이 바닥 '아래'에 둔다(발밑 화물 내려다보기). 못 찾으면 좌석 눈높이(Cab_Viewpoint) 유지.")]
+        [SerializeField] string cabFloorAnchorName = StsPartNames.CabFloorRear;   // [2026-06-22 오너] 실재 부품(Cab_Fb_FloorRear)으로 교체 — 옛 Cab_Kick은 생산부 없어 좌석 안에 갇혔음
+        [Tooltip("바닥 부품 '아래'로 카메라를 내릴 거리(크레인 로컬 m, 스케일 무관). 바닥 패널 밑에서 발밑 화물을 막힘없이 내려다본다. VR에서 미세조정.")]
+        [SerializeField, Range(0f, 0.04f)] float cabFloorDropDown = 0.008f;   // 바닥 반두께(~0.003) + 여유(~0.005). 실척 ≈ 0.008×24 ≈ 0.19m
+
+        [Header("3인칭 시점 (왼쪽 스틱 클릭 토글)")]
+        [Tooltip("카메라를 내 아바타 '뒤'로 뺄 거리(실척 m). 모델 1/24 축척 자동 반영.")]
+        [SerializeField] float tpBackReal = 2.5f;
+        [Tooltip("카메라를 '위'로 올릴 높이(실척 m). 어깨 너머로 내려다보게.")]
+        [SerializeField] float tpUpReal = 0.6f;
 
         StsCrane crane;
         SpreaderGrabber grabber;
@@ -75,8 +91,13 @@ namespace Container.Crane.Sts
         public int SelectedIndex => selectedIndex;
         /// <summary>조종 중(운전 또는 갠트리)인지 — 이동모드면 false. 상태 HUD 표시 여부 판단에 사용.</summary>
         public bool CraneMode => mode != Mode.Move;
+        /// <summary>조종 활성 여부 — 관찰(기본)이면 false. 오른쪽 스틱클릭으로 토글. 모드선택·조종 HUD·축 조종은 이게 true일 때만.</summary>
+        public bool ControlActive => controlActive;
 
         int selectedIndex;   // 스틱이 가리키는 후보(0..2). B를 눌러야 mode로 확정됨.
+
+        // Update에서 샘플링한 조종 스틱값 — 실제 축 적분은 FixedUpdate에서 소비(물리 틱 정합).
+        Vector2 driveRS, driveLS;
 
         // 운전실 시점 상태 (A 토글)
         bool cabView, prevCabBtn, rigSaved;
@@ -88,7 +109,14 @@ namespace Container.Crane.Sts
         /// <summary>운전실 시점(내려다보기) 활성 여부.</summary>
         public bool CabView => cabView;
 
-        bool prevGrab, prevRelease, prevCycleBtn;
+        // 3인칭 시점 상태 (왼쪽 스틱 클릭 토글) — 카메라를 내 아바타 뒤로 빼고, 아바타는 제자리에 고정 표시
+        bool thirdPerson, prevTpBtn;
+        Container.Crane.Sts.Net.PlayerAvatarSync tpAvatar;
+        /// <summary>3인칭 시점 활성 여부.</summary>
+        public bool ThirdPerson => thirdPerson;
+
+        bool prevGrab, prevRelease, prevCycleBtn, prevModeToggleBtn;
+        bool controlActive;   // 관찰(false, 기본) ⇄ 조종(true) — 오른쪽 스틱클릭 토글
         bool stickCentered = true;   // 모드 스틱 플릭 엣지 검출(중앙 복귀 후에만 다음 플릭 인정)
         readonly List<Behaviour> locoProviders = new List<Behaviour>();   // 캐시된 XR 로코모션 프로바이더
         bool locoCached;
@@ -135,17 +163,16 @@ namespace Container.Crane.Sts
 
         void OnEnable()
         {
-            var op = GetComponent<StsCraneOperator>();
-            if (op != null) op.enabled = false;   // 수동 조종 중엔 자동 사이클 정지
             mode = startInCraneMode ? Mode.Crane : Mode.Move;
             selectedIndex = (int)mode;
-            ApplyMode();
+            ApplyMode();   // 로코모션 + 자동/수동(이동모드=자동, 운전/갠트리=수동) 연동
             ApplyWalkSpeed();
             if (debugLog) Debug.Log($"[Crane] VRController 활성 — 시작 모드 {ModeNames[(int)mode]}");
         }
 
         void OnDisable()
         {
+            if (thirdPerson) ExitThirdPerson();   // 3인칭이면 원위치 + 아바타 앵커 해제
             if (cabView) ExitCabView();   // 운전실 시점이면 시점 원위치 복귀
             mode = Mode.Move;   // 컨트롤러 끄면 로코모션 복구
             ApplyMode();
@@ -166,14 +193,42 @@ namespace Container.Crane.Sts
             if (right.isValid) right.TryGetFeatureValue(CommonUsages.primary2DAxis, out rs);
             if (left.isValid) left.TryGetFeatureValue(CommonUsages.primary2DAxis, out ls);
 
+            // QA 자동 시나리오 합성 입력 — 기기 대신 주입값으로 스틱을 대체(나머지 처리는 동일 → FixedUpdate 축적분 경로 그대로).
+            if (qaDrive) { rs = qaRS; ls = qaLS; }
+
             // ───── 시점 높이 조절은 CraneViewHeightAdjuster(별도 컴포넌트, 호스트/관전자 공통)가 담당 ─────
             //   조종 컨트롤러는 '조절 중'이면 왼손 스틱을 높이 전용으로 양보(호이스트/갠트리 입력 무효화)한다.
             //   걷기 정지는 EnforceLocomotion의 locoOn 조건이 ViewHeightActive()로 매 프레임 반영한다.
             if (ViewHeightActive()) ls = Vector2.zero;
 
+            // ───── 관찰 ⇄ 조종 토글: 오른쪽 스틱 클릭(primary2DAxisClick). 기본은 관찰(controlActive=false) ─────
+            //   관찰: 크레인은 PLC/시뮬이 움직이고 사용자 조종 입력은 전면 차단 → 호스트·관전자 동일 화면(모드선택 HUD도 숨김).
+            //   조종: 스틱 클릭 한 번으로 진입, 이때만 모드선택 HUD가 뜨고 축 조종이 열린다.
+            bool modeToggleNow = Btn(right, CommonUsages.primary2DAxisClick);
+            if (modeToggleNow && !prevModeToggleBtn)
+            {
+                controlActive = !controlActive;
+                Haptic(right, 0.4f, 0.05f);
+                if (!controlActive)
+                {
+                    if (cabView) ExitCabView();   // 관찰로 빠지면 운전실 시점 해제
+                    SetMode(Mode.Move);            // 이동모드로 되돌려 걷기(둘러보기) 보장
+                }
+            }
+            prevModeToggleBtn = modeToggleNow;
+
+            // ───── 3인칭 시점 토글: 왼쪽 스틱 클릭 — 관찰/조종·모드 무관하게 어디서나 ─────
+            //   카메라를 내 아바타 뒤·위로 빼고, 아바타는 누른 순간 위치에 고정 표시(머리가 카메라 따라오지 않게 앵커).
+            bool tpBtnNow = Btn(left, CommonUsages.primary2DAxisClick);
+            if (tpBtnNow && !prevTpBtn) { if (thirdPerson) ExitThirdPerson(); else EnterThirdPerson(); }
+            prevTpBtn = tpBtnNow;
+
+            // 관찰 모드: 조종 입력(모드선택/확정/시점/집기/축이동) 전면 차단. 걷기·시점높이·3인칭은 위에서 이미 처리됨.
+            if (!controlActive) { driveRS = driveLS = Vector2.zero; return; }
+
             // ───── 모드 선택: 스틱 위/아래로 '후보'만 이동 → B로 '확정' ─────
             //   스틱만으론 모드가 안 바뀜(후보 하이라이트만 이동). B를 눌러야 실제 전환.
-            //   → 운전모드에서 오른쪽 스틱 좌우(트롤리) 조작 중 모드가 빠지는 충돌 해소.
+            //   → 조종모드에서 오른쪽 스틱 좌우(트롤리) 조작 중 모드가 빠지는 충돌 해소.
             //   추가 가드: 좌우로 밀 땐(|x|≥0.5) 후보도 안 움직임. 중앙 복귀 후에만 다음 이동 인정(폭주 방지).
             if (Mathf.Abs(rs.y) < 0.3f) stickCentered = true;
             if (stickCentered && Mathf.Abs(rs.y) > modeFlickThreshold && Mathf.Abs(rs.x) < 0.5f)
@@ -192,11 +247,9 @@ namespace Container.Crane.Sts
             bool cabBtnNow = Btn(right, CommonUsages.primaryButton);
             if (cabBtnNow && !prevCabBtn && mode != Mode.Move) { if (cabView) ExitCabView(); else EnterCabView(); }
             prevCabBtn = cabBtnNow;
-            if (cabView)
-            {
-                if (mode == Mode.Move) ExitCabView();   // 이동모드로 바뀌면 자동 복귀
-                else FollowTrolley();                    // 트롤리/갠트리 이동 따라 시점도 함께
-            }
+            // 이동모드로 바뀌면 시점 자동 복귀(여기서 즉시). 시점 추종(FollowTrolley)은 모든 이동이
+            //   끝난 뒤(LateUpdate)에 카메라를 정렬해 트롤리 이동(FixedUpdate)과의 한 프레임 어긋남/저더를 막는다.
+            if (cabView && mode == Mode.Move) ExitCabView();
 
             // ───── 공통: 집기 / 놓기 (모드 무관) ─────
             bool grabNow = Btn(left, CommonUsages.secondaryButton);     // Y
@@ -206,31 +259,95 @@ namespace Container.Crane.Sts
             if (releaseNow && !prevRelease) { if (debugLog) Debug.Log("[Crane] X 입력 → 놓기(Release)"); grabber?.Release(); }
             prevRelease = releaseNow;
 
-            // ───── 모드별 조종 ─────
-            if (mode == Mode.Move) return;   // 이동모드: 스틱(이동/승강) 무시 — 로코모션이 처리
+            // ───── 모드별 조종 입력 저장 → 실제 축 이동은 FixedUpdate에서(물리 정합) ─────
+            //   입력 샘플링은 Update(프레임률)에서, kinematic 화물을 끌고 가는 축 적분은 FixedUpdate(고정틱)에서
+            //   처리해 PhysX 접촉/스윕과 박자를 맞춘다 — 프레임률 의존·터널링 완화. (이동모드는 FixedUpdate가 무시)
+            driveRS = rs;
+            driveLS = ls;
+        }
+
+        // 축 이동(트롤리/호이스트/갠트리)은 물리 고정틱에서 — Update가 샘플링한 스틱값(driveRS/driveLS)을 소비.
+        //   kinematic 컨테이너를 끌고 가는 이동이므로 PhysX와 같은 박자(FixedUpdate)에 둬야 충돌/안착이 결정적.
+        void FixedUpdate()
+        {
+            if (crane == null || !controlActive || mode == Mode.Move) return;   // 관찰이거나 이동모드면 축 조종 없음
+            float dt = Time.fixedDeltaTime;
 
             if (mode == Mode.Gantry)
             {
                 // 갠트리 주행: 크레인 전체만 움직이고 트롤리/호이스트는 잠금(섞이지 않게)
                 IAxisMover gantry = crane.Gantry;
-                if (gantry != null && Mathf.Abs(ls.x) > deadzone)
-                    gantry.MoveTo(gantry.Current + ls.x * gantrySpeedMps * crane.ModelScale * Time.deltaTime);
+                bool gActive = gantry != null && Mathf.Abs(driveLS.x) > deadzone;
+                if (gActive)
+                {
+                    float deltaModel = driveLS.x * gantrySpeedMps * crane.ModelScale * dt;
+                    gantry.MoveTo(gantry.Current + deltaModel);
+                    // QA S-PHYS-1: 축 적분이 FixedUpdate에서만 일어남 — 이동 시작 엣지에서 1줄(폭주 방지).
+                    if (QaLog.Enabled && !qaGantryActive)
+                        QaLog.Info("GANTRY", "move", $"phase=FixedUpdate dt={QaLog.F(dt)} input={QaLog.F(driveLS.x)} " +
+                            $"mps={QaLog.F(gantrySpeedMps)} scale={QaLog.F(crane.ModelScale)} deltaModel={QaLog.F(deltaModel)}");
+                }
+                qaGantryActive = gActive;
                 return;
             }
 
             // mode == Mode.Crane
             IAxisMover trolley = crane.Trolley;
-            if (trolley != null && Mathf.Abs(rs.x) > deadzone)
-                trolley.MoveTo(trolley.Current + rs.x * trolleySpeedMps * crane.ModelScale * Time.deltaTime);
+            bool tActive = trolley != null && Mathf.Abs(driveRS.x) > deadzone;
+            if (tActive)
+            {
+                float deltaModel = driveRS.x * trolleySpeedMps * crane.ModelScale * dt;
+                trolley.MoveTo(trolley.Current + deltaModel);
+                if (QaLog.Enabled && !qaTrolleyActive)
+                    QaLog.Info("TROLLEY", "move", $"phase=FixedUpdate dt={QaLog.F(dt)} input={QaLog.F(driveRS.x)} " +
+                        $"mps={QaLog.F(trolleySpeedMps)} scale={QaLog.F(crane.ModelScale)} deltaModel={QaLog.F(deltaModel)}");
+            }
+            qaTrolleyActive = tActive;
 
             IAxisMover hoist = crane.Spreader;
-            if (hoist != null && Mathf.Abs(ls.y) > deadzone)
+            bool hActive = hoist != null && Mathf.Abs(driveLS.y) > deadzone;
+            if (hActive)
             {
-                // 컨테이너 적재 시 만재 속도(느림), 빈 스프레더면 공하 속도(빠름) — 실제 STS와 동일
-                bool loaded = crane.Attach != null && crane.Attach.HasContainer;
-                float hoistMps = loaded ? hoistLoadedSpeedMps : hoistEmptySpeedMps;
-                hoist.MoveTo(hoist.Current + ls.y * hoistMps * crane.ModelScale * Time.deltaTime);
+                // 빈 스프레더는 공하 속도(빠름). 적재 시 컨테이너 무게에 비례해 권상 속도 감소
+                // (가벼우면 light, 정격 근처면 heavy) — 실제 STS 모터 정격 거동 모사.
+                var attach = crane.Attach;
+                float hoistMps, tons;
+                string band;
+                if (attach != null && attach.HasContainer)
+                {
+                    tons = attach.AttachedLoadTons;
+                    float loadT = Mathf.InverseLerp(hoistLightLoadTons, hoistRatedLoadTons, tons);  // light톤→경하중, rated톤→정격
+                    hoistMps = Mathf.Lerp(hoistLoadedLightMps, hoistLoadedHeavyMps, loadT);
+                    band = tons <= hoistLightLoadTons ? "light" : (tons >= hoistRatedLoadTons ? "heavy" : "interp");
+                }
+                else { hoistMps = hoistEmptySpeedMps; tons = 0f; band = "empty"; }
+                float deltaModel = driveLS.y * hoistMps * crane.ModelScale * dt;
+                hoist.MoveTo(hoist.Current + deltaModel);
+                // QA S-PHYS-5: 하중별 권상속도 보간 — 권상 시작 엣지에서 1줄.
+                if (QaLog.Enabled && !qaHoistActive)
+                    QaLog.Info("HOIST", "speed", $"phase=FixedUpdate tons={QaLog.F(tons)} mps={QaLog.F(hoistMps)} " +
+                        $"band={band} scale={QaLog.F(crane.ModelScale)} deltaModel={QaLog.F(deltaModel)}");
             }
+            qaHoistActive = hActive;
+        }
+
+        // QA 축 이동 로그 엣지 추적 — 이동 시작 시점에만 1줄 찍어 매 물리틱 폭주 방지.
+        bool qaTrolleyActive, qaHoistActive, qaGantryActive;
+
+        // ───────── QA 자동 시나리오 합성 입력(VR 기기 없이 production 경로를 그대로 구동) ─────────
+        bool qaDrive; Vector2 qaRS, qaLS;
+        /// <summary>QA: 합성 스틱 구동 시작 — controlActive를 켜고 모드 확정. 이후 Update가 기기 대신 주입값을 쓴다.</summary>
+        public void QaBeginDrive(Mode m) { qaDrive = true; controlActive = true; SetMode(m); }
+        /// <summary>QA: 이번/다음 프레임에 적용할 합성 스틱값(rs=오른손, ls=왼손).</summary>
+        public void QaSticks(Vector2 rs, Vector2 ls) { qaRS = rs; qaLS = ls; }
+        /// <summary>QA: 합성 구동 종료 — 입력 0, 이동모드 복귀, 관찰로 전환.</summary>
+        public void QaEndDrive() { qaDrive = false; qaRS = qaLS = Vector2.zero; SetMode(Mode.Move); controlActive = false; driveRS = driveLS = Vector2.zero; }
+
+        // 운전실 시점 추종 — 트롤리/갠트리 이동(FixedUpdate)과 모든 Update가 끝난 뒤 카메라를 정렬해
+        //   한 프레임 어긋남으로 인한 시점 저더(멀미 가중)를 방지.
+        void LateUpdate()
+        {
+            if (cabView && mode != Mode.Move) FollowTrolley();   // 트롤리/갠트리 이동 따라 시점도 함께
         }
 
         // 모드 변경(같은 모드면 무시) — 로코모션 적용 + 진동 + 로그
@@ -247,6 +364,7 @@ namespace Container.Crane.Sts
         // ───────── 운전실 시점 (카메라를 운전실 좌석 눈높이 앵커로 이동, 크기 변경 없음) ─────────
         void EnterCabView()
         {
+            if (thirdPerson) ExitThirdPerson();   // 3인칭과 상호 배타(둘 다 리그를 옮김)
             var cam = Camera.main;
             var trolleyT = (crane.Trolley as Component)?.transform;
             if (cam == null || trolleyT == null)
@@ -267,9 +385,16 @@ namespace Container.Crane.Sts
                 if (c.enabled) { c.enabled = false; rigColliders.Add(c); }
 
             // 카메라가 운전실 시점에 오도록 리그를 평행 이동.
-            //   전용 앵커(Cab_Viewpoint)면 그 좌표가 곧 좌석 눈높이 → 오프셋 0. 아니면 레거시(기준부품 + 오프셋, 트롤리 회전만 반영·스케일 안 곱함).
-            Vector3 target = dedicated ? cabAnchor.position
-                                       : cabAnchor.position + trolleyT.rotation * cabLocalOffset;
+            //   ★ 전용 앵커면: 시선(전방/요)은 Cab_Viewpoint 기준, 눈 '위치'는 운전실 후방 바닥 패널(Cab_Fb_FloorRear)
+            //     '아래'로 내린다 — 좌석 눈높이는 바닥/콘솔/벽에 가려 발밑 화물이 안 보이므로, 바닥 패널 밑에서
+            //     전면 경사창으로 바로 아래(스프레더/선박 셀)를 막힘없이 내려다보게 한다. (옛 Cab_Kick은 생산부가 없어
+            //     항상 폴백→좌석 눈높이에 갇혀 '조종실 안' 시점이 됐었음 — 2026-06-22 오너 지시로 실재 바닥부품으로 교체.)
+            //   레거시 앵커면: 기준부품 + 오프셋(트롤리 회전만 반영·스케일 안 곱함).
+            Transform cabFloor = dedicated ? FindCabFloor(trolleyT) : null;
+            Transform eyeAnchor = cabFloor != null ? cabFloor : cabAnchor;
+            Vector3 target = cabFloor != null ? cabFloor.position - trolleyT.up * cabFloorDropDown   // 바닥 패널 '아래'
+                           : dedicated         ? cabAnchor.position                                    // 바닥 폴백 → 좌석 눈높이
+                                               : cabAnchor.position + trolleyT.rotation * cabLocalOffset;
             // 전용 앵커면 시선(요)을 운전실 전방(스프레더/바다쪽)에 정렬 — 상하 피치는 머리에 맡김(고개 숙여 내려다봄).
             if (dedicated)
             {
@@ -283,8 +408,10 @@ namespace Container.Crane.Sts
 
             cabView = true;
             Haptic(InputDevices.GetDeviceAtXRNode(XRNode.RightHand), 0.4f, 0.06f);
-            if (debugLog) Debug.Log($"[Crane] A → 운전실 시점 ON — 기준 '{cabAnchor.name}'" +
-                (dedicated ? " (전용 좌석 앵커·시선 스프레더 정렬)" : $", 오프셋 {cabLocalOffset}") + " (고개 숙여 아래를 보세요)");
+            if (debugLog) Debug.Log($"[Crane] A → 운전실 시점 ON — 시선기준 '{cabAnchor.name}', 눈위치 '{eyeAnchor.name}'" +
+                (cabFloor != null ? $" (바닥 아래 {cabFloorDropDown:0.###} 드롭·시선 스프레더 정렬)"
+                 : dedicated       ? " (좌석 눈높이 폴백·시선 스프레더 정렬)"
+                                   : $", 오프셋 {cabLocalOffset}") + " (고개 숙여 아래를 보세요)");
         }
 
         // 시점 기준 부품 찾기 — 트롤리 하위에서 이름으로(재귀).
@@ -294,11 +421,27 @@ namespace Container.Crane.Sts
         {
             dedicated = false;
             foreach (var t in trolleyT.GetComponentsInChildren<Transform>(true))
-                if (CraneHud.BaseName(t.name) == "Cab_Viewpoint") { dedicated = true; return t; }
+                if (CraneHud.BaseName(t.name) == StsPartNames.CabViewpoint) { dedicated = true; return t; }
             if (!string.IsNullOrEmpty(cabAnchorName))
                 foreach (var t in trolleyT.GetComponentsInChildren<Transform>(true))
                     if (CraneHud.BaseName(t.name) == cabAnchorName) return t;
             return trolleyT;
+        }
+
+        // 운전실 '바닥' 부품(Cab_Fb_FloorRear 등) 찾기 — 전용 시점에서 눈 위치를 이 바닥 '아래'에 둬 발밑 화물을 내려다보게.
+        //   1순위: 직렬화된 cabFloorAnchorName  2순위: 실재 후방 바닥 패널(Cab_Fb_FloorRear).
+        //   ※ 기존 씬 인스턴스가 옛 'Cab_Kick'(생산부 없음)으로 직렬화돼 있어도 인스펙터 수정 없이 동작하도록 2순위 폴백을 둔다.
+        //   둘 다 못 찾으면 null → EnterCabView가 좌석 눈높이(Cab_Viewpoint)로 폴백.
+        Transform FindCabFloor(Transform trolleyT)
+        {
+            Transform byName = null, byRear = null;
+            foreach (var t in trolleyT.GetComponentsInChildren<Transform>(true))
+            {
+                string bn = CraneHud.BaseName(t.name);
+                if (byName == null && !string.IsNullOrEmpty(cabFloorAnchorName) && bn == cabFloorAnchorName) byName = t;
+                if (byRear == null && bn == StsPartNames.CabFloorRear) byRear = t;
+            }
+            return byName != null ? byName : byRear;
         }
 
         // 트롤리가 움직인 만큼 시점도 같이 이동 — 운전실이 트롤리에 붙어 따라가게
@@ -320,6 +463,73 @@ namespace Container.Crane.Sts
             if (debugLog) Debug.Log("[Crane] A → 운전실 시점 OFF (원위치 복귀)");
         }
 
+        // ───────── 3인칭 시점 (카메라를 내 아바타 뒤·위로, 아바타는 제자리 고정 표시) ─────────
+        //   운전실 시점과 같은 '리그 평행이동' 패턴을 재사용(위치 저장 → 콜라이더 끔 → 카메라를 목표로 이동 → 복귀).
+        //   핵심: 아바타 머리는 카메라를 매 프레임 따라가므로, 카메라만 빼면 자기 몸을 못 본다 →
+        //         아바타에 3인칭 앵커(머리 고정·손 휴식)를 걸어 '누른 순간 위치'에 세워 둔 뒤 카메라를 뒤로 뺀다.
+        void EnterThirdPerson()
+        {
+            var cam = Camera.main;
+            if (cam == null) { if (debugLog) Debug.LogWarning("[Crane] 3인칭 실패 — Main 카메라 없음"); return; }
+            var avatar = FindLocalAvatar();
+            if (avatar == null)
+            { if (debugLog) Debug.LogWarning("[Crane] 3인칭 실패 — 내 아바타 없음(Host 또는 클라이언트로 접속해야 아바타가 생김)"); return; }
+
+            if (cabView) ExitCabView();   // 운전실 시점과 상호 배타(둘 다 리그를 옮김)
+
+            rig = cam.transform.root;
+            savedRigPos = rig.position; savedRigRot = rig.rotation; rigSaved = true;
+
+            // 논리적 몸 위치 = 누른 순간 카메라(눈) 위치, 정면 = 카메라 수평 방향(yaw)
+            Vector3 headPos = cam.transform.position;
+            Vector3 fwd = cam.transform.forward; fwd.y = 0f;
+            if (fwd.sqrMagnitude < 1e-4f) fwd = Vector3.forward;
+            fwd.Normalize();
+            Quaternion yaw = Quaternion.LookRotation(fwd, Vector3.up);
+
+            avatar.SetThirdPersonAnchor(headPos, yaw);
+            avatar.SetAvatarVisible(true);
+            tpAvatar = avatar;
+
+            // 리그가 크레인/컨테이너를 밀지 않게 콜라이더 잠시 끔(운전실 시점과 동일).
+            rigColliders.Clear();
+            foreach (var c in rig.GetComponentsInChildren<Collider>(true))
+                if (c.enabled) { c.enabled = false; rigColliders.Add(c); }
+
+            // 카메라 수평 시선을 몸 정면(yaw)에 맞춘 뒤(회전 먼저), 카메라를 몸 뒤·위 목표로 평행이동.
+            //   거리/높이는 실척 m → 모델 1/24 축척을 곱해 미니어처 월드 단위로.
+            Vector3 camFwd = cam.transform.forward; camFwd.y = 0f;
+            if (camFwd.sqrMagnitude > 1e-4f)
+                rig.rotation = Quaternion.FromToRotation(camFwd.normalized, fwd) * rig.rotation;
+            Vector3 camTarget = headPos + yaw * (new Vector3(0f, tpUpReal, -tpBackReal) * crane.ModelScale);
+            rig.position += camTarget - cam.transform.position;
+
+            thirdPerson = true;
+            EnforceLocomotion();   // 3인칭 중엔 걷기 정지(카메라가 몸에서 떨어져 나가지 않게)
+            Haptic(InputDevices.GetDeviceAtXRNode(XRNode.RightHand), 0.4f, 0.06f);
+            if (debugLog) Debug.Log($"[Crane] 왼쪽 스틱 클릭 → 3인칭 ON (뒤 {tpBackReal}m·위 {tpUpReal}m)");
+        }
+
+        void ExitThirdPerson()
+        {
+            if (rigSaved && rig != null) { rig.position = savedRigPos; rig.rotation = savedRigRot; }
+            foreach (var c in rigColliders) if (c != null) c.enabled = true;
+            rigColliders.Clear();
+            if (tpAvatar != null) { tpAvatar.ClearThirdPersonAnchor(); tpAvatar.SetAvatarVisible(false); tpAvatar = null; }
+            thirdPerson = false;
+            rigSaved = false;
+            EnforceLocomotion();
+            if (debugLog) Debug.Log("[Crane] 왼쪽 스틱 클릭 → 3인칭 OFF (원위치 복귀)");
+        }
+
+        // 로컬(내) 아바타 = IsOwner인 PlayerAvatarSync. 네트워크 미접속이면 null(아바타 미스폰).
+        static Container.Crane.Sts.Net.PlayerAvatarSync FindLocalAvatar()
+        {
+            foreach (var a in FindObjectsByType<Container.Crane.Sts.Net.PlayerAvatarSync>(FindObjectsSortMode.None))
+                if (a.IsOwner) return a;
+            return null;
+        }
+
         // 컨트롤러 짧은 진동 — 모드 전환 피드백
         static void Haptic(UnityEngine.XR.InputDevice d, float amplitude, float seconds)
         {
@@ -335,12 +545,15 @@ namespace Container.Crane.Sts
         //   목록 추적(disable/enable 큐) 방식은 모드 사이클·높이조절이 섞이면 상태가 어긋나
         //   '두 번째 이동모드에서 안 걸어지던' 버그가 났다. → 캐시한 프로바이더에 매 프레임 목표 상태를
         //   '직접' 강제하는 선언적 방식으로 교체(자가 치유, 누적/엇갈림 원천 차단). Update와 전환 시 호출.
-        void ApplyMode() => EnforceLocomotion();
+        void ApplyMode()
+        {
+            EnforceLocomotion();
+        }
 
         void EnforceLocomotion()
         {
             EnsureLocoProviders();
-            bool locoOn = (mode == Mode.Move) && !ViewHeightActive();
+            bool locoOn = (mode == Mode.Move) && !ViewHeightActive() && !thirdPerson;
             foreach (var b in locoProviders)
                 if (b != null && b.enabled != locoOn) b.enabled = locoOn;
             if (suppressWhileControlling != null)

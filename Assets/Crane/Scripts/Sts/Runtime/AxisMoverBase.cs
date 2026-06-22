@@ -17,10 +17,20 @@ namespace Container.Crane.Sts
         /// <summary>이동 가능한 하한 — 기본은 Min. SpreaderHoist가 floorOffset 반영 위해 override.</summary>
         protected virtual float LowerLimit => Min;
 
+        /// <summary>마지막 이동 시도에서 장애물에 막혔는지(충돌 정지). 충돌 정지는 GantryMover만 override하므로 사실상 갠트리용.</summary>
+        public bool IsBlocked { get; private set; }
+
+        /// <summary>현재 상한 끝단 도달(가동 범위의 1% 이내).</summary>
+        public bool AtUpperLimit => Max > LowerLimit && (Max - Current) <= (Max - LowerLimit) * LimitFrac;
+        /// <summary>현재 하한 끝단 도달(가동 범위의 1% 이내).</summary>
+        public bool AtLowerLimit => Max > LowerLimit && (Current - LowerLimit) <= (Max - LowerLimit) * LimitFrac;
+        const float LimitFrac = 0.01f;
+
         public void MoveTo(float value)
         {
             float clamped = Mathf.Clamp(value, LowerLimit, Max);
-            if (IsBlockedToward(clamped)) return;   // 진행 방향에 장애물(컨테이너 등) — 이동 정지(밀지 않음)
+            IsBlocked = IsBlockedToward(clamped);
+            if (IsBlocked) return;   // 진행 방향에 장애물(컨테이너 등) — 이동 정지(밀지 않음)
             WriteAxis(clamped);
             OnMoved(clamped);
         }

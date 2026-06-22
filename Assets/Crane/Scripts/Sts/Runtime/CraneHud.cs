@@ -11,6 +11,25 @@ namespace Container.Crane.Sts
     /// </summary>
     internal static class CraneHud
     {
+        // ───────── 디자인 토큰 (HUD 공용 시각 언어) ─────────
+        // 패널 배경 알파·의미색을 한 곳에 모아 7개 HUD가 같은 시각 언어를 쓰게 한다.
+        //   기존엔 HUD마다 배경 알파(0.55~0.85)·강조 hex(#7FFF7F 등)가 흩어져 통일감이 약했다.
+        //   ColorUtility.ToHtmlStringRGB(=Hex)로 rich-text 인라인 색에도 같은 값을 끌어쓴다.
+        public const float PanelBgAlpha = 0.82f;   // 패널 배경 검정 알파 표준(예외: ArrowHUD는 배경 덜 가리려 더 투명)
+        public const float HudDistance = 0.85f;     // 모든 head-locked HUD의 표준 거리(z, m) — 거리감 통일(StatusHUD 기준)
+
+        /// <summary>HUD 공용 의미색 — 등급색(ContainerLoad)·알람색(CraneFault)과 톤을 맞춰 한 제품으로 통일.</summary>
+        public static class HudColor
+        {
+            public static readonly Color Ok      = new Color(0.30f, 0.85f, 0.40f);  // 양호/체결 (ContainerLoad 정상 톤과 일치)
+            public static readonly Color Danger  = new Color(0.92f, 0.20f, 0.18f);  // 이상/경보 (CraneFault Fatal과 일치)
+            public static readonly Color Accent  = new Color(0.373f, 0.878f, 1f);   // 안내·강조 청록(#5FE0FF) — '안내'는 녹색 말고 이 색
+            public static readonly Color IdleDim = new Color(0.53f, 0.53f, 0.55f);  // 더 약한 보조(없음/0 등)
+        }
+
+        /// <summary>Color → rich-text 인라인용 "RRGGBB" hex. (예: $"&lt;color=#{Hex(HudColor.Ok)}&gt;…")</summary>
+        public static string Hex(Color c) => ColorUtility.ToHtmlStringRGB(c);
+
         // 한글 표시 위해 legacy UI.Text가 쓸 시스템 폰트 후보(플랫폼별 첫 매치 사용).
         static readonly string[] KoreanFonts =
         {
@@ -24,13 +43,24 @@ namespace Container.Crane.Sts
         // 글리프 아틀라스가 따로 떠 Quest에서 메모리·텍스처 리빌드 낭비였다.
         static readonly Dictionary<int, Font> _fontCache = new();
 
+        // 번들 OFL 한글 폰트(나눔고딕, SIL OFL=상업·번들 자유) — OS 폰트 매칭 실패 시 폴백.
+        //   라틴 전용 LegacyRuntime.ttf 대신 써서 '한글 전멸(두부 □)' 최악 케이스를 제거한다.
+        //   ※ 1순위는 여전히 단말 OS 폰트. 나눔고딕엔 ⚠ █ ░ ✓ ⊘ ▸ 글리프가 없어, 폴백 경로에선 그 기호가 □가 될 수 있다
+        //     (한글·화살표·●·━·•는 포함). 폰트를 주 폰트로 승격하려면 그 기호들을 스프라이트 아이콘/Image 게이지로 먼저 분리해야 함.
+        static Font _bundledKr;
+        static bool _bundledKrTried;
+        const string BundledKrFontPath = "Fonts/NanumGothic-Regular";   // Assets/Crane/Resources/Fonts/
+
         public static Font CreateKoreanFont(int size)
         {
             if (_fontCache.TryGetValue(size, out var f) && f != null) return f;
-            f = Font.CreateDynamicFontFromOSFont(KoreanFonts, size);
-            // OS에 후보 폰트가 하나도 없으면 null → 한글이 빈칸으로 렌더되므로 내장 폰트로 폴백.
-            if (f == null) f = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            _fontCache[size] = f;
+            f = Font.CreateDynamicFontFromOSFont(KoreanFonts, size);   // 1순위: 단말 OS 폰트(⚠·█░ 등 기호 글리프 포함)
+            if (f == null)
+            {
+                if (!_bundledKrTried) { _bundledKrTried = true; _bundledKr = Resources.Load<Font>(BundledKrFontPath); }
+                f = _bundledKr != null ? _bundledKr : Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            }
+            if (f != null) _fontCache[size] = f;   // null은 캐시 안 함 — 다음 호출에서 OS폰트 재시도 가능(빈 텍스트 고착 방지)
             return f;
         }
 
@@ -102,8 +132,42 @@ namespace Container.Crane.Sts
             return canvas;
         }
 
+        // ───────── VR 오클루전 해소(깊이 무시, 항상 최상단) ─────────
+        // world-space 캔버스는 기본 깊이테스트(LEqual)라 크레인 부재 등 3D 오브젝트가 HUD 앞에 오면
+        //   HUD가 그 뒤로 그려져 가려진다("object랑 겹쳐 글자 안 보임"의 직접 원인).
+        // [1순위] ZTest를 셰이더에 박은 전용 오버레이(Container/CraneHudOverlay) 사용 — 머티리얼 ZTest
+        //   오버라이드(unity_GUIZTestMode)는 world-space 캔버스+URP/Quest 빌드에서 누락되어 가림이 남았다.
+        //   셰이더에 ZTest Always + Queue Overlay를 박아 환경/스트립에 의존하지 않고 항상 위에 그린다.
+        // [폴백] 전용 셰이더 부재 시 기존 UI/Default + unity_GUIZTestMode 트릭.
+        //   모든 HUD 그래픽이 이 머티리얼 하나를 공유 → 배칭 유지, GC 없음.
+        static Material _overlayMat;
+        public static Material OverlayMaterial()
+        {
+            if (_overlayMat != null) return _overlayMat;
+            var sh = Shader.Find("Container/CraneHudOverlay");
+            if (sh != null)
+            {
+                _overlayMat = new Material(sh) { name = "CraneHud_Overlay" };
+                return _overlayMat;
+            }
+            sh = Shader.Find("UI/Default");
+            if (sh == null) return null;   // 셰이더 누락 시 기본 머티리얼 사용(가림은 남지만 표시는 됨)
+            _overlayMat = new Material(sh) { name = "CraneHud_Overlay" };
+            _overlayMat.SetInt("unity_GUIZTestMode", (int)UnityEngine.Rendering.CompareFunction.Always);
+            return _overlayMat;
+        }
+
+        // 그래픽(Image/Text)을 깊이 무시 머티리얼로 — BuildPanel이 만드는 모든 요소에 적용.
+        static T Overlay<T>(T g) where T : Graphic
+        {
+            var m = OverlayMaterial();
+            if (m != null) g.material = m;
+            return g;
+        }
+
         static void ConfigText(Text text, int fontSize, Color textColor, TextAnchor align)
         {
+            Overlay(text);
             text.font = CreateKoreanFont(fontSize);
             text.fontSize = fontSize;
             text.color = textColor;
@@ -124,6 +188,7 @@ namespace Container.Crane.Sts
         // 배경 이미지 스타일 — 둥근 사각 스프라이트(9-슬라이스)로 모서리를 둥글게. 라이브러리 불필요.
         static void StyleBg(Image img, Color color)
         {
+            Overlay(img);
             img.color = color;
             var sp = RoundedBgSprite();
             if (sp != null) { img.sprite = sp; img.type = Image.Type.Sliced; }
@@ -174,7 +239,11 @@ namespace Container.Crane.Sts
             canvas.position = anchor.position + Vector3.up * (worldHeight * s);
             Vector3 dir = canvas.position - cam.transform.position;
             if (dir.sqrMagnitude > 1e-6f)
-                canvas.rotation = Quaternion.LookRotation(dir.normalized, Vector3.up);
+            {
+                // dir이 월드 up과 거의 평행이면(앵커가 눈 바로 아래/위) LookRotation 롤 튐 → 카메라 up을 대체 기준으로.
+                Vector3 up = Mathf.Abs(Vector3.Dot(dir.normalized, Vector3.up)) > 0.99f ? cam.transform.up : Vector3.up;
+                canvas.rotation = Quaternion.LookRotation(dir.normalized, up);
+            }
         }
 
         /// <summary>카메라(부모)의 자식인 캔버스가 카메라를 정면으로 향하게 하는 '로컬' 회전을 설정.
@@ -235,6 +304,19 @@ namespace Container.Crane.Sts
             Debug.Log($"[{logTag}] 자동 스폰 — '{go.name}' 생성");
         }
 
+        static StsCraneVRController _vrController;
+        static float _nextVrFind;
+        /// <summary>StsCraneVRController 공용 캐시 탐색 — 못 찾으면 0.5s마다만 재시도. 여러 HUD가 controller null일 때
+        ///   각자 매 프레임 FindAnyObjectByType 풀 씬 스캔하던 비용을 한 곳으로 모은다(찾으면 즉시 캐시 반환).</summary>
+        public static StsCraneVRController FindVrController()
+        {
+            if (_vrController != null) return _vrController;
+            if (Time.unscaledTime < _nextVrFind) return null;
+            _nextVrFind = Time.unscaledTime + 0.5f;
+            _vrController = Object.FindAnyObjectByType<StsCraneVRController>();
+            return _vrController;
+        }
+
         /// <summary>
         /// 이름으로 좌/우 컨트롤러 Transform 탐색 — ArrowHUD·ModeSelectorHUD 공유.
         /// 전역 스캔 '첫 매치'는 'Left Controller Stabilized' 같은 정적 보조 객체나 비활성 데모를
@@ -259,8 +341,8 @@ namespace Container.Crane.Sts
                 if (!NameHas(t.name, side)) continue;
                 // 'controller' 또는 손 추적 앵커('Left Hand'/'Right Hand' 리그) 둘 다 컨트롤러 후보로 인정.
                 //   XR Origin Hands 리그는 컨트롤러 객체 이름이 'Right Hand'라 'controller' 단어가 없다.
-                if (!NameHas(t.name, "controller") && !NameHas(t.name, "hand")) continue;
-                if (requireHandless && NameHas(t.name, "hand")) continue;   // 1·2차는 controller 전용, 3차 폴백서 hand 허용
+                if (!NameHas(t.name, StsPartNames.ControllerNameHint) && !NameHas(t.name, StsPartNames.HandNameHint)) continue;
+                if (requireHandless && NameHas(t.name, StsPartNames.HandNameHint)) continue;   // 1·2차는 controller 전용, 3차 폴백서 hand 허용
                 // 미추적 컨트롤러는 리그 로컬 원점(=리그 루트 위치)에 머문다. 리그가 1/24로 축소되면 추적된 손도
                 //   리그에 바짝 붙으므로, 월드 원점이 아니라 '리그 루트로부터의 거리'를 스케일에 맞춰 본다.
                 //   (scope=리그, 스케일 1이면 0.2m로 기존과 동일 — 하위호환.)

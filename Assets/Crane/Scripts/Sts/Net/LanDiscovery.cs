@@ -17,7 +17,7 @@ namespace Container.Crane.Sts.Net
     [DisallowMultipleComponent]
     public sealed class LanDiscovery : MonoBehaviour
     {
-        [SerializeField] int discoveryPort = 47777;
+        [SerializeField] int discoveryPort = NetConfig.DiscoveryPort;   // [H3] SSOT
         [SerializeField] float beaconInterval = 1.0f;
 
         UdpClient udp;
@@ -115,7 +115,7 @@ namespace Container.Crane.Sts.Net
         static ushort Port(NetworkManager nm)
         {
             var t = nm.GetComponent<Unity.Netcode.Transports.UTP.UnityTransport>();
-            return t != null ? t.ConnectionData.Port : (ushort)7777;
+            return t != null ? t.ConnectionData.Port : NetConfig.DefaultPort;   // [H3] 폴백 포트 SSOT
         }
     }
 }

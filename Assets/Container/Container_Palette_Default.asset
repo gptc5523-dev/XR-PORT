@@ -37,3 +37,27 @@ MonoBehaviour:
     color: {r: 0.45, g: 0.3, b: 0.22, a: 1}
   - name: Steel Gray
     color: {r: 0.55, g: 0.55, b: 0.58, a: 1}
+  - name: Hanjin Blue
+    color: {r: 0.09, g: 0.33, b: 0.6, a: 1}
+  - name: Yang Ming Teal
+    color: {r: 0.16, g: 0.46, b: 0.46, a: 1}
+  - name: Sea Green
+    color: {r: 0.27, g: 0.6, b: 0.42, a: 1}
+  - name: Bottle Green
+    color: {r: 0.09, g: 0.27, b: 0.19, a: 1}
+  - name: Lime Olive
+    color: {r: 0.52, g: 0.62, b: 0.16, a: 1}
+  - name: Golden Yellow
+    color: {r: 0.94, g: 0.78, b: 0.12, a: 1}
+  - name: Olive Drab
+    color: {r: 0.42, g: 0.44, b: 0.27, a: 1}
+  - name: Khaki Tan
+    color: {r: 0.66, g: 0.58, b: 0.4, a: 1}
+  - name: Burgundy
+    color: {r: 0.39, g: 0.12, b: 0.18, a: 1}
+  - name: Plum
+    color: {r: 0.42, g: 0.22, b: 0.44, a: 1}
+  - name: Charcoal
+    color: {r: 0.25, g: 0.26, b: 0.28, a: 1}
+  - name: Pale Sky
+    color: {r: 0.72, g: 0.81, b: 0.84, a: 1}

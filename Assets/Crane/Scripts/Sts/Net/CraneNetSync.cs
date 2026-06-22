@@ -24,7 +24,7 @@ namespace Container.Crane.Sts.Net
         [Tooltip("클라이언트(관전자)에서 비활성화할 조종/로직 컴포넌트 타입명(네임스페이스 제외). 비우면 기본 목록 사용.")]
         [SerializeField] string[] disableOnClient =
         {
-            "StsCraneVRController", "StsCraneOperator", "SpreaderGrabber"
+            "StsCraneVRController", "SpreaderGrabber"
         };
         [Tooltip("네트워크 수신값으로의 보간 속도(클수록 즉각적·지연↓). 0이면 즉시 스냅.")]
         [SerializeField] float smooth = 30f;
@@ -43,12 +43,35 @@ namespace Container.Crane.Sts.Net
         readonly NetworkVariable<float> nHoistFloor = new(0f, E, S);
         readonly NetworkVariable<bool>  nIs40    = new(false, E, S);
         readonly NetworkVariable<bool>  nLocked  = new(false, E, S);
+        readonly NetworkVariable<int>   nAlarmCode = new(0, E, S);   // 활성 알람(최고 심각도 1건) 코드. 0=이상 없음 — 관전자도 같은 알람을 보도록 동기화.
+        readonly NetworkVariable<int>   nOpMode    = new(0, E, S);   // 운영상태(운전/정지/이상) = (int)OpMode. 호스트 판정을 관전자도 동일하게 보도록 동기화.
 
-        // 컨테이너 적재 동기화
-        readonly NetworkVariable<bool>    nHasContainer = new(false, E, S);
-        readonly NetworkVariable<int>     nGrabIndex    = new(-1, E, S);            // 잡은 컨테이너의 결정적 인덱스(정확 매칭용). -1이면 미상.
-        readonly NetworkVariable<Vector3> nGrabWorld    = new(Vector3.zero, E, S);  // 잡는 순간 컨테이너 월드 위치(인덱스 실패 시 폴백)
-        readonly NetworkVariable<Vector3> nAttachLocal  = new(Vector3.zero, E, S);  // attach 기준 로컬 위치
+        // 컨테이너 적재 동기화 — [외부감사 S2 수정 2026-06-17] has/index/grabWorld/attachLocal을
+        //   분리 NetworkVariable 4개로 보내면 수신 순서가 역전될 수 있어(대역폭 혼잡 시) has=true가
+        //   먼저 도착하면 클라가 초기 0 오프셋으로 잘못 붙던 위험이 있었다. 한 구조체(단일 NetworkVariable)로
+        //   묶어 4필드를 '원자적'으로 한 번에 전송 → 부분 갱신 불가, 선언순서 의존 제거.
+        readonly NetworkVariable<GrabState> nGrab = new(default, E, S);
+
+        /// <summary>적재 상태 4필드를 원자적으로 동기화하는 단일 구조체(unmanaged → NetworkVariable 가능).</summary>
+        struct GrabState : INetworkSerializable, System.IEquatable<GrabState>
+        {
+            public bool    Has;          // 컨테이너를 잡고 있는가
+            public int     Index;        // 잡은 컨테이너의 결정적 인덱스(정확 매칭용). 미상=-1
+            public Vector3 GrabWorld;    // 잡는 순간 월드 위치(인덱스 실패 시 폴백)
+            public Vector3 AttachLocal;  // attach 기준 로컬 위치
+
+            public void NetworkSerialize<T>(BufferSerializer<T> s) where T : IReaderWriter
+            {
+                s.SerializeValue(ref Has);
+                s.SerializeValue(ref Index);
+                s.SerializeValue(ref GrabWorld);
+                s.SerializeValue(ref AttachLocal);
+            }
+
+            // NetworkVariable의 변경(dirty) 감지를 GC 없이 값비교로 — 4필드 모두 같아야 동일.
+            public bool Equals(GrabState o) =>
+                Has == o.Has && Index == o.Index && GrabWorld == o.GrabWorld && AttachLocal == o.AttachLocal;
+        }
 
         StsCrane crane;
         SpreaderHoist hoist;
@@ -68,8 +91,40 @@ namespace Container.Crane.Sts.Net
         // 클라이언트에서 비활성화한 조종 컴포넌트들 — 세션 종료 시 되살리기 위해 보관.
         readonly List<Behaviour> disabledOnClient = new();
 
+        /// <summary>호스트가 판정한 현재 활성 알람 코드(최고 심각도 1건). 0=이상 없음.
+        /// 관전자·알람 배너 HUD가 이 값을 읽어 호스트와 동일한 알람을 표시한다(스폰 전엔 0).</summary>
+        public int NetAlarmCode => nAlarmCode.Value;
+
+        /// <summary>호스트가 판정한 현재 운영상태(운전/정지/이상)의 정수값. 관전자 상태 HUD가 읽어 동일 표시. 0=정지.</summary>
+        public int NetOpMode => nOpMode.Value;
+
+        // 스폰된 활성 인스턴스 — HUD/라벨이 매 프레임 Find 없이 알람 코드를 읽도록 캐시.
+        static CraneNetSync _instance;
+
+        /// <summary>현재 활성 알람 코드(최고 심각도 1건)의 단일 출처. 네트워크 접속 중이면 호스트 권위값
+        /// (관전자 화면도 정확), 아니면 로컬 판정. 알람 배너·부품 말풍선이 공용으로 쓴다. 0=이상 없음.</summary>
+        public static int ActiveAlarmCode(StsCrane crane)
+        {
+            var nm = NetworkManager.Singleton;
+            if (nm != null && (nm.IsClient || nm.IsServer) && _instance != null)
+                return _instance.NetAlarmCode;
+            var f = CraneFault.Evaluate(crane);   // 단독/미접속 — 로컬 판정(호스트 시점과 동일)
+            return f.IsValid ? f.Code : 0;
+        }
+
+        /// <summary>현재 운영상태(운전/정지/이상)의 단일 출처. 네트워크 접속 중이면 호스트 권위값(관전자도 정확),
+        /// 아니면 로컬 판정. 상태 HUD가 호스트=관전자 동일 표시를 위해 쓴다.</summary>
+        public static OpMode ActiveOpMode(StsCrane crane)
+        {
+            var nm = NetworkManager.Singleton;
+            if (nm != null && (nm.IsClient || nm.IsServer) && _instance != null)
+                return (OpMode)_instance.NetOpMode;
+            return crane != null ? crane.OpMode.Current : OpMode.Stopped;   // 단독/미접속 — 로컬 판정
+        }
+
         public override void OnNetworkSpawn()
         {
+            _instance = this;
             EnsureRefs();
             if (!IsServer)
                 DisableControlOnClient();   // 관전자: 조종 입력/로직 정지
@@ -79,6 +134,7 @@ namespace Container.Crane.Sts.Net
         // 상태로 얼어붙고, 비활성화했던 조종 컴포넌트가 영구히 꺼진 채 남는다.
         public override void OnNetworkDespawn()
         {
+            if (_instance == this) _instance = null;
             if (clientHeld != null) ClientDetach();   // 들고 있던 컨테이너 놓아 물리 복원
             foreach (var b in disabledOnClient)
                 if (b != null) b.enabled = true;       // 끈 조종 컴포넌트 복원
@@ -141,17 +197,30 @@ namespace Container.Crane.Sts.Net
             }
 
             // 그랩/릴리스(이산 상태 전환)는 매 프레임 감지 — 지연 없이 즉시 반영(어차피 변할 때만 전송).
+            //   4필드를 GrabState 한 구조체로 묶어 '원자적'으로 1회 전송(수신 순서 역전·부분 갱신 불가).
             bool has = attach != null && attach.HasContainer;
-            if (has != nHasContainer.Value)
+            if (has != nGrab.Value.Has)
             {
+                var g = new GrabState { Has = has, Index = -1 };
                 if (has && attach.AttachedContainer != null)
                 {
-                    nGrabIndex.Value   = IndexOfContainer(attach.AttachedContainer);
-                    nGrabWorld.Value   = attach.AttachedContainer.position;
-                    nAttachLocal.Value = attach.AttachedContainer.localPosition;
+                    g.Index       = IndexOfContainer(attach.AttachedContainer);
+                    g.GrabWorld   = attach.AttachedContainer.position;
+                    g.AttachLocal = attach.AttachedContainer.localPosition;
                 }
-                nHasContainer.Value = has;
+                nGrab.Value = g;
             }
+
+            // 활성 알람 코드(최고 심각도 1건) — 안전 신호라 throttle 없이 즉시 동기화(값이 바뀔 때만 전송).
+            //   관전자는 끝단·충돌 플래그 등 알람 판정 상태를 로컬에 다 갖지 못하므로, 호스트가 판정한
+            //   결과 코드를 권위값으로 내려보내 호스트=관전자 알람을 100% 일치시킨다(클라 재계산 의존 제거).
+            var fault = CraneFault.Evaluate(crane);
+            int alarm = fault.IsValid ? fault.Code : 0;
+            if (alarm != nAlarmCode.Value) nAlarmCode.Value = alarm;
+
+            // 운영상태(운전/정지/이상) — 안전·상태 신호라 throttle 없이 즉시 동기화(값이 바뀔 때만 전송).
+            int opm = (int)crane.OpMode.Current;
+            if (opm != nOpMode.Value) nOpMode.Value = opm;
         }
 
         // ───────── 관전자: 네트워크 값으로 크레인 시각 재현 ─────────
@@ -176,34 +245,33 @@ namespace Container.Crane.Sts.Net
             lockAnim?.SetLocked(nLocked.Value);
 
             // 적재 상태는 콜백이 아니라 폴링으로 감지한다.
-            //   nHasContainer.OnValueChanged에서 바로 처리하면, NetworkVariable이 '선언 순서'대로
-            //   적용되는 탓에 nHasContainer(먼저 선언)가 nGrabWorld/nAttachLocal보다 먼저 반영돼
-            //   ClientAttach가 아직 갱신 안 된(초기 0) 오프셋을 읽어 컨테이너가 스프레더 '위'에 붙던 버그.
-            //   Update 시점엔 그 틱의 모든 변수가 적용된 뒤라 일관되며, 늦게 접속한 관전자도 반영된다.
-            bool has = nHasContainer.Value;
-            if (has != clientHasContainer)
+            //   GrabState 구조체 한 덩이로 동기화되므로 has/오프셋이 항상 함께 도착해(원자성, S2 수정) 부분 갱신
+            //   문제는 없다. 폴링을 유지하는 이유는 '늦게 접속한 관전자'도 현재 적재 상태로 자연 수렴시키기 위함
+            //   (OnValueChanged는 가입 후 변경분만 받음). Update 시점엔 그 틱의 값이 모두 적용된 뒤라 일관적.
+            var grab = nGrab.Value;
+            if (grab.Has != clientHasContainer)
             {
-                clientHasContainer = has;
-                if (has) ClientAttach();
+                clientHasContainer = grab.Has;
+                if (grab.Has) ClientAttach(grab);
                 else ClientDetach();
             }
         }
 
-        void ClientAttach()
+        void ClientAttach(GrabState grab)
         {
             if (attach == null) return;
             Transform anchor = attach.AttachAnchor;
             // 1순위: 호스트가 보낸 결정적 인덱스로 '바로 그 컨테이너'를 집는다(색·ID 일치 보장).
             //        씬이 양쪽 동일하므로 같은 정렬 목록의 같은 인덱스는 같은 개체다.
             // 2순위: 인덱스가 없거나 못 찾을 때만 기존 좌표 근접 매칭으로 폴백.
-            Transform target = ContainerByIndex(nGrabIndex.Value)
-                            ?? FindNearestRigidbody(nGrabWorld.Value, containerMatchRadius);
+            Transform target = ContainerByIndex(grab.Index)
+                            ?? FindNearestRigidbody(grab.GrabWorld, containerMatchRadius);
             if (target == null) return;
 
             var rb = target.GetComponent<Rigidbody>();
             if (rb != null) { rb.isKinematic = true; rb.useGravity = false; }
             target.SetParent(anchor, worldPositionStays: false);
-            target.localPosition = nAttachLocal.Value;
+            target.localPosition = grab.AttachLocal;
             target.localRotation = Quaternion.identity;
             clientHeld = target;
         }
@@ -241,7 +309,7 @@ namespace Container.Crane.Sts.Net
             foreach (var rb in FindObjectsByType<Rigidbody>(FindObjectsInactive.Exclude, FindObjectsSortMode.None))
             {
                 if (rb == null) continue;
-                if (rb.name.IndexOf("Container", System.StringComparison.Ordinal) < 0) continue;
+                if (rb.name.IndexOf("Container", System.StringComparison.OrdinalIgnoreCase) < 0) continue;
                 _containerBuf.Add(rb.transform);
             }
             _containerBuf.Sort((a, b) => string.CompareOrdinal(a.name, b.name));

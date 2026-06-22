@@ -26,7 +26,7 @@ namespace Container.Crane.Sts
         [Tooltip("끄면 리그를 실척(1)으로 둔다 — 즉시 원복용.")]
         [SerializeField] bool enableScaling = true;
         [Tooltip("리그 스케일. 크레인과 동일한 1/24가 기본. 씬에 StsCrane이 있으면 그 ModelScale을 우선 사용.")]
-        [SerializeField] float scale = 1f / 24f;
+        [SerializeField] float scale = StsConfig.ModelScale;   // 폴백 기본(씬 StsCrane 있으면 그 ModelScale 우선). 값은 StsConfig SSOT.
         [SerializeField] bool debugLog = true;
         bool configured;   // 1회성 설정(near clip·CC 우회·걷기속도) 완료 여부
         Transform cachedRig;   // 한 번 찾은 리그(XR Origin) 재사용 — 파괴되면 다시 탐색

@@ -25,17 +25,22 @@ namespace Container.Crane.Sts
         [SerializeField] Color hoistColor   = new Color(1f, 0.85f, 0.2f, 1f);
         [SerializeField] Color gantryColor  = new Color(0.4f, 1f, 0.3f, 1f);
 
-        public Transform Boom => boom;
         public IAxisMover Trolley => trolley;
         public IAxisMover Spreader => spreader;
         public SpreaderAttach Attach => attach;
         public IAxisMover Gantry => gantry;
 
+        // 운영상태(운전/정지/대기/이상) — 같은 GameObject의 CraneOpMode를 lazy 참조(없으면 런타임 부착).
+        //   인스펙터/프리팹 직렬화를 건드리지 않도록 필드가 아닌 getter로만 보유한다.
+        CraneOpMode opMode;
+        public CraneOpMode OpMode =>
+            opMode != null ? opMode : (opMode = GetComponent<CraneOpMode>() ?? gameObject.AddComponent<CraneOpMode>());
+
         /// <summary>
         /// 모델이 실척의 몇 배로 생성됐는지(StsCraneCreator.Scale=1/24와 동일). 단일 소스 — 속도/거리
         /// 환산(모델 units ↔ 실제 m)이 필요한 HUD·컨트롤러가 각자 상수를 두지 말고 이 값을 참조한다.
         /// </summary>
-        public float ModelScale => 1f / 24f;
+        public float ModelScale => StsConfig.ModelScale;   // SSOT — 값(1/24)은 StsConfig 단일 정의
 
         /// <summary>
         /// Builder가 한 번에 참조를 주입할 때 사용. 직접 인스펙터로 끌어 넣어도 동작은 동일.

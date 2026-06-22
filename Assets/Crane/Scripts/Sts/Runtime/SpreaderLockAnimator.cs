@@ -23,8 +23,8 @@ namespace Container.Crane.Sts
 
         void Awake()
         {
-            Collect("Twistlock_Cone");
-            Collect("Twistlock_Head");
+            Collect(StsPartNames.TwistlockCone);
+            Collect(StsPartNames.TwistlockHead);
         }
 
         void Collect(string partName)
@@ -35,6 +35,9 @@ namespace Container.Crane.Sts
         }
 
         public void SetLocked(bool locked) => target = locked ? 1f : 0f;
+
+        /// <summary>잠금/해제 1회 소요 시간(초)으로 설정.</summary>
+        public void SetLockSeconds(float seconds) => speed = 1f / Mathf.Max(0.05f, seconds);
 
         /// <summary>잠금 지령 상태(목표). 라벨/HUD 표시용.</summary>
         public bool Locked => target > 0.5f;

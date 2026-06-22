@@ -1,0 +1,290 @@
+{
+  "generated_by": "PlcSim/generate.py (stopgap)",
+  "dt_ms": 100,
+  "mode": "sample",
+  "runs": [
+    {
+      "scenario": "S01",
+      "name": "시스템 기동 및 자체 진단",
+      "label": "정상",
+      "run": 1,
+      "rows": 50,
+      "duration_s": 5.0,
+      "events": 1,
+      "csv": "S01/run_01.csv",
+      "events_json": "S01/run_01.events.json"
+    },
+    {
+      "scenario": "S01",
+      "name": "시스템 기동 및 자체 진단",
+      "label": "정상",
+      "run": 2,
+      "rows": 50,
+      "duration_s": 5.0,
+      "events": 1,
+      "csv": "S01/run_02.csv",
+      "events_json": "S01/run_02.events.json"
+    },
+    {
+      "scenario": "S02",
+      "name": "컨테이너 양하",
+      "label": "정상",
+      "run": 1,
+      "rows": 1890,
+      "duration_s": 189.0,
+      "events": 0,
+      "csv": "S02/run_01.csv",
+      "events_json": "S02/run_01.events.json"
+    },
+    {
+      "scenario": "S02",
+      "name": "컨테이너 양하",
+      "label": "정상",
+      "run": 2,
+      "rows": 1890,
+      "duration_s": 189.0,
+      "events": 0,
+      "csv": "S02/run_02.csv",
+      "events_json": "S02/run_02.events.json"
+    },
+    {
+      "scenario": "S03",
+      "name": "컨테이너 선적",
+      "label": "정상",
+      "run": 1,
+      "rows": 1674,
+      "duration_s": 167.4,
+      "events": 0,
+      "csv": "S03/run_01.csv",
+      "events_json": "S03/run_01.events.json"
+    },
+    {
+      "scenario": "S03",
+      "name": "컨테이너 선적",
+      "label": "정상",
+      "run": 2,
+      "rows": 1674,
+      "duration_s": 167.4,
+      "events": 0,
+      "csv": "S03/run_02.csv",
+      "events_json": "S03/run_02.events.json"
+    },
+    {
+      "scenario": "S04",
+      "name": "트윈 리프트",
+      "label": "정상",
+      "run": 1,
+      "rows": 1890,
+      "duration_s": 189.0,
+      "events": 0,
+      "csv": "S04/run_01.csv",
+      "events_json": "S04/run_01.events.json"
+    },
+    {
+      "scenario": "S04",
+      "name": "트윈 리프트",
+      "label": "정상",
+      "run": 2,
+      "rows": 1890,
+      "duration_s": 189.0,
+      "events": 0,
+      "csv": "S04/run_02.csv",
+      "events_json": "S04/run_02.events.json"
+    },
+    {
+      "scenario": "S05",
+      "name": "작업 종료 및 셧다운",
+      "label": "정상",
+      "run": 1,
+      "rows": 31,
+      "duration_s": 3.1,
+      "events": 2,
+      "csv": "S05/run_01.csv",
+      "events_json": "S05/run_01.events.json"
+    },
+    {
+      "scenario": "S05",
+      "name": "작업 종료 및 셧다운",
+      "label": "정상",
+      "run": 2,
+      "rows": 31,
+      "duration_s": 3.1,
+      "events": 2,
+      "csv": "S05/run_02.csv",
+      "events_json": "S05/run_02.events.json"
+    },
+    {
+      "scenario": "S06",
+      "name": "풍속 한계 접근(감속)",
+      "label": "주의",
+      "run": 1,
+      "rows": 1423,
+      "duration_s": 142.3,
+      "events": 1,
+      "csv": "S06/run_01.csv",
+      "events_json": "S06/run_01.events.json"
+    },
+    {
+      "scenario": "S06",
+      "name": "풍속 한계 접근(감속)",
+      "label": "주의",
+      "run": 2,
+      "rows": 1423,
+      "duration_s": 142.3,
+      "events": 1,
+      "csv": "S06/run_02.csv",
+      "events_json": "S06/run_02.events.json"
+    },
+    {
+      "scenario": "S07",
+      "name": "스내그 알람",
+      "label": "주의",
+      "run": 1,
+      "rows": 1023,
+      "duration_s": 102.3,
+      "events": 1,
+      "csv": "S07/run_01.csv",
+      "events_json": "S07/run_01.events.json"
+    },
+    {
+      "scenario": "S07",
+      "name": "스내그 알람",
+      "label": "주의",
+      "run": 2,
+      "rows": 1023,
+      "duration_s": 102.3,
+      "events": 1,
+      "csv": "S07/run_02.csv",
+      "events_json": "S07/run_02.events.json"
+    },
+    {
+      "scenario": "S08",
+      "name": "안착 실패/재시도",
+      "label": "주의",
+      "run": 1,
+      "rows": 813,
+      "duration_s": 81.3,
+      "events": 1,
+      "csv": "S08/run_01.csv",
+      "events_json": "S08/run_01.events.json"
+    },
+    {
+      "scenario": "S08",
+      "name": "안착 실패/재시도",
+      "label": "주의",
+      "run": 2,
+      "rows": 813,
+      "duration_s": 81.3,
+      "events": 1,
+      "csv": "S08/run_02.csv",
+      "events_json": "S08/run_02.events.json"
+    },
+    {
+      "scenario": "S09",
+      "name": "비상정지",
+      "label": "이상",
+      "run": 1,
+      "rows": 432,
+      "duration_s": 43.2,
+      "events": 1,
+      "csv": "S09/run_01.csv",
+      "events_json": "S09/run_01.events.json"
+    },
+    {
+      "scenario": "S09",
+      "name": "비상정지",
+      "label": "이상",
+      "run": 2,
+      "rows": 432,
+      "duration_s": 43.2,
+      "events": 1,
+      "csv": "S09/run_02.csv",
+      "events_json": "S09/run_02.events.json"
+    },
+    {
+      "scenario": "S10",
+      "name": "풍속 한계 초과(중단)",
+      "label": "이상",
+      "run": 1,
+      "rows": 462,
+      "duration_s": 46.2,
+      "events": 2,
+      "csv": "S10/run_01.csv",
+      "events_json": "S10/run_01.events.json"
+    },
+    {
+      "scenario": "S10",
+      "name": "풍속 한계 초과(중단)",
+      "label": "이상",
+      "run": 2,
+      "rows": 462,
+      "duration_s": 46.2,
+      "events": 2,
+      "csv": "S10/run_02.csv",
+      "events_json": "S10/run_02.events.json"
+    },
+    {
+      "scenario": "S11",
+      "name": "설비 고장",
+      "label": "이상",
+      "run": 1,
+      "rows": 427,
+      "duration_s": 42.7,
+      "events": 1,
+      "csv": "S11/run_01.csv",
+      "events_json": "S11/run_01.events.json"
+    },
+    {
+      "scenario": "S11",
+      "name": "설비 고장",
+      "label": "이상",
+      "run": 2,
+      "rows": 427,
+      "duration_s": 42.7,
+      "events": 1,
+      "csv": "S11/run_02.csv",
+      "events_json": "S11/run_02.events.json"
+    },
+    {
+      "scenario": "S12",
+      "name": "정비 모드",
+      "label": "정비(제외)",
+      "run": 1,
+      "rows": 100,
+      "duration_s": 10.0,
+      "events": 2,
+      "csv": "S12/run_01.csv",
+      "events_json": "S12/run_01.events.json"
+    },
+    {
+      "scenario": "S13",
+      "name": "20개 적하 (육지→배)",
+      "label": "정상",
+      "run": 1,
+      "rows": 16778,
+      "duration_s": 1677.8,
+      "events": 0,
+      "csv": "S13/run_01.csv",
+      "events_json": "S13/run_01.events.json"
+    },
+    {
+      "scenario": "S13",
+      "name": "20개 적하 (육지→배)",
+      "label": "정상",
+      "run": 2,
+      "rows": 16778,
+      "duration_s": 1677.8,
+      "events": 0,
+      "csv": "S13/run_02.csv",
+      "events_json": "S13/run_02.events.json"
+    }
+  ],
+  "label_distribution": {
+    "정상": 12,
+    "주의": 6,
+    "이상": 6,
+    "정비(제외)": 1
+  },
+  "total_runs": 25,
+  "total_rows": 53886
+}

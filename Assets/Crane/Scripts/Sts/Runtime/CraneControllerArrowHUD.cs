@@ -8,7 +8,7 @@ namespace Container.Crane.Sts
     /// 화살표로만 띄운다. 모드(이동/운전/갠트리)에 따라 화살표가 자동으로 바뀐다.
     ///
     /// [표시 규칙 — StsCraneVRController가 실제로 읽는 축과 1:1]
-    ///   운전모드 : 왼손 ↕(호이스트 상하)        오른손 ↔(트롤리 좌우)
+    ///   조종모드 : 왼손 ↕(호이스트 상하)        오른손 ↔(트롤리 좌우)
     ///   갠트리   : 왼손 ↔(갠트리 좌우)           오른손 (없음 → 숨김)
     ///   이동     : 왼손 ✛(걷기 4방향)            오른손 ↔(회전)
     ///
@@ -35,8 +35,8 @@ namespace Container.Crane.Sts
 
         [Header("화살표")]
         [SerializeField] int fontSize = 46;
-        [SerializeField] Color arrowColor = new Color(0.37f, 0.88f, 1f, 1f);   // #5FE0FF
-        [SerializeField] Color bgColor = new Color(0f, 0f, 0f, 0.55f);
+        [SerializeField] Color arrowColor = new Color(0.373f, 0.878f, 1f, 1f);   // #5FE0FF (Accent 토큰과 정합)
+        [SerializeField] Color bgColor = new Color(0f, 0f, 0f, 0.55f);   // 예외: 화살표는 부두/하늘 배경 덜 가리려 표준(PanelBgAlpha)보다 투명
         [SerializeField] float worldScale = 0.00042f;   // 기존 0.0006에서 축소 — 화살표가 너무 컸음
 
         Canvas leftCanvas, rightCanvas;
@@ -49,7 +49,7 @@ namespace Container.Crane.Sts
 
         void Start()
         {
-            if (controller == null) controller = FindAnyObjectByType<StsCraneVRController>();
+            if (controller == null) controller = CraneHud.FindVrController();
             leftCanvas = BuildArrowCanvas("CraneArrowL", out leftText);
             rightCanvas = BuildArrowCanvas("CraneArrowR", out rightText);
             TryAttach();
@@ -62,8 +62,10 @@ namespace Container.Crane.Sts
             // 표시 조건: 호스트로 시작했을 때(IsServer) 또는 네트워킹이 없을 때(싱글)만.
             //   - 접속 전(시작 메뉴가 떠 있는 동안)엔 숨김 → 처음엔 'STS 크레인 멀티플레이' 메뉴만 보이게.
             //   - 관전자(순수 클라이언트)도 숨김 — 조종을 못 하니 화살표가 무의미.
+            // 조종 HUD라 '조종 활성'(스틱클릭 진입)일 때만 — 관찰(기본)이면 화살표 숨김.
+            if (controller == null) controller = CraneHud.FindVrController();
             var nm = Unity.Netcode.NetworkManager.Singleton;
-            bool show = nm == null || nm.IsServer;
+            bool show = (nm == null || nm.IsServer) && controller != null && controller.ControlActive;
             if (!show)
             {
                 Show(leftCanvas, false);
@@ -93,8 +95,8 @@ namespace Container.Crane.Sts
             switch (mode)
             {
                 case StsCraneVRController.Mode.Crane:   // 왼:호이스트 상하, 오른:트롤리 좌우
-                    // 화살표 밑에 집기/놓기 버튼 안내(작게) — Y/X는 왼손 버튼이라 왼쪽에만.
-                    left = "↑   ↓\n<size=22><color=#7FFF7F>Y 잡기   X 놓기</color></size>";
+                    // 화살표는 방향만 — 버튼 안내(Y잡기/X놓기)는 모드선택 HUD가 전담(3중복 제거).
+                    left = "↑   ↓";
                     right = "←   →";
                     break;
                 case StsCraneVRController.Mode.Gantry:  // 왼:갠트리 좌우, 오른:없음
@@ -163,7 +165,7 @@ namespace Container.Crane.Sts
         {
             var s = new System.Text.StringBuilder();
             foreach (var t in FindObjectsByType<Transform>(FindObjectsInactive.Exclude, FindObjectsSortMode.None))
-                if (Has(t.name, side) || Has(t.name, "controller"))
+                if (Has(t.name, side) || Has(t.name, StsPartNames.ControllerNameHint))
                     s.Append($"{t.name}@{t.position}  ·  ");
             return s.Length > 0 ? s.ToString() : "(없음)";
         }

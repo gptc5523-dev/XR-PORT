@@ -20,55 +20,96 @@ namespace Container.Crane.Sts.EditorTools
     /// 격자 붐, A-프레임 정상, 포어/백 스테이, 기계실, 트롤리·스프레더)을 흉내낸다.
     /// 치수는 1/24 미니어처(컨테이너와 비례)에 맞춘 기본값.
     ///
-    /// 트롤리/스프레더는 무버 컴포넌트로 분리돼 있고, 루트에 자동 사이클(StsCraneOperator)·
-    /// VR 수동 조종(StsCraneVRController)·컨테이너 집기(SpreaderGrabber) 드라이버가 함께 붙는다.
+    /// 트롤리/스프레더는 무버 컴포넌트로 분리돼 있고, 루트에 VR 수동 조종(StsCraneVRController)·
+    /// 컨테이너 집기(SpreaderGrabber) 드라이버가 붙는다. (데모 자동사이클은 제거 — 시나리오 부착 시에만 구동)
     ///
     /// ※ 보류(미사용)된 디테일 형상 블록은 같은 폴더의 DEFERRED_DETAILS.md 에 백업돼 있다.
     /// </summary>
     public static class StsCraneCreator
     {
-        const float Scale = 1f / 24f;
+        const float Scale = StsConfig.ModelScale;   // SSOT — 런타임 StsConfig.ModelScale(1/24)과 동일. const은 const 참조 가능.
 
         // 트롤리 가동 (붐 로컬 X) — 음수=육지쪽 backreach, 양수=바다쪽 outreach
-        const float TrolleyMinX  = -4f  * Scale - BoomBackExtra;   // 백트래블 한계 — 거더 백리치 연장(BoomBackExtra)만큼 트롤리도 더 뒤로
-        const float TrolleyMaxX  =  42f * Scale;   // 앞(바다쪽) 약간 연장 38→42 — 붐 끝도 같이 나가 아웃리치 25→약29m
+        // [외부감사 S3 증분2 2026-06-17 · 수학팀+물리팀+디자인팀] Panamax→Post-Panamax 팔(아웃리치)·백리치 정합.
+        //   백리치 = −TrolleyMinX(실척) = 13 + BoomBackExtra×24(=2.88) = 15.9m. 백리치/아웃리치 = 15.9/45 = 0.35 ∈ 0.35~0.45 ✓.
+        //   아웃리치 = TrolleyMaxX−WaterLegX = 63−18 = 45m. 아웃리치/높이 = 45/44 = 1.02 ✓. 트롤리 총주행 = 45+18+15.9 = 78.9m.
+        const float TrolleyMinX  = -13f * Scale - BoomBackExtra;   // 백트래블 한계(실척 ~16m 백리치) — 거더 백리치 연장(BoomBackExtra)만큼 더 뒤로
+        const float TrolleyMaxX  =  63f * Scale;   // 트롤리 바다쪽 한계(붐 로컬 X) = 실척 63m. 아웃리치(=TrolleyMaxX−WaterLegX)= 63−18 = 45m
         const float TrolleyRestX =  8f  * Scale;   // ≈  0.333m
 
         // 높이/치수
-        const float RailH    = 32f  * Scale;       // 붐(트롤리 레일) 높이 = 다리 높이 ≈ 실척 32m. STS 비율(인양고≈아웃리치31m, 붐길이54m×0.6, 게이지16×2.0)에 맞춰 23→32
-        const float ApexH    = 20f  * Scale;       // A-프레임 정상 높이 — 16→20. 게이지 확장으로 정상(WaterLegX)이 바다쪽 이동 → 백스테이 클리어런스 유지 위해 더 높임
-        const float GaugeZ   = 16f  * Scale;       // 레일 게이지(좌우 다리 간격, Z) — 40ft(12.192/24=0.508m) 길이 + 스프레더 양끝 클리어런스 수용 (12→16, 0.667m)
-        const float LegSpanX = 15f  * Scale;       // 육지/바다 다리 간격(X=레일 게이지) ≈ 실척 15m — 비율(게이지≈0.6×아웃리치) 맞춰 9→15. 바다다리 이동으로 아웃리치≈25m
-        const float LegSec   = 0.6f * Scale;       // 다리 단면 한 변
+        // [외부감사 S3 증분1 2026-06-17 · 수학팀(오세훈·서지안·장현우)+도메인(정태경)] 32→44: Panamax→Post-Panamax 양정 상향.
+        //   양정 = SpreaderMaxY−SpreaderMinY = (−4 −(−(RailH−0.8)))×Scale = (RailH−4.8)×Scale = (44−4.8)/24 → 실척 39.2m ∈ Post-PMX 36~40m ✓.
+        //   레그(legTopY=RailH+0.088)·브레이스(RailH*0.4,0.92)·양정(SpreaderMinY)은 RailH 파생이라 자동 전파. ApexH는 비율 유지 위해 동반 상향(아래).
+        //   ※ 가설·Quest/렌더 미검증([[feedback_dont_claim_fixed_without_test]]) — 스테이/시브 클리어런스는 스크린샷 수렴 필요. 되돌리지 말 것([[feedback_fix_dont_revert_chosen_feature]]).
+        const float RailH    = 44f   * Scale;      // 붐(트롤리 레일) 높이 = 다리 높이 ≈ 실척 44m (Post-Panamax). 양정 39.2m
+        const float ApexH    = 27.5f * Scale;      // A-프레임 정상 높이 — 20→27.5. A프레임/레그 비율 0.625(=20/32=27.5/44) 유지 → 백스테이 클리어런스·실루엣 비례 보존
+        const float GaugeZ   = StsConfig.GantryBaseZMeters * Scale;   // [감사 BOGIE-2/H2] 갠트리 베이스(주행방향 다리행 간격, Z) — 레일 게이지 아님. SSOT=StsConfig.GantryBaseZMeters(16). 40ft(12.192/24=0.508m) 길이 + 스프레더 양끝 클리어런스 수용
+        const float LegSpanX = StsConfig.LegGaugeXMeters   * Scale;   // [감사 H2] 레일 게이지(X, 육지/바다 다리 간격=두 주행레일 간격). SSOT=StsConfig.LegGaugeXMeters(실척 15m). 비율(게이지≈0.6×아웃리치). 트롤리 아웃리치 27m
+        const float LegSec   = 1.0f * Scale;       // 다리 단면 한 변 — [2026-06-19 회의] 0.6→1.0. footprint=LegSec×1.7=1.70m, 코너포스트=×0.28=0.48m,
+                                                   //   세장비 44/1.70=25.9:1(현장 22~28 범위). 디자인팀 "얇다" 지적 → 현실 정상화. 파생(포스트·라싱·베이스) 자동 전파.
         const float LegTopY  = RailH + 0.088f;     // 포털 다리/상부 크로스빔/A프레임 베이스 공통 상단. 붐 거더 윗면(≈RailH+0.065)보다 살짝 위 → 거더가 크로스빔에 붙고 트롤리·거더가 그 아래
         // 트윈(더블 박스) 거더 — 두 박스 거더를 z=±GirderGapZ에 두고 사이를 횡프레임·평면 대각으로 결속.
         const float GirderGapZ   = 0.16f;                          // 각 거더 중심 Z — 붐 바깥 끝쪽까지 넓게(다리 게이지 ±0.333 안쪽)
-        const float GirderWidthZ = 0.045f;                         // 각 박스 거더 단면 폭(Z)
+        const float GirderWidthZ = 0.055f;                         // 각 박스 거더 단면 폭(Z) — 0.045→0.055 확대(깊이 0.075와 균형 1.36:1, 갭 0.265 유지)
         const float GirderOuterZ = GirderGapZ + GirderWidthZ * 0.5f;// 트윈 거더 바깥 가장자리(캣워크 난간 위치)
+        // [감사 H2 SSOT] 박스 거더 단면(붐-로컬) — 종전 BuildBoomStructure/BuildBoomCatwalk/BuildBoomSplices 3곳에
+        //   `const float gY=0.0275f, gH=0.075f`로 손복제돼 있던 값을 클래스 const로 승격(값 비트 불변).
+        const float GirderCenterY = 0.020f;                         // 거더 단면 중심 y(붐-로컬). [2026-06-19 회의 3단계] 깊이 0.09로 키우며 윗면 0.065 보존 위해 중심 0.0275→0.020(아래로만 확장)
+        const float GirderDepthH  = 0.09f;                          // 거더 단면 깊이(y) — [2026-06-19 회의 3단계] 0.075→0.09: 1.8→2.16m(현장 2.0~2.5 진입). 깊이/폭 1.36→1.64:1. 바닥만 -0.01→-0.025 하강(트롤리 z-분리, 충돌0)
+        const float GirderTopLocal = GirderCenterY + GirderDepthH * 0.5f; // 거더 윗면(=0.065 유지, 상부 시스템 정합 기준). 0.020+0.045=0.065
+        const float GirderBotLocal = GirderCenterY - GirderDepthH * 0.5f; // 거더 밑면(=-0.025, 깊어지면 따라 내려감). 바닥 현수물(트레이·투광등·단부프레임) SSOT
+        // [감사 BOOM-5] 위 거더 단면 상수(GapZ/WidthZ 및 GirderCenterY/GirderDepthH)는 Scale 미곱 raw 값 —
+        //   다리/포털 치수(N*Scale)와 달리 Scale 변경 시 거더/게이지 비율이 깨짐. 현재 Scale 변경 경로 없어 '관찰'로 한정(값 유지).
+        // [감사 TROLLEY-4] 트롤리 레일 윗면 = 바퀴 트레드 접지면. 둘을 이 공유 상수에서 파생해 한쪽만 바뀌어 desync 되는 회귀 방지.
+        const float BoomRailTopY = 0.026f;   // 트롤리 주행 레일 윗면 y(= 레일 중심 0.02 + 높이 0.012/2). 바퀴 트레드 하단이 여기에 접지.
 
         // 붐 거더 X 끝점 — 거더/레일/격자/스테이가 공유(한 군데서 길이 관리)
         const float BoomBackExtra = 0.12f;             // 트롤리 백트래블 + 거더 백리치를 함께 뒤로 빼는 양(기계실은 고정)
-        const float GantryRange   = 1.5f;              // 갠트리 주행 범위(±, 모델 단위) ≈ 실척 ±36m (~15 베이). 부두 sizeZ·QuayRail 길이도 연동 확장
+        const float GantryRange   = 2.2f;              // 갠트리 주행 범위(±, 모델 단위) ≈ 실척 ±53m, 총 106m. 원래 ±36m(72m)에서 확대해 레일 끝까지 주행. 부두 바닥 Z 길이는 StsQuayGroundCreator.QuayZSpan으로 고정 분리돼 있어 이 값을 키워도 바닥은 안 커짐(원래 바닥 안에서 더 멀리 감)
         const float BoomBackX = TrolleyMinX - 0.27f;   // 백리치(육지쪽) 끝 — 트롤리 뒤 0.27 여유(TrolleyMinX가 이미 BoomBackExtra만큼 뒤로 감)
         const float BoomTipX  = TrolleyMaxX + 0.1f;    // 아웃리치 끝 — 트롤리 끝 + 팁 구조 여유(트롤리가 거의 끝까지)
+
+        // 백리치 끝 플랫폼 위 디플렉터 시브 — 권상 로프(트롤리→플랫폼)를 받아 U자로 되돌려 기계실 진입 포트로 보냄.
+        //   동적 로프 뒤끝을 기계실 뒷벽(처짐이 기계실 밑을 뚫음) 대신 여기로 옮겨, 처짐이 뒷공간(백리치)에서 일어나게 함.
+        const float BackSheaveX   = BoomBackX + 0.03f;   // 시브 중심 X — 백리치 플랫폼(중심 x0+0.02) 아래
+        const float BackSheaveY   = 0.02f;               // 시브 중심 Y — 데크(0.068) 밑으로 내려 매닮(행어로 현수)
+        const float BackSheaveR   = 0.011f;              // 시브 외경 — 축소(끝단 브레이스 관통 회피)
+        const float BackSheaveHZ  = 0.016f;              // 시브 반폭(Z) — side당 2폴(z=sz±0.008) 더블그루브 수용
+        const float BackSheaveSeat = 0.008f;             // 로프가 앉는 V홈 바닥 반경(=R-grooveDepth) — 리브·접선 공유
 
         // 기계실 — 거더 백리치 연장과 무관하게 고정 위치. 백스테이가 기계실을 안 뚫게 앞(바다쪽)으로 MHForward만큼 당김.
         const float MHForward        = 0.12f;
         const float MachineryHouseHX = 0.085f;                              // 기계실 X 반폭(0.17의 절반)
-        const float MachineryHouseX  = (-4f * Scale - 0.27f) + 0.11f + MHForward;  // 기계실 중심 X — 연장 전 백리치 기준에 고정(TrolleyMinX 변화에 안 휩쓸림) + 앞당김
+        // [외부감사 S3 증분2 2026-06-17 · 디자인팀] 백리치 연장(-4→-13)에 맞춰 기계실을 새 백리치 끝으로 재정착.
+        //   (종전엔 -4 고정이라 백리치만 늘리면 기계실이 붐 중간에 떠 보임 — 디자인팀 지적. 실제 STS는 기계실/평형추가
+        //    백리치 끝에 위치하므로 -13 기준으로 이동.) 캣워크·드럼·진입구는 이 상수 파생이라 자동 추종.
+        //   ※ 백스테이가 기계실을 안 뚫는지·캣워크 정합은 렌더 수렴 필요([[feedback_unity_visual_small_increments]]).
+        const float MachineryHouseX  = (-13f * Scale - 0.27f) + 0.11f + MHForward;  // 기계실 중심 X — 새 백리치(-13) 기준 + 앞당김
 
         // 다리 X 위치(붐 로컬 = 루트 로컬, 붐이 루트 x=0에 있으므로 동일)
         const float LandLegX  = 0f;
         const float WaterLegX = LegSpanX;
 
         // 스프레더 승강 (spreaderRoot=붐 레벨 기준 로컬 Y, 음수=아래)
-        const float SpreaderMaxY  = -4f  * Scale;           // 완전 상승 = 헤드블록이 트롤리 헤드 바로 아래 도킹. -3→-4: 헤드 치크(상단 hbY+0.0265)가 트롤리 헤드 하단(-0.0725)을 파고들어 -1*Scale 더 내려 ~9mm 여유 확보
+        const float SpreaderMaxY  = -4f  * Scale;           // 완전 상승 = 헤드블록이 트롤리 헤드 바로 아래 도킹. -3→-4: 헤드 로프소켓 콘 top(spreader-로컬 0.083)이 트롤리 헤드 하단(-0.0725)을 파고들어 -1*Scale 더 내려 ~11mm 여유 확보 (top=-4*Scale+0.083=-0.0837, -0.0725-(-0.0837)≈0.011)
         const float SpreaderMinY  = -(RailH - 0.8f * Scale); // 지면 직전(붐 높이에 연동)
         const float SpreaderRestY = -10f * Scale;
 
         // 스프레더 텔레스코픽 반길이(로컬 X, m). 중앙부는 항상 20ft, 좌/우 암이 사이즈별로 슬라이드.
         const float SpreaderHalf20 = 0.126f;   // 20ft (6.058/24/2 ≈ 0.1262)
         const float SpreaderHalf40 = 0.254f;   // 40ft (12.192/24/2 = 0.254)
+
+        // [인양점 SSOT] 호이스트(헤드/시브/데드엔드/로프/헤드블록 소켓)를 한 상수로 묶어 양끝 정렬(gap=0 by construction).
+        //   +X=항구(바다). 트롤리를 실척 ≈7m로 키운 뒤(Option C) 스프레더가 운전실 앞 빈 베이 중앙에 오도록 +X 이동.
+        const float HoistX    = 0.027f;   // 인양점 항구쪽 이동 = (운전실전면 −0.062 + 트롤리바다끝 +0.115)/2 ≈ +0.027(≈0.65m)
+        const float HoistSprX = 0.05f;    // 호이스트 폴 X 반간격(트롤리/parent) — 4가닥 분리(기존 0.03)
+        const float HoistSprZ = 0.075f;   // 호이스트 폴 Z 반간격(트롤리/parent) — (기존 0.05)
+
+        // [트롤리 본체 치수 SSOT] Option C 기계실 통합 박스. 여러 메서드(본체/프레임/붐로프 앵커)가 공유.
+        const float TrolleyHX = 0.145f;   // 본체 반길이 X: full 0.29 = 실척 6.96m ≈7m
+        const float TrolleyCX = -0.03f;   // 본체 X중심(육지 −X 이동) → 본체 X[−0.175,+0.115]
+        const float TrolleyBackX = TrolleyCX - TrolleyHX;   // 본체 육지쪽(뒤) 끝면 = −0.175 (붐 호이스트 로프 트롤리측 앵커 기준)
 
         // 색
         static readonly Color CStruct  = new Color(0.82f, 0.83f, 0.85f); // 다리/포털/거더
@@ -77,11 +118,14 @@ namespace Container.Crane.Sts.EditorTools
         static readonly Color CMachine = new Color(0.30f, 0.33f, 0.38f); // 기계실
         static readonly Color CTrolley = new Color(0.95f, 0.45f, 0.10f); // 트롤리(안전 주황)
         static readonly Color CSpread  = new Color(0.98f, 0.80f, 0.10f); // 스프레더(안전 노랑)
+        static readonly Color CSafety  = new Color(0.96f, 0.78f, 0.10f); // 난간·계단·케이지·토보드(안전 노랑 — 스프레더와 통일)
         static readonly Color CDark    = new Color(0.13f, 0.13f, 0.15f); // 트위스트락/헤드블록
         static readonly Color CCable   = new Color(0.22f, 0.23f, 0.25f); // 와이어 로프(오일드 강철 회색 — 순흑X)
         static readonly Color CGlass   = new Color(0.25f, 0.55f, 0.70f); // 운전실 창
         static readonly Color CLight   = new Color(1.00f, 0.95f, 0.70f); // 작업등 렌즈
         static readonly Color CWarn    = new Color(0.90f, 0.10f, 0.10f); // 항공장애등(적색)
+        static readonly Color CTemp    = new Color(0.90f, 0.10f, 0.85f); // ★임시 변경표시색(마젠타) — 이번 작업 부위 식별용. 승인 후 원색(CStruct)으로 환원.
+        static readonly Color CMark    = new Color(0.10f, 0.45f, 1.00f); // ★작업 대상 표시색(파랑) — 수정 예정 부위(형상 미수정) 식별용. 확정 후 CCable로 환원.
         // [감사 #13] 임시 테스트색 CWireTest 제거 — 4단계 와이어 작업 종료 후 실제 사용처 0건이던 발광 디버그색.
 
         const string RootName = "STS_Crane";
@@ -92,8 +136,11 @@ namespace Container.Crane.Sts.EditorTools
         static Texture2D _steelTex;
         // 와이어 로프 전용 절차 텍스처 — 나선 strand 밴드(헬리컬 레이)
         static Texture2D _ropeTex;
-        // 모든 Box/Strut가 공유하는 모서리 베벨(챔퍼) 큐브 메시
-        static Mesh _beveledCube;
+        // PBR_Library 텍스처 세트 캐시(폴더명 → [albedo, normal, ao]). 빌드 1회 한정.
+        static Dictionary<string, Texture2D[]> _pbrCache;
+        // 모든 Box/Strut가 공유하는 단위 큐브 메시(모서리 안 깎음 — 사용자 요청으로 챔퍼 제거)
+        // ※ init/cleanup 리셋 제외 — 토폴로지 불변(파라미터·GameObject 종속 데이터 없음)이라 빌드 간 영구 공유. 다른 캐시와 라이프사이클 비대칭은 의도된 것.
+        static Mesh _unitCube;
         // 트러스 절점 연결판(거싯) — 같은 치수끼리 메시 1개 재사용
         static Dictionary<string, Mesh> _plateCache;
         // 접합부 볼트 패턴 — 한 메시에 여러 볼트 헤드. 같은 패턴끼리 메시 1개 재사용(드로콜·정점 절약)
@@ -114,6 +161,17 @@ namespace Container.Crane.Sts.EditorTools
             Vector3 pos = anchor - new Vector3(TrolleyRestX, 0f, 0f);
 
             var root = Create(pos, spreaderHalf);
+
+            // 부두 컨테이너 인식(스캔) 자동 실행 — 별도 메뉴에서 빠지고 생성에 통합됨.
+            // 선택은 크레인에 유지(select:false)하고, 스캔이 앵커 산정 이후라 배치엔 영향 없음.
+            QuayScannerMenu.ScanNow(select: false);
+
+            // 부두가 이미 있으면 갠트리 주행범위를 레일에 자동 맞춤 — 생성 순서 무관(부두를 먼저 만든 경우에도
+            //   배 전구간 커버 보장). 부두가 아직 없으면 ApplyFit가 false 반환 → 조용히 패스(부두 생성 시 자동맞춤됨).
+            var gantry = root.GetComponent<GantryMover>();
+            if (gantry != null && GantryRangeFitMenu.ApplyFit(root, gantry, out string fitMsg))
+                Debug.Log($"[STS] 갠트리 주행범위 레일 자동 맞춤 — {fitMsg}");
+
             Selection.activeGameObject = root;
             var sv = SceneView.lastActiveSceneView;
             if (sv != null) sv.FrameSelected();
@@ -128,6 +186,7 @@ namespace Container.Crane.Sts.EditorTools
             _matCache = new Dictionary<Color, Material>();
             _steelTex = null;
             _ropeTex = null;
+            _pbrCache = new Dictionary<string, Texture2D[]>();
             _plateCache = new Dictionary<string, Mesh>();
             _boltCache = new Dictionary<string, Mesh>();
             _nameSeq.Clear();   // 파츠 번호 카운터 리셋(생성마다 _1부터)
@@ -177,8 +236,13 @@ namespace Container.Crane.Sts.EditorTools
 
             // 호이스트 로프 — HoistRopeRig가 매 프레임 스프레더 Y에 맞춰 신축
             BuildHoistRopes(spreaderRoot.transform, spreader.transform);
-            // 호이스트 윗구간(트롤리 뒷면→백리치 고정 앵커) — BoomRopeRig가 트롤리 주행 시 신축
-            BuildBoomHoistRopes(boom.transform, trolley.transform);
+            // [케이블 전면 재설계 2026-06-18 · 오너 지시] 기계실 권상 윗구간 삭제 — MH_RopeFairlead 중복·끊긴 경로 누더기.
+            //   깨끗한 캔버스 확보 후 시브 리빙부터 새로 그림. 보존: 메인 Hoist_Rope(양정)·구조 스테이.
+            // BuildBoomHoistRopes(boom.transform, trolley.transform);
+            // [동적화 2026-06-22 · 오너 지시] 권상 윗구간 — 트롤리↔시브 구간·시브 감김을 TrolleyReevingRig로 트롤리 추종(꺾임 0).
+            BuildHoistUpper(boom.transform, trolley.transform);
+            // [동적화 2026-06-22 · 오너 지시] 견인로프 — 동일하게 트롤리 추종 리빙.
+            BuildTowReeving(boom.transform, trolley.transform);
 
             // 컴포넌트 부착 + 설정
             var trolleyMover = trolley.AddComponent<TrolleyMover>();
@@ -192,7 +256,10 @@ namespace Container.Crane.Sts.EditorTools
             // 초기 위치 (rest pose) — Boom 로컬 좌표계 기준
             trolley.transform.localPosition = new Vector3(TrolleyRestX, 0f, 0f);
             spreaderRoot.transform.localPosition = new Vector3(TrolleyRestX, 0f, 0f);
-            spreader.transform.localPosition = new Vector3(0f, SpreaderRestY, 0f);
+            spreader.transform.localPosition = new Vector3(HoistX, SpreaderRestY, 0f);   // 인양점 항구쪽 이동(SpreaderHoist는 Y만 갱신, X 보존)
+
+            // [케이블 전면 재설계 2026-06-18 · 오너 지시] 트롤리 견인로프 삭제 — Tow_Rope가 Hoist_Rope_SheaveToMH와 공간 혼재(에러).
+            // BuildTrolleyTowRope(boom.transform, trolley.transform);
 
             // 갠트리 주행 — 크레인 루트 Z축, 초기 위치(worldPosition.z) 기준 ±GantryRange. VR controller A 토글로 활성.
             var gantryMover = root.AddComponent<GantryMover>();
@@ -209,8 +276,9 @@ namespace Container.Crane.Sts.EditorTools
             var stsCrane = root.AddComponent<StsCrane>();
             stsCrane.Configure(boom.transform, trolleyMover, spreaderHoist, spreaderAttach, gantryMover);
 
-            // 자동 구동 드라이버(데모) — Play 시 트롤리 왕복 + 스프레더 승강 사이클 반복
-            root.AddComponent<StsCraneOperator>();
+            // (데모 자동사이클 StsCraneOperator 제거 — 새 크레인은 시나리오 부착 전엔 가만히 있는다)
+            // 폭풍 계류 결박 봉 — 갠트리 주행 시 살짝 들렸다(분리) 정지 시 내려 박힘. Start에서 Tiedown_Rod 자동 수집.
+            root.AddComponent<TiedownController>();
             // VR 컨트롤러 수동 조종 — 켜지면 자동 사이클을 끄고 스틱/트리거로 직접 조종
             root.AddComponent<StsCraneVRController>();
             // 컨테이너 집기/놓기 + 통과 방지(콜라이더 없는 컨테이너 대응)
@@ -220,6 +288,8 @@ namespace Container.Crane.Sts.EditorTools
 
             _matCache = null;
             _steelTex = null;   // 텍스처는 머티리얼이 참조 유지 → 캐시 핸들만 해제
+            _ropeTex = null;    // 로프 텍스처도 머티리얼이 참조 유지 → 캐시 핸들만 해제
+            _pbrCache = null;   // PBR 라이브러리 텍스처는 에셋이라 영속 → 캐시 핸들만 해제
             _plateCache = null; // 거싯 메시도 GameObject가 참조 유지 → 핸들만 해제
             _boltCache = null;  // 볼트 메시도 GameObject가 참조 유지 → 핸들만 해제
             return root;
@@ -236,9 +306,9 @@ namespace Container.Crane.Sts.EditorTools
             float railLen = GaugeZ + 0.5f;
             foreach (float x in new[] { LandLegX, WaterLegX })
             {
-                var rail = Box(root, "Rail_" + (x == LandLegX ? "Land" : "Water"),
+                var rail = Box(root, StsPartNames.RailPrefix + (x == LandLegX ? "Land" : "Water"),
                     new Vector3(x, 0.004f, 0f),
-                    new Vector3(0.02f, 0.008f, railLen), CRail);
+                    new Vector3(StsConfig.RailSectionW, StsConfig.RailSectionH, railLen), CRail);  // [H2] 레일 단면 SSOT
                 var mr = rail.GetComponent<MeshRenderer>();
                 if (mr != null) mr.enabled = false;
             }
@@ -251,6 +321,9 @@ namespace Container.Crane.Sts.EditorTools
             float[] legX = { LandLegX, WaterLegX };
             // 다리 상단 = LegTopY(공통 상수). 붐 거더 윗면에 크로스빔이 붙고, A프레임 베이스도 같은 높이로 정합.
             float legTopY = LegTopY;
+            // [감사 PORTAL-1 수정] 다리 하단 = Leg_BasePlate 윗면(0.066 + 0.012/2 = 0.072). 다리가 베이스 위에 앉음.
+            //   (기존 0f는 다리·콜라이더가 베이스 플레이트·보기 피벗(0.05)·레일(0.008)을 뚫고 지면(0)에 박혔음)
+            float legFootY = 0.072f;
 
             foreach (float x in legX)
             {
@@ -258,38 +331,49 @@ namespace Container.Crane.Sts.EditorTools
                 {
                     float z = s * halfZ;
                     // 다리 — 격자 트러스(코너 포스트 + 가로 rung + 대각 lacing)
-                    BuildLatticeLeg(root, x, z, 0f, legTopY, LegSec * 1.7f);
-                    // 보기(주행 대차) — 벽돌 → 굴절 이퀄라이저 트럭: 중앙 피벗 1 → 서브 이퀄라이저 2 → 바퀴 4(끝으로 분산).
+                    BuildLatticeLeg(root, x, z, legFootY, legTopY, LegSec * 1.7f);
+                    // 보기(주행 대차) — 굴절 이퀄라이저 트럭: 중앙 피벗 1 → 서브 이퀄라이저 2 → 바퀴 4(균등 피치 분산).
                     {
-                        float bz = LegSec * 2.8f;                 // 보기 전장(Z)
                         float by = 0.05f;                          // 메인 이퀄라이저 빔 높이
                         var wheelC = new Color(0.05f, 0.05f, 0.06f);
+                        // [계산] 트레드 반경 0.013(지름 0.026), 플랜지 반경 0.01495(지름 0.0299).
+                        //   4륜 균등 피치 p=0.032 → 오프셋 {-1.5,-0.5,+0.5,+1.5}×p = {-0.048,-0.016,+0.016,+0.048}.
+                        //   트레드 지름 0.026<0.032(6mm 간극)·플랜지 지름 0.0299<0.032(2.1mm 간극) → 휠/플랜지 비간섭.
+                        const float p  = StsConfig.BogieEqualizerPitch;   // [H2] 보기 4륜 균등 피치 SSOT
+                        float bz = StsConfig.BogieLengthZ;                // [H2] 보기 전장(Z) SSOT (= p × 3.25 ≈ 0.104, 4륜 스팬 0.096 + 마진)
                         // 메인 이퀄라이저 빔(다리 하단 중앙 피벗으로 매달림) + 피벗 핀(축 X)
                         Box(root, "Bogie_Equalizer", new Vector3(x, by, z),
                             new Vector3(LegSec * 0.5f, 0.014f, bz), CStruct);
                         Rod(root, "Bogie_Pivot",
                             new Vector3(x - LegSec * 0.55f, by, z), new Vector3(x + LegSec * 0.55f, by, z), 0.005f, CDark);
+                        // [감사 PORTAL-A1] 보기 이퀄라이저 ↔ 베이스플레이트 하중경로 연결 — 킹핀 클레비스(귀판 2장).
+                        //   (기존: 이퀄라이저 윗면 0.057·피벗핀 윗면 0.055과 베이스플레이트 밑면 0.060 사이 3mm에 부재가 없어
+                        //    보기 어셈블리 전체가 매달린 곳 없이 부유 → 하중전달 끊김. PORTAL-1 수정(다리 0→0.072)의 잔여 부작용.)
+                        //   [계산] 귀판 y[0.047,0.063]: top 0.063으로 플레이트(밑면 0.060)에 0.003 물리고, 핀(0.05) 감싸 이퀄라이저 윗면(0.057)까지 연속.
+                        //          x±0.009(두께 0.004, 안쪽면 0.007 > 이퀄라이저 반폭 LegSec*0.25=0.00625) → 이퀄라이저 혀를 양 귀판이 물고 핀이 관통.
+                        for (int ce = -1; ce <= 1; ce += 2)
+                            Box(root, "Bogie_PivotClevis", new Vector3(x + ce * 0.009f, by + 0.005f, z),
+                                new Vector3(0.004f, 0.016f, 0.02f), CStruct);
                         for (int sb = -1; sb <= 1; sb += 2)
                         {
-                            float sbz = z + sb * bz * 0.25f;       // 서브 이퀄라이저 중심
+                            float sbz = z + sb * p;                // 서브 이퀄라이저 중심 = ±p (각자 휠 2개 담당)
                             Box(root, "Bogie_SubEqualizer", new Vector3(x, by - 0.016f, sbz),
-                                new Vector3(LegSec * 0.42f, 0.011f, bz * 0.42f), CStruct);
+                                new Vector3(LegSec * 0.42f, 0.011f, p * 1.25f), CStruct);   // Z len 0.04, 두 서브 간극 0.024
                             Rod(root, "Bogie_SubPivot",            // 메인↔서브 피벗(축 X)
                                 new Vector3(x - LegSec * 0.46f, by - 0.008f, sbz),
                                 new Vector3(x + LegSec * 0.46f, by - 0.008f, sbz), 0.004f, CDark);
                             // 측면 프레임(바퀴 가드)
                             for (int fz = -1; fz <= 1; fz += 2)
                                 Box(root, "Bogie_SideFrame", new Vector3(x + fz * LegSec * 0.5f, 0.024f, sbz),
-                                    new Vector3(0.005f, 0.03f, bz * 0.5f), CStruct);
-                            // 바퀴 2(서브 빔 양 끝) + 허브 보스 + 저널 박스
+                                    new Vector3(0.005f, 0.03f, p * 1.4f), CStruct);
+                            // 바퀴 2(서브 빔 양 끝, 오프셋 ±0.5p) + 허브 보스 + 저널 박스
                             for (int w = -1; w <= 1; w += 2)
                             {
-                                float wz = sbz + w * bz * 0.18f;
-                                // 바퀴 중심 y=0.021 — 레일 윗면(0.008) + 바퀴 반경(0.013) → 트레드가 레일에 접지.
+                                float wz = sbz + w * (p * 0.5f);   // ±0.016 → 4륜 전체 균등 피치 0.032
+                                // 트레드 중심 y=0.021 — 레일 윗면(0.008)+트레드 반경(0.013) → 트레드 접지, 플랜지 하단 y=0.006(레일 옆면을 묾).
                                 //   (이전 0.014는 바퀴 하단 0.001로 레일을 7mm 관통, 트레드가 아스팔트에 닿았음)
-                                Rod(root, "Wheel",
-                                    new Vector3(x - LegSec * 0.62f, 0.021f, wz),
-                                    new Vector3(x + LegSec * 0.62f, 0.021f, wz), 0.013f, wheelC);
+                                RailWheel(root, "Wheel", new Vector3(x, 0.021f, wz),
+                                    Vector3.right, 0.013f, LegSec * 0.44f, wheelC);
                                 for (int hs = -1; hs <= 1; hs += 2)
                                     Rod(root, "Wheel_Hub",
                                         new Vector3(x + hs * LegSec * 0.5f, 0.021f, wz),
@@ -307,8 +391,25 @@ namespace Container.Crane.Sts.EditorTools
             //   포털 통과 지점(육지/바다 다리 X)에서 끊어 개구부로 지나가게 한다(BoomTopWalkwayGaps 참조).
             foreach (float x in legX)
             {
-                Box(root, "Portal_Cross", new Vector3(x, legTopY - LegSec * 0.5f, 0f),
-                    new Vector3(LegSec * 0.8f, LegSec * 0.8f, GaugeZ + LegSec), CStruct);
+                // 상부 게이지 횡빔(Shoulder_Beam, 구 Portal_Cross — [2026-06-19] 실물용어 정합 개명. 실제 "portal beam"은 Portal_TieBeam)
+                //   — 빌트업 I-빔(웹+상·하 플랜지) + 수직 스티프너 + 단부 캡판. 플랜지 X폭(LegSec×1.1)이 붐 상부 보도 개구부(LegSec×0.55+여유)와 정합.
+                float pcY = legTopY - LegSec * 0.5f;
+                float pcLenZ = GaugeZ + LegSec;
+                PbBox(root, "Shoulder_Beam", new Vector3(x, pcY, 0f),
+                    new Vector3(0.01f, LegSec, pcLenZ), CStruct);                       // 웹(수직판)
+                for (int sy = -1; sy <= 1; sy += 2)
+                    PbBox(root, "Shoulder_Beam_Flange", new Vector3(x, pcY + sy * (LegSec * 0.5f - 0.0025f), 0f),
+                        new Vector3(LegSec * 1.1f, 0.005f, pcLenZ), CStruct);            // 상·하 플랜지
+                int pcStiff = 6;
+                for (int i = 0; i <= pcStiff; i++)
+                {
+                    float sz = Mathf.Lerp(-halfZ + 0.05f, halfZ - 0.05f, i / (float)pcStiff);
+                    PbBox(root, "Shoulder_Beam_Stiffener", new Vector3(x, pcY, sz),
+                        new Vector3(LegSec * 1.05f, LegSec * 0.9f, 0.005f), CStruct);     // 웹 수직 스티프너
+                }
+                for (int s = -1; s <= 1; s += 2)   // 단부 캡판(다리 상단 접속부 마감)
+                    PbBox(root, "Shoulder_Beam_EndCap", new Vector3(x, pcY, s * pcLenZ * 0.5f),
+                        new Vector3(LegSec * 1.1f, LegSec, 0.005f), CStruct);
             }
 
             // 측면 대각 브레이스(앞/뒤 다리 사이) — Sill_Beam(RailH*0.4)을 하현재로 그 위에 X 패턴.
@@ -326,13 +427,16 @@ namespace Container.Crane.Sts.EditorTools
                 BoltedPlate(root, new Vector3(midX, RailH * 0.66f, z), fr, 0.044f, 4, 4, 0.016f, 0.016f, 0.0022f);  // 포털 중간 4×4=16
             }
 
-            // 실 빔 — 같은 쪽 두 다리(육지·바다)를 잇는 종방향 빔(다리 중간보다 약간 아래 높이)
+            // 다리 타이빔 — 같은 쪽 두 다리(육지·바다)를 잇는 게이지(X)방향 횡 타이(다리 40% 높이 RailH*0.4).
+            //   [감사 PORTAL-2] '실빔(Sill)'은 오칭(실은 레일 부근 최하단 부재) → Portal_TieBeam로 개명. 위치·역할은 유지.
             for (int s = -1; s <= 1; s += 2)
             {
-                Box(root, "Sill_Beam",
+                Box(root, "Portal_TieBeam",
                     new Vector3((LandLegX + WaterLegX) * 0.5f, RailH * 0.4f, s * halfZ),
                     new Vector3(LegSpanX + LegSec, 0.02f, LegSec * 0.9f), CStruct);
             }
+            // ※ 게이지(Z) 하부 횡빔/대각은 두지 않는다 — 포털 다리 사이는 컨테이너·트럭이 지나는 통로라 막으면 안 됨.
+            //   게이지 방향은 상단 Shoulder_Beam + 다리로 버티는 모멘트 프레임(하부는 통과용으로 비움).
 
             // ── 전체 디테일 보강 (베이스/다리) ──
             foreach (float x in legX)
@@ -349,7 +453,7 @@ namespace Container.Crane.Sts.EditorTools
             //   양 끝을 정션박스로 구조물에 접속(아래=베이스, 위=붐 밑) → 위가 허공에 끊겨 떠 보이던 것 해결(계산: 끝점을 구조물에 맞춤).
             float condX = LandLegX - 0.034f;   // 다리 밖(-X)으로 — 다리 -X면 럼/래이싱(x[-0.025,-0.017])에 안 박히게(클램프로 다리에 부착)
             float condBotY = 0.072f;          // 베이스 플레이트 윗면(0.066 + 0.012/2) — 바닥 정션박스 접속
-            float condTopY = RailH - 0.005f;  // 붐 거더 바로 아래(다리 상단) — 상단 정션박스로 접속
+            float condTopY = RailH - 0.005f;  // 다리 상단 코너 포스트(z≈0.333) — 상단 정션박스로 접속(거더 z=±0.16엔 안 닿음)
             for (int c = -1; c <= 1; c++)   // 3줄 번들
                 Rod(root, "Leg_Conduit",
                     new Vector3(condX, condBotY, halfZ + c * 0.006f),
@@ -378,13 +482,50 @@ namespace Container.Crane.Sts.EditorTools
                         new Vector3(0.022f, 0.05f, 0.022f), CMachine);
                     Rod(root, "Stow_Pin", new Vector3(x, 0f, lz + s * LegSec * 1.5f),
                         new Vector3(x, 0.05f, lz + s * LegSec * 1.5f), 0.006f, CDark);
-                    // 타이다운 러그(부두 고정 고리)
-                    Box(root, "Tiedown_Lug", new Vector3(x + 0.03f, 0.012f, lz),
-                        new Vector3(0.012f, 0.018f, 0.01f), CStruct);
-                    // 휠 레일 스위퍼(주행방향 Z 앞뒤 청소판 — 판은 레일을 X로 가로지름)
+                    // 타이다운 러그(부두 고정 패드아이) — 베이스 플레이트(+X 가장자리, y0.060~0.072) 밑면에 용접해 아래로 늘어뜨림.
+                    //   [기존 버그] (x+0.03, 0.012)는 플레이트(0.060~0.072)보다 0.039 아래 + 지면서도 0.003 떠, 위아래 어디에도 안 붙은 '공중 부유'였음.
+                    //   [수정·계산] 플레이트 +X면(x+0.03)에 물려 x+0.034±0.005=0.029~0.039, top 0.067로 플레이트 안에 박고 0.037까지 늘어뜨려 용접.
+                    Box(root, "Tiedown_Lug", new Vector3(x + 0.034f, 0.052f, lz),
+                        new Vector3(0.01f, 0.03f, 0.016f), CStruct);
+                    // 폭풍 계류 타이로드(봉 + 발바닥 일체) — 러그(패드아이) 하단 0.037에서 안벽으로 내려와 발바닥(풋 베이스)으로 선다.
+                    //   [재설계 2026-06-11] 기존 'Tiedown_Anchor'는 '부두 매립 고정 앵커' 가정이었으나, 실제로는 크레인 루트 자식이라
+                    //     갠트리 주행 시 크레인 따라 같이 굴러가 고정이 아니었다. 정체는 '봉의 발바닥(풋)' → 봉과 한 부품으로 합친다.
+                    //     세 조각(샤프트·보스·풋) 모두 "Tiedown_Rod*"로 명명해 TiedownController가 동일 높이로 들어올려 강체로 유지
+                    //     (주행 시 봉+풋이 함께 살짝 들려 안벽서 분리, 정지 시 다시 내려 선다).
+                    //   [계산] x+0.034·z=lz는 베이스플레이트 +X면(0.03) 밖 · 보기(x±0.0125) 밖 · 스토우핀(z±0.0375) 밖이라 간섭 0.
+                    //     수직 적층: 샤프트 0.037→0.014 / 보스 0.014→0.008(r0.007>봉0.004, <풋반폭0.009) / 풋 0.000~0.008. 전부 맞닿음.
+                    Rod(root, StsPartNames.TiedownRodPrefix, new Vector3(x + 0.034f, 0.037f, lz),
+                        new Vector3(x + 0.034f, 0.014f, lz), 0.004f, CDark);
+                    // 단조 보스 — 둥근 봉을 평평한 발바닥에 매끈히 물리는 짧은 칼라(평강 모서리엔 구 금지, 솔리드 전이).
+                    Rod(root, "Tiedown_Rod_Boss", new Vector3(x + 0.034f, 0.014f, lz),
+                        new Vector3(x + 0.034f, 0.008f, lz), 0.007f, CMachine);
+                    // 발바닥(풋 베이스) — 안벽에 서는 단조 베이스 패드. 봉과 한 부품으로 함께 들림.
+                    PbBox(root, "Tiedown_Rod_Foot", new Vector3(x + 0.034f, 0.004f, lz),
+                        new Vector3(0.018f, 0.008f, 0.018f), CMachine);
+                    // 휠 레일 스위퍼(주행방향 Z, 보기 앞/뒤 끝 — 레일 위 이물질을 밀어내는 플라우).
+                    //   브래킷+경사 디플렉터 블레이드+마모 스트립+측면 거싯으로 정교화(기존 단일 박스 대체).
+                    //   [계산] 외측 휠 z=±0.048·플랜지 반경 0.01495(z 최대 0.063) → 스위퍼 z=±0.07로 휠 앞에 둬 비간섭.
+                    //          레일 윗면 0.008 → 마모 스트립 하단 0.0085(0.5mm 클리어런스). 블레이드 폭 0.026>레일 0.02.
                     for (int e = -1; e <= 1; e += 2)
-                        Box(root, "Rail_Sweeper", new Vector3(x, 0.006f, lz + e * LegSec * 1.4f),
-                            new Vector3(LegSec * 1.1f, 0.01f, 0.006f), CDark);
+                    {
+                        float swz = lz + e * 0.07f;                  // 스위퍼 Z(보기 앞/뒤 끝, 외측 휠 너머)
+                        // 마운팅 브래킷(보기 끝 프레임으로 올라가는 수직판)
+                        // [감사 BOGIE-1] 스위퍼(swz=lz±0.07)가 보기 구조(메인 빔 끝 lz±0.052)보다 0.018 바깥에 떠 있었음 →
+                        //   브래킷을 메인 빔 끝까지 Z로 연장해 스위퍼를 보기에 물림(정적 접점 확보, 부유 해소).
+                        float brZ0 = lz + e * 0.052f;   // 보기 메인 이퀄라이저 빔 끝(±bz/2, bz=p*3.25=0.104)
+                        PbBox(root, "Sweeper_Bracket", new Vector3(x, 0.032f, (brZ0 + swz) * 0.5f),
+                            new Vector3(0.02f, 0.024f, Mathf.Abs(swz - brZ0) + 0.006f), CStruct);
+                        // 경사 디플렉터 블레이드(주행방향으로 기울인 플라우 면) — 폭 레일보다 넓게
+                        PbBox(root, StsPartNames.RailPrefix + "Sweeper", new Vector3(x, 0.019f, swz),
+                            new Vector3(0.026f, 0.018f, 0.004f), CDark, new Vector3(e * 22f, 0f, 0f));
+                        // 마모 스트립(레일을 긁는 교체식 하단 웨어 플레이트) — 레일 바로 위
+                        PbBox(root, "Sweeper_WearStrip", new Vector3(x, 0.010f, swz + e * 0.004f),
+                            new Vector3(0.026f, 0.003f, 0.005f), CMachine);
+                        // 측면 거싯(플라우 옆판, X 양끝)
+                        for (int g = -1; g <= 1; g += 2)
+                            PbBox(root, "Sweeper_Cheek", new Vector3(x + g * 0.013f, 0.015f, swz),
+                                new Vector3(0.004f, 0.014f, 0.012f), CStruct);
+                    }
                 }
             }
         }
@@ -398,47 +539,43 @@ namespace Container.Crane.Sts.EditorTools
             float mid = (x0 + x1) * 0.5f;
 
             // ── 트윈(더블 박스) 거더 — 두 박스 거더(z=±GirderGapZ) + 거더별 하단 주행 레일 ──
-            const float gY = 0.04f, gH = 0.05f;        // 거더 중심 높이 / 단면 높이
-            float gTop = gY + gH * 0.5f;               // 거더 윗면(=0.065)
-            float gBot = gY - gH * 0.5f;               // 거더 밑면(=0.015)
+            const float gY = GirderCenterY, gH = GirderDepthH; // [감사 H2 SSOT] 클래스 const 참조(값 불변). 지역 별칭으로 아래 식 가독성 유지
+            float gTop = GirderTopLocal;               // 거더 윗면(=0.065, 유지 → 상부 시스템 불변)
+            float gBot = gY - gH * 0.5f;               // 거더 밑면(=-0.01, 깊어짐)
             for (int s = -1; s <= 1; s += 2)
             {
                 float gz = s * GirderGapZ;
-                Box(boom, "Boom_Girder", new Vector3(mid, gY, gz),
+                Box(boom, StsPartNames.BoomGirder, new Vector3(mid, gY, gz),
                     new Vector3(len, gH, GirderWidthZ), CBoom);
-                // 트롤리 주행 레일(거더 하단)
-                Box(boom, "Boom_Rail", new Vector3(mid, 0.006f, gz),
-                    new Vector3(len, 0.012f, GirderWidthZ * 0.8f), CRail);
+                // [rail-in-middle] 트롤리 주행 레일 — 거더 안쪽 웹 중간보다 살짝 아래(y=0.02). 트롤리 상단이 붐 상단 구조와 안 겹치게 내림.
+                Box(boom, "Boom_Rail", new Vector3(mid, BoomRailTopY - 0.006f, s * (GirderGapZ - GirderWidthZ * 0.5f - 0.0125f)),
+                    new Vector3(len, 0.012f, 0.02f), CRail);
             }
 
             // ── 두 거더 결속: 횡프레임(상·하 횡재 + 거더별 수직재) ──
-            int frames = 11;
+            // [감사] 횡프레임 분할수를 트러스(BuildBoomTrussDepth web=16)와 일치 → 수직재·횡재·트러스 패널·스플라이스 절점이 같은 X에 정렬.
+            int frames = 16;
             float crossBot = gBot + 0.004f, crossTop = gTop - 0.004f;
             for (int i = 0; i <= frames; i++)
             {
                 float fx = Mathf.Lerp(x0, x1, i / (float)frames);
-                Box(boom, "Boom_Cross", new Vector3(fx, crossBot, 0f),
-                    new Vector3(0.006f, 0.006f, 2f * GirderGapZ), CStruct);
+                // [rail-in-middle] 횡 다이어프램 = 포털 프레임. 윗 횡재(crossTop) + 수직재(아래 Boom_Vertical)가
+                //   각 거더의 상·하 플랜지를 다 잡는다(밑→수직재→위→crossTop→반대편). 바닥만 열어 훅 통로 확보.
                 Box(boom, "Boom_Cross", new Vector3(fx, crossTop, 0f),
-                    new Vector3(0.006f, 0.006f, 2f * GirderGapZ), CStruct);
+                    new Vector3(0.006f, 0.006f, 2f * GirderGapZ), CStruct);   // 윗 횡재(전구간)
+                // 바닥 횡재(crossBot)는 훅이 안 지나는 단부(트롤리 가동역 밖)에서만 → 단부=닫힌 다이어프램, 중앙=포털(열림).
+                if (fx < TrolleyMinX || fx > TrolleyMaxX)
+                    Box(boom, "Boom_Cross", new Vector3(fx, crossBot, 0f),
+                        new Vector3(0.006f, 0.006f, 2f * GirderGapZ), CStruct);   // 바닥 횡재(단부만)
                 for (int s = -1; s <= 1; s += 2)
                     Box(boom, "Boom_Vertical", new Vector3(fx, gY, s * GirderGapZ),
                         new Vector3(0.006f, gH, 0.006f), CStruct);
             }
 
-            // ── 두 거더 사이 평면 대각 브레이스(바닥면 X 지그재그) — 비틀림 강성 표현 ──
-            int dseg = 11;
-            float dstep = len / dseg;
-            for (int i = 0; i < dseg; i++)
-            {
-                float xa = x0 + dstep * i;
-                float xb = x0 + dstep * (i + 1);
-                bool up = (i % 2) == 0;
-                Strut(boom, "Boom_Plan_Brace",
-                    new Vector3(xa, crossBot, up ? -GirderGapZ : GirderGapZ),
-                    new Vector3(xb, crossBot, up ?  GirderGapZ : -GirderGapZ),
-                    0.004f, CStruct);
-            }
+            // ── [rail-in-middle] 바닥면 평면 대각 브레이스(Boom_Plan_Brace) 전면 삭제 ──
+            //   사유: 트롤리가 거더 사이(중간 레일)에 nested 되고 훅·로프가 중앙 갭으로 하강하므로,
+            //   중앙을 가로지르던 평면 지그재그는 통로를 막아 제거. 비틀림 강성은 깊어진 박스 거더 +
+            //   상·하 플랜지 횡프레임 + 거더 바깥면 트러스(BuildBoomTrussDepth)가 담당.
 
             // 기계실(육지쪽 위) + 디테일 — 붐 가로(Z)로 넓혀 육중하게(거더보다 양옆 돌출)
             // ※ 기계실은 고정(거더만 뒤로 연장) + 앞으로 MHForward만큼 당김 — 백스테이가 기계실을 안 뚫게
@@ -446,8 +583,10 @@ namespace Container.Crane.Sts.EditorTools
             float mhZ = 2f * GirderGapZ + 0.08f;   // Z 폭 — 트윈 거더(±GirderGapZ)를 가로질러 얹히게 넓힘(거더 바깥으로 약간 오버행)
             float mhHZ = mhZ * 0.5f;       // Z 반폭
             float mhHX = MachineryHouseHX; // X 반폭(0.17의 절반)
-            Box(boom, "Machinery_House", new Vector3(mhx, 0.105f, 0f),
-                new Vector3(0.17f, 0.11f, mhZ), CMachine);
+            // [감사] 밑면을 거더 윗면(gTop=0.065)에 안착 — 기존 중심0.105·높이0.11은 밑면 0.05로 거더에 15mm 침하.
+            //   윗면(0.16)·지붕은 유지하고 높이만 0.095로 줄여 밑면을 0.065로 올림(중심 0.1125).
+            Box(boom, StsPartNames.MachineryHouse, new Vector3(mhx, 0.1125f, 0f),
+                new Vector3(0.17f, 0.095f, mhZ), CMachine);
             Box(boom, "MH_Roof", new Vector3(mhx, 0.165f, 0f),
                 new Vector3(0.185f, 0.012f, mhZ + 0.01f), CStruct);
             // 출입문 세트 숨김(사용자 요청) — 손잡이는 문이 없으면 떠서 함께 숨김. 복구하려면 주석 해제
@@ -492,7 +631,8 @@ namespace Container.Crane.Sts.EditorTools
                     Box(boom, "MH_Mullion", new Vector3(mhx + 0.01f + m * 0.015f, 0.118f, fz),
                         new Vector3(0.004f, 0.03f, 0.004f), CStruct);
             }
-            Box(boom, "Cable_Tray", new Vector3(mhx + 0.18f, 0.05f, GirderGapZ),
+            // [감사 MH-2 수정] 케이블 트레이 — 거더 밑면 아래로 현수. [2026-06-19] 거더 깊어짐 반영: 하드코딩 -0.02 → GirderBotLocal-0.01(=-0.035) 추종(매립 해소).
+            Box(boom, "Cable_Tray", new Vector3(mhx + 0.18f, GirderBotLocal - 0.01f, GirderGapZ),
                 new Vector3(0.35f, 0.006f, 0.008f), CDark);
             // 붐호이스트 윈치 — 기계실 내부 공동(바닥 0.05~지붕 0.16)에 완전 수납. 드럼+플랜지+감속기/모터+디스크브레이크+베드+베어링.
             {
@@ -515,21 +655,44 @@ namespace Container.Crane.Sts.EditorTools
                     Box(boom, "Drum_Pedestal", new Vector3(wx, 0.075f, s * (wHalfZ - 0.01f)),
                         new Vector3(0.03f, 0.04f, 0.014f), CMachine);
             }
+            // ── 트롤리 주행(견인) 윈치 — [2026-06-18 오너·웹검증: STS는 견인로프式, 주행 모터/감속기는 기계실에] ──
+            //   [출처: Casper Phillips STS 용어집 — machinery house houses main hoist/boom hoist/trolley drive]
+            //   [수학팀 검증] 중심 twx=-0.535(호이스트 wx=-0.602의 바다쪽). 호이스트 윈치 +X끝 -0.5667과 11.7mm,
+            //     공동 +X 내벽 -0.5047과 ~10mm 클리어. 호이스트 전부재와 AABB 겹침 0 (python 산식 검증).
+            //   드럼 축은 호이스트와 평행(Z). 로프는 바다쪽(+X)으로 나가 붐 따라 트롤리로(견인 로프는 다음 증분).
+            //   ★규칙1: 신규부 임시색 CTemp(마젠타). 승인 후 CMachine 환원. → [2026-06-19] 승인되어 CMachine 환원 완료.
+            {
+                float twx = -0.535f, twy = 0.095f, twHalfZ = 0.06f;
+                Rod(boom, "Trolley_Travel_Drum",                                  // 견인 로프 스풀 드럼
+                    new Vector3(twx, twy, -twHalfZ), new Vector3(twx, twy, twHalfZ), 0.016f, CMachine);
+                for (int s = -1; s <= 1; s += 2)                                  // 드럼 양끝 플랜지
+                    Rod(boom, "Travel_Drum_Flange",
+                        new Vector3(twx, twy, s * twHalfZ), new Vector3(twx, twy, s * (twHalfZ + 0.006f)), 0.020f, CMachine);
+                Rod(boom, "Travel_Gearbox",                                       // 감속기(드럼 -Z 직결)
+                    new Vector3(twx, twy, -twHalfZ - 0.006f), new Vector3(twx, twy, -twHalfZ - 0.016f), 0.018f, CMachine);
+                Rod(boom, "Travel_Motor",                                         // 주행 모터
+                    new Vector3(twx, twy, -twHalfZ - 0.016f), new Vector3(twx, twy, -twHalfZ - 0.045f), 0.014f, CMachine);
+                Rod(boom, "Travel_Brake",                                         // 디스크 브레이크(드럼 +Z)
+                    new Vector3(twx, twy, twHalfZ + 0.002f), new Vector3(twx, twy, twHalfZ + 0.010f), 0.021f, CMachine);
+                Box(boom, "Travel_Bedplate", new Vector3(twx, 0.058f, 0f),        // 베드플레이트
+                    new Vector3(0.04f, 0.01f, 0.16f), CMachine);
+            }
             // 기계실 지붕 난간 — 4변 둘레 레일 + 토보드(킥플레이트) + 둘레 기둥
             float mhRoofY = 0.171f;
             float rlZ = mhHZ + 0.003f, rlX = mhHX + 0.003f, rlH = 0.026f;
             for (int s = -1; s <= 1; s += 2)
             {
-                // ±Z 긴 변
+                // ±Z 긴 변 — 양끝이 3면 코너. 레일·토보드를 양끝 +t/2(각 0.002/0.0015 → size +0.004/+0.003)만 늘려
+                //   ±X 변·기둥의 '바깥 면'에 딱 맞춤(상대 단면 절반까지만 덮어 튀어나옴 0).
                 Box(boom, "MH_Roof_Rail", new Vector3(mhx, mhRoofY + rlH, s * rlZ),
-                    new Vector3(rlX * 2f, 0.004f, 0.004f), CStruct);
+                    new Vector3(rlX * 2f + 0.004f, 0.004f, 0.004f), CSafety);
                 Box(boom, "MH_Roof_Toe", new Vector3(mhx, mhRoofY + 0.006f, s * rlZ),
-                    new Vector3(rlX * 2f, 0.009f, 0.003f), CStruct);
-                // ±X 끝 변
+                    new Vector3(rlX * 2f + 0.003f, 0.009f, 0.003f), CSafety);
+                // ±X 끝 변 — 동일하게 양끝 +t/2로 ±Z 변·기둥 바깥 면에 맞춤(코너에서 X바·Z바·기둥 3겹, 튀어나옴 0).
                 Box(boom, "MH_Roof_Rail", new Vector3(mhx + s * rlX, mhRoofY + rlH, 0f),
-                    new Vector3(0.004f, 0.004f, rlZ * 2f), CStruct);
+                    new Vector3(0.004f, 0.004f, rlZ * 2f + 0.004f), CSafety);
                 Box(boom, "MH_Roof_Toe", new Vector3(mhx + s * rlX, mhRoofY + 0.006f, 0f),
-                    new Vector3(0.003f, 0.009f, rlZ * 2f), CStruct);
+                    new Vector3(0.003f, 0.009f, rlZ * 2f + 0.003f), CSafety);
             }
             // 둘레 기둥(코너 4 + 각 변 중간 4) — 3×3 격자에서 내부 1칸만 제외
             for (int ix = -1; ix <= 1; ix++)
@@ -537,7 +700,7 @@ namespace Container.Crane.Sts.EditorTools
             {
                 if (ix == 0 && iz == 0) continue;
                 Box(boom, "MH_Roof_Post", new Vector3(mhx + ix * rlX, mhRoofY + rlH * 0.5f, iz * rlZ),
-                    new Vector3(0.004f, rlH, 0.004f), CStruct);
+                    new Vector3(0.004f, rlH, 0.004f), CSafety);   // 안전 노랑(지붕 난간과 통일)
             }
 
             // ── 기계실 표면/장비 디테일(이 박스만 고도화) ──
@@ -572,26 +735,34 @@ namespace Container.Crane.Sts.EditorTools
             {
                 float condX2 = LandLegX - 0.034f;          // 다리 도관 x (다리 밖 — 기둥/래이싱 관통 회피, condX와 정렬)
                 float legZ   = GaugeZ * 0.5f;               // 0.333 (다리 z)
-                float gz     = GirderOuterZ - 0.01f;        // ≈0.172 — 붐 거더 폭 안(케이블 트레이 z0.16 바깥), 거더가 받침
-                float runY   = 0.05f;                       // 붐 상부 케이블 트레이 높이(MH 바닥 0.067 아래라 안 겹침)
-                float jbX = mhx - 0.07f, jbY = 0.06f, jbZ = mhFZ;   // MH_JBox
+                float gz     = GirderOuterZ - 0.01f;        // ≈0.1775 — 거더 폭 안(인보드), 거더 밑면 아래로 현수
+                // [페스툰 회피] 페스툰 케이블 z=0.1955, 최저 y = festBotY-festSag-반경 = -0.0336.
+                //   거더 밑면(-0.01)~페스툰 윗변(-0.0184) 틈(0.0084) < 관경(0.01) → 그 사이로 못 지남 → 현수를 페스툰 '밑'으로.
+                float runY   = -0.042f;                     // 윗면 -0.037 < 페스툰 밑 -0.0336 (3.4mm 여유). 거더 밑면(-0.01)보다도 아래.
+                float jbX = mhx - 0.07f, jbY = 0.06f;
+                float jbZ = mhFZ;                           // 0.20 — MH_JBox(기계실 +Z벽 z0.20) 본체로 진입하는 종단 z
                 float r   = 0.005f;
-                Rod(boom, "Leg_Conduit_Link", new Vector3(condX2, -0.005f, legZ), new Vector3(condX2, runY, legZ), r, CDark); // 다리 따라 붐 상면까지 상승
-                Rod(boom, "Leg_Conduit_Link", new Vector3(condX2, runY, legZ),    new Vector3(condX2, runY, gz),   r, CDark); // 다리 z→거더 z 인입(짧은 횡단)
-                Rod(boom, "Leg_Conduit_Link", new Vector3(condX2, runY, gz),      new Vector3(jbX,    runY, gz),   r, CDark); // 거더 선 따라 -X (거더가 밑을 받침 → 안 뜸)
-                Rod(boom, "Leg_Conduit_Link", new Vector3(jbX,    runY, gz),      new Vector3(jbX,    runY, jbZ),  r, CDark); // 거더→기계실 벽
-                Rod(boom, "Leg_Conduit_Link", new Vector3(jbX,    runY, jbZ),     new Vector3(jbX,    jbY,  jbZ),  r, CDark); // JBox로 상승
-                Box(boom, "Conduit_Elbow_JBox", new Vector3(condX2, runY, legZ),  new Vector3(0.018f, 0.02f, 0.018f), CMachine);  // 수직→수평 굽힘부(다리쪽) 엘보 박스 ← 모서리 큐브
-                Box(boom, "Conduit_Elbow_JBox", new Vector3(condX2, runY, gz),    new Vector3(0.022f, 0.022f, 0.022f), CMachine); // 거더쪽 엘보 정션박스
+                float Rb  = 1.5f * r;                       // 곡관 굽힘반경(센터라인). Rb>r → 내반경(Rb-r)>0, 핀치 없음
+                // [Sill+캣워크 회피 — 사용자 지적: Leg_Conduit_Link_5가 MH_Sill 이어 Catwalk_Rail 통과] 상승 구간(V4→V5)이 기계실 +Z 앞
+                //   층층 부재 — Sill 바깥면 0.2065, 하부 점검 캣워크 데크·난간 바깥면 (GirderOuterZ+0.012)+0.011=0.2105 — 를 통과했음.
+                //   → 가장 바깥(캣워크 0.2105) 너머로 상승 z(clearZ)를 빼고, 캣워크·Sill 위(jbY0.06 > 난간top 0.028)서 -Z로 꺾어 벽 진입.
+                float clearZ = (GirderOuterZ + 0.012f) + 0.011f + r + 0.002f;   // ≈0.2175 = 캣워크 데크/난간 바깥면(0.2105) + 관반경 r + 여유 → 관 안쪽면 0.2125 > 0.2105
+                // [곡관 엘보] 90° 굽힘을 짧은 원통 호 + 패싯 절점 구로 근사(관 굵기 일정, 부풀지 않음). 직선 구간은 접점 트림→접선 연속.
+                //   경로: 다리에서 내려와 거더·페스툰 밑으로 횡주행 → 캣워크·Sill 바깥(z≈0.2175)으로 빠져 상승 → 캣워크 위서 벽 진입 → MH_JBox.
+                Vector3[] path = {
+                    new Vector3(condX2, -0.005f, legZ),       // V0 다리 도관 접속(자유단)
+                    new Vector3(condX2, runY,    legZ),       // V1
+                    new Vector3(condX2, runY,    gz),         // V2
+                    new Vector3(jbX,    runY,    gz),         // V3 (거더·페스툰 밑 -X 횡주행 끝)
+                    new Vector3(jbX,    runY,    clearZ),      // V4 (캣워크·Sill 바깥 z로 빠져나옴)
+                    new Vector3(jbX,    jbY,     clearZ),      // V5 (캣워크 바깥에서 상승 — Leg_Conduit_Link_5, 관통 해소)
+                    new Vector3(jbX,    jbY,     jbZ),         // V6 → MH_JBox(자유단, 캣워크 위서 -Z로 꺾어 벽 진입)
+                };
+                ConduitPath(boom, "Leg_Conduit_Link", path, r, Rb, CDark);
             }
-            // 벽면 작업등 2(아래 향함, 양 ±Z면 바다쪽 상단)
+            // 벽면 작업등(아래 향함, 양 ±Z면 바다쪽 상단) — 박스+구 → 하향 Floodlight 어셈블리.
             for (int s = -1; s <= 1; s += 2)
-            {
-                Box(boom, "MH_WallLight_Housing", new Vector3(mhx + 0.06f, 0.152f, s * mhFZ),
-                    new Vector3(0.012f, 0.01f, 0.012f), CDark);
-                Ball(boom, "MH_WallLight", new Vector3(mhx + 0.06f, 0.146f, s * mhFZ),
-                    new Vector3(0.009f, 0.006f, 0.009f), CLight);
-            }
+                Floodlight(boom, new Vector3(mhx + 0.06f, 0.155f, s * mhFZ), 0.012f, CDark, CLight);
             // 지붕 디테일 — 점검 해치 + 보조 HVAC + 배기 캡
             Box(boom, "MH_RoofHatch", new Vector3(mhx + 0.06f, mhRoofY + 0.006f, -0.012f),
                 new Vector3(0.03f, 0.008f, 0.03f), CDark);
@@ -600,12 +771,16 @@ namespace Container.Crane.Sts.EditorTools
             Ball(boom, "MH_ExhaustCap", new Vector3(mhx + 0.035f, 0.218f, -0.025f),              // 배기 스택 따라 -Z로
                 new Vector3(0.012f, 0.008f, 0.012f), CDark);
             // 지붕 접근 수직 사다리(바다쪽 +Z면 → 지붕)
-            BuildLadder(boom, mhx + 0.07f, mhFZ + 0.008f, 0.06f, mhRoofY, 0.02f);
+            // [감사 MH-3] 사다리 베이스가 데크(0.067)보다 아래(0.06)서 허공 종단 → ① y0를 데크면(0.067)으로 올림,
+            //   ② 기계실 출입 캣워크 도어(x=mhx, z=corZ≈0.235)에서 사다리 베이스(z=0.208)로 잇는 step-off 랜딩 데크 추가 → 동선 연속.
+            Box(boom, "MHAccess_RoofLandingDeck", new Vector3(mhx + 0.035f, 0.067f, 0.225f),
+                new Vector3(0.10f, 0.004f, 0.05f), CMachine);
+            BuildLadder(boom, mhx + 0.07f, mhFZ + 0.008f, 0.067f, mhRoofY, 0.02f);
             // 지붕 사다리 스탠드오프 브래킷 — 벽(z=mhFZ)↔사다리(z≈mhFZ+0.008) 고정(6mm 공중부양 제거).
             for (int li = 0; li < 3; li++)
                 Box(boom, "Ladder_Bracket",
                     new Vector3(mhx + 0.07f, Mathf.Lerp(0.085f, mhRoofY - 0.02f, li / 2f), mhFZ + 0.004f),
-                    new Vector3(0.02f, 0.006f, 0.012f), CStruct);
+                    new Vector3(0.02f, 0.006f, 0.012f), CSafety);
 
             // ════════ 기계실 전체 마감/디테일 (넓힌 게이지 폭에 맞춤) ════════
             float mhTopY = 0.16f, mhBotY = 0.05f;
@@ -655,24 +830,21 @@ namespace Container.Crane.Sts.EditorTools
                 Ball(boom, "MH_RoofVent_Cap", new Vector3(mhx + 0.055f, mhRoofY + 0.024f, s * 0.08f),
                     new Vector3(0.014f, 0.009f, 0.014f), CStruct);
             }
-            Box(boom, "MH_RoofTray", new Vector3(mhx + 0.02f, mhRoofY + 0.008f, 0f),
+            Box(boom, "MH_RoofTray", new Vector3(mhx + 0.02f, mhRoofY + 0.0025f, 0f),  // 밑면 지붕면(mhRoofY) 안착: center=mhRoofY+높이0.005/2
                 new Vector3(0.012f, 0.005f, mhZ * 0.85f), CDark);
 
             // 지붕 네 모서리 적색 마커등(항공/안전)
             for (int sx = -1; sx <= 1; sx += 2)
             for (int sz = -1; sz <= 1; sz += 2)
-                Ball(boom, "MH_CornerLight", new Vector3(mhx + sx * mhHX, mhRoofY + 0.012f, sz * mhHZ),
-                    new Vector3(0.007f, 0.007f, 0.007f), CWarn);
+                Beacon(boom, "MH_CornerLight", new Vector3(mhx + sx * mhHX, mhRoofY + 0.004f, sz * mhHZ), 0.0045f, CWarn);
 
             // 넓은 ±Z면 보강 — 수직 도관 + 벽 작업등(육지쪽 분산)
             for (int s = -1; s <= 1; s += 2)
             {
                 Rod(boom, "MH_WallConduit", new Vector3(mhx + 0.05f, 0.055f, s * (mhHZ + 0.0015f)),
                     new Vector3(mhx + 0.05f, 0.15f, s * (mhHZ + 0.0015f)), 0.003f, CDark);
-                Box(boom, "MH_WallLight_Housing", new Vector3(mhx - 0.02f, 0.152f, s * (mhHZ + 0.001f)),
-                    new Vector3(0.012f, 0.01f, 0.012f), CDark);
-                Ball(boom, "MH_WallLight", new Vector3(mhx - 0.02f, 0.146f, s * (mhHZ + 0.001f)),
-                    new Vector3(0.009f, 0.006f, 0.009f), CLight);
+                // 벽 작업등(육지쪽) — 박스+구 → 하향 Floodlight 어셈블리.
+                Floodlight(boom, new Vector3(mhx - 0.02f, 0.155f, s * (mhHZ + 0.001f)), 0.012f, CDark, CLight);
             }
 
             // 붐 상단 양옆 난간(walkway railing) — 트윈 거더 바깥 가장자리
@@ -682,21 +854,33 @@ namespace Container.Crane.Sts.EditorTools
             for (int s = -1; s <= 1; s += 2)
             {
                 float z = s * GirderOuterZ;
-                Box(boom, "Boom_Railing", new Vector3(mid, railTop, z),
-                    new Vector3(len, 0.006f, 0.006f), CStruct);
-                // 중간 가로대 — 포털 빔 통과 지점에서 끊음
+                // 상단 가로 레일 — [BOOM-1=MH-1 수정] 통짜 Box → BoxGappedX. 포털·기계실 통과 구간에서 끊어 벽체 관통 제거.
+                BoxGappedX(boom, "Boom_Railing", x0, x1, railTop, z,
+                    0.006f, 0.006f, CSafety, BoomTopWalkwayGapX, BoomTopWalkwayGapHalf);
+                // 중간 가로대 — 포털·기계실 통과 지점에서 끊음
                 BoxGappedX(boom, "Boom_Railing_Mid", x0, x1, (railTop + girderTop) * 0.5f, z,
                     0.004f, 0.004f, CStruct, BoomTopWalkwayGapX, BoomTopWalkwayGapHalf);
-                // 토보드(킥플레이트) — 보도 가장자리. 포털 빔 통과 지점에서 끊음(Portal_Cross 관통 방지)
+                // 토보드(킥플레이트) — 보도 가장자리. 포털·기계실 통과 지점에서 끊음(Shoulder_Beam·기계실 벽체 관통 방지)
                 BoxGappedX(boom, "Boom_Toe", x0, x1, girderTop + 0.009f, z,
                     0.012f, 0.003f, CStruct, BoomTopWalkwayGapX, BoomTopWalkwayGapHalf);
                 for (int i = 0; i <= posts; i++)
                 {
                     float px = Mathf.Lerp(x0, x1, i / (float)posts);
+                    if (InWalkwayGap(px)) continue;   // [BOOM-1] 포털/기계실 통과 구간엔 난간 기둥 생략(기계실 벽체 매립 방지)
+                    // [감사 BOOM-4] 밑동을 트러스 상현재 캡 윗면(0.0685) 위로 올림(0.069) — 캡(y0.0615~0.0685, z0.1855~0.1925)에 3.5mm 박히던 것 해소. 윗단(railTop)·중간레일·토보드는 불변.
+                    float postBot = 0.069f;
                     Box(boom, "Railing_Post",
-                        new Vector3(px, (railTop + girderTop) * 0.5f, z),
-                        new Vector3(0.005f, railTop - girderTop, 0.005f), CStruct);
+                        new Vector3(px, (railTop + postBot) * 0.5f + 0.0015f, z),
+                        new Vector3(0.005f, railTop - postBot + 0.003f, 0.005f), CSafety);   // 기둥 top을 상단레일 바깥면(+t/2)까지 위로만
                 }
+
+                // [BOOM-1 마감] 기계실 구간에서 끊긴 난간(상단·중간레일·토보드)의 민짜 잘린 끝면을
+                //   수직 단부 캡판으로 마감. 기계실 양옆 갭 경계(좌/우)에 1장씩, 토보드 하단~상단레일 윗면을 덮음.
+                float mhGapHalf = MachineryHouseHX + 0.008f;             // 기계실 갭 반폭(BoomTopWalkwayGapHalf[2]와 동일 식)
+                float capBot = girderTop + 0.002f, capTop = railTop + 0.003f;
+                foreach (float capX in new[] { MachineryHouseX - mhGapHalf, MachineryHouseX + mhGapHalf })
+                    Box(boom, "Boom_Railing_EndCap", new Vector3(capX, (capBot + capTop) * 0.5f, z),
+                        new Vector3(0.004f, capTop - capBot, 0.014f), CSafety);
             }
         }
 
@@ -740,9 +924,9 @@ namespace Container.Crane.Sts.EditorTools
                 for (int s = -1; s <= 1; s += 2)
                 {
                     Box(root, "Apex_Rail", new Vector3(apex.x, platY + h, s * halfPZ),
-                        new Vector3(halfX * 2f, 0.004f, 0.004f), CStruct);
+                        new Vector3(halfX * 2f + 0.004f, 0.004f, 0.004f), CSafety);   // 양끝 3면코너 +t/2씩
                     Box(root, "Apex_Rail", new Vector3(apex.x + s * halfX, platY + h, 0f),
-                        new Vector3(0.004f, 0.004f, halfPZ * 2f), CStruct);
+                        new Vector3(0.004f, 0.004f, halfPZ * 2f + 0.004f), CSafety);   // 양끝 3면코너 +t/2씩
                 }
             }
             // 제어 캐비닛 — 직립 인클로저(도어/루버/지붕/공조)
@@ -752,9 +936,9 @@ namespace Container.Crane.Sts.EditorTools
             for (int s = -1; s <= 1; s += 2)
             {
                 Box(root, "Apex_ToeBoard", new Vector3(apex.x, platY + 0.007f, s * (halfPZ - 0.001f)),
-                    new Vector3(halfX * 2f, 0.01f, 0.003f), CStruct);
+                    new Vector3(halfX * 2f + 0.001f, 0.01f, 0.003f), CSafety);   // 토보드 inset0.001 보정 후 바깥면 맞춤
                 Box(root, "Apex_ToeBoard", new Vector3(apex.x + s * (halfX - 0.001f), platY + 0.007f, 0f),
-                    new Vector3(0.003f, 0.01f, halfPZ * 2f), CStruct);
+                    new Vector3(0.003f, 0.01f, halfPZ * 2f + 0.001f), CSafety);   // 토보드 inset0.001 보정 후 바깥면 맞춤
             }
             // 정션 박스 2(반대편 데크) — 데크 볼트 고정형(덮개는 빔 방향, 글랜드는 데크 아래로)
             JunctionBox(root, "Apex_JBox", new Vector3(apex.x + halfX * 0.45f, platY + 0.016f, -halfPZ * 0.5f),
@@ -773,14 +957,9 @@ namespace Container.Crane.Sts.EditorTools
             // 마스트 기둥(약간 굵게)
             Rod(root, "Apex_Mast", new Vector3(apex.x, mb + 0.012f, 0f),
                 new Vector3(apex.x, mastTop, 0f), 0.0035f, CStruct);
-            // 적색 항공장애등 2단 — 검은 하우징(짧은 원통) + 적색 돔(작게)
+            // 적색 항공장애등 2단 — 구 돔 → 비콘(검은 베이스+적색 발광 렌즈 드럼+캡). 마스트에 적층.
             foreach (float ly in new[] { mb + 0.045f, mb + 0.085f })
-            {
-                Rod(root, "AviLight_Housing", new Vector3(apex.x, ly - 0.005f, 0f),
-                    new Vector3(apex.x, ly + 0.003f, 0f), 0.0085f, CDark);
-                Ball(root, "Aviation_Light", new Vector3(apex.x, ly + 0.008f, 0f),
-                    new Vector3(0.011f, 0.008f, 0.011f), CWarn);
-            }
+                Beacon(root, "Aviation_Light", new Vector3(apex.x, ly - 0.006f, 0f), 0.0085f, CWarn);
             // 피뢰침(마스트 꼭대기 → 뾰족)
             Cone(root, "Lightning_Rod", new Vector3(apex.x, mastTop, 0f),
                 new Vector3(apex.x, mastTop + 0.028f, 0f), 0.002f, 0f, CStruct, 12);
@@ -806,7 +985,7 @@ namespace Container.Crane.Sts.EditorTools
                 {
                     Strut(root, "Aframe",
                         new Vector3(apex.x, apex.y, s * apexHalfZ),
-                        new Vector3(lx, LegTopY, s * halfZ), 0.012f, CStruct);
+                        new Vector3(lx, LegTopY, s * halfZ), 0.016f, CStruct);   // [2026-06-19 회의 2단계] 0.012→0.016: 지름 0.58→0.77m(현장 0.8~1.2 하한대). 라싱·가새·스테이는 정상이라 유지.
                 }
             }
 
@@ -859,26 +1038,51 @@ namespace Container.Crane.Sts.EditorTools
                     Gusset(root, new Vector3(lx, LegTopY + 0.012f, s * (halfZ + legHalf) + s * afOff), fr, afG, afT, CStruct);
             }
 
-            // 정상 시브 네스트(스테이 도르래) + 장비 하우징 — 시브를 감싸게 거더 폭에 맞춤
-            Box(root, "Apex_SheaveHouse", new Vector3(apex.x, apex.y - 0.025f, 0f),
-                new Vector3(0.03f, 0.05f, 2f * GirderGapZ + 0.08f), CMachine);
-            // 정상 시브 — 양쪽(z=±GirderGapZ)에 1개씩, 각 거더 포어스테이를 받음(축은 Z)
+            // 정상 시브 네스트(스테이 도르래) + 장비 하우징.
+            //   [감사 APEX-SHEAVE-EMBED] 시브를 가로보 Apex(밑면 apex.y-0.02)와 솔리드 하우스에서 빼냄(매립+로프 벽관통 해소).
+            //   ① 시브 y를 apex.y-0.01 → apex.y-0.042로 내려 시브 top(=center+0.016=apex.y-0.026)이 가로보 밑면 아래 6mm로 떨어짐
+            //      (포어/백스테이는 같은 시브를 공유하는 턴 시브이고 정착점 y≈1.40/1.43으로 한참 아래라, 시브를 내려도 양 스테이는 정상 강하).
+            //   ② 하우스를 솔리드 박스 → 개방 슈라우드(상부 캡 + 양 Z단부 측벽)로. 시브가 아래로(포어 +X·백 -X) 로프를 빼므로
+            //      상부·Z단부만 가리고 X양면·하부는 개방(페어리드) → 로프가 더 이상 벽을 관통 안 함.
+            float sheaveY = apex.y - 0.042f;
+            // 상부 캡(가로보 Apex 밑면 apex.y-0.02에 현수) — 시브 top(apex.y-0.026)과 1.5mm 이격
+            Box(root, "Apex_SheaveHouse", new Vector3(apex.x, apex.y - 0.0215f, 0f),
+                new Vector3(0.03f, 0.006f, 2f * GirderGapZ + 0.08f), CMachine);
+            for (int s = -1; s <= 1; s += 2)   // 양 Z단부 측벽(시브 z=±0.16 바깥 ±0.20에서 끝막음, 로프 경로 z=±0.16엔 비관여)
+                Box(root, "Apex_SheaveHouse", new Vector3(apex.x, sheaveY + 0.004f, s * (GirderGapZ + 0.04f)),
+                    new Vector3(0.03f, 0.05f, 0.006f), CMachine);
+            // 정상 스테이 정착부 — 회전 시브가 아니라 핀-클레비스(패드아이) 정착.
+            //   [감사 APEX-SHEAVE-FIX] 이 붐은 고정(스테이 지지)식이라 정상부를 넘는 러핑(boom-hoist)
+            //   로프가 없음 → 도르래(시브)는 기능상 불필요. 포어/백스테이는 각도·장력이 다른 별개의
+            //   정적 인장재이므로(한 줄이 시브를 넘는 구조가 아님), 실제 STS A-프레임처럼 가로 정착 핀
+            //   (축 Z) + 양 치크판으로 핀 정착함. 종전: 5줄 스테이가 시브 허브 중심(r=0)에서 발사돼
+            //   V홈을 안 쓰고 드럼을 관통했음 → 핀 정착으로 교체하니 로프 끝점(=핀)이 곧 정착점이 됨.
             for (int s = -1; s <= 1; s += 2)
             {
                 float sz = s * GirderGapZ;
-                Sheave(root, "Apex_Sheave",   // 민짜 드럼 → V홈 시브(스테이 로프가 도는 도르래)
-                    new Vector3(apex.x, apex.y - 0.01f, sz - 0.016f),
-                    new Vector3(apex.x, apex.y - 0.01f, sz + 0.016f), 0.016f, 0.006f, 0.004f, CDark);
-                // 정상 시브 네스트(치크+핀 보스)
-                SheaveNest(root, new Vector3(apex.x, apex.y - 0.01f, sz), 0.016f, 0.016f, CStruct);
+                Vector3 C = new Vector3(apex.x, sheaveY, sz);
+                // 클레비스 치크판 2장(스테이 평면 z=sz 양옆, 0.008 간격) — 디자이너 편집용 PbBox
+                for (int e = -1; e <= 1; e += 2)
+                    PbBox(root, "Apex_StayCheek", C + new Vector3(0f, 0f, e * 0.010f),
+                        new Vector3(0.024f, 0.030f, 0.004f), CStruct);
+                // 정착 핀(축 Z) — 치크 사이를 관통, 스테이 클레비스 아이가 매달림
+                Rod(root, "Apex_StayPin",
+                    C + new Vector3(0f, 0f, -0.016f), C + new Vector3(0f, 0f, 0.016f), 0.006f, CDark);
+                // 핀 리테이너 캡(양 외측, 너트/캡 표현)
+                for (int e = -1; e <= 1; e += 2)
+                    Rod(root, "Apex_StayPinCap",
+                        C + new Vector3(0f, 0f, e * 0.014f), C + new Vector3(0f, 0f, e * 0.018f), 0.009f, CStruct);
+                // 스테이 집합 소켓(5줄 아이가 물리는 피팅) — 제거된 a-끝 Stay_Plate 기능 대체
+                PbBox(root, "Apex_StaySocket", C, new Vector3(0.016f, 0.020f, 0.014f), CMachine);
             }
-            // 시브 하우스 디테일 — 측면 리브 + 점검 해치 + 리프팅 러그
+            // 시브 하우스 디테일 — 내부 웹 리브(시브 사이 z=±0.12, 시브 비관통) + 점검 해치 + 리프팅 러그
+            //   [감사 APEX-C2] 리브 z를 GaugeZ*0.24(=0.16=시브 중심) → GaugeZ*0.18(=0.12, 두 시브 안쪽)로 옮겨 V홈 관통 해소.
             for (int s = -1; s <= 1; s += 2)
             {
-                Box(root, "SheaveHouse_Rib", new Vector3(apex.x, apex.y - 0.025f, s * GaugeZ * 0.24f),
-                    new Vector3(0.034f, 0.05f, 0.004f), CStruct);
+                Box(root, "SheaveHouse_Rib", new Vector3(apex.x, apex.y - 0.030f, s * GaugeZ * 0.18f),
+                    new Vector3(0.034f, 0.04f, 0.004f), CStruct);
             }
-            Box(root, "SheaveHouse_Hatch", new Vector3(apex.x + 0.016f, apex.y - 0.015f, 0f),
+            Box(root, "SheaveHouse_Hatch", new Vector3(apex.x + 0.016f, apex.y - 0.0215f, 0f),
                 new Vector3(0.004f, 0.02f, 0.02f), CDark);
             Box(root, "Lifting_Lug", new Vector3(apex.x, apex.y + 0.008f, 0f),
                 new Vector3(0.006f, 0.014f, 0.006f), CStruct);
@@ -891,23 +1095,28 @@ namespace Container.Crane.Sts.EditorTools
                 new Vector3(0.006f, 0.008f, halfPZ * 1.7f), CStruct);
             for (int s = -1; s <= 1; s += 2)
                 Strut(root, "FloodBar_Brace",
-                    new Vector3(apex.x, platY + 0.004f, s * halfPZ * 0.7f),
+                    // 앵커를 데크 X-중심(apex.x)→바깥 가장자리(apex.x+halfX)로 이동. 중심에 박으면
+                    // 가장자리까지 비스듬히 내려가며 데크 두께(platY±0.004) 안을 관통함. 가장자리 코너에서
+                    // 뻗어야 Apex_Platform을 뚫지 않고, 주석상 의도("바다쪽 가장자리에서 뻗은 프레임")와도 일치.
+                    new Vector3(apex.x + halfX, platY + 0.004f, s * halfPZ * 0.7f),
                     new Vector3(galX, galY, s * halfPZ * 0.7f), 0.004f, CStruct);
             for (int i = -2; i <= 2; i++)
             {
                 float fz = i * halfPZ * 0.4f;
-                Box(root, "Floodlight_Housing", new Vector3(galX + 0.006f, galY, fz),
-                    new Vector3(0.012f, 0.014f, 0.014f), CDark);
-                Ball(root, "Apex_Floodlight", new Vector3(galX + 0.013f, galY - 0.006f, fz),
-                    new Vector3(0.011f, 0.009f, 0.011f), CLight);
+                // 에이펙스 투광등 — FloodBar(galX)에서 +X 아래 45°로 안벽 작업역 조사. 박스+구 → 방향지정 어셈블리.
+                Floodlight(root, new Vector3(galX + 0.004f, galY, fz), Quaternion.Euler(0f, 0f, 45f), 0.013f, CDark, CLight);
             }
 
 
             // 스테이 케이블 — 부채꼴 + 앵커 플레이트·턴버클. 측면 시브(z=±GirderGapZ)에서 같은 쪽 거더로 내림(측면별 수직면).
-            float boomTopY = RailH + 0.07f;
+            // 포어스테이 정착 y = 거더 윗면(boom-local GirderTopLocal=GirderCenterY+GirderDepthH/2=0.0275+0.0375=0.065 → 루트 RailH+0.065) 기준 +0.005.
+            // [감사 H2 SSOT] 종전 리터럴 RailH+0.07f를 거더 단면 const 파생식으로 교체. 괄호 필수:
+            //   float 검증상 RailH+(GirderTopLocal+0.005f)는 0.07f 경로와 비트 동일(3fb3a06e)이나,
+            //   괄호 없는 좌결합 RailH+GirderTopLocal+0.005f는 1 ULP 차이(3fb3a06d). 형상 비트 불변 위해 괄호 유지.
+            float boomTopY = RailH + (GirderTopLocal + 0.005f);
             for (int s = -1; s <= 1; s += 2)
             {
-                Vector3 sheave = new Vector3(apex.x, apex.y - 0.01f, s * GirderGapZ);
+                Vector3 sheave = new Vector3(apex.x, sheaveY, s * GirderGapZ);   // [APEX-SHEAVE-EMBED] 내린 시브 y 공유
                 foreach (float f in new[] { 0.35f, 0.55f, 0.78f, 1.0f })   // 바다쪽 4줄
                     BuildStay(root, sheave,
                         new Vector3(Mathf.Lerp(WaterLegX, BoomTipX, f), boomTopY, s * GirderGapZ), "Forestay");
@@ -938,8 +1147,9 @@ namespace Container.Crane.Sts.EditorTools
             float bsBackX = BoomBackX + 0.02f;
             for (int s = -1; s <= 1; s += 2)
             {
-                Vector3 shTop = new Vector3(apex.x, apex.y - 0.01f, s * GirderGapZ);   // 시브 하우스 시브 위치
-                BuildStay(root, shTop, new Vector3(bsBackX, boomTopY, s * GirderGapZ), "Backstay");
+                Vector3 shTop = new Vector3(apex.x, sheaveY, s * GirderGapZ);   // 시브 하우스 시브 위치 [APEX-SHEAVE-EMBED] 내린 시브 y 공유
+                // 백스테이 정착 y = 이퀄라이저 노드 윗면(boom-local 0.092) — Stay_Plate가 클레비스 러그 사이 소켓으로 물림
+                BuildStay(root, shTop, new Vector3(bsBackX, RailH + 0.092f, s * GirderGapZ), "Backstay");
             }
         }
 
@@ -947,52 +1157,57 @@ namespace Container.Crane.Sts.EditorTools
 
         static void BuildTrolleyVisual(Transform trolley)
         {
-            // 트롤리는 붐 레일(붐 로컬 y=0)에 위치. 본체는 그 아래로. 트윈 거더 두 레일에 걸침.
-            float tZ = 2f * GirderGapZ + 0.05f;   // 두 레일에 걸치는 폭(≈0.19)
-            PbBox(trolley, "Trolley_Body", new Vector3(0f, -0.025f, 0f),
-                new Vector3(0.11f, 0.05f, tZ), CTrolley, bevel: 0.12f);
-            BuildTrolleyBodyFrame(trolley);   // 1) 본체 프레임화 — 코너 포스트/둘레 종재/리브/이음매
-            PbBox(trolley, "Trolley_Head", new Vector3(0f, -0.06f, 0f),
+            // [Option C 기계실 통합 박스] 트롤리를 실척 ≈7m 박스 프레임으로 확장(육지쪽 절반에 운전실 통합).
+            //   +X=바다, −X=육지. 인양점(헤드/시브)은 스프레더 직상 X=HoistX, 본체 중심은 육지쪽으로 TrolleyCX 이동 → 육지절반이 캐빈 통합부.
+            float tZ = 0.24f;   // nested 본체 폭(z±0.12 = 바퀴·다운레그와 일치, < 갭/2=0.1325)
+            PbBox(trolley, "Trolley_Body", new Vector3(TrolleyCX, -0.025f, 0f),
+                new Vector3(2f * TrolleyHX, 0.05f, tZ), CTrolley, bevel: 0.05f);
+            BuildTrolleyBodyFrame(trolley, TrolleyHX, TrolleyCX);   // 1) 본체 프레임화(확장 치수 전달)
+            // 헤드(로프 인양점) — 인양점 X=HoistX(항구쪽 이동), 스프레더 직상
+            PbBox(trolley, StsPartNames.TrolleyHead, new Vector3(HoistX, -0.06f, 0f),
                 new Vector3(0.07f, 0.025f, tZ * 0.85f), CDark, bevel: 0.2f);
-            // 주행 대차(보기) + 바퀴 — 각 거더 레일(z=±GirderGapZ) 밑면에 트레드 접지.
-            // [감사 #3] 거더 밑면(y=0.015)이 레일 윗면(0.012) 바로 위라 위로 올리면 거더와 충돌 → 언더러닝 구성.
-            //   기존 바퀴 중심 0.001(반경 0.011)은 레일(y0~0.012) 속에 파묻혔음 → 어셈블리를 0.012 내려 바퀴 윗면이 레일 밑면(y=0)에 접하게(중심 -0.011).
+            // [rail-in-middle] 주행 보기 — 긴 본체 양 끝 근처 2스테이션 × 좌우 레일(Z=±railZ). 레일 위 트레드 접지(중심 0.037).
+            //   8륜(2스테이션×2륜×2레일)으로 긴 박스 하중 분산. 다운레그는 레일 안쪽 z=0.10(레일 z=0.12 회피).
+            float railZ = GirderGapZ - GirderWidthZ * 0.5f - 0.0125f;   // ≈0.12, 붐 레일·본체와 동일
+            float wheelY = BoomRailTopY + 0.011f;   // 바퀴 축 중심 = 레일 윗면 + 트레드 반경(0.011) → 트레드 하단 접지(공유 상수 파생)
+            foreach (float bx in new[] { TrolleyCX - TrolleyHX * 0.66f, TrolleyCX + TrolleyHX * 0.66f })   // 보기 X스테이션 ≈ 중심±0.096(끝 근처)
             for (int s = -1; s <= 1; s += 2)
             {
-                float gz = s * GirderGapZ;
-                PbBox(trolley, "Trolley_Bogie", new Vector3(0f, -0.018f, gz),
-                    new Vector3(0.13f, 0.016f, 0.03f), CDark, bevel: 0.25f);
-                foreach (float wx in new[] { -0.05f, -0.018f, 0.018f, 0.05f })   // 보기당 4륜(디테일)
-                    Rod(trolley, "Trolley_Wheel",
-                        new Vector3(wx, -0.011f, gz - 0.013f),
-                        new Vector3(wx, -0.011f, gz + 0.013f), 0.011f, CRail);
+                float gz = s * railZ;
+                float frameZ = gz - s * 0.015f;   // ≈0.105 — 보기 사이드프레임(저널 판), 레일 안쪽
+                Box(trolley, "Trolley_Bogie", new Vector3(bx, wheelY, frameZ),
+                    new Vector3(0.075f, 0.03f, 0.006f), CDark);
+                foreach (float dwx in new[] { -0.028f, 0.028f })   // 보기당 2륜 — 트레드+가이드 플랜지+축
+                {
+                    float wx = bx + dwx;
+                    Rod(trolley, "Trolley_Wheel", new Vector3(wx, wheelY, gz - 0.007f),
+                        new Vector3(wx, wheelY, gz + 0.007f), 0.011f, CRail);          // 트레드(반경 0.011)
+                    Rod(trolley, "Wheel_Flange", new Vector3(wx, wheelY, gz - s * 0.008f),
+                        new Vector3(wx, wheelY, gz - s * 0.011f), 0.0145f, CRail);     // 안쪽 가이드 플랜지(이탈 방지)
+                    Rod(trolley, "Wheel_Axle", new Vector3(wx, wheelY, gz),
+                        new Vector3(wx, wheelY, frameZ), 0.003f, CDark);               // 축 → 사이드프레임
+                }
+                // 다운레그 — 보기(Y0.037) → 본체 윗면(Y0). 레일 안쪽(z0.10)
+                Box(trolley, "Trolley_Leg", new Vector3(bx, 0.0185f, s * 0.10f),
+                    new Vector3(0.012f, 0.037f, 0.012f), CTrolley);
             }
-            // [디자인] 트롤리 리빙 시브 4개(falls별) — 홈 파인 휠 + 사각 치크 측판(둥근 코인 글리치 → 측판이 본체 위로 솟아 시브 프레이밍) + 축 핀.
-            //   각 로프가 이 시브를 감아 넘어: 윗구간은 기계실(-X)로, 아랫구간(Hoist_Rope)은 헤드블록으로 강하.
-            foreach (float tx in new[] { -0.03f, 0.03f })
-            foreach (float tz in new[] { -0.05f, 0.05f })
-            {
-                Vector3 c = new Vector3(tx, -0.005f, tz);
-                for (int e = -1; e <= 1; e += 2)   // 사각 치크 측판(본체 위로 솟아 클리핑 가림)
-                    Box(trolley, "Sheave_Cheek", new Vector3(tx, -0.003f, tz + e * 0.0095f),
-                        new Vector3(0.032f, 0.032f, 0.003f), CStruct);
-                Sheave(trolley, "Trolley_Sheave",
-                    c + new Vector3(0f, 0f, -0.004f), c + new Vector3(0f, 0f, 0.004f), 0.014f, 0.005f, 0.004f, CRail);
-                Rod(trolley, "Sheave_Pin",         // 관통 축 핀(치크 밖으로 돌출)
-                    new Vector3(tx, -0.005f, tz - 0.013f), new Vector3(tx, -0.005f, tz + 0.013f), 0.0035f, CDark);
-            }
+            // [2026-06-19 삭제 — 오너 지시 "도르래 휠 전부 제거(도출되어 별로)"] 트롤리 리빙 시브 4개(+치크·핀) 제거.
+            //   '케이블 트롤리 내부 통과' 컨셉: 윗구간(HoistU)은 본체 안으로 인입(은폐), 양정 로프(Hoist_Rope)는 트롤리
+            //   바닥에서 그대로 강하 → 노출 도르래 없음.
             // ── 로프 데드엔드 소켓 (와이어 연결부, 육지쪽 인입 정착) ──
             // 데드엔드 소켓 — 육지쪽(x=-0.03) 로프 falls 2개를 트롤리에 정착(스펠터 소켓 몸체 + 클레비스 핀 + 바스켓)
             for (int sz = -1; sz <= 1; sz += 2)
             {
-                Vector3 sk = new Vector3(-0.03f, -0.052f, sz * 0.05f);
+                Vector3 sk = new Vector3(HoistX - HoistSprX, -0.052f, sz * HoistSprZ);
                 Box(trolley, "Rope_Socket_Body", sk, new Vector3(0.012f, 0.02f, 0.012f), CStruct);
                 Rod(trolley, "Rope_Socket_Pin",
                     sk + new Vector3(-0.008f, 0.011f, 0f), sk + new Vector3(0.008f, 0.011f, 0f), 0.0025f, CDark);
                 Cone(trolley, "Rope_Socket_Basket",
                     sk + new Vector3(0f, -0.016f, 0f), sk + new Vector3(0f, -0.004f, 0f), 0.003f, 0.007f, CDark);
             }
-            // 운전실(운전석) — 현실 STS대로 바다쪽(+X)에 매달려 전면 경사창으로 발밑 화물을 내려다본다(내부 180° 미러).
+            // [2026-06-18] 견인 로프/앵커 임시 제거 — 블라인드로 점-대-점 로프(관통)·맨 앵커·부양 시브로 미완성 반복.
+            //   제대로 reeving(페어리드+현수 행어+U자 SheaveReeve)으로 재설계 예정. 그때까지 깨끗이 비움.
+            // 운전실(운전석) — 현실 STS대로 스프레더의 '육지쪽(−X)'에 매달려 '바다쪽(+X=배)'을 향해 전면 경사창으로 발밑 화물을 내려다본다.
             BuildOperatorCab(trolley);
 
             // (내가 추가했던 Trolley_Gearbox·Trolley_Cabinet·Trolley_DriveShaft·모터 부속(핀/팬커버/플랜지/감속기) 전부 제거
@@ -1014,149 +1229,437 @@ namespace Container.Crane.Sts.EditorTools
         // 트롤리 본체 프레임화 (Trolley 디테일 1) — 민짜 박스를 용접 프레임으로 분절.
         //   코너 포스트 4 + 상·하 둘레 종재 + 측면(±X) 수직 리브 + 단부(±Z) 리브 + 패널 이음매.
         //   본체 박스(0.11×0.05×0.37) 좌표 불변, 표면에 proud 부재만 추가(폴리: 가는 박스 ~36개).
-        static void BuildTrolleyBodyFrame(Transform trolley)
+        // 확장 치수화(Option C): hx=본체 반길이X, cx=본체 X중심(육지쪽 −X 이동). 긴 박스라 리브를
+        //   '긴 ±Z 면(X×Y)'에 X-다단으로, 단부는 '짧은 ±X 끝면(Z×Y)'에 Z-다단으로 건다.
+        static void BuildTrolleyBodyFrame(Transform trolley, float hx, float cx)
         {
-            float hx = 0.055f, hz = (2f * GirderGapZ + 0.05f) * 0.5f;   // 본체 반치수(X,Z)
+            float hz = 0.12f;   // 본체 반치수 Z — [rail-in-middle] 본체(tZ=0.24)·바퀴 z0.12에 맞춤
             float yTop = 0f, yBot = -0.05f, yMid = -0.025f, h = 0.05f;
 
             // 코너 포스트 4 — 본체 모서리 수직 트림
             for (int sx = -1; sx <= 1; sx += 2)
             for (int sz = -1; sz <= 1; sz += 2)
-                Box(trolley, "TB_Corner", new Vector3(sx * hx, yMid, sz * hz),
+                Box(trolley, "TB_Corner", new Vector3(cx + sx * hx, yMid, sz * hz),
                     new Vector3(0.009f, h + 0.006f, 0.009f), CStruct);
 
-            // 상·하 둘레 종재(긴 변 Z + 짧은 변 X)
+            // 상·하 둘레 종재(긴 변 X + 짧은 변 Z)
             foreach (float y in new[] { yTop, yBot })
             {
-                for (int sx = -1; sx <= 1; sx += 2)
-                    Box(trolley, "TB_Chord", new Vector3(sx * hx, y, 0f),
-                        new Vector3(0.008f, 0.007f, 2f * hz), CStruct);
                 for (int sz = -1; sz <= 1; sz += 2)
-                    Box(trolley, "TB_Chord", new Vector3(0f, y, sz * hz),
+                    Box(trolley, "TB_Chord", new Vector3(cx, y, sz * hz),
                         new Vector3(2f * hx, 0.007f, 0.008f), CStruct);
+                for (int sx = -1; sx <= 1; sx += 2)
+                    Box(trolley, "TB_Chord", new Vector3(cx + sx * hx, y, 0f),
+                        new Vector3(0.008f, 0.007f, 2f * hz), CStruct);
             }
 
-            // 측면(±X) 수직 리브 — Z 따라 다단(평탄한 긴 면 분절)
-            int ribs = 6;
-            for (int sx = -1; sx <= 1; sx += 2)
+            // 긴 측면(±Z) 수직 리브 — X 따라 다단(평탄한 긴 면 분절)
+            int ribs = 8;
+            for (int sz = -1; sz <= 1; sz += 2)
             for (int i = 1; i < ribs; i++)
             {
-                float z = Mathf.Lerp(-hz, hz, i / (float)ribs);
-                Box(trolley, "TB_Rib", new Vector3(sx * (hx + 0.001f), yMid, z),
-                    new Vector3(0.005f, h, 0.006f), CTrolley);
+                float x = cx + Mathf.Lerp(-hx, hx, i / (float)ribs);
+                Box(trolley, "TB_Rib", new Vector3(x, yMid, sz * (hz + 0.001f)),
+                    new Vector3(0.006f, h, 0.005f), CTrolley);
             }
 
-            // 단부(±Z) 수직 리브 3 — 끝면 분절
-            for (int sz = -1; sz <= 1; sz += 2)
-            for (int i = -1; i <= 1; i++)
-                Box(trolley, "TB_EndRib", new Vector3(i * hx * 0.55f, yMid, sz * (hz + 0.001f)),
-                    new Vector3(0.006f, h, 0.005f), CTrolley);
-
-            // 패널 이음매(가로) — 큰 ±X 면 평탄함 제거
+            // 단부(±X) 수직 리브 3 — 짧은 끝면 분절(Z 따라)
             for (int sx = -1; sx <= 1; sx += 2)
-                Box(trolley, "TB_Seam", new Vector3(sx * (hx + 0.0005f), yMid, 0f),
-                    new Vector3(0.003f, 0.003f, 2f * hz), CDark);
+            for (int i = -1; i <= 1; i++)
+                Box(trolley, "TB_EndRib", new Vector3(cx + sx * (hx + 0.001f), yMid, i * hz * 0.55f),
+                    new Vector3(0.005f, h, 0.006f), CTrolley);
+
+            // 패널 이음매(가로) — 긴 ±Z 면 평탄함 제거
+            for (int sz = -1; sz <= 1; sz += 2)
+                Box(trolley, "TB_Seam", new Vector3(cx, yMid, sz * (hz + 0.0005f)),
+                    new Vector3(2f * hx, 0.003f, 0.003f), CDark);
         }
 
-        // 운전실(운전석) — 현실 STS대로 트롤리 하부 '바다쪽(+X)'에 매달려 전면 경사창으로 발밑 화물(스프레더/선박)을 내려다본다.
-        //   [배치] 좌표 산식은 트롤리-로컬 그대로(cx=-0.078 등)지만, 'cab' 홀더를 트롤리 원점 기준 180°Y 회전시켜
-        //          전체를 x=0 대칭 미러 → 본체가 바다쪽(+X)으로 가고 전면이 스프레더(-X 방향)를 향한다.
+        // 운전실(운전석) — 현실 STS대로 트롤리 하부 '육지쪽(−X)'에 매달려 '바다쪽(+X=배)'을 향해 전면 경사창으로 발밑 화물(스프레더/선박)을 내려다본다.
+        //   [배치] 좌표 산식은 트롤리-로컬 그대로(cx=-0.078 등)이고, 'cab' 홀더 회전 identity + 평행이동 −0.018로
+        //          본체가 육지쪽(−X)에 가고 전면(cab-local +X)이 스프레더/배(+X 방향)를 향한다(이전 바다쪽 매달림에서 거울 반전).
         //   실제 STS 운전실: 전면 하부 '경사창'(내려다보기) + 좌석/콘솔 + 측·후면 도어 + 지붕 + 하부 작업등 + 후면 접근 플랫폼.
         //   본체(y≥-0.05)·헤드(x∈±0.035)·로프소켓(x≈-0.03)과 안 겹치게(미러 후 |x|≥0.042 대칭 유지): y≤-0.052.
-        static void BuildOperatorCab(Transform trolley)
+        // 통짜 강철 셸(CSG, 리플렉션 호출) — ProBuilder의 CSG/Model은 internal(에디터 어셈블리에만 InternalsVisibleTo)이라
+        //   어셈블리를 참조해도 직접 못 씀 → 리플렉션으로 Subtract 호출. 임시 큐브는 CreatePrimitive(ProBuilder 의존 0), 결과는 평범한 메시.
+        //   좌표계: 임시 큐브를 월드 원점에 cab-local 값으로 세워 빼기 → 결과 메시 정점이 cab-local 좌표 →
+        //          cab(identity 홀더, −0.018 이동) 자식으로 SetParent(false) 시 cab 변환이 적용돼 정위치.
+        static System.Type _csgT;
+        static System.Reflection.MethodInfo _csgSub, _csgToMesh;
+        static bool _csgResolved, _csgOk;
+        static void ResolveCsg()
         {
-            // 바다쪽 매달림 — 트롤리 원점 기준 180°Y 회전 홀더(정상회전이라 노멀/와인딩 보존). 이하 모든 부품을 'cab' 자식에 빌드.
-            Transform cab = new GameObject("OperatorCab").transform;
-            cab.SetParent(trolley, false);
-            cab.localRotation = Quaternion.Euler(0f, 180f, 0f);
-            // ============================================================================
-            //  OPERATOR CAB — SOLID & SEALED by construction:
-            //  닫힌 하부 박스 + 사방 솔리드 프레임(4기둥+레일)으로 둘러싸고 유리는 '채움'만 →
-            //  뚫린 틈·떠다니는 부품이 구조적으로 불가능. 그레이 몸체 + 슬림 오렌지 액센트 + 전방 바이저.
-            //  cab-local x<0(미러 전 기준), 지붕 top < 헤드 하단(-0.0725).
-            // ============================================================================
-            float hx = 0.034f, hz = 0.040f, cx = -0.078f;       // 반깊이/반폭, 중심 X (cab-local; 홀더 180°로 +X 미러됨)
-            float roofY = -0.077f, floorY = -0.152f;            // 지붕 top=-0.074<-0.0725; 높이 0.075(~1.8m)
-            float h = roofY - floorY, midY = (floorY + roofY) * 0.5f;
-            float frontX = cx + hx, backX = cx - hx;            // 전 -0.044, 후 -0.112 (둘 다 <0)
-            float sillY = floorY + h * 0.42f;                   // 창 밴드 하단
-            float hdrY  = roofY  - h * 0.12f;                   // 창 밴드 상단
-            Color frame = CDark, bodyC = CStruct, accent = CTrolley;   // 몸체=밝은 강철그레이(검은 박스 탈피)
+            if (_csgResolved) return; _csgResolved = true;
+            _csgT = System.Type.GetType("UnityEngine.ProBuilder.Csg.CSG, Unity.ProBuilder.Csg");
+            var modelT = System.Type.GetType("UnityEngine.ProBuilder.Csg.Model, Unity.ProBuilder.Csg");
+            if (_csgT == null || modelT == null) return;
+            var bf = System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static;
+            _csgSub = _csgT.GetMethod("Subtract", bf, null, new[] { typeof(GameObject), typeof(GameObject) }, null);
+            foreach (var m in modelT.GetMethods(bf))
+                if (m.Name == "op_Explicit" && m.ReturnType == typeof(Mesh)) { _csgToMesh = m; break; }
+            _csgOk = _csgSub != null && _csgToMesh != null;
+            Debug.Log($"[OperatorCab][진단] CSG 리플렉션 해석 — csgType={_csgT != null}, modelType={modelT != null}, Subtract={_csgSub != null}, op_Explicit→Mesh={_csgToMesh != null} ⇒ csgOk={_csgOk}");
+        }
 
-            // ---- 솔리드 하부 박스(floor->sill): 닫힌 박스 1개 = 밀폐 베이스 ----
-            float lwY = (floorY + sillY) * 0.5f, lwH = sillY - floorY;
-            PbBox(cab, "Cab_LowerBox", new Vector3(cx, lwY, 0f), new Vector3(2f * hx, lwH, 2f * hz), bodyC);
-            PbBox(cab, "Cab_Kick", new Vector3(cx, floorY + lwH * 0.14f, 0f), new Vector3(2f * hx + 0.004f, lwH * 0.30f, 2f * hz + 0.004f), frame);  // 다크 토킥
-            PbBox(cab, "Cab_Waistline", new Vector3(cx, sillY - 0.003f, 0f), new Vector3(2f * hx + 0.004f, 0.005f, 2f * hz + 0.004f), accent);      // 오렌지 허리선
-            for (int sz = -1; sz <= 1; sz += 2)
-                PbBox(cab, "Cab_SideAccent", new Vector3(cx, floorY + lwH * 0.62f, sz * (hz + 0.0015f)), new Vector3(2f * hx * 0.9f, lwH * 0.4f, 0.002f), accent);
-
-            // ---- 창 밴드(sill->header): 솔리드 프레임(4기둥+상단레일) + 유리 채움 ----
-            float ubY = (sillY + hdrY) * 0.5f, ubH = hdrY - sillY;
-            for (int sx = -1; sx <= 1; sx += 2)
-            for (int sz = -1; sz <= 1; sz += 2)
-                PbBox(cab, "Cab_Post", new Vector3(cx + sx * hx, ubY, sz * hz), new Vector3(0.007f, ubH + 0.006f, 0.007f), frame);  // 4 솔리드 코너 기둥(수직 봉인)
-            PbBox(cab, "Cab_HeaderRail", new Vector3(cx, hdrY, 0f), new Vector3(2f * hx + 0.004f, 0.005f, 2f * hz + 0.004f), frame);  // 상단 레일(밴드 상단 봉인)
-            // 유리(전 + 양측 + 후) — 거의 full폭이라 가장자리가 기둥 밑으로 들어가 봉인
-            PbBox(cab, "Cab_GlassFront", new Vector3(frontX, ubY, 0f), new Vector3(0.002f, ubH, 2f * hz * 0.94f), CGlass);
-            for (int sz = -1; sz <= 1; sz += 2)
-                PbBox(cab, "Cab_GlassSide", new Vector3(cx, ubY, sz * hz), new Vector3(2f * hx * 0.94f, ubH, 0.002f), CGlass);
-            // 솔리드 뒷벽 — 밴드 개구부를 꽉 채워(폭 2hz=기둥까지, 높이 sill~header) 봉인. 떠 보이던 작은 유리 교체.
-            PbBox(cab, "Cab_BackWall", new Vector3(backX, ubY, 0f), new Vector3(0.004f, ubH + 0.004f, 2f * hz), bodyC);
-            PbBox(cab, "Cab_BackWindow", new Vector3(backX - 0.0006f, ubY + ubH * 0.16f, 0f), new Vector3(0.002f, ubH * 0.42f, 2f * hz * 0.46f), CGlass);   // 뒷벽 소창(솔리드 벽에 인셋 → 안 떠다님)
-            for (int m = -1; m <= 1; m += 2)                                                       // 슬림 멀리언(전면 2)
-                PbBox(cab, "Cab_MullF", new Vector3(frontX + 0.0006f, ubY, m * hz * 0.42f), new Vector3(0.003f, ubH, 0.003f), frame);
-            for (int sz = -1; sz <= 1; sz += 2)                                                    // 측면 멀리언 1씩
-                PbBox(cab, "Cab_MullS", new Vector3(cx, ubY, sz * (hz + 0.0006f)), new Vector3(0.003f, ubH, 0.003f), frame);
-
-            // ---- 솔리드 헤더 + 지붕(상단 봉인, 지붕 오버행 < 헤드) ----
-            float hbY = (hdrY + roofY) * 0.5f, hbH = roofY - hdrY;
-            PbBox(cab, "Cab_HeaderBox", new Vector3(cx, hbY, 0f), new Vector3(2f * hx, hbH, 2f * hz), bodyC);
-            PbBox(cab, "Cab_Roof", new Vector3(cx, roofY, 0f), new Vector3(2f * hx + 0.014f, 0.006f, 2f * hz + 0.014f), frame);  // top -0.074
-            PbBox(cab, "Cab_Visor", new Vector3(frontX + 0.009f, roofY - 0.0015f, 0f), new Vector3(0.020f, 0.004f, 2f * hz + 0.008f), frame);  // 전방 바이저
-
-            // ---- 현수: 지붕 모서리 -> 트롤리 본체 하단(y=-0.05, 본체 발자국 안) ----
-            for (int sz = -1; sz <= 1; sz += 2)
+        static GameObject CabCsgShell(Transform cab, Vector3 outerC, Vector3 outerS,
+                                      Vector3 cavC, Vector3 cavS,
+                                      List<Vector3> cutC, List<Vector3> cutS, Color color)
+        {
+            ResolveCsg();
+            if (!_csgOk) throw new System.Exception("ProBuilder CSG(reflection) 사용 불가");
+            var mat = GetMaterial(color);
+            var temps = new List<GameObject>();
+            GameObject Cube(Vector3 c, Vector3 s)
             {
-                Strut(cab, "Cab_Hanger", new Vector3(frontX, roofY, sz * hz * 0.6f), new Vector3(-0.045f, -0.05f, sz * hz * 0.45f), 0.004f, CStruct);
-                Strut(cab, "Cab_Hanger", new Vector3(backX,  roofY, sz * hz * 0.6f), new Vector3(-0.055f, -0.05f, sz * hz * 0.45f), 0.004f, CStruct);
+                var go = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                var col = go.GetComponent<Collider>(); if (col != null) Object.DestroyImmediate(col);
+                go.transform.position = c; go.transform.localScale = s;
+                var r = go.GetComponent<MeshRenderer>(); if (r != null) r.sharedMaterial = mat;
+                temps.Add(go);
+                return go;
+            }
+            GameObject FromMesh(Mesh m)
+            {
+                var go = new GameObject("csg_tmp");
+                go.AddComponent<MeshFilter>().sharedMesh = m;
+                go.AddComponent<MeshRenderer>().sharedMaterial = mat;
+                temps.Add(go);
+                return go;
+            }
+            Mesh ToMesh(object model) => (Mesh) _csgToMesh.Invoke(null, new[] { model });
+
+            GameObject body = Cube(outerC, outerS);
+            object mdl = _csgSub.Invoke(null, new object[] { body, Cube(cavC, cavS) });
+            for (int i = 0; i < cutC.Count; i++)
+            {
+                body = FromMesh(ToMesh(mdl));
+                mdl = _csgSub.Invoke(null, new object[] { body, Cube(cutC[i], cutS[i]) });
+            }
+            Mesh shellMesh = ToMesh(mdl);
+            shellMesh.name = "Cab_Shell_Mesh";
+            // ★ Cab_Shell 메시 직접 닫힘검사(수학적): 위치로 정점 용접 후, 삼각형 1개에만 속한 에지(=경계/구멍) 수.
+            //    watertight면 0. >0이면 CSG가 면 빠짐/뒤집힘 → see-through("다 뚫림"). 그 경우 temps 정리 후 throw → 패널 셸로 폴백.
+            // ★ Cab_Shell 닫힘검사 — 측정값 boundaryEdges=105(2026-06-18) 확인: 실험적 CSG가 이 형상(동일평면 다발: Y=-0.087에
+            //    공동top·창top 4겹)에서 결정적으로 면이 빠져 사방이 열림. T-정션 수준(<10) 아님. → temps 정리 후 throw → watertight 패널 셸로 폴백.
+            int boundaryEdges = CountBoundaryEdges(shellMesh);
+            Debug.Log($"[OperatorCab][진단] Cab_Shell 닫힘검사 — verts={shellMesh.vertexCount}, tris={shellMesh.triangles.Length / 3}, boundaryEdges={boundaryEdges} (0이어야 watertight), bounds={shellMesh.bounds.size}");
+            if (boundaryEdges > 0)
+            {
+                foreach (var t in temps) if (t != null) Object.DestroyImmediate(t);
+                throw new System.Exception($"CSG 셸 열림(구멍 {boundaryEdges}개) → watertight 패널 셸로 폴백");
             }
 
-            // ---- 내부(좌석+콘솔+조이스틱+모니터) — 유리 너머로 보임 ----
+            var shell = new GameObject(Numbered("Cab_Shell"));
+            shell.transform.SetParent(cab, false);
+            shell.AddComponent<MeshFilter>().sharedMesh = shellMesh;
+            var mr = shell.AddComponent<MeshRenderer>();
+            int sc = Mathf.Max(1, shellMesh.subMeshCount);
+            var arr = new Material[sc]; for (int i = 0; i < sc; i++) arr[i] = mat;
+            mr.sharedMaterials = arr;
+
+            foreach (var t in temps) if (t != null) Object.DestroyImmediate(t);
+            return shell;
+        }
+
+        // 메시 닫힘 검사 — 위치(1e-5 양자화)로 정점을 용접하고, 삼각형 1개에만 속한 에지(경계=구멍) 수를 반환.
+        //   닫힌(watertight) 다양체면 모든 에지가 정확히 2개 삼각형에 공유되어 0. 면 빠짐/뒤집힘이 있으면 >0.
+        static int CountBoundaryEdges(Mesh m)
+        {
+            var verts = m.vertices;
+            var tris = m.triangles;
+            var id = new int[verts.Length];
+            var posMap = new Dictionary<string, int>();
+            int next = 0;
+            for (int i = 0; i < verts.Length; i++)
+            {
+                var p = verts[i];
+                string key = Mathf.RoundToInt(p.x * 100000f) + "_" + Mathf.RoundToInt(p.y * 100000f) + "_" + Mathf.RoundToInt(p.z * 100000f);
+                if (!posMap.TryGetValue(key, out int vid)) { vid = next++; posMap[key] = vid; }
+                id[i] = vid;
+            }
+            var edge = new Dictionary<long, int>();
+            void Add(int a, int b)
+            {
+                int lo = a < b ? a : b, hi = a < b ? b : a;
+                long e = ((long)lo << 32) | (uint)hi;
+                edge.TryGetValue(e, out int c); edge[e] = c + 1;
+            }
+            for (int t = 0; t < tris.Length; t += 3)
+            {
+                int a = id[tris[t]], b = id[tris[t + 1]], c = id[tris[t + 2]];
+                if (a == b || b == c || c == a) continue;   // 퇴화 삼각형 무시
+                Add(a, b); Add(b, c); Add(c, a);
+            }
+            int boundary = 0;
+            foreach (var kv in edge) if (kv.Value == 1) boundary++;
+            return boundary;
+        }
+
+        // CSG 실패(Experimental) 시 폴백 — **완전 watertight 6면 셸**(패널 타일링). 개구(전면창·측면창·후면도어·바닥
+        // lookdown)는 호출부 유리 좌표에 정확히 맞춰 4편 프레임으로 둘러쌈. 인접 면은 코너에서 솔리드 직교 중첩(틈 0).
+        // (구버전 폴백은 전벽/측벽/프레임이 없어 유리가 허공에 뜨고 바닥만 노치 물고 삐져나옴 — 그 깨짐을 전면 보강.)
+        static void BuildCabBoxShellFallback(Transform cab, float hx, float hz, float cx,
+                                             float floorY, float roofY, float floorTopY, float hdrY,
+                                             float sillY, float gfBackX, float rim, Color bodyC)
+        {
+            float frontX = cx + hx, backX = cx - hx;      // -0.044 / -0.112
+            float Zs = hz;                                 // 반폭 0.040
+            float Yb = floorY, Yt = roofY + 0.003f;        // 바닥 -0.152 / 지붕 top -0.074
+            const float t = 0.004f, tf = 0.006f, tr = 0.005f;
+            float Xfp = frontX - t * 0.5f;                 // 전벽 평면 -0.046
+            float Xbp = backX + t * 0.5f;                  // 후벽 평면 -0.110
+            float Zsp = Zs - t * 0.5f;                     // 측벽 평면 ±0.038
+            float Yfp = Yb + tf * 0.5f;                    // 바닥 평면
+            float Yrp = Yt - tr * 0.5f;                    // 지붕 평면
+            float D = frontX - backX;                      // 깊이 0.068
+
+            // 지붕(솔리드)
+            PbBox(cab, "Cab_Fb_Roof", new Vector3(cx, Yrp, 0f), new Vector3(D, tr, 2f * Zs), bodyC);
+
+            // 바닥: 전방 lookdown 개구(X∈[gfBackX,frontX], Z∈±(hz-rim)) 둘러싼 프레임(좌석부 솔리드 + 측면 림)
+            float gfz = hz - rim;                          // 0.036
+            float rearW = gfBackX - backX;
+            PbBox(cab, "Cab_Fb_FloorRear", new Vector3((backX + gfBackX) * 0.5f, Yfp, 0f), new Vector3(rearW, tf, 2f * Zs), bodyC);
+            for (int sz = -1; sz <= 1; sz += 2)
+                PbBox(cab, "Cab_Fb_FloorRim", new Vector3((gfBackX + frontX) * 0.5f, Yfp, sz * (Zs + gfz) * 0.5f), new Vector3(frontX - gfBackX, tf, Zs - gfz), bodyC);
+
+            // 전벽(X=Xfp): 전면창(Y∈[fwBot,hdrY], Z∈±0.9hz) 둘러싼 헤더/실/좌·우 코너기둥
+            float fwBot = floorTopY + 0.002f, fwTop = hdrY, fwHz = hz * 0.90f;
+            PbBox(cab, "Cab_Fb_FrontHdr",  new Vector3(Xfp, (fwTop + Yt) * 0.5f, 0f), new Vector3(t, Yt - fwTop, 2f * Zs), bodyC);
+            PbBox(cab, "Cab_Fb_FrontSill", new Vector3(Xfp, (Yb + fwBot) * 0.5f, 0f), new Vector3(t, fwBot - Yb, 2f * Zs), bodyC);
+            for (int sz = -1; sz <= 1; sz += 2)
+                PbBox(cab, "Cab_Fb_FrontPost", new Vector3(Xfp, (fwBot + fwTop) * 0.5f, sz * (Zs + fwHz) * 0.5f), new Vector3(t, fwTop - fwBot, Zs - fwHz), bodyC);
+
+            // 후벽(X=Xbp): 도어 개구(Z∈±0.012, Y∈[floorTopY, +0.82·bwH]) 둘러싼 헤더/실/좌·우 잼
+            float bwH = hdrY - floorTopY;
+            float dwb = floorTopY, dwt = floorTopY + bwH * 0.82f, dwHz = 0.012f;
+            PbBox(cab, "Cab_Fb_BackHdr",  new Vector3(Xbp, (dwt + Yt) * 0.5f, 0f), new Vector3(t, Yt - dwt, 2f * Zs), bodyC);
+            PbBox(cab, "Cab_Fb_BackSill", new Vector3(Xbp, (Yb + dwb) * 0.5f, 0f), new Vector3(t, dwb - Yb, 2f * Zs), bodyC);
+            for (int sz = -1; sz <= 1; sz += 2)
+                PbBox(cab, "Cab_Fb_BackJamb", new Vector3(Xbp, (dwb + dwt) * 0.5f, sz * (Zs + dwHz) * 0.5f), new Vector3(t, dwt - dwb, Zs - dwHz), bodyC);
+
+            // 측벽(Z=±Zsp)×2: 측면창(X∈[-0.100,-0.048], Y∈[sillY,hdrY]) 둘러싼 헤더/실/전·후 잼
+            float swX0 = -0.100f, swX1 = -0.048f, swYb = sillY, swYt = hdrY;
+            for (int sz = -1; sz <= 1; sz += 2)
+            {
+                float z = sz * Zsp;
+                PbBox(cab, "Cab_Fb_SideHdr",   new Vector3(cx, (swYt + Yt) * 0.5f, z), new Vector3(D, Yt - swYt, t), bodyC);
+                PbBox(cab, "Cab_Fb_SideSill",  new Vector3(cx, (Yb + swYb) * 0.5f, z), new Vector3(D, swYb - Yb, t), bodyC);
+                PbBox(cab, "Cab_Fb_SideJambF", new Vector3((swX1 + frontX) * 0.5f, (swYb + swYt) * 0.5f, z), new Vector3(frontX - swX1, swYt - swYb, t), bodyC);
+                PbBox(cab, "Cab_Fb_SideJambB", new Vector3((backX + swX0) * 0.5f, (swYb + swYt) * 0.5f, z), new Vector3(swX0 - backX, swYt - swYb, t), bodyC);
+            }
+        }
+
+        static void BuildOperatorCab(Transform trolley)
+        {
+            // 육지쪽 매달림 — 현실 STS대로 운전실은 스프레더의 '육지쪽(−X)'에 있고 운전자가 '바다쪽(+X=배)'을 바라본다.
+            //   [2026-06-18 오너+레퍼런스+수학팀] 실제 STS 운전자는 선박 셀에 컨테이너 꽂는 걸 봐야 하므로 시선이
+            //   스프레더 너머 배 안쪽까지 뻗어야 함 → 운전실은 인양점의 '육지쪽'에 두고 '바다쪽'을 향해 내려다본다.
+            //   이전 구현(바다쪽 매달림·육지 응시)은 좌우 반대였음. 트롤리 X=0 평면 기준 거울 반전으로 정정.
+            //   거울 산식: 기존 final_x = 0.018 − pₓ(홀더 +0.018 + Rot180). 거울상 −(0.018 − pₓ) = −0.018 + pₓ
+            //   ⇒ 홀더 회전 identity(정상회전, 노멀/와인딩 보존·캡 안 뒤집힘) + 평행이동 −0.018. 운전실이 Z대칭이라
+            //   180°Y와 동일 실루엣 유지하며 본체중심 −0.096(육지쪽)·전면창 +X(바다=스프레더/배) 응시로 정확히 반전.
+            //   현수 루트는 트롤리 X=0 기준 대칭(−0.048)이라 본체(±0.055) 안에 그대로 안착.
+            Transform cab = new GameObject("OperatorCab").transform;
+            cab.SetParent(trolley, false);
+            cab.localRotation = Quaternion.identity;
+            // 클리어런스 평행이동도 거울 반전: 스프레더 헤드블록(±0.045)·플랜지(±0.054)와 X그림자 겹침 회피를
+            //   육지쪽(−X)으로 0.018 이동해 동일하게 유지(거울상이므로 부호만 반대).
+            const float CabLandwardShift = 0.018f;
+            cab.localPosition = new Vector3(-CabLandwardShift, 0f, 0f);
+            // ============================================================================
+            //  OPERATOR CAB (CSG 통짜 강철 셸 유지 — 오너 지시: CSG 폐기 금지, 원인 진단 후 수정).
+            //  cab-local x<0(미러 전), +X=전방(스프레더). 지붕 top < 헤드 하단(-0.0725).
+            //  [2026-06-18 감사+개발+수학팀] CSG 105구멍의 근본원인 = 절단 상/하단이 공동 면과 동일평면(coplanar):
+            //     공동top(-0.087)에 전면창·측면창×2 top 4겹, 공동bottom(-0.147)에 도어 bottom 2겹 → BSP가 면 떨굼.
+            //     → 각 절단 면을 hidden 좌표(헤더밴드/바닥솔리드 안)로 서로 다른 미소량 이동해 동일평면 해소(아래 cut 정의).
+            //     닫힘검사(boundaryEdges>0 → throw → 폴백) 게이트가 보호하므로 0이 안 되면 자동으로 안전 폴백.
+            //     ※ 폴백(BuildCabBoxShellFallback)은 이미 6면+코너기둥+도어/측창 프레임 watertight 완성본임(과거 '미완성' 주석은 스테일).
+            //     ★이번 작업분 식별: 셸 색을 임시 CTemp(마젠타)로. 렌더 확인 후 CStruct로 환원 예정.
+            // ============================================================================
+            float hx = 0.034f, hz = 0.040f, cx = -0.078f;       // 반깊이/반폭, 중심 X (cab-local; 홀더 identity → 트롤리 −X=육지쪽에 위치)
+            float roofY = -0.077f, floorY = -0.152f;            // 지붕 top=-0.074<-0.0725; 높이 0.075(~1.8m)
+            float frontX = cx + hx, backX = cx - hx;            // 전 -0.044, 후 -0.112 (둘 다 <0)
+            float floorTopY = floorY + 0.005f;                  // 구조 바닥 윗면(밟는 면)
+            float gfBackX   = cx + 0.010f;                      // 글래스 플로어 뒤 경계(좌석 앞) = -0.068
+            float sillY = floorY + 0.024f;                      // 전면 무릎 transom(=-0.128) — 아래는 그린하우스 유리
+            float hdrY  = roofY  - 0.010f;                      // 창 밴드 상단(헤더 하단) = -0.087
+            Color frame = CDark, bodyC = CStruct, glass = CGlass;
+            Color shellC = CStruct; // ★규칙1: 셸 임시 마젠타 → [2026-06-19] 승인되어 CStruct 환원 완료
+
+            const float rim = 0.004f, wt = 0.004f;
+            float roofTopY = roofY + 0.003f;                                   // 지붕 윗면 -0.074 (<-0.0725)
+            float gfCx = (gfBackX + frontX) * 0.5f, gfW = frontX - gfBackX;
+            float ubY = (sillY + hdrY) * 0.5f, ubH = hdrY - sillY;
+            float bwH = hdrY - floorTopY;
+            float fwBot = floorTopY + 0.002f;                                  // 전면창 하단(바닥 직전까지)
+            // ── [수학팀] CSG watertight: 절단 면이 공동 면과 동일평면이면 BSP가 면을 떨군다(측정 105 구멍).
+            //    공동 top=hdrY(-0.087)·bottom=floorTopY(-0.147). 아래 4값으로 각 절단을 서로 다른 hidden 면으로 분리.
+            float fwTopCut  = hdrY + 0.0020f;                                  // 전면창 top -0.0850 (헤더밴드 -0.0895..-0.0845 안)
+            float swTopCutP = hdrY + 0.0015f, swTopCutN = hdrY + 0.0010f;      // 측면창 +Z/-Z top -0.0855 / -0.0860 (서로·공동top과 비동일평면)
+            float doorBot   = floorTopY - 0.0015f;                             // 도어 bottom -0.1485 (바닥솔리드 -0.152..-0.147 안에 묻힘)
+            float doorTop   = floorTopY + bwH * 0.82f;                         // 도어 top -0.0978 (불변)
+            var cutC = new List<Vector3>();
+            var cutS = new List<Vector3>();
+            cutC.Add(new Vector3(frontX, (fwBot + fwTopCut) * 0.5f, 0f));      // 1) 전면창(지배 요소 — 폭 0.90·코너 기둥 자리만 남김)
+            cutS.Add(new Vector3(wt * 4f, fwTopCut - fwBot, 2f * hz * 0.90f));
+            for (int sz = -1; sz <= 1; sz += 2)                                // 2) 측면창 ×2(top 좌우 다르게 → 비동일평면)
+            {
+                float swTop = sz > 0 ? swTopCutP : swTopCutN;
+                cutC.Add(new Vector3(-0.074f, (sillY + swTop) * 0.5f, sz * hz));
+                cutS.Add(new Vector3(0.048f, swTop - sillY, wt * 4f));
+            }
+            cutC.Add(new Vector3(backX, (doorBot + doorTop) * 0.5f, 0f));      // 3) 후면 도어 개구(bottom을 floorTopY 아래로 내려 비동일평면)
+            cutS.Add(new Vector3(wt * 4f, doorTop - doorBot, 0.024f));
+            cutC.Add(new Vector3(gfCx - 0.001f, floorY + 0.0025f, 0f));        // 4) 바닥 lookdown 개구
+            cutS.Add(new Vector3(gfW - 0.002f, wt * 4f, 2f * (hz - rim)));
+
+            GameObject shell = null;
+            try
+            {
+                shell = CabCsgShell(cab,
+                    new Vector3(cx, (floorY + roofTopY) * 0.5f, 0f), new Vector3(2f * hx, roofTopY - floorY, 2f * hz),                 // 외곽 솔리드
+                    new Vector3(cx, (floorTopY + hdrY) * 0.5f, 0f), new Vector3(2f * hx - 2f * wt, hdrY - floorTopY, 2f * hz - 2f * wt), // 내부 공동
+                    cutC, cutS, shellC);
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogWarning("[OperatorCab] CSG 셸 실패 → 박스 셸 폴백: " + e);
+                shell = null;
+            }
+            if (shell == null)
+                BuildCabBoxShellFallback(cab, hx, hz, cx, floorY, roofY, floorTopY, hdrY, sillY, gfBackX, rim, shellC);
+
+            // ---- 유리(개구에 끼움; 가장자리를 살짝 키워 벽 두께 뒤로 숨김 → 동일평면 없음) ----
+            // 바닥 유리(개구 안쪽에 tuck — 캡 밖 돌출 제거). X∈[-0.069,-0.047](개구 -0.068..-0.046 안), Z 살짝 키워 가장자리 숨김.
+            PbBox(cab, "Cab_GlassFloor", new Vector3(-0.058f, floorY + 0.0025f, 0f), new Vector3(0.022f, 0.0015f, 2f * (hz - rim) + 0.004f), glass);
+            // 전면 유리(평면, 개구에 flush) + 깔끔한 평면 차양 — v7: 캔티드 wedge 제거(언더사이드 돌출·유리 중첩이 지저분 → 뒷면 수준으로 정리).
+            PbBox(cab, "Cab_GlassFront", new Vector3(frontX - wt * 0.5f, (fwBot + hdrY) * 0.5f, 0f), new Vector3(0.002f, (hdrY - fwBot) + 0.004f, 2f * hz * 0.90f + 0.004f), glass);
+            PbBox(cab, "Cab_Visor", new Vector3(frontX + 0.005f, hdrY + 0.003f, 0f), new Vector3(0.012f, 0.004f, 2f * hz + 0.006f), frame); // 평면 차양(전방 12mm, 비돌출·비경사)
+            for (int sz = -1; sz <= 1; sz += 2)
+                PbBox(cab, "Cab_GlassSide", new Vector3(-0.074f, ubY, sz * (hz - wt * 0.5f)), new Vector3(0.048f + 0.004f, ubH + 0.004f, 0.002f), glass);
+
+            // ---- 프레임(슬림 다크): 4 코너기둥 + 헤더 + 지붕캡. v4: 오렌지 바이저/허리선·멀리언·플로어격자 제거(노이즈) ----
+            {
+                float postBot = ubY - (bwH + 0.02f) * 0.5f;        // -0.1475 (하단 유지)
+                float postTop = roofTopY;                           // -0.074: 클리어런스 -0.0725 준수(상단 클램프)
+                for (int sx = -1; sx <= 1; sx += 2)
+                for (int sz = -1; sz <= 1; sz += 2)
+                    PbBox(cab, "Cab_Post", new Vector3(cx + sx * hx, (postBot + postTop) * 0.5f, sz * hz), new Vector3(0.005f, postTop - postBot, 0.005f), frame);   // 코너 기둥(top=roofTopY로 클램프)
+            }
+            PbBox(cab, "Cab_HeaderRail", new Vector3(cx, hdrY, 0f), new Vector3(2f * hx - 0.004f, 0.005f, 2f * hz + 0.006f), frame); // 헤더 밴드(앞·옆 proud, 양끝 벽에 묻힘)
+            PbBox(cab, "Cab_Roof", new Vector3(cx, roofTopY - 0.0013f, 0f), new Vector3(2f * hx + 0.012f, 0.005f, 2f * hz + 0.012f), frame); // 지붕 캡 top=-0.0728: 셸 지붕(-0.074)보다 proud로 올려 z-fight 제거 + 클리어런스 -0.0725 준수(0.3mm 여유)
+
+            // ---- 후면 도어 리프(개구에 proud로 끼움) + 소창 ----
+            PbBox(cab, "Cab_Door",       new Vector3(backX - 0.002f,  floorTopY + bwH * 0.41f, 0f),     new Vector3(0.004f, bwH * 0.82f, 0.024f), frame);
+            PbBox(cab, "Cab_DoorWindow", new Vector3(backX - 0.0045f, floorTopY + bwH * 0.60f, 0f),     new Vector3(0.002f, bwH * 0.30f, 0.016f), glass);
+
+            // ============================================================================
+            //  후면 외장 의장 v8 (한아름 2026-06-18) — "뒤에 문밖에 없다" → 실제 STS 뒤편 의장 복원.
+            //  접근 발판(그레이팅)+안전난간(노랑)+도어 그랩봉+공조(HVAC). 전부 후벽 뒤(X<-0.112)로 돌출/벽에 묻어 z-fight 0. 좌표 산식.
+            // ============================================================================
+            {
+                float pBackX = -0.136f, pWallX = -0.111f, pZ = 0.028f;            // 발판 후방/벽쪽 X(앞단 1mm 벽에 묻음), 반폭 Z
+                float pTopY = floorY + 0.003f;                                    // 발판 윗면 -0.149 (≈문턱)
+                float railTop = floorY + 0.030f, railMid = floorY + 0.017f;       // 난간 상/중
+                // 1) 후면 접근 발판(그레이팅)
+                PbBox(cab, "Cab_RearDeck", new Vector3((pBackX + pWallX) * 0.5f, pTopY - 0.002f, 0f), new Vector3(pWallX - pBackX, 0.004f, 2f * pZ + 0.004f), CRail);
+                // 2) 안전 난간(노랑, ㄷ자: 후방+양측, 문쪽 개방) — 기둥4 + 상/중 가로봉2
+                for (int sz = -1; sz <= 1; sz += 2)
+                {
+                    Rod(cab, "Cab_RailPost", new Vector3(pBackX, pTopY, sz * pZ), new Vector3(pBackX, railTop, sz * pZ), 0.0016f, CSafety);
+                    Rod(cab, "Cab_RailPost", new Vector3(pWallX, pTopY, sz * pZ), new Vector3(pWallX, railTop, sz * pZ), 0.0016f, CSafety);
+                }
+                for (int lvl = 0; lvl < 2; lvl++)
+                {
+                    float ry = lvl == 0 ? railTop : railMid;
+                    Rod(cab, "Cab_RailBack", new Vector3(pBackX, ry, -pZ), new Vector3(pBackX, ry, pZ), 0.0016f, CSafety);
+                    for (int sz = -1; sz <= 1; sz += 2)
+                        Rod(cab, "Cab_RailSide", new Vector3(pBackX, ry, sz * pZ), new Vector3(pWallX, ry, sz * pZ), 0.0016f, CSafety);
+                }
+                // 코너 마감 — 둥근 관 조인트는 노드마다 구로 막음(Rb≈1.5r). 후방 코너=3-way(기둥+후방봉+측봉), 벽쪽=2-way(기둥+측봉).
+                //   [[reference_corner_solid_joint]]·[[feedback_sphere_for_round_joints_not_flat_steel]] — 평강 아닌 둥근 봉이라 구가 정석.
+                {
+                    float jD = 0.0032f;   // 조인트 구 지름 = 정확히 2r(=관굵기, r=0.0016). [[reference_conduit_pipe_elbow_routing]]: 2r라 안 부풀고 틈만 메움. (이전 0.0035도 약간 컸음)
+                    for (int sz = -1; sz <= 1; sz += 2)
+                    for (int lvl = 0; lvl < 2; lvl++)
+                    {
+                        float ry = lvl == 0 ? railTop : railMid;
+                        Ball(cab, "Cab_RailJoint", new Vector3(pBackX, ry, sz * pZ), new Vector3(jD, jD, jD), CSafety);
+                        Ball(cab, "Cab_RailJoint", new Vector3(pWallX, ry, sz * pZ), new Vector3(jD, jD, jD), CSafety);
+                    }
+                }
+                // 3) 도어 양옆 수직 그랩봉(노랑) — U핸들: 수직봉 + 상/하 벽 리턴 + 굽힘 구 마감(개방 끝 제거)
+                for (int sz = -1; sz <= 1; sz += 2)
+                {
+                    float gx = backX - 0.004f, gz = sz * 0.018f, gyb = floorTopY + 0.004f, gyt = floorTopY + 0.040f;
+                    Rod(cab,  "Cab_DoorGrab",    new Vector3(gx, gyb, gz), new Vector3(gx, gyt, gz), 0.0015f, CSafety);
+                    Rod(cab,  "Cab_DoorGrabRet", new Vector3(gx, gyt, gz), new Vector3(backX, gyt, gz), 0.0014f, CSafety);
+                    Rod(cab,  "Cab_DoorGrabRet", new Vector3(gx, gyb, gz), new Vector3(backX, gyb, gz), 0.0014f, CSafety);
+                    Ball(cab, "Cab_DoorGrabBend", new Vector3(gx, gyt, gz), new Vector3(0.003f, 0.003f, 0.003f), CSafety);   // 굽힘 구 = 정확히 2r(=관굵기, r=0.0015), [[reference_conduit_pipe_elbow_routing]]
+                    Ball(cab, "Cab_DoorGrabBend", new Vector3(gx, gyb, gz), new Vector3(0.003f, 0.003f, 0.003f), CSafety);   // 굽힘 구 = 정확히 2r(=관굵기, r=0.0015), [[reference_conduit_pipe_elbow_routing]]
+                }
+                // 4) 공조(HVAC) 유닛 + 그릴 — 도어 위(Z=0) 벽에 묻고 뒤로 돌출. [감사 #1] 이전 +Z 배치는 그랩봉(Z=±0.018) 관통 → 도어 상단~지붕 중간으로 이동.
+                float hvacY = (floorTopY + bwH * 0.82f + roofY + 0.003f) * 0.5f;   // 도어상단(-0.0978)~지붕top(-0.074) 중간 = -0.0859
+                PbBox(cab, "Cab_RearHVAC",        new Vector3(backX - 0.006f,  hvacY, 0f), new Vector3(0.014f, 0.018f, 0.030f), CMachine);  // Z∈[-0.015,0.015] → 그랩봉 ±0.018 밖
+                PbBox(cab, "Cab_RearHVAC_Grille", new Vector3(backX - 0.0135f, hvacY, 0f), new Vector3(0.002f, 0.014f, 0.024f), frame);
+            }
+
+            // ============================================================================
+            //  운전실 통합 마운트 v3 (Option C, 2026-06-18) — 긴 캔틸레버 브래킷 폐기.
+            //  트롤리가 실척 ≈7m 박스로 커져 운전실이 '박스 육지절반 바로 아래'에 들어오므로, 박스 하단(Y=-0.05)에서
+            //  운전실 지붕(roofTopY=-0.074)까지 짧은(≈0.025) 굵은 수직 포스트 4개 + 하부 결합 종재로 직결한다.
+            //  cab-local 좌표(홀더 −0.018): 운전실 4코너 X=frontX(-0.044)/backX(-0.112), Z=±hz(0.040) 모두
+            //  박스 X[cab-local −0.157~+0.133]·Z(±0.12) 풋프린트 안 → 포스트가 박스 하단면에 정확히 안착.
+            // ============================================================================
+            {
+                float mountTopY = -0.05f;                 // 트롤리 박스 하단(본체 yBot)
+                float mountBotY = roofTopY - 0.001f;      // 운전실 지붕 결합부 -0.075 (1mm 묻힘)
+                float bt = 0.006f;                        // 종재 단면 t — 코너 솔리드 가로질러 덮기
+                // 수직 마운트 포스트 4 (front/back × 좌우) — 굵은 box
+                for (int sx = -1; sx <= 1; sx += 2)       // sx<0: 후면(backX, 육지끝) / sx>0: 전면(frontX, 바다측)
+                for (int sz = -1; sz <= 1; sz += 2)
+                {
+                    float px = (sx < 0) ? backX : frontX;
+                    PbBox(cab, "Cab_Mount_Post", new Vector3(px, (mountTopY + mountBotY) * 0.5f, sz * hz),
+                        new Vector3(0.010f, mountTopY - mountBotY + bt, 0.010f), CStruct);   // 위 +t/2 박스 하단에 묻힘
+                }
+                // 전·후 결합 종재(Z방향) — 포스트 머리를 가로질러 덮어 박스 하단에 결합([[reference_corner_solid_joint]])
+                for (int sx = -1; sx <= 1; sx += 2)
+                {
+                    float px = (sx < 0) ? backX : frontX;
+                    PbBox(cab, "Cab_Mount_Tie", new Vector3(px, mountTopY - 0.003f, 0f),
+                        new Vector3(0.012f, 0.006f, 2f * hz + bt), CStruct);
+                }
+                // 좌·우 결합 종재(X방향) — 전후 포스트를 잇는 하부 둘레
+                for (int sz = -1; sz <= 1; sz += 2)
+                    PbBox(cab, "Cab_Mount_Tie", new Vector3((frontX + backX) * 0.5f, mountTopY - 0.003f, sz * hz),
+                        new Vector3((frontX - backX) + bt, 0.006f, 0.012f), CStruct);
+            }
+
+            // ---- 내부(좌석+콘솔+모니터) — 유리 너머로 보임 ----
             float seatX = cx + 0.004f, seatY = floorY + 0.014f;
             PbBox(cab, "Cab_SeatPedestal", new Vector3(seatX - 0.002f, floorY + 0.007f, 0f), new Vector3(0.008f, 0.014f, 0.010f), bodyC);
             PbBox(cab, "Cab_Seat",      new Vector3(seatX, seatY, 0f),                   new Vector3(0.016f, 0.006f, 0.018f), frame);
             PbBox(cab, "Cab_SeatBack",  new Vector3(seatX - 0.010f, seatY + 0.016f, 0f), new Vector3(0.005f, 0.028f, 0.018f), frame);
             PbBox(cab, "Cab_HeadRest",  new Vector3(seatX - 0.009f, seatY + 0.034f, 0f), new Vector3(0.005f, 0.008f, 0.012f), frame);
-            for (int sz = -1; sz <= 1; sz += 2)
-            {
-                PbBox(cab, "Cab_ArmRest", new Vector3(seatX + 0.002f, seatY + 0.010f, sz * 0.011f), new Vector3(0.014f, 0.003f, 0.004f), frame);
+            for (int sz = -1; sz <= 1; sz += 2)   // 좌우 콘솔만(조이스틱/암레스트 잔부품은 증분2)
                 PbBox(cab, "Cab_Console", new Vector3(seatX + 0.012f, seatY + 0.006f, sz * 0.014f), new Vector3(0.014f, 0.007f, 0.007f), bodyC);
-                Rod(cab,  "Cab_Joystick", new Vector3(seatX + 0.014f, seatY + 0.010f, sz * 0.014f), new Vector3(seatX + 0.015f, seatY + 0.020f, sz * 0.014f), 0.0015f, frame);
-                Ball(cab, "Cab_JoystickKnob", new Vector3(seatX + 0.015f, seatY + 0.0205f, sz * 0.014f), new Vector3(0.0038f, 0.0038f, 0.0038f), frame);
-            }
             PbBox(cab, "Cab_Monitor",       new Vector3(seatX + 0.020f, seatY + 0.016f, 0f), new Vector3(0.004f, 0.010f, 0.013f), bodyC);
             PbBox(cab, "Cab_MonitorScreen", new Vector3(seatX + 0.0222f, seatY + 0.016f, 0f), new Vector3(0.001f, 0.008f, 0.011f), CLight);
 
             // ── 운전실 시점 앵커(빈 오브젝트) — VR 운전 시 카메라가 여기로 정렬(좌석 눈높이, 발밑 화물 향) ──
             //   StsCraneVRController가 'Cab_Viewpoint'를 최우선 앵커로 잡아 카메라를 이 좌표·전방에 둠(오프셋 0).
-            //   cab-local: 좌석 앞쪽 + 눈높이(floorY+0.044≈바닥 위 ~1m). 전방=스프레더(+X)·아래(-Y)
-            //   → 180° 홀더로 트롤리 -X(발밑 스프레더/선박) 향. 시선 상하는 사용자 머리에 맡김.
-            var viewpoint = new GameObject("Cab_Viewpoint").transform;
+            //   cab-local: 좌석 앞쪽 + 눈높이(floorY+0.044≈바닥 위 ~1m). 전방=스프레더(+X), 수평.
+            //   → 180° 홀더로 트롤리 -X(발밑 스프레더/선박) 향. 상하 시선은 사용자 머리에 위임.
+            //   [감사 한아름·류한별 2026-06-17] 앵커에 강제 -35° 피치(0,-0.7,..)를 박으면 HMD 수평선과 어긋나 멀미 유발 →
+            //   앵커는 수평(피치 0)으로. 발밑은 고개 숙여 본다.
+            var viewpoint = new GameObject(StsPartNames.CabViewpoint).transform;
             viewpoint.SetParent(cab, false);
             viewpoint.localPosition = new Vector3(cx + 0.018f, floorY + 0.044f, 0f);
-            viewpoint.localRotation = Quaternion.LookRotation(new Vector3(1f, -0.7f, 0f).normalized, Vector3.up);
+            viewpoint.localRotation = Quaternion.LookRotation(Vector3.right, Vector3.up);   // 수평 전방(+X) — 멀미 방지
 
-            // ---- 외부: 노즈 하부 작업등 + 후면 안테나 ----
-            for (int i = -1; i <= 1; i++)
-            {
-                PbBox(cab, "Cab_FloodHousing", new Vector3(frontX - 0.002f, floorY - 0.002f, i * 0.022f), new Vector3(0.008f, 0.006f, 0.012f), bodyC);
-                Ball(cab,  "Cab_Floodlight",   new Vector3(frontX - 0.003f, floorY - 0.005f, i * 0.022f), new Vector3(0.009f, 0.006f, 0.009f), CLight);
-            }
-            float antX = backX, antZ = 0.020f;
-            PbBox(cab, "Cab_AntennaBase", new Vector3(antX, roofY + 0.003f, antZ), new Vector3(0.008f, 0.005f, 0.008f), frame);
-            Rod(cab, "Cab_Antenna", new Vector3(antX, roofY + 0.005f, antZ), new Vector3(antX, roofY + 0.030f, antZ), 0.0022f, CStruct);
-            Ball(cab, "Cab_AntennaTip", new Vector3(antX, roofY + 0.031f, antZ), new Vector3(0.0035f, 0.0035f, 0.0035f), CWarn);
+            // v4 보류: 노즈 작업등·후면 안테나 등 외장 잔부품 제거 → 실루엣 확정 후 증분2에서 선별 재도입.
         }
 
         // 스프레더 — 중앙 고정부(항상 20ft) + 좌/우 텔레스코픽 암(끝빔 + 트위스트락).
@@ -1185,19 +1688,21 @@ namespace Container.Crane.Sts.EditorTools
                 Strut(spreader, "Head_Frame",
                     new Vector3(sx * 0.06f, 0.016f, sz * 0.038f),
                     new Vector3(sx * 0.035f, hbY - 0.012f, sz * 0.02f), 0.006f, CSpread);
-            // [디자인] 헤드블록을 키워 데드엔드 소켓 4(로컬 x±0.05, z±0.03 + 콘 베이스 0.0085)가 모서리 밖으로 안 삐지게.
-            //   반폭 x 0.065(>0.0585), z 0.045(>0.0385) → 각 변 ~0.006 여유.
+            // [디자인] 헤드블록 확대 — 넓힌 데드엔드 소켓 4(로컬 x±HoistSprZ=0.075, z±HoistSprX=0.05 + 콘 베이스 0.0085)가 모서리 밖으로 안 삐지게.
+            //   반폭 x 0.09(>0.0835), z 0.0625(>0.0585) → 각 변 ~0.005~0.007 여유.
             Box(spreader, "Spreader_Head", new Vector3(0f, hbY, 0f),
-                new Vector3(0.13f, 0.026f, 0.09f), CSpread);
+                new Vector3(0.18f, 0.026f, 0.125f), CSpread);
             // [디자인 재설계] 헤드블록 시브/치크/핀 제거 → STS 데드엔드형.
-            //   호이스트 로프 4가닥(x±0.03, z±0.05)이 시브를 안 거치고 곧장 내려와 헤드블록 상단에 정착(spelter socket dead-end).
+            //   호이스트 로프 4가닥(parent x=HoistX±HoistSprX, z±HoistSprZ)이 시브를 안 거치고 곧장 내려와 헤드블록 상단에 정착(spelter socket dead-end).
             //   리빙/도르래는 트롤리 쪽에만 둠 — 로프가 안 감기는 헤드블록 시브는 비기능 장식이라 제거.
-            // 스프레더가 Y축 90° 회전(line 1163)이라, 로프(부모공간 x±0.03,z±0.05)와 맞추려면 스프레더-로컬은 x±0.05,z±0.03 (xz 스왑 보정).
-            foreach (float rx in new[] { -0.05f, 0.05f })
-            foreach (float rz in new[] { -0.03f, 0.03f })
+            // 스프레더가 Y축 90° 회전이라, 로프(부모공간 x±HoistSprX, z±HoistSprZ)와 맞추려면 스프레더-로컬은 x±HoistSprZ, z±HoistSprX (xz 스왑 보정).
+            //   parent의 HoistX(항구 이동)는 스프레더 transform(localPosition.x=HoistX)이 부여 → 소켓 로컬엔 안 넣음(중복 금지).
+            foreach (float rx in new[] { -HoistSprZ, HoistSprZ })
+            foreach (float rz in new[] { -HoistSprX, HoistSprX })
             {
                 Vector3 sk = new Vector3(rx, hbY + 0.013f, rz);   // 헤드블록 상단면(0.071), 회전 보정해 로프 바로 아래
-                // 개방형 스펠터 소켓 — 테이퍼 단조 바디(밑 넓고 위 좁아 로프 인입) + 칼라 밴드 + 베이스 클레비스 핀.
+                // 스펠터 소켓 — 위 좁은 넥(r0.0045)=로프 인입측(로프가 위에서 강하), 아래 넓은 바스켓(r0.0085)=헤드블록 정착측.
+                //   (트롤리 소켓 Rope_Socket_Basket과 동일 규약: 좁은 넥이 로프쪽, 넓은 바스켓이 정착쪽 — 감사 SPR-2는 허위양성, 반전 불필요)
                 Cone(spreader, "Head_Rope_Socket",
                     sk + new Vector3(0f, -0.002f, 0f), sk + new Vector3(0f, 0.012f, 0f), 0.0085f, 0.0045f, CStruct);
                 Rod(spreader, "Head_Rope_Collar",                 // 넥 칼라 밴드(단조 디테일)
@@ -1211,9 +1716,9 @@ namespace Container.Crane.Sts.EditorTools
                 new Vector3(0.04f, 0.022f, hw * 1.2f), CMachine);
             JunctionBox(spreader, "Spreader_JBox", new Vector3(-0.07f, 0.02f, 0f),
                 new Vector3(0.03f, 0.018f, 0.03f), Vector3.up, Vector3.down, CDark);
+            // 스프레더 작업등(양 끝) — 구 → 하향 Floodlight 어셈블리(컨테이너 조사).
             for (int sx = -1; sx <= 1; sx += 2)
-                Ball(spreader, "Spreader_Floodlight", new Vector3(sx * 0.085f, 0.005f, 0f),
-                    new Vector3(0.013f, 0.008f, 0.013f), CLight);
+                Floodlight(spreader, new Vector3(sx * 0.085f, 0.016f, 0f), 0.010f, CDark, CLight);
 
             // ── 유압/제어 호스 — 파워팩 포트 → J박스 → 헤드블록. 끝점을 부품 '안으로' 묻고 접합부마다 클램프로 봉합(틈 제거) ──
             //   J박스 본체: 중심(-0.07,0.02,0), 치수(0.03,0.018,0.03) → x:-0.085~-0.055, y:0.011~0.029, z:±0.015
@@ -1253,11 +1758,16 @@ namespace Container.Crane.Sts.EditorTools
                 // 트위스트락 2(앞/뒤 코너) — 회색 락헤드 + 락 콘(아래로 뾰족)
                 for (int sz = -1; sz <= 1; sz += 2)
                 {
-                    // [감사 #10] 트위스트락 Z를 ISO 코너캐스팅 폭(2.438/24/2≈0.0508)에 정렬. 기존 0.044는 0.0068 안쪽으로 빗나감.
-                    const float isoCornerHalfZ = 0.0508f;
-                    Vector3 c = new Vector3(-sx * 0.006f, 0f, sz * isoCornerHalfZ);
+                    // [감사 SPR-1] 트위스트락 Z를 컨테이너 외폭/2(0.0508)가 아닌 ISO 코너캐스팅 '횡 중심'에 정렬.
+                    //   코너캐스팅 중심 = (컨테이너폭/2 − CornerCastD/2)/24 = (2.438/2 − 0.162/2)/24 = 1.138/24 = 0.04742.
+                    //   (ProceduralContainerMesh: z = sz·(Width/2 − CornerCastD/2), CornerCastD=0.162). 기존 0.0508은 중심보다 0.0034(실척 ~81mm) 바깥이라 홀을 빗나감.
+                    const float isoCornerHalfZ = 0.04742f;
+                    // [감사 X] 트위스트락 X를 ISO 코너캐스팅 중심에 정렬. arm 원점=spreaderHalf(컨테이너 끝), 코너는 그보다 안쪽.
+                    //   20ft 코너 half=5.853/24/2=0.1219(spreaderHalf 0.126−0.0041), 40ft=11.985/24/2=0.2497(0.254−0.0043).
+                    //   기존 −0.006은 20ft 0.120/40ft 0.248로 ~1.8mm(실척 ~43mm) 안쪽 빗남 → −0.0042로 두 사이즈 동시 정렬(±0.1mm).
+                    Vector3 c = new Vector3(-sx * 0.0042f, 0f, sz * isoCornerHalfZ);
                     TwistlockHead(a, c, CMetal);
-                    Cone(a, "Twistlock_Cone",
+                    Cone(a, StsPartNames.TwistlockCone,
                         c + new Vector3(0f, -0.036f, 0f), c + new Vector3(0f, -0.024f, 0f),
                         0.004f, 0.009f, CMetal, 16);
                 }
@@ -1286,7 +1796,7 @@ namespace Container.Crane.Sts.EditorTools
         //   ★ 끝빔 밑면 y=-0.015 위는 빔에 묻혀 안 보이므로 디테일은 그 아래(y<-0.015)에 집중.
         static void TwistlockHead(Transform arm, Vector3 corner, Color metal)
         {
-            var head = new GameObject(Numbered("Twistlock_Head"));
+            var head = new GameObject(Numbered(StsPartNames.TwistlockHead));
             head.transform.SetParent(arm, worldPositionStays: false);
             head.transform.localPosition = corner;       // 콘과 동일한 코너 수직축 = 트위스트 회전축
             Transform h = head.transform;
@@ -1303,7 +1813,7 @@ namespace Container.Crane.Sts.EditorTools
         // 정적 생성 후 HoistRopeRig가 매 프레임 스프레더 Y에 맞춰 신축(게임 런타임).
         static void BuildHoistRopes(Transform spreaderRoot, Transform spreader)
         {
-            float topY = -0.02f;               // 로프 상단(트롤리 헤드 아래)
+            float topY = -0.02f;               // 로프 상단 = 트롤리 리빙 시브 바로 아래(시브 외경 하단 -0.019 직하), 트롤리 본체 내부. 트롤리 헤드(상면 -0.0475) 위라 '헤드 아래' 아님
             // 로프 하단 = 헤드블록 데드엔드 소켓 베이스(스프레더-로컬 hbY+0.011≈0.069). 이전 0.05는
             //   소켓(0.069)보다 19mm 아래서 끝나 로프가 소켓에 안 닿고 헤드블록을 관통했음 → 0.07로 봉합.
             float attachOffsetY = 0.07f;       // 스프레더 원점 → 헤드블록 소켓 베이스(로프 하단 정착점)
@@ -1316,8 +1826,8 @@ namespace Container.Crane.Sts.EditorTools
             for (int sx = -1; sx <= 1; sx += 2)
             for (int sz = -1; sz <= 1; sz += 2)
             {
-                float x = sx * 0.03f;
-                float z = sz * 0.05f;   // 스프레더 코너에 맞춘 수직 로프(부채꼴 취소 — 사용자 요청, 예전 방식)
+                float x = HoistX + sx * HoistSprX;   // 인양점 항구쪽 이동 + 넓힌 X간격(4가닥 분리)
+                float z = sz * HoistSprZ;            // 스프레더 헤드블록 코너에 맞춘 수직 로프(넓힌 Z간격)
                 var rope = Rod(spreaderRoot, "Hoist_Rope",
                     new Vector3(x, topY, z), new Vector3(x, restBotY, z), radius, CCable);
                 ropes.Add(rope.transform);
@@ -1335,6 +1845,191 @@ namespace Container.Crane.Sts.EditorTools
         //   더 뒤라, 트롤리가 어디 있든 케이블이 항상 뒤로 향함(기계실 앞면이면 트롤리가 지나쳐 버려 NG).
         //   경로는 트롤리 뒷면(x-0.062)에서 곧장 -X, 붐 밑(y-0.02)으로 주행 → 거더/brace/cross(전부 y0.015 위)·본체 회피.
         //   시브↔뒷면 reeving은 트롤리 내부라 암시(페어리드까지만). z측당 1줄.
+        // [견인(주행) 로프 — 문서 견인로프_reeving_실제구조.html 기반] 하나씩 진행. 1단계 = 바다끝(항구쪽) 리버싱 시브 신설.
+        //   붐 팁 Tip_Platform 밑에 현수(gap 0). 육지끝 BackSheave와 대칭. 트롤리 직결 소켓·로프·텐셔너는 다음 단계.
+        // [동적화 2026-06-22] 견인로프 — 트롤리↔시브 구간·시브 감김을 TrolleyReevingRig가 트롤리 추종(꺾임 0).
+        //   시브 휠·현수·텐셔너·supply(시브 탈출 접점→드럼)는 고정. 트롤리쪽 소켓은 트롤리에 부착.
+        static void BuildTowReeving(Transform boom, Transform trolley)
+        {
+            const float ropeR = 0.0035f;
+            const int spanPer = 6, arcPer = 18;
+            float pitch = BackSheaveR;               // 로프 피치 반경(플랜지 외경)
+            float tipX  = BoomTipX - 0.03f;          // 바다끝 시브 X — 육지끝 BackSheaveX(BoomBackX+0.03)와 대칭
+            float pTop  = 0.068f;                     // Tip_Platform 윗면(현수 행어 상단)
+            float troFrontX = TrolleyRestX + TrolleyCX + TrolleyHX + 0.003f;   // 트롤리 앞끝(boom 좌표, 바다쪽)
+            float troFrontLx = troFrontX - TrolleyRestX;                       // 트롤리-로컬 X
+
+            Vector3 OnSheave(Vector3 c, float deg)
+            {
+                float r = deg * Mathf.Deg2Rad;
+                return c + new Vector3(Mathf.Cos(r) * pitch, Mathf.Sin(r) * pitch, 0f);
+            }
+            float TangDeg(Vector3 c, Vector3 P, bool upper)
+            {
+                Vector3 d = P - c; d.z = 0f;
+                float az  = Mathf.Atan2(d.y, d.x) * Mathf.Rad2Deg;
+                float off = Mathf.Acos(Mathf.Clamp01(pitch / d.magnitude)) * Mathf.Rad2Deg;
+                return upper ? az + off : az - off;
+            }
+
+            var trolleyLocal = new System.Collections.Generic.List<Vector3>();
+            var sheaveCenter = new System.Collections.Generic.List<Vector3>();
+            var seatR        = new System.Collections.Generic.List<float>();
+            var tanSign      = new System.Collections.Generic.List<float>();
+            var exitDegs     = new System.Collections.Generic.List<float>();
+            var wrapSigns    = new System.Collections.Generic.List<float>();
+            var segs         = new System.Collections.Generic.List<Transform>();
+
+            foreach (float zs in new[] { -1f, 1f })
+            {
+                float sz = zs * 0.05f;
+                Vector3 C = new Vector3(tipX, BackSheaveY, sz);
+                // 1단계: 바다끝 리버싱 시브(현수)
+                float hangZ = (BackSheaveHZ + 0.003f) + 0.006f;
+                for (int hs = -1; hs <= 1; hs += 2)
+                    PbBox(boom, "TipSheave_Hanger",
+                        new Vector3(tipX, (pTop + BackSheaveY) * 0.5f, sz + hs * hangZ),
+                        new Vector3(0.005f, pTop - BackSheaveY, 0.004f), CStruct);
+                Sheave(boom, "TipSheave",
+                    C + new Vector3(0f, 0f, -BackSheaveHZ), C + new Vector3(0f, 0f, BackSheaveHZ),
+                    BackSheaveR, 0.004f, 0.003f, CDark);     // 시브(도르래) — 어두운 강철색
+                SheaveNest(boom, C, BackSheaveR, BackSheaveHZ, CStruct);
+
+                // 2단계: 트롤리 앞끝 직결 소켓 + 동적 로프(트롤리 앞끝 → 시브 U반전). supply(시브→드럼)는 다음 조각.
+                Vector3 Pt   = new Vector3(troFrontX, -0.025f, sz);
+                Vector3 drum = new Vector3(MachineryHouseX - 0.02f, 0.085f, sz);   // 드럼 방향(U반전 끝각 결정용)
+                float degT = TangDeg(C, Pt, true);     // 트롤리(시브 −X 아래) 하부 접점 — φ≈180이라 upper분기가 하부 (정지점, 소켓 정렬용)
+                float degD = TangDeg(C, drum, false);  // 드럼(시브 −X 위) 상부 접점 = 탈출각(고정)
+                Vector3 Tt = OnSheave(C, degT);
+                // 트롤리 앞끝 직결 소켓 — 트롤리에 부착(함께 주행). 정지점 로프방향(Pt→Tt)으로 정렬.
+                Vector3 sockDir = Tt - Pt;
+                float sockAng = Mathf.Atan2(sockDir.y, sockDir.x) * Mathf.Rad2Deg;
+                PbBox(trolley, "TowFore_Socket", new Vector3(troFrontLx, -0.025f, sz), new Vector3(0.020f, 0.010f, 0.010f), CStruct, new Vector3(0f, 0f, sockAng));
+
+                // 동적: 트롤리 앵커 → 시브 상부 접선(+1) → CCW 감김(+1) → 탈출 접점(degD).
+                trolleyLocal.Add(new Vector3(troFrontLx, -0.025f, sz));
+                sheaveCenter.Add(C); seatR.Add(pitch); tanSign.Add(+1f); exitDegs.Add(degD); wrapSigns.Add(+1f);
+                for (int k = 0; k < spanPer + arcPer; k++)
+                {
+                    var seg = NewPrimitive(PrimitiveType.Cylinder, "TowFore_Rope", boom);
+                    Colorize(seg, CCable);
+                    segs.Add(seg.transform);
+                }
+
+                // 3단계: supply — 시브 → 레인 → 기계실 드럼. [2026-06-19] y0.055→0.038로 낮춤: 다리 굵힘(LegSec 0.6→1.0)으로
+                //   Shoulder_Beam(구 Portal_Cross) 바닥이 boom-local 0.063→0.0464로 내려와 supply(윗면 0.0585)를 관통 →
+                //   supply 윗면 0.0415 < 0.0464(5mm 여유)로 통과. 아래로는 트롤리 본체 상단(0, z=±0.05엔 보기 없음)과 38mm 여유. Boom_Cross(0.061) 아래 유지.
+                float supplyY = 0.038f;
+                float entryX  = MachineryHouseX + MachineryHouseHX;   // 기계실 앞벽(바다쪽) — supply가 바다끝에서 오니 앞으로 진입(뒷벽까지 안 지나감)
+                Vector3 Td   = OnSheave(C, degD);                          // 시브 드럼쪽 접점(reeve 끝)
+                Vector3 gTip = new Vector3(tipX - 0.05f, supplyY, sz);     // 시브 옆 붐위 진입(가이드 롤러)
+                Vector3 mhE  = new Vector3(entryX, supplyY, sz);           // 기계실 진입(붐위 높이)
+                Rod(boom, "TowFore_GuideRoller", gTip + new Vector3(0f, 0f, -0.006f), gTip + new Vector3(0f, 0f, 0.006f), 0.005f, CDark);
+                PbBox(boom, "TowFore_GuideBracket", new Vector3(gTip.x, (0.066f + gTip.y) * 0.5f, sz),
+                    new Vector3(0.005f, 0.066f - gTip.y + 0.003f, 0.005f), CStruct);   // Tip_Platform 밑면(0.064)에 롤러 현수 — gTip.x(2.645)엔 횡재가 없고 플랫폼이 있음(공중부양 해소)
+                CableCatenary(boom, "TowFore_RiseRail", Td, gTip, 0.003f, ropeR, CCable, 5, 12, 14);    // 시브 → 붐위 가이드
+                CableCatenary(boom, "TowFore_Supply",   gTip, mhE, 0.008f, ropeR, CCable, 12, 12, 48);  // 붐위 레인(붐 전체)
+                Cone(boom, "TowFore_MHFairlead", mhE + new Vector3(0.006f, 0f, 0f), mhE + new Vector3(-0.006f, 0f, 0f), 0.009f, 0.005f, CDark);  // 기계실 앞벽 진입 트럼펫(입구 바다쪽 넓음)
+                CableCatenary(boom, "TowFore_ToDrum",   mhE, drum, 0.003f, ropeR, CCable, 5, 12, 14);   // 진입 → 드럼(기계실)
+
+                // 4단계: 유압 텐셔너 — 시브 베어링(y0.02)을 플랫폼(0.068)에서 당겨 로프 장력 관리. 시브 +X 옆 수직 실린더.
+                PbBox(boom, "TipTensioner", new Vector3(tipX + 0.016f, (pTop + BackSheaveY) * 0.5f, sz),
+                    new Vector3(0.009f, pTop - BackSheaveY, 0.009f), CMachine);                              // 유압 배럴
+                Rod(boom, "TipTensioner_Rod", new Vector3(tipX + 0.016f, BackSheaveY + 0.006f, sz),
+                    new Vector3(tipX + 0.008f, BackSheaveY, sz), 0.0035f, CDark);                            // 로드 → 시브 베어링
+            }
+
+            var host = new GameObject("TowFore_Reeving_Rig");
+            host.transform.SetParent(boom, false);
+            host.AddComponent<TrolleyReevingRig>().Configure(trolley, trolleyLocal.ToArray(),
+                sheaveCenter.ToArray(), seatR.ToArray(), tanSign.ToArray(), exitDegs.ToArray(),
+                wrapSigns.ToArray(), segs.ToArray(), spanPer, arcPer, ropeR, 0.004f);
+        }
+
+        // [동적화 2026-06-22] 권상 윗구간 — 트롤리↔시브 구간과 시브 감김(reeve)을 TrolleyReevingRig가 트롤리 위치에서
+        //   매 프레임 재계산해 추종(접점·감김 꺾임 0). 시브 휠·기계실 진입·드럼·하류(Tm→드럼)는 고정. 트롤리쪽 부품은 트롤리에 부착.
+        static void BuildHoistUpper(Transform boom, Transform trolley)
+        {
+            const float ropeR = 0.0035f;
+            const int spanPer = 6, arcPer = 18;   // 직선 토막 / 감김 호 토막
+            float pitch  = BackSheaveR;          // 로프 중심 피치 반경(플랜지 외경) — 홈바닥(0.008)이면 grooveDepth<ropeR라 로프가 림에 묻힘.
+            float entryX = MachineryHouseX - MachineryHouseHX;
+            float entryY = 0.08f;
+
+            Vector3 OnSheave(Vector3 c, float deg)
+            {
+                float r = deg * Mathf.Deg2Rad;
+                return c + new Vector3(Mathf.Cos(r) * pitch, Mathf.Sin(r) * pitch, 0f);
+            }
+            float TangDeg(Vector3 c, Vector3 P, bool upper)                 // 점 P에서 시브(피치 원)로의 외접선 각
+            {
+                Vector3 d = P - c; d.z = 0f;
+                float az  = Mathf.Atan2(d.y, d.x) * Mathf.Rad2Deg;
+                float off = Mathf.Acos(Mathf.Clamp01(pitch / d.magnitude)) * Mathf.Rad2Deg;
+                return upper ? az + off : az - off;
+            }
+
+            var trolleyLocal = new System.Collections.Generic.List<Vector3>();
+            var sheaveCenter = new System.Collections.Generic.List<Vector3>();
+            var seatR        = new System.Collections.Generic.List<float>();
+            var tanSign      = new System.Collections.Generic.List<float>();
+            var exitDegs     = new System.Collections.Generic.List<float>();
+            var wrapSigns    = new System.Collections.Generic.List<float>();
+            var segs         = new System.Collections.Generic.List<Transform>();
+
+            foreach (float sz in new[] { -0.05f, 0.05f })   // side(좌/우 디플렉터)
+            {
+                // ── 트롤리쪽 페어리드/롤러 — 트롤리에 부착(함께 주행). 트롤리-로컬 = boom좌표 − TrolleyRestX. ──
+                Vector3 PtS  = new Vector3(TrolleyRestX + TrolleyBackX - 0.003f, -0.025f, sz);   // boom 좌표(정지점)
+                float   ptLx = PtS.x - TrolleyRestX;                                             // 트롤리-로컬 X
+                PbBox(trolley, "HoistU_TrolleyFairlead", new Vector3(ptLx, -0.025f, sz), new Vector3(0.012f, 0.014f, 0.024f), CStruct);
+                Rod(trolley, "HoistU_TrolleyRoller", new Vector3(ptLx - 0.003f, -0.031f, sz),
+                    new Vector3(ptLx - 0.003f, -0.019f, sz), 0.004f, CDark);
+                // ── 기계실 진입포트 · 권상 드럼 (고정, 두 폴 포괄 폭) ──
+                PbBox(boom, "MH_RopeEntry_Plate", new Vector3(entryX - 0.002f, entryY, sz),
+                    new Vector3(0.004f, 0.026f, 0.032f), CStruct);                                          // 뒷벽 둘레 보강판
+                Cone(boom, "MH_RopeFairlead", new Vector3(entryX - 0.014f, entryY, sz),
+                    new Vector3(entryX, entryY, sz), 0.013f, 0.006f, CDark);                                 // 트럼펫(2폴 포괄)
+                Rod(boom, "Hoist_Drum", new Vector3(MachineryHouseX - 0.02f, 0.085f, sz - 0.028f),
+                    new Vector3(MachineryHouseX - 0.02f, 0.085f, sz + 0.028f), 0.014f, CMachine);            // 권상 드럼(기계실 내부)
+
+                // ── side당 1가닥(총 2) — 윗구간은 드럼 로프라 양정 4-fall과 별개. 트롤리 → 시브 → 기계실 → 드럼 ──
+                foreach (float pole in new[] { 0f })
+                {
+                    float zp = sz + pole;
+                    Vector3 C    = new Vector3(BackSheaveX, BackSheaveY, zp);
+                    Vector3 Pm   = new Vector3(entryX - 0.012f, entryY, zp);
+                    Vector3 drum = new Vector3(MachineryHouseX - 0.02f, 0.085f, zp);
+
+                    float degM = TangDeg(C, Pm, true);     // 기계실쪽: 시브 상부 접선(고정 = 탈출각)
+                    Vector3 Tm = OnSheave(C, degM);
+
+                    // 고정 하류: 탈출 접점 Tm → 기계실 → 드럼(이음새는 동적 호 끝 = Tm에서 정확히 만남).
+                    CableCatenary(boom, "HoistU_ToMH",   Tm, Pm, 0.004f, ropeR, CCable, 6, 12, 20);
+                    CableCatenary(boom, "HoistU_ToDrum", Pm, drum, 0.002f, ropeR, CCable, 4, 12, 10);
+                    // 트롤리 내부 인입(은닉) — 트롤리에 부착(함께 주행). 끝점은 본체 중심 내부라 메시에 가려짐.
+                    CableCatenary(trolley, "HoistU_IntoTrolley",
+                        new Vector3(ptLx, -0.025f, zp), new Vector3(TrolleyBackX + 0.045f, -0.025f, zp), 0f, ropeR, CCable, 3, 12, 8);
+
+                    // 동적: 트롤리 앵커 → 시브 하부 접선(−1) → CW 감김(−1) → 탈출 접점(degM).
+                    trolleyLocal.Add(new Vector3(ptLx, -0.025f, zp));
+                    sheaveCenter.Add(C); seatR.Add(pitch); tanSign.Add(-1f); exitDegs.Add(degM); wrapSigns.Add(-1f);
+                    for (int k = 0; k < spanPer + arcPer; k++)
+                    {
+                        var seg = NewPrimitive(PrimitiveType.Cylinder, "HoistU_Rope", boom);
+                        Colorize(seg, CCable);
+                        segs.Add(seg.transform);
+                    }
+                }
+            }
+
+            var host = new GameObject("HoistUpper_Reeving_Rig");
+            host.transform.SetParent(boom, false);
+            host.AddComponent<TrolleyReevingRig>().Configure(trolley, trolleyLocal.ToArray(),
+                sheaveCenter.ToArray(), seatR.ToArray(), tanSign.ToArray(), exitDegs.ToArray(),
+                wrapSigns.ToArray(), segs.ToArray(), spanPer, arcPer, ropeR, 0.004f);
+        }
+
         static void BuildBoomHoistRopes(Transform boom, Transform trolley)
         {
             const int segPer = 12;   // 토막↑ → 곡선 매끈(이질감 완화)
@@ -1342,55 +2037,141 @@ namespace Container.Crane.Sts.EditorTools
             const float sagFactor = 0.02f;
             const float laneY = -0.02f;    // 붐 밑(거더 밑면 0.015 아래)
             float backX = BoomBackX + 0.02f;   // 백리치 고정 앵커 X(Stay_Anchor 부근)
+            float[] fallZ = { -0.058f, -0.042f, 0.042f, 0.058f };   // side당 2폴(±0.05 디플렉터 시브의 ±0.008 더블그루브) — "한 줄" 해소
+            float fairX = TrolleyBackX - 0.003f;                    // 붐 호이스트 트롤리측 페어리드/앵커 = 확장된 본체 뒤끝(−0.175) 바로 뒤(파묻힘 해소)
 
             var trolleyLocal = new List<Vector3>();
             var backAnchor   = new List<Vector3>();
             var segs         = new List<Transform>();
 
-            foreach (float zs in new[] { -1f, 1f })
+            foreach (float z in fallZ)
             {
-                float z = zs * 0.05f;
-                // 트롤리 뒷면 페어리드(접속 가이드, 트롤리 부착) — 동적 로프 트롤리 끝
-                Box(trolley, "Hoist_BackFairlead", new Vector3(-0.058f, -0.025f, z),
-                    new Vector3(0.012f, 0.014f, 0.012f), CStruct);
-                trolleyLocal.Add(new Vector3(-0.062f, -0.025f, z));
-                // 백리치 고정 앵커(boom 로컬) — 동적 로프 뒤끝
-                backAnchor.Add(new Vector3(backX, laneY, z));
+                // 트롤리 뒷면 페어리드(접속 가이드, 트롤리 부착) — 브래킷 + 수직 가이드 롤러(로프가 도는 면). 확장 본체 뒤끝(fairX)으로 이전.
+                PbBox(trolley, "Hoist_BackFairlead", new Vector3(fairX, -0.025f, z),
+                    new Vector3(0.012f, 0.016f, 0.012f), CStruct);
+                Rod(trolley, "Hoist_BackFairlead_Roller",
+                    new Vector3(fairX - 0.002f, -0.031f, z), new Vector3(fairX - 0.002f, -0.019f, z), 0.005f, CDark);
+                for (int fy = -1; fy <= 1; fy += 2)   // 롤러 축단 캡(상·하)
+                    Rod(trolley, "Hoist_BackFairlead_Cap",
+                        new Vector3(fairX - 0.002f, -0.025f + fy * 0.006f, z), new Vector3(fairX - 0.002f, -0.025f + fy * 0.0075f, z), 0.0065f, CStruct);
+                trolleyLocal.Add(new Vector3(fairX - 0.004f, -0.025f, z));
+                // [재설계] 동적 로프 뒤끝 = 백리치 데크 밑에 매단 디플렉터 시브의 하부-바다쪽 접선점(-40°).
+                //   여기서 로프가 시브 홈을 감기 시작(아래 [C]의 reeve로 이어짐) → 기계실 진입 = 사진 같은 둘러감 U자.
+                //   기계실 뒷벽에 바로 꽂던 옛 경로는 처짐이 기계실 바닥(y0.065) 밑을 뚫어 폐기.
+                float reA = -40f * Mathf.Deg2Rad;
+                backAnchor.Add(new Vector3(BackSheaveX + Mathf.Cos(reA) * BackSheaveSeat,
+                                           BackSheaveY + Mathf.Sin(reA) * BackSheaveSeat, z));
 
                 for (int k = 0; k < segPer; k++)
                 {
                     var seg = NewPrimitive(PrimitiveType.Cylinder, "Hoist_Rope_ToMH", boom);
-                    Colorize(seg, CCable);
+                    Colorize(seg, CMark);   // [작업표시] 기계실 권상 윗구간 — 파랑 마킹(형상 미수정)
                     segs.Add(seg.transform);
                 }
             }
 
-            // 백리치 앵커 빔 — 두 케이블(z±0.05) 뒤끝이 정착하는 횡빔 + 거더(z±0.16)에 매다는 행어 → 케이블 공중부양 해소.
-            Box(boom, "Hoist_BackAnchor", new Vector3(backX, laneY, 0f),
-                new Vector3(0.016f, 0.014f, 0.13f), CStruct);
-            for (int zs = -1; zs <= 1; zs += 2)
-                Strut(boom, "Hoist_BackAnchor_Hanger",
-                    new Vector3(backX, laneY, zs * 0.055f), new Vector3(backX + 0.01f, 0.018f, zs * GirderGapZ), 0.004f, CStruct);
+            // [재설계] 백리치 호이스트 데드엔드 앵커/소켓 제거 — 권상 로프는 백스테이 앵커를 경유하지 않고
+            //   트롤리→기계실로 직접 간다(디자인팀 검수). 백스테이(구조 케이블)는 별도 Stay_Anchor가 담당.
 
             // [C] 백리치 앵커 → 기계실 드럼: 케이블이 기계실 뒷벽의 '로프 진입 포트'로 들어가 드럼에 감김.
             //   진입 y0.08 = MH_Sill(y0.047~0.055) 위 → sill 관통 회피. 그냥 벽 관통 아니라 보스+둘레판으로 디자인.
             float drumX = MachineryHouseX - 0.02f, drumY = 0.085f;
             float entryX = MachineryHouseX - MachineryHouseHX, entryY = 0.08f;   // 기계실 뒷벽
-            foreach (float zs in new[] { -1f, 1f })
+            foreach (float z in fallZ)
             {
-                float z = zs * 0.05f;
-                // 로프 진입 포트(디자인) — 뒷벽 둘레판 + 돌출 보스(로프가 통과하는 페어리드)
-                Box(boom, "MH_RopeEntry_Plate", new Vector3(entryX - 0.002f, entryY, z), new Vector3(0.004f, 0.026f, 0.026f), CStruct);
-                Box(boom, "MH_RopeEntry", new Vector3(entryX, entryY, z), new Vector3(0.014f, 0.016f, 0.016f), CMachine);
-                // 백리치 앵커 → 진입 포트(상승, sill 위로)
-                CableCatenary(boom, "Hoist_Rope_ToDrum", new Vector3(backX, laneY, z), new Vector3(entryX, entryY, z), 0.012f, radius, CCable);
+                // 로프 진입 포트(디자인) — 뒷벽 둘레판 + 플레어된 페어리드 트럼펫(로프 마모 방지) + 라이너
+                PbBox(boom, "MH_RopeEntry_Plate", new Vector3(entryX - 0.002f, entryY, z), new Vector3(0.004f, 0.028f, 0.028f), CStruct);
+                Cone(boom, "MH_RopeEntry", new Vector3(entryX - 0.006f, entryY, z), new Vector3(entryX + 0.006f, entryY, z), 0.006f, 0.009f, CMachine);
+                Rod(boom, "MH_RopeEntry_Liner", new Vector3(entryX - 0.003f, entryY, z), new Vector3(entryX + 0.005f, entryY, z), 0.0045f, CDark);
+                // (ToMH 로프가 트롤리에서 디플렉터 시브로 '직접' 옴 — 중간 ToMHDrum 구간 불필요)
+                // 페어리드 — 벽 슬롯으로 로프가 빨려 들어가는 깔때기(통과부 마감).
+                Cone(boom, "MH_RopeFairlead", new Vector3(entryX - 0.012f, entryY, z), new Vector3(entryX, entryY, z), 0.009f, 0.004f, CDark);
+                // [C] [U자 reeve] 시브를 둘러 감는 로프 — 트롤리쪽 접선(-40°)에서 CW로 감아 '기계실 진입 포트로
+                //   향하는 상부 접선'까지. 탈출각을 진입 방향의 접선과 일치시켜 시브→케이블 연결이 안 꺾이게 한다.
+                //   (옛 고정 +40° 종단은 접선이 아래·바다쪽이라, 위·바다쪽 진입 포트로 가며 ~64° 꺾임이 생겼음.)
+                Vector3 mhEntry = new Vector3(entryX - 0.012f, entryY, z);
+                float dxg = mhEntry.x - BackSheaveX, dyg = mhEntry.y - BackSheaveY;
+                float dg  = Mathf.Sqrt(dxg * dxg + dyg * dyg);
+                // 상부 접선각 = (중심→진입) 방위각 + acos(seat/거리). 진입 포트로 그은 직선이 시브에 접하는 지점.
+                float exitDeg = Mathf.Atan2(dyg, dxg) * Mathf.Rad2Deg
+                              + Mathf.Acos(Mathf.Clamp01(BackSheaveSeat / dg)) * Mathf.Rad2Deg;
+                float sweep = (exitDeg - 360f) - (-40f);   // -40°에서 CW(음수)로 상부 접선까지 ≈ -217°
+                SheaveReeve(boom, "Hoist_Rope_Reeve", new Vector3(BackSheaveX, BackSheaveY, z),
+                    BackSheaveSeat, -40f, sweep, radius, CMark, 24);   // [작업표시] 파랑 마킹
+                // 탈출 접선점 → 기계실 진입. 접선이 일치하므로 케이블이 자연스레 이어진다(꺾임 제거). sag 축소로 시작부 더 매끈.
+                float exr = exitDeg * Mathf.Deg2Rad;
+                Vector3 reeveExit = new Vector3(BackSheaveX + Mathf.Cos(exr) * BackSheaveSeat,
+                                                BackSheaveY + Mathf.Sin(exr) * BackSheaveSeat, z);
+                // [토막 길이 통일] SheaveToMH 토막을 동적 ToMH 로프 토막 길이(≈0.067 = 휴식 스팬/segPer 12)에 맞춤.
+                //   기존 16토막은 각 ≈0.014로 동적 로프(_11 등)보다 잘게 쪼개져 짧아 보였음(사용자 지적 "_11 길이처럼").
+                int toMHSegs = Mathf.Max(2, Mathf.RoundToInt((mhEntry - reeveExit).magnitude / 0.067f));
+                CableSegmented(boom, "Hoist_Rope_SheaveToMH", reeveExit, mhEntry, 0.005f, radius, CMark, toMHSegs);   // [작업표시] 파랑 마킹
                 // 진입 포트 → 드럼(기계실 안, 벽에 가려짐)
-                CableCatenary(boom, "Hoist_Rope_ToDrum", new Vector3(entryX, entryY, z), new Vector3(drumX, drumY, z), 0.004f, radius, CCable);
+                CableCatenary(boom, "Hoist_Rope_ToDrum", new Vector3(entryX, entryY, z), new Vector3(drumX, drumY, z), 0.004f, radius, CMark);   // [작업표시] 파랑 마킹
             }
 
             var rig = boom.gameObject.AddComponent<BoomRopeRig>();
             rig.Configure(trolley, trolleyLocal.ToArray(), backAnchor.ToArray(),
                           segs.ToArray(), segPer, radius, sagFactor);
+        }
+
+        // 트롤리 견인 로프 — 실제 STS 구조(자료 US7073673B2 + 물리 계산 기반, 추정0).
+        //   양끝 리버싱 시브(현수+대각 브레이스) + 트롤리 dead-end 소켓 + 동적 로프(시브 림 종단) + U자 SheaveReeve + 텐셔너.
+        //   [물리] 시브 반력=2T 수평(180° 감김) → 대각 브레이스 필수. 처짐=카테너리(sagFactor 0.004, 고정0.02 폐기).
+        //   [기하] 시브 top(-0.013)·로프 모두 거더 밑면(-0.01) 아래(관통0). 로프 끝=시브 림(중심 아님→관통0).
+        static void BuildTrolleyTowRope(Transform boom, Transform trolley)
+        {
+            const float ropeR = 0.003f, seat = 0.008f, shR = 0.012f, shHZ = 0.008f;
+            // (nm, 시브중심X, 시브중심Y, 현수 구조물 top Y, U감김 sweep, 트롤리소켓 X, 브레이스 수평방향)
+            var ends = new[] {
+                ("Tow_TipSheave",  BoomTipX - 0.035f, -0.025f, 0.066f, -180f,  0.056f,  0.03f),   // 바다끝(팁): 트롤리 앞소켓 / 반력 -X라 브레이스 +X
+                ("Tow_BackSheave", BoomBackX + 0.05f, -0.025f, 0.068f,  180f, -0.056f, -0.03f),   // 육지끝(백리치): 트롤리 뒤소켓 / 반력 +X라 브레이스 -X
+            };
+            var trolleyLocal = new List<Vector3>(); var backAnchor = new List<Vector3>(); var segs = new List<Transform>();
+            const int segPer = 12;
+            foreach (var (nm, cx, cy, topY, sweep, troX, braceDX) in ends)
+            foreach (float zs in new[] { -1f, 1f })
+            {
+                float z = zs * 0.075f;
+                Vector3 C = new Vector3(cx, cy, z);
+                // (1) 리버싱 시브 휠 + 치크판
+                Sheave(boom, nm, C + new Vector3(0, 0, -shHZ), C + new Vector3(0, 0, shHZ), shR, 0.004f, 0.003f, CTemp);
+                SheaveNest(boom, C, shR, shHZ, CTemp);
+                // (2) 현수 행어(수직 스트랩 2, 휠 양옆) — 구조물 top → 시브, gap=0 (공중부양 방지)
+                float hangZ = shHZ + 0.004f;
+                for (int hs = -1; hs <= 1; hs += 2)
+                    PbBox(boom, nm + "_Hanger", new Vector3(cx, (topY + cy) * 0.5f, z + hs * hangZ),
+                        new Vector3(0.005f, topY - cy, 0.004f), CTemp);
+                // (3) 대각 브레이스 [물리] — 시브 2T 수평반력 받음(수직만이면 휨). 시브 → 위·반력반대쪽
+                Strut(boom, nm + "_Brace", C, new Vector3(cx + braceDX, topY, z), 0.004f, CTemp);
+                // (4) 유압 텐셔너(슬라이드 블록) — supply 종단
+                PbBox(boom, nm + "_Tensioner", new Vector3(cx + braceDX * 0.4f, cy - seat - 0.006f, z),
+                    new Vector3(0.012f, 0.01f, 0.012f), CTemp);
+                // (5) U자 감기(SheaveReeve) — top(90°)에서 sweep만큼 림(seat) 따라
+                SheaveReeve(boom, nm + "_Reeve", C, seat, 90f, sweep, ropeR, CTemp, 18);
+                // (6) 트롤리 dead-end 소켓(스펠터 소켓 + 클레비스 핀) — 로프 종단(자료: secured to ends)
+                PbBox(trolley, "Tow_Socket", new Vector3(troX, -0.04f, z), new Vector3(0.012f, 0.014f, 0.012f), CTemp);
+                Rod(trolley, "Tow_Socket_Pin", new Vector3(troX, -0.044f, z - 0.008f), new Vector3(troX, -0.044f, z + 0.008f), 0.0022f, CTemp);
+                // (7) 동적 로프: 트롤리 소켓 → 시브 top 림(중심 아님). BoomRopeRig가 트롤리 추종.
+                trolleyLocal.Add(new Vector3(troX, -0.04f, z));
+                backAnchor.Add(new Vector3(cx, cy + seat, z));
+                for (int k = 0; k < segPer; k++) { var sg = NewPrimitive(PrimitiveType.Cylinder, "Tow_Rope", boom); Colorize(sg, CTemp); segs.Add(sg.transform); }
+                // (8) supply: 시브 하단 림 → '낮은 레인(Y-0.085)'으로 트롤리 밑 통과 → 기계실서 상승해 드럼(은닉) 연결.
+                //   [교차검증] 직선 supply는 트롤리(z±0.12 안, Y[-0.0725,0.048]) 무조건 관통 → 트롤리 최하(-0.0725)보다
+                //   12.5mm 낮은 레인으로 우회. 호이스트레인(-0.04)·시브치크(Y-0.019~)·거더밑(-0.01)보다 더 아래라 클리어. z±0.075=거더 갭.
+                float drumX = MachineryHouseX - 0.02f, lowY = -0.085f;
+                float p1x = cx + Mathf.Sign(drumX - cx) * 0.03f;
+                Vector3 sp0 = new Vector3(cx, cy - seat, z);     // 시브 하단 림
+                Vector3 sp1 = new Vector3(p1x, lowY, z);          // 시브 옆에서 낮은 레인으로 드롭
+                Vector3 sp2 = new Vector3(drumX, lowY, z);        // 낮은 레인(트롤리 전 주행구간 밑) → 드럼 X
+                Vector3 sp3 = new Vector3(drumX, 0.095f, z);      // 기계실서 상승 → 드럼(솔리드 안 은닉)
+                CableCatenary(boom, nm + "_Supply", sp0, sp1, 0.002f, ropeR, CTemp);
+                CableCatenary(boom, nm + "_Supply", sp1, sp2, 0.003f, ropeR, CTemp);
+                CableCatenary(boom, nm + "_Supply", sp2, sp3, 0.002f, ropeR, CTemp);
+            }
+            var host = new GameObject("Trolley_Tow_Rope_Rig");
+            host.transform.SetParent(boom, false);
+            host.AddComponent<BoomRopeRig>().Configure(trolley, trolleyLocal.ToArray(), backAnchor.ToArray(), segs.ToArray(), segPer, ropeR, 0.004f);
         }
 
         // ───────────────────────── 디테일 지오메트리 (D) ─────────────────────────
@@ -1406,7 +2187,7 @@ namespace Container.Crane.Sts.EditorTools
             for (int sx = -1; sx <= 1; sx += 2)
             for (int sz = -1; sz <= 1; sz += 2)
             {
-                Box(root, "Leg_Post", new Vector3(cx + sx * half, (y0 + y1) * 0.5f, cz + sz * half),
+                Box(root, StsPartNames.LegPost, new Vector3(cx + sx * half, (y0 + y1) * 0.5f, cz + sz * half),
                     new Vector3(postT, h, postT), CStruct);
             }
 
@@ -1469,10 +2250,14 @@ namespace Container.Crane.Sts.EditorTools
             // 갠트리 주행 시 레일 위 장애물(컨테이너 등)과 충돌하도록 다리 하나를 감싸는 BoxCollider 1개.
             //   격자 부재(Leg_Post/Rung/Lace)는 전부 시각용이라 콜라이더가 없다 → 다리를 통째로 물리화.
             //   (크레인 루트의 kinematic Rigidbody가 이 콜라이더로 dynamic 컨테이너를 밀어낸다.)
-            var legCol = new GameObject(Numbered("Leg_Collider"));
+            //   [감사 PORTAL-1] 시각 다리는 베이스 위(y0)에 앉지만, 콜라이더는 지면(0)까지 풀하이트 유지 —
+            //   부두 바닥에 놓인 컨테이너를 주행 중 확실히 밀어내는 기능을 보존하기 위함(기능 회귀 0).
+            float colY0 = 0f;
+            float colH  = y1 - colY0;
+            var legCol = new GameObject(Numbered(StsPartNames.LegCollider));
             legCol.transform.SetParent(root, worldPositionStays: false);
-            legCol.transform.localPosition = new Vector3(cx, (y0 + y1) * 0.5f, cz);
-            legCol.AddComponent<BoxCollider>().size = new Vector3(foot, h, foot);
+            legCol.transform.localPosition = new Vector3(cx, (colY0 + y1) * 0.5f, cz);
+            legCol.AddComponent<BoxCollider>().size = new Vector3(foot, colH, foot);
         }
 
         // 붐 디테일: 보도 그레이팅 + 끝단 시브(도르래) + 작업등
@@ -1497,71 +2282,29 @@ namespace Container.Crane.Sts.EditorTools
                 for (int s = -1; s <= 1; s += 2)
                 {
                     float z = s * GirderGapZ;
-                    Box(boom, "Floodlight_Housing", new Vector3(lx, -0.008f, z),
-                        new Vector3(0.018f, 0.014f, 0.018f), CDark);
-                    Ball(boom, "Floodlight_Lens", new Vector3(lx, -0.018f, z),
-                        new Vector3(0.015f, 0.007f, 0.015f), CLight);
+                    // 투광등 — 박스+구 → 요크/방열핀/본체/베젤/평면렌즈 어셈블리(Floodlight 헬퍼). at=거더 밑면, 하향. [2026-06-19] -0.010 하드코딩 → GirderBotLocal 추종(매립 해소).
+                    Floodlight(boom, new Vector3(lx, GirderBotLocal, z), 0.018f, CDark, CLight);
                 }
             }
 
             // 끝단 플랫폼 + 추가 시브 + 항해등
             // 끝단 플랫폼 — 트윈 거더 전폭으로(좁던 것 수정) + 둘레 안전 난간
-            Box(boom, "Tip_Platform", new Vector3(x1 - 0.04f, 0.066f, 0f),
-                new Vector3(0.08f, 0.004f, 2f * GirderOuterZ), CMachine);
+            Box(boom, "Tip_Platform", new Vector3(x1 - 0.075f, 0.066f, 0f),
+                new Vector3(0.15f, 0.004f, 2f * GirderOuterZ), CMachine);   // 육지쪽으로 연장(0.08→0.15) — 견인 가이드 롤러(gTip x≈2.645)를 플랫폼 밑에 받침
             {
-                float tpY0 = 0.068f, tpRailY = 0.102f;
+                float tpY0 = 0.068f, tpRailY = 0.105f;   // [사용자 지적] Boom_Railing railTop(0.105)에 높이 맞춤 — 붐난간↔Tip 단차 0.003 제거(옆난간_1·끝난간_3·기둥 전부 정렬)
                 float tpX0 = x1 - 0.08f, tpX1 = x1, tpHZ = GirderOuterZ;
                 for (int s = -1; s <= 1; s += 2)   // ±Z 옆 난간
-                    Box(boom, "Tip_Rail", new Vector3((tpX0 + tpX1) * 0.5f, tpRailY, s * tpHZ),
-                        new Vector3(tpX1 - tpX0, 0.005f, 0.005f), CStruct);
+                    Box(boom, "Tip_Rail", new Vector3((tpX0 + tpX1) * 0.5f + 0.00125f, tpRailY, s * tpHZ),
+                        new Vector3(tpX1 - tpX0 + 0.0025f, 0.005f, 0.005f), CSafety);   // 바다쪽(tpX1)만 코너 → +t/2, center +t/4
                 Box(boom, "Tip_Rail", new Vector3(tpX1, tpRailY, 0f),   // 바다쪽 끝 난간
-                    new Vector3(0.005f, 0.005f, tpHZ * 2f), CStruct);
+                    new Vector3(0.005f, 0.005f, tpHZ * 2f + 0.005f), CSafety);   // 양끝 3면코너 +t/2씩
                 foreach (float pz in new[] { -tpHZ, 0f, tpHZ })        // 기둥(끝 코너+중앙)
                     Box(boom, "Tip_Rail_Post", new Vector3(tpX1, (tpY0 + tpRailY) * 0.5f, pz),
-                        new Vector3(0.005f, tpRailY - tpY0, 0.005f), CStruct);
+                        new Vector3(0.005f, tpRailY - tpY0, 0.005f), CSafety);
             }
-            // ── 끝단 트윈 시브 블록(도르래) — 호이스트 로프 2가닥이 붐 끝에서 되돌아 트롤리로 가는 되돌이 시브 ──
-            //   휠 2개를 하나의 공통 핀(Z축)에 끼우고 z=±0.05로 벌려, 트롤리 호이스트 시브·로프 소켓(z±0.05)과 정렬.
-            //   (기존: 두 휠을 X로 포개 0.008 관통 → 로프 선에 맞춰 한 축 재배치, 겹침 0.)
-            //   X=x1-0.025(팁 플랫폼 x1-0.08..x1 발자국 안), Y=0.03(유지), 휠 반지름 0.02(≈실척 0.96m 유지).
-            {
-                float sx = x1 - 0.025f, sy = 0.03f;
-                float sr = 0.02f;            // 휠 반지름(유지)
-                float sHalfW = 0.014f;       // 휠 반폭(Z) → 폭 0.028
-                float zFall = 0.05f;         // 호이스트 falls Z — 트롤리 시브/로프 소켓과 동일 선
-                float chkR = sr * 1.18f;     // 치크 원판 반지름
-                // 휠 한 쌍(±zFall) — 이름 유지
-                Rod(boom, "Sheave_Tip",
-                    new Vector3(sx, sy, -zFall - sHalfW), new Vector3(sx, sy, -zFall + sHalfW), sr, CDark);
-                Rod(boom, "Sheave_Tip2",
-                    new Vector3(sx, sy,  zFall - sHalfW), new Vector3(sx, sy,  zFall + sHalfW), sr, CDark);
-                // 각 휠 양옆 치크 플레이트(안쪽+바깥쪽) — 휠을 사이에 끼워 로프 이탈 방지
-                for (int s = -1; s <= 1; s += 2)
-                {
-                    float inZ  = zFall - sHalfW - 0.005f;   // 안쪽 치크 중심 |Z| = 0.031 (휠 끝 0.036 안쪽)
-                    float outZ = zFall + sHalfW + 0.005f;   // 바깥 치크 중심 |Z| = 0.069 (휠 끝 0.064 바깥)
-                    Rod(boom, "Sheave_Cheek",
-                        new Vector3(sx, sy, s * (inZ - 0.002f)),  new Vector3(sx, sy, s * (inZ + 0.002f)),  chkR, CStruct);
-                    Rod(boom, "Sheave_Cheek",
-                        new Vector3(sx, sy, s * (outZ - 0.002f)), new Vector3(sx, sy, s * (outZ + 0.002f)), chkR, CStruct);
-                }
-                // 공통 관통 핀 + 축단 캡
-                float pinZ = zFall + sHalfW + 0.02f;        // 관통 핀 끝 |Z| = 0.084
-                Rod(boom, "Sheave_Pin",
-                    new Vector3(sx, sy, -pinZ), new Vector3(sx, sy, pinZ), sr * 0.3f, CDark);
-                for (int s = -1; s <= 1; s += 2)
-                    Rod(boom, "Sheave_PinCap",
-                        new Vector3(sx, sy, s * (pinZ - 0.004f)), new Vector3(sx, sy, s * pinZ), sr * 0.5f, CStruct);
-                // 행어 플레이트 — 시브 핀(y=0.03)을 팁 플랫폼 밑면(y≈0.064)에 매달아 공중부양 제거.
-                //   바깥 치크 선(z=±0.069)에서 데크까지 수직 플레이트로 올림 → 시브 블록이 플랫폼에 매달린 구조.
-                for (int s = -1; s <= 1; s += 2)
-                {
-                    Box(boom, "Sheave_Hanger", new Vector3(sx, 0.048f, s * (zFall + sHalfW + 0.005f)),
-                        new Vector3(0.012f, 0.038f, 0.008f), CStruct);
-                    Box(boom, "Sheave_HangerGusset", new Vector3(sx, 0.04f, s * (pinZ - 0.006f)),
-                        new Vector3(0.01f, 0.022f, 0.006f), CStruct);
-                }
-            }
+            // 끝단 트윈 시브 블록(도르래) 제거(사용자 지시) — Sheave_Tip/Tip2·Sheave_Cheek·Sheave_Pin/PinCap·Sheave_Hanger(Gusset).
+            //   호이스트 로프 리그(트롤리↔스프레더 / 트롤리↔백앵커)는 이 되돌이 시브를 참조하지 않아 로프 영향 없음.
             // 항해등 숨김(사용자 요청) — 복구하려면 주석 해제
             // Ball(boom, "Nav_Light", new Vector3(x1 - 0.003f, 0.05f, 0f),
             //     new Vector3(0.012f, 0.016f, 0.012f), CWarn);
@@ -1574,18 +2317,19 @@ namespace Container.Crane.Sts.EditorTools
                 Box(boom, "Catwalk", new Vector3(mid, 0f, cz),
                     new Vector3(len, 0.004f, 0.022f), CMachine);
                 Box(boom, "Catwalk_Rail", new Vector3(mid, 0.026f, railZ),
-                    new Vector3(len, 0.004f, 0.004f), CStruct);
+                    new Vector3(len + 0.003f, 0.004f, 0.004f), CSafety);   // 양끝 끝기둥 바깥면까지 +t/2(=0.0015)씩, center 유지
                 Box(boom, "Catwalk_RailMid", new Vector3(mid, 0.013f, railZ),
-                    new Vector3(len, 0.003f, 0.003f), CStruct);
+                    new Vector3(len + 0.003f, 0.003f, 0.003f), CSafety);   // 양끝 끝기둥 바깥면까지 +t/2씩
                 int cposts = 14;
                 for (int i = 0; i <= cposts; i++)
                 {
                     float px = Mathf.Lerp(x0, x1, i / (float)cposts);
-                    Box(boom, "Catwalk_Post", new Vector3(px, 0.013f, railZ),
-                        new Vector3(0.003f, 0.026f, 0.003f), CStruct);
+                    Box(boom, "Catwalk_Post", new Vector3(px, 0.014f, railZ),
+                        new Vector3(0.003f, 0.028f, 0.003f), CSafety);   // 기둥 top을 상단레일 바깥면(+t/2)까지 위로
                 }
             }
 
+#if false   // [케이블 전면 재설계 2026-06-18 · 오너 지시] 페스툰 삭제 — 케이블 1가닥뿐 빈약. 트랙+다발 재설계 예정.
             // 페스툰(전력·제어 케이블) — 붐 하부 트랙 + 늘어진 케이블 다발
             float festZ = GirderOuterZ + 0.008f;
             Box(boom, "Festoon_Track", new Vector3(mid, -0.006f, festZ),
@@ -1611,28 +2355,99 @@ namespace Container.Crane.Sts.EditorTools
                     new Vector3(festX[i], festBotY, festZ),
                     new Vector3(festX[i + 1], festBotY, festZ),
                     festSag, 0.0016f, CCable);
+#endif
 
             // ── 뒷부분(육지측 백리치) 디테일 ──
             // [감사 #1·#2 삭제] 적층 무게 블록 'Counterweight'와 받침 'CW_Brace' 제거.
             //   STS는 선회·기복 크레인이 아니라 적층 죽은무게 평형추가 없음 — 긴 아웃리치는
             //   A프레임 정점 + 포어/백스테이 텐션 + 기계실 질량 + 백리치 구조로 균형. 이 구조는
             //   아래 Stay_Anchor / BuildApexAndStays 에 이미 존재하므로 평형추는 중복이자 오류였다.
-            // 백스테이 앵커 브래킷
-            // 백스테이 이퀄라이저 빔 — 두 거더 뒤끝(±GirderGapZ)을 잇고 백스테이가 양 끝에 물림
-            Box(boom, "Stay_Anchor", new Vector3(x0 + 0.02f, 0.075f, 0f),
-                new Vector3(0.02f, 0.035f, 2f * GirderGapZ), CMachine);
-            // 백리치 끝 플랫폼 + 경고등
-            Box(boom, "Back_Platform", new Vector3(x0 + 0.02f, 0.066f, 0f),
-                new Vector3(0.06f, 0.004f, 2f * GirderOuterZ), CMachine);
-
-            // [A 보강] 백리치 끝 면(x0) 프레임 — 두 거더(z±GirderGapZ)를 잇는 X-브레이스 + 상·하 타이.
-            //   평형추 제거로 휑해진 백리치 끝을 구조적으로 마감(현실 STS 백리치 단부 프레임).
+            // ── 백스테이 이퀄라이저 노드 (빌트업) ──
+            //   [디테일 보강] 단일 박스 → 웹+상·하 플랜지 빌트업 횡빔 + 수직 스티프너 + 거더 접속 거싯
+            //   + 양끝 백스테이 클레비스 러그/핀(BuildStay의 Stay_Plate가 소켓으로 러그 사이에 물림).
             {
-                float bgB = 0.015f, bgT = 0.065f;   // 거더 밑면/윗면
-                Strut(boom, "Backreach_EndBrace", new Vector3(x0, bgB, -GirderGapZ), new Vector3(x0, bgT, GirderGapZ), 0.006f, CStruct);
-                Strut(boom, "Backreach_EndBrace", new Vector3(x0, bgB, GirderGapZ), new Vector3(x0, bgT, -GirderGapZ), 0.006f, CStruct);
-                Box(boom, "Backreach_EndTie", new Vector3(x0, bgB, 0f), new Vector3(0.008f, 0.008f, 2f * GirderGapZ), CStruct);
-                Box(boom, "Backreach_EndTie", new Vector3(x0, bgT, 0f), new Vector3(0.008f, 0.008f, 2f * GirderGapZ), CStruct);
+                float ax = x0 + 0.02f;
+                float ay = 0.072f;                  // 빔 중심 — 백스테이 정착 y0.092가 윗면 바로 위에 오게
+                float hz = GirderGapZ;              // 빔 끝 = 거더 z(±0.16) = 백스테이 정착선
+                PbBox(boom, "Stay_Anchor", new Vector3(ax, ay, 0f),
+                    new Vector3(0.018f, 0.03f, 2f * hz), CMachine);                  // 웹
+                for (int sy = -1; sy <= 1; sy += 2)
+                    PbBox(boom, "Stay_Anchor_Flange", new Vector3(ax, ay + sy * 0.016f, 0f),
+                        new Vector3(0.026f, 0.006f, 2f * hz + 0.012f), CStruct);     // 상·하 플랜지
+                foreach (float sz in new[] { -0.085f, 0f, 0.085f })                 // 수직 스티프너(다이어프램)
+                    PbBox(boom, "Stay_Anchor_Stiff", new Vector3(ax, ay, sz),
+                        new Vector3(0.02f, 0.028f, 0.005f), CStruct);
+                for (int s = -1; s <= 1; s += 2)   // 양 끝(z=±0.16): 거더 접속 거싯 + 백스테이 클레비스 러그·핀
+                {
+                    float ez = s * hz;
+                    Gusset(boom, new Vector3(ax + 0.010f, ay, ez), Quaternion.Euler(0, 90, 0), 0.018f, 0.004f, CStruct);
+                    Gusset(boom, new Vector3(ax - 0.010f, ay, ez), Quaternion.Euler(0, -90, 0), 0.018f, 0.004f, CStruct);
+                    for (int ex = -1; ex <= 1; ex += 2)   // 클레비스 러그 귀 2(X로 벌려 Stay_Plate를 사이에 끼움)
+                        PbBox(boom, "Backstay_Lug", new Vector3(ax + ex * 0.011f, 0.09f, ez),
+                            new Vector3(0.005f, 0.018f, 0.014f), CStruct);
+                    Rod(boom, "Backstay_Pin",             // 클레비스 핀(러그 관통, X축 양옆 돌출)
+                        new Vector3(ax - 0.016f, 0.09f, ez), new Vector3(ax + 0.016f, 0.09f, ez), 0.0026f, CDark);
+                    for (int px = -1; px <= 1; px += 2)
+                        Rod(boom, "Backstay_PinCap",
+                            new Vector3(ax + px * 0.013f, 0.09f, ez), new Vector3(ax + px * 0.016f, 0.09f, ez), 0.004f, CStruct);
+                }
+            }
+
+            // ── 백리치 끝 플랫폼 + 둘레 안전 난간 ──
+            //   [디테일 보강] 난간 없는 평판 → Tip_Platform과 동일하게 둘레 난간(상단 레일/중간대/기둥/토보드).
+            {
+                float bpX = x0 + 0.02f, bpY = 0.066f;
+                float bpHX = 0.03f, bpHZ = GirderOuterZ;     // 반치수
+                PbBox(boom, "Back_Platform", new Vector3(bpX, bpY, 0f),
+                    new Vector3(bpHX * 2f, 0.004f, bpHZ * 2f), CMachine);
+                float pTop = 0.068f, railY = 0.105f;   // pTop=데크 윗면(BackSheave 행어 기준), railY=붐 보도 난간 railTop(0.105)과 동일
+                // [재설계 — 사용자 지시] 백리치 자체 기둥(Back_Rail_Post) 폐지 + 끝변 난간을 붐 보도 난간 첫 기둥(Railing_Post, x0)에 붙임.
+                //   끝변 난간을 데크 끝(x0-0.01)이 아니라 붐 끝면 라인 x0(=단부 프레임 Backreach_EndPost 라인)에 두면,
+                //   붐 보도 난간 ±Z 첫 기둥 두 개(z=±GirderOuterZ)를 잇는 가로바 = 붐 보도 난간 육지쪽 'ㄷ자' 마감이 되어
+                //   붐 기둥이 그대로 지지한다(데크 육지 0.01 돌출부는 단부 프레임 EndPost/EndTie가 막음).
+                PbBox(boom, "Back_Rail", new Vector3(x0, railY, 0f),        // 상단레일 — z 양끝이 붐 첫 기둥(±GirderOuterZ) 바깥면까지 +t/2
+                    new Vector3(0.005f, 0.005f, bpHZ * 2f + 0.005f), CSafety);
+                PbBox(boom, "Back_RailMid", new Vector3(x0, 0.085f, 0f),    // 중간레일 — 붐 보도 중간레일(Boom_Railing_Mid=0.085)에 맞춰 연속
+                    new Vector3(0.004f, 0.004f, bpHZ * 2f + 0.004f), CSafety);
+
+                // ── 백리치 디플렉터 시브 — 권상 로프(트롤리→여기)를 받아 시브를 감고 돌려 기계실 진입 포트로 보냄 ──
+                //   side(z=±0.05)별 1개, 각 시브가 더블그루브로 2폴(z=sz±0.008) 수용(반폭 BackSheaveHZ=0.016). 데크 밑으로 내려 행어 현수(축 Z).
+                foreach (float zs in new[] { -1f, 1f })
+                {
+                    float sz = zs * 0.05f;
+                    Vector3 sc = new Vector3(BackSheaveX, BackSheaveY, sz);
+                    // 행어 — 데크 밑면에서 시브 핀까지 내려뜨린 스트랩 2장(클레비스).
+                    //   기존 중앙 1장(Z폭 0.016)은 시브 휠(±BackSheaveHZ)을 정통으로 관통했음 →
+                    //   치크 바깥(SheaveNest chZ=HZ+0.003)에 여유를 더해 양옆에 두고, 핀(Z로 돌출)을 잡는다.
+                    float hangZ = (BackSheaveHZ + 0.003f) + 0.006f;   // 휠·치크 바깥
+                    for (int hs = -1; hs <= 1; hs += 2)
+                        PbBox(boom, "BackSheave_Hanger",
+                            new Vector3(BackSheaveX, (pTop + BackSheaveY) * 0.5f, sz + hs * hangZ),
+                            new Vector3(0.005f, pTop - BackSheaveY, 0.004f), CStruct);
+                    Sheave(boom, "BackSheave",
+                        sc + new Vector3(0f, 0f, -BackSheaveHZ), sc + new Vector3(0f, 0f, BackSheaveHZ),
+                        BackSheaveR, 0.004f, 0.003f, CDark);
+                    SheaveNest(boom, sc, BackSheaveR, BackSheaveHZ, CStruct);       // 치크판 + 핀 보스
+                }
+            }
+
+            // [A 보강] 백리치 끝 면(x0) 단부 프레임 — 두 거더를 잇는 빌트업 X-브레이스 + 상·하 타이 + 코너 포스트 + 절점 거싯.
+            //   [디테일 보강] 막대 4개 → 빌트업 브레이스 + 코너 포스트/거싯으로 제대로 된 단부 포털(현실 STS 백리치 단부).
+            {
+                float bgB = GirderBotLocal, bgT = GirderTopLocal;   // [감사 BOOM-2 / 2026-06-19] 거더 상·하면 SSOT 추종. 하드코딩 -0.01/0.065는 거더 깊어짐(-0.025)에 안 따라와 단부프레임이 바닥서 0.36m 떴음 → 상수화로 봉합.
+                // ※ BuiltUpBrace 금지: Z를 가로지르는 대각(−GirderGapZ↔+GirderGapZ)은 그 헬퍼의 '같은 z 평면' 전제를
+                //   깨 회전이 무너지고 수직 판때기가 된다. 임의 3D 방향을 올바로 정렬하는 Strut 사용.
+                Strut(boom, "Backreach_EndBrace", new Vector3(x0, bgB, -GirderGapZ), new Vector3(x0, bgT, GirderGapZ), 0.007f, CStruct);
+                Strut(boom, "Backreach_EndBrace", new Vector3(x0, bgB, GirderGapZ), new Vector3(x0, bgT, -GirderGapZ), 0.007f, CStruct);
+                PbBox(boom, "Backreach_EndTie", new Vector3(x0, bgB, 0f), new Vector3(0.009f, 0.009f, 2f * GirderGapZ), CStruct);
+                PbBox(boom, "Backreach_EndTie", new Vector3(x0, bgT, 0f), new Vector3(0.009f, 0.009f, 2f * GirderGapZ), CStruct);
+                for (int s = -1; s <= 1; s += 2)    // 코너 수직 포스트(거더 끝 ±z) + 상·하 절점 거싯
+                {
+                    PbBox(boom, "Backreach_EndPost", new Vector3(x0, (bgB + bgT) * 0.5f, s * GirderGapZ),
+                        new Vector3(0.009f, bgT - bgB + 0.009f, 0.009f), CStruct);   // 상·하 타이 가로지르게 양끝 +t/2(=0.0045), center 유지
+                    Gusset(boom, new Vector3(x0 - 0.006f, bgT, s * GirderGapZ), Quaternion.Euler(0, -90, 0), 0.014f, 0.004f, CStruct);
+                    Gusset(boom, new Vector3(x0 - 0.006f, bgB, s * GirderGapZ), Quaternion.Euler(0, -90, 0), 0.014f, 0.004f, CStruct);
+                }
             }
             // 백리치 경고등 숨김(사용자 요청) — 복구하려면 주석 해제
             // Ball(boom, "Back_Light", new Vector3(x0 + 0.004f, 0.05f, 0f),
@@ -1656,10 +2471,8 @@ namespace Container.Crane.Sts.EditorTools
             {
                 for (int s = -1; s <= 1; s += 2)
                 {
-                    Box(boom, "Floodlight_Housing", new Vector3(lx, -0.006f, s * GirderGapZ),
-                        new Vector3(0.014f, 0.012f, 0.014f), CDark);
-                    Ball(boom, "Floodlight_Lens", new Vector3(lx, -0.014f, s * GirderGapZ),
-                        new Vector3(0.011f, 0.006f, 0.011f), CLight);
+                    // 투광등(붐 코너) — 동일 헬퍼, 폭만 0.014로. [2026-06-19] -0.010 → GirderBotLocal 추종(거더 깊어짐 매립 해소).
+                    Floodlight(boom, new Vector3(lx, GirderBotLocal, s * GirderGapZ), 0.014f, CDark, CLight);
                 }
             }
         }
@@ -1674,14 +2487,14 @@ namespace Container.Crane.Sts.EditorTools
             float x0 = BoomBackX, x1 = BoomTipX;
             float len = x1 - x0, mid = (x0 + x1) * 0.5f;
 
-            const float gY = 0.04f, gH = 0.05f;
-            float gTop = gY + gH * 0.5f;   // 거더 윗면 0.065 (보도 그레이팅 밑면과 같은 레벨)
-            float gBot = gY - gH * 0.5f;   // 거더 밑면 0.015
+            // [감사 H2 SSOT] 거더 윗면만 필요 → 클래스 const 직접 참조(종전 지역 gY/gH는 미사용이라 생략). 값 불변.
+            float gTop = GirderTopLocal;   // 거더 윗면 0.065 (보도 그레이팅 밑면과 같은 레벨)
+            // 거더 밑면 = GirderCenterY - GirderDepthH*0.5 = -0.01 (gTop만 chTop에 쓰이므로 변수는 생략)
 
             // 트러스 현재 — 위는 보도 밑면(0.065)에 맞춤. 아래는 주행 트롤리 상단(y=0, Z 반폭 0.185로
             //   거더 바깥 면까지 옴)과 겹치지 않게 그 바로 위(0.003)까지만 내려 깊이 확장.
-            float chTop = gTop;            // 상현재 0.065
-            float chBot = 0.003f;          // 하현재(트롤리 상단 위 — 주행 중 관통 방지)
+            float chTop = gTop;            // 상현재 0.065 (gTop 유지)
+            float chBot = -0.008f;         // 하현재 — 깊어진 거더 밑면(gBot=-0.01)에 맞춤(도관 -0.012 바로 위)
             float chMidY = (chTop + chBot) * 0.5f;
             float chH = chTop - chBot;
 
@@ -1753,7 +2566,7 @@ namespace Container.Crane.Sts.EditorTools
             float legOuter = GaugeZ * 0.5f + LegSec * 1.7f * 0.5f;   // 격자 다리 외곽 z
             float ladderZ  = legOuter + 0.022f;                     // 사다리 위치
             // 붐 데크(붐 로컬 0.067 → 루트 RailH+0.067)까지 올려 기계실 접근 캣워크와 연결
-            float ly0 = 0.05f, ly1 = RailH + 0.067f;
+            float ly0 = 0.072f, ly1 = RailH + 0.067f;   // [점검4 정정] 다리 시각 하단(legFootY 0.072)·Stow_Pin_Housing 윗면(0.07) 위에서 시작. 0.0125로 내렸더니 다리/하우징보다 아래라 Ladder_Bracket 공중부유 + 사다리 하우징 관통 → 다리 발치에 맞춤(사다리는 부두 직접이 아니라 다리·하우징 위에서 출발)
             float ladW = 0.03f;                       // 사다리 폭(stile 간격) — 그립 연장과 공유
             BuildLadder(root, LandLegX, ladderZ, ly0, ly1, ladW);
 
@@ -1762,10 +2575,10 @@ namespace Container.Crane.Sts.EditorTools
             float grabH = 0.04f;
             for (int s = -1; s <= 1; s += 2)
                 Box(root, "Ladder_Grab", new Vector3(LandLegX + s * ladW * 0.5f, ly1 + grabH * 0.5f, ladderZ),
-                    new Vector3(0.004f, grabH, 0.004f), CStruct);
+                    new Vector3(0.004f, grabH, 0.004f), CSafety);
             Rod(root, "Ladder_Grab_Top",
                 new Vector3(LandLegX - ladW * 0.5f, ly1 + grabH, ladderZ),
-                new Vector3(LandLegX + ladW * 0.5f, ly1 + grabH, ladderZ), 0.0022f, CStruct);
+                new Vector3(LandLegX + ladW * 0.5f, ly1 + grabH, ladderZ), 0.0022f, CSafety);
 
             // 다리에 고정하는 standoff 브래킷
             for (int i = 0; i <= 5; i++)
@@ -1773,7 +2586,7 @@ namespace Container.Crane.Sts.EditorTools
                 float by = Mathf.Lerp(ly0, ly1, i / 5f);
                 Box(root, "Ladder_Bracket",
                     new Vector3(LandLegX, by, (legOuter + ladderZ) * 0.5f),
-                    new Vector3(0.005f, 0.005f, ladderZ - legOuter), CStruct);
+                    new Vector3(0.005f, 0.005f, ladderZ - legOuter), CSafety);
             }
 
             // 안전 케이지 — 외측 세로 가드바 3 + 후프(ㄷ자) 다단 (하부는 승하강 위해 생략)
@@ -1782,18 +2595,23 @@ namespace Container.Crane.Sts.EditorTools
             foreach (float gx2 in new[] { -0.022f, 0f, 0.022f })
             {
                 Box(root, "Cage_Bar", new Vector3(LandLegX + gx2, (cy0 + ly1) * 0.5f, cageZ),
-                    new Vector3(0.004f, ly1 - cy0, 0.004f), CStruct);
+                    new Vector3(0.004f, ly1 - cy0, 0.004f), CSafety);
             }
-            int hoops = 6;
+            // [사다리 점검3] 측면 세로 가드바 — 케이지 옆이 후프만으로 뚫리지 않게 좌우 각 1 (둘레 5개)
+            for (int sb = -1; sb <= 1; sb += 2)
+                Box(root, "Cage_Bar", new Vector3(LandLegX + sb * 0.025f, (cy0 + ly1) * 0.5f, (cageZ + ladderZ) * 0.5f),
+                    new Vector3(0.004f, ly1 - cy0, 0.004f), CSafety);
+            // [사다리 점검2] 후프 간격 실척 ~0.84m(미니어처 0.035)로 촘촘히 — 기존 7개는 실척 4.9m 간격이라 듬성
+            int hoops = Mathf.Max(2, Mathf.RoundToInt((ly1 - cy0) / 0.035f));
             for (int i = 0; i <= hoops; i++)
             {
                 float hy = Mathf.Lerp(cy0, ly1, i / (float)hoops);
                 Box(root, "Cage_Hoop", new Vector3(LandLegX, hy, cageZ),
-                    new Vector3(0.05f, 0.004f, 0.004f), CStruct);
+                    new Vector3(0.054f, 0.004f, 0.004f), CSafety);   // 뒤 후프 양끝 코너 +t/2씩(측면 후프 바깥면까지), center 유지
                 for (int s = -1; s <= 1; s += 2)
                 {
-                    Box(root, "Cage_Hoop", new Vector3(LandLegX + s * 0.025f, hy, (cageZ + ladderZ) * 0.5f),
-                        new Vector3(0.004f, 0.004f, cageZ - ladderZ), CStruct);
+                    Box(root, "Cage_Hoop", new Vector3(LandLegX + s * 0.025f, hy, (cageZ + ladderZ) * 0.5f + 0.001f),
+                        new Vector3(0.004f, 0.004f, cageZ - ladderZ + 0.002f), CSafety);   // 측면 후프 cageZ쪽(뒤 후프) 코너만 +t/2, 사다리 입구쪽 유지
                 }
             }
 
@@ -1822,17 +2640,17 @@ namespace Container.Crane.Sts.EditorTools
             {
                 float rx = LandLegX + sx * apW * 0.5f;
                 Box(root, "Platform_Rail", new Vector3(rx, apY + 0.032f, 0f),
-                    new Vector3(0.004f, 0.004f, apHZ * 2f), CStruct);
+                    new Vector3(0.004f, 0.004f, apHZ * 2f), CSafety);
                 Box(root, "Platform_RailMid", new Vector3(rx, apY + 0.017f, 0f),
-                    new Vector3(0.003f, 0.003f, apHZ * 2f), CStruct);
+                    new Vector3(0.003f, 0.003f, apHZ * 2f), CSafety);
                 Box(root, "Platform_Toe", new Vector3(rx, apY + 0.006f, 0f),
-                    new Vector3(0.003f, 0.008f, apHZ * 2f), CStruct);
+                    new Vector3(0.003f, 0.008f, apHZ * 2f), CSafety);
                 int np = 6;
                 for (int i = 0; i <= np; i++)
                 {
                     float pz = Mathf.Lerp(-apHZ, apHZ, i / (float)np);
                     Box(root, "Platform_Post", new Vector3(rx, apY + 0.017f, pz),
-                        new Vector3(0.004f, 0.034f, 0.004f), CStruct);
+                        new Vector3(0.004f, 0.034f, 0.004f), CSafety);
                 }
             }
             */
@@ -1875,24 +2693,24 @@ namespace Container.Crane.Sts.EditorTools
 
             // ── 난간: 다리 반대편(바깥)에만 — 세그1 +Z, 세그2 −X(기계실 쪽). 다리에 안 닿게 통로 확보. ──
             float r1z = ladderZ + walkW * 0.5f;
-            Box(boom, "MHAccess_Rail", new Vector3(s1x, deckY + railH, r1z),
-                new Vector3(s1len, 0.004f, 0.004f), CStruct);
+            Box(boom, "MHAccess_Rail", new Vector3(s1x - 0.001f, deckY + railH, r1z),
+                new Vector3(s1len + 0.002f, 0.004f, 0.004f), CSafety);   // 코너A(X하한)만 +t/2
             // i=0(x=LandLegX, 옛 MHAccess_Post_1)은 사용자 요청으로 제외 — i=1부터 생성.
             for (int i = 1; i <= 4; i++)
                 Box(boom, "MHAccess_Post",
-                    new Vector3(Mathf.Lerp(LandLegX, mhx, i / 4f), deckY + railH * 0.5f, r1z),
-                    new Vector3(0.004f, railH, 0.004f), CStruct);
+                    new Vector3(Mathf.Lerp(LandLegX, mhx, i / 4f), deckY + railH * 0.5f + 0.001f, r1z),
+                    new Vector3(0.004f, railH + 0.002f, 0.004f), CSafety);   // 기둥 top을 상단레일 바깥면(+t/2)까지 위로
             float r2x = mhx - walkW * 0.5f;
-            Box(boom, "MHAccess_Rail", new Vector3(r2x, deckY + railH, s2z),
-                new Vector3(0.004f, 0.004f, s2len), CStruct);
+            Box(boom, "MHAccess_Rail", new Vector3(r2x, deckY + railH, s2z + 0.001f),
+                new Vector3(0.004f, 0.004f, s2len + 0.002f), CSafety);   // 코너A(Z상한)만 +t/2 (코너B는 양호)
             for (int i = 0; i <= 2; i++)
                 Box(boom, "MHAccess_Post",
-                    new Vector3(r2x, deckY + railH * 0.5f, Mathf.Lerp(corZ, ladderZ, i / 2f)),
-                    new Vector3(0.004f, railH, 0.004f), CStruct);
+                    new Vector3(r2x, deckY + railH * 0.5f + 0.001f, Mathf.Lerp(corZ, ladderZ, i / 2f)),
+                    new Vector3(0.004f, railH + 0.002f, 0.004f), CSafety);   // 기둥 top을 상단레일 바깥면(+t/2)까지 위로
             // 바깥쪽 볼록 꼭지점 기둥 — 두 바깥 난간(r1z·r2x)이 만나는 코너. 없으면 코너가 ㄴ처럼 비어 보임.
             Box(boom, "MHAccess_Post",
-                new Vector3(mhx - walkW * 0.5f, deckY + railH * 0.5f, ladderZ + walkW * 0.5f),
-                new Vector3(0.004f, railH, 0.004f), CStruct);
+                new Vector3(mhx - walkW * 0.5f, deckY + railH * 0.5f + 0.001f, ladderZ + walkW * 0.5f),
+                new Vector3(0.004f, railH + 0.002f, 0.004f), CSafety);   // 꼭지점 기둥 top 상단레일 바깥면까지 +t/2
 
             // ── 안쪽 난간(다리 반대 면) — 세그1 −Z, 세그2 +X. 양측 난간으로 통로 완성. ──
             // 세그1 안쪽: 다리 기둥/사다리 승강 갭 확보 위해 다리쪽을 살짝 띄워 시작.
@@ -1901,23 +2719,23 @@ namespace Container.Crane.Sts.EditorTools
             float in1cx = (in1Start + in1End) * 0.5f;
             float in1len = Mathf.Abs(in1Start - in1End);
             float in1z = ladderZ - walkW * 0.5f;
-            Box(boom, "MHAccess_Rail", new Vector3(in1cx, deckY + railH, in1z),
-                new Vector3(in1len, 0.004f, 0.004f), CStruct);
+            Box(boom, "MHAccess_Rail", new Vector3(in1cx - 0.001f, deckY + railH, in1z),
+                new Vector3(in1len + 0.002f, 0.004f, 0.004f), CSafety);   // 코너C(X하한)만 +t/2
             for (int i = 0; i <= 3; i++)
                 Box(boom, "MHAccess_Post",
-                    new Vector3(Mathf.Lerp(in1Start, in1End, i / 3f), deckY + railH * 0.5f, in1z),
-                    new Vector3(0.004f, railH, 0.004f), CStruct);
+                    new Vector3(Mathf.Lerp(in1Start, in1End, i / 3f), deckY + railH * 0.5f + 0.001f, in1z),
+                    new Vector3(0.004f, railH + 0.002f, 0.004f), CSafety);   // 기둥 top을 상단레일 바깥면(+t/2)까지 위로
             // 세그2 안쪽: 문 진입(낮은 z)은 열어두고, 위로는 안쪽 코너에서 끝냄(세그1 통로를 안 막게).
             float in2x = mhx + walkW * 0.5f;
             float in2Top = ladderZ - walkW * 0.5f;   // 안쪽 코너 z — 세그1 통로 침범 방지(길이 계산)
             float in2cz  = (corZ + in2Top) * 0.5f;
             float in2len = Mathf.Abs(in2Top - corZ);
             Box(boom, "MHAccess_Rail", new Vector3(in2x, deckY + railH, in2cz),
-                new Vector3(0.004f, 0.004f, in2len), CStruct);
+                new Vector3(0.004f, 0.004f, in2len + 0.004f), CSafety);   // 코너C+D 양끝 → +t/2씩(size+t), center 유지
             for (int i = 0; i <= 2; i++)
                 Box(boom, "MHAccess_Post",
-                    new Vector3(in2x, deckY + railH * 0.5f, Mathf.Lerp(corZ, in2Top, i / 2f)),
-                    new Vector3(0.004f, railH, 0.004f), CStruct);
+                    new Vector3(in2x, deckY + railH * 0.5f + 0.001f, Mathf.Lerp(corZ, in2Top, i / 2f)),
+                    new Vector3(0.004f, railH + 0.002f, 0.004f), CSafety);   // 기둥 top을 상단레일 바깥면(+t/2)까지 위로
 
             // ── 받침 아웃리거 브래킷(떠 있지 않게) — 캣워크 → 거더 상단. 다리선(x=LandLegX)은 피함. ──
             foreach (float bx in new[] { LandLegX - 0.06f, mhx })
@@ -1963,7 +2781,9 @@ namespace Container.Crane.Sts.EditorTools
         static void BuildStay(Transform root, Vector3 a, Vector3 b, string name)
         {
             Rod(root, name, a, b, 0.004f, CCable);
-            Box(root, "Stay_Plate", a, new Vector3(0.012f, 0.012f, 0.012f), CMachine);
+            // [감사 STAY-1] a-끝(시브 하우스)은 모든 포어/백스테이가 공유 → 측면당 5개·총 10개 Stay_Plate가
+            //   한 점에 겹치고 시브 드럼(rOuter 0.016) 안에 매립됐음. a-끝 판 제거(상단 정착은 시브-리브/클레비스 러그가 담당).
+            //   b-끝(거더/이퀄라이저 개별 앵커)만 정착판 유지.
             Box(root, "Stay_Plate", b, new Vector3(0.012f, 0.012f, 0.012f), CMachine);
             Vector3 dir = a - b;
             float len = dir.magnitude;
@@ -1982,15 +2802,15 @@ namespace Container.Crane.Sts.EditorTools
             for (int s = -1; s <= 1; s += 2)
             {
                 Box(parent, "Ladder_Stile", new Vector3(x + s * widthX * 0.5f, midY, z),
-                    new Vector3(0.004f, h, 0.004f), CStruct);
+                    new Vector3(0.004f, h, 0.004f), CSafety);
             }
-            int rungs = Mathf.Max(2, Mathf.RoundToInt(h / 0.04f));
+            int rungs = Mathf.Max(2, Mathf.RoundToInt(h / 0.0125f));   // [사다리 점검1] 가로대 간격 실척 0.3m(표준) — 기존 0.04=실척 0.96m라 못 올라감
             for (int i = 0; i <= rungs; i++)
             {
                 float ry = Mathf.Lerp(y0, y1, i / (float)rungs);
                 Rod(parent, "Ladder_Rung",
                     new Vector3(x - widthX * 0.5f, ry, z),
-                    new Vector3(x + widthX * 0.5f, ry, z), 0.0022f, CStruct);
+                    new Vector3(x + widthX * 0.5f, ry, z), 0.0022f, CSafety);
             }
         }
 
@@ -2197,17 +3017,25 @@ namespace Container.Crane.Sts.EditorTools
         }
 
         // 붐 상부 보도 부재가 포털 빔과 만나는 X 구간 — 그 폭만큼 보도를 끊는다(다리 X마다).
-        // Portal_Cross X 반폭(LegSec*0.4) + 여유. BuildBoomStructure/Details(붐 로컬)에서 공통 사용.
-        static readonly float[] BoomTopWalkwayGapX = { LandLegX, WaterLegX };
-        const float BoomTopWalkwayGapHalf = LegSec * 0.4f + 0.006f;
+        // Shoulder_Beam(구 Portal_Cross) 플랜지 X 반폭(LegSec*0.55) + 여유. BuildBoomStructure/Details(붐 로컬)에서 공통 사용.
+        // 붐 상단 보도/난간을 끊는 통과 구간 — 포털 다리 2곳 + 기계실 1곳(BOOM-1=MH-1 수정).
+        //   기계실 구간은 보도/난간이 기계실 벽체를 관통하던 것을 끊고, +Z쪽 기계실 접근 캣워크(BuildMachineryHouseAccess)로 우회.
+        static readonly float[] BoomTopWalkwayGapX    = { LandLegX, WaterLegX, MachineryHouseX };
+        static readonly float[] BoomTopWalkwayGapHalf = { LegSec * 0.55f + 0.006f,   // 포털(육지) — [2026-06-19] 플랜지(LegSec×0.55)와 같은 계수+여유로 항상 클리어(LegSec 무관). ≈0.029
+                                                          LegSec * 0.55f + 0.006f,   // 포털(바다) 동일
+                                                          MachineryHouseHX + 0.008f }; // 기계실 ≈0.093(반폭 0.085 + 8mm 여유)
 
         // X축으로 긴 보도 박스를 gapCenters±gapHalf 구간에서 끊어 여러 토막으로 생성(포털 빔 관통 방지).
         static void BoxGappedX(Transform parent, string name, float x0, float x1, float y, float z,
-                               float thickY, float thickZ, Color color, float[] gapCenters, float gapHalf)
+                               float thickY, float thickZ, Color color, float[] gapCenters, float[] gapHalves)
         {
             var cuts = new List<float> { x0 };
-            foreach (float gc in gapCenters)
-                if (gc - gapHalf > x0 && gc + gapHalf < x1) { cuts.Add(gc - gapHalf); cuts.Add(gc + gapHalf); }
+            for (int g = 0; g < gapCenters.Length; g++)
+            {
+                float gc = gapCenters[g];
+                float gh = gapHalves[g];   // 갭별 반폭(포털=좁게, 기계실=넓게)
+                if (gc - gh > x0 && gc + gh < x1) { cuts.Add(gc - gh); cuts.Add(gc + gh); }
+            }
             cuts.Add(x1);
             cuts.Sort();
             for (int i = 0; i + 1 < cuts.Count; i += 2)   // 유지 구간 = (cuts[0],cuts[1]),(cuts[2],cuts[3])...
@@ -2217,6 +3045,14 @@ namespace Container.Crane.Sts.EditorTools
                     Box(parent, name, new Vector3((a + b) * 0.5f, y, z),
                         new Vector3(b - a, thickY, thickZ), color);
             }
+        }
+
+        // 붐 상단 X가 보도 통과 구간(포털/기계실)에 드는지 — 통과 구간엔 난간 기둥을 생략한다.
+        static bool InWalkwayGap(float px)
+        {
+            for (int g = 0; g < BoomTopWalkwayGapX.Length; g++)
+                if (Mathf.Abs(px - BoomTopWalkwayGapX[g]) < BoomTopWalkwayGapHalf[g]) return true;
+            return false;
         }
 
         // a→b 를 잇는 가는 막대(다리/케이블/대각). 부모는 회전·스케일 없는 노드여야 정확.
@@ -2270,6 +3106,139 @@ namespace Container.Crane.Sts.EditorTools
             go.transform.localScale = new Vector3(radius * 2f, len * 0.5f, radius * 2f);
             Colorize(go, color);
             return go;
+        }
+
+        // 투광등 어셈블리 — at=부착점(중심), 렌즈는 -Y로 비춤. w=본체 폭. 수직 치수는 w 비례(소형등도 비례 유지).
+        //   브래킷판(부착) → 요크 암(±X로 본체 감싸 받침) → 방열핀 3장(LED 히트싱크 실루엣) → 램프 본체
+        //   → 베젤 림(렌즈 프레임) → 평면 발광 렌즈(구 아님, 납작 원반). 전부 수직 적층·맞닿음.
+        //   비례계수는 w=0.018에서 기존 승인 치수(판0.004/간격0.005/본체0.011/베젤0.0025/렌즈0.002) 재현.
+        static void Floodlight(Transform parent, Vector3 at, float w, Color body, Color lens)
+        {
+            float plateT = 0.222f * w;   // 브래킷 판 두께
+            float gap    = 0.278f * w;   // 요크 간격(방열핀이 사는 공간)
+            float hBody  = 0.611f * w;   // 본체 높이
+            float bezT   = 0.139f * w;   // 베젤 두께
+            float lensT  = 0.111f * w;   // 렌즈 두께
+            float armT   = 0.170f * w;   // 요크 암 두께
+            float finT   = 0.120f * w;   // 방열핀 두께
+
+            float yPlate   = at.y - plateT * 0.5f;             // 브래킷 중심(top=at.y, 면에 물림)
+            float yBodyTop = at.y - plateT - gap;              // 본체 윗면
+            float yBody    = yBodyTop - hBody * 0.5f;          // 본체 중심
+            float yBodyBot = yBodyTop - hBody;                 // 본체 밑면
+            float yBez     = yBodyBot - bezT * 0.5f;           // 베젤 중심
+            float yLens    = yBodyBot - bezT - lensT * 0.5f;   // 렌즈 중심(최하단, 조사면)
+
+            // 1) 부착 브래킷 판
+            PbBox(parent, "Floodlight_Bracket", new Vector3(at.x, yPlate, at.z),
+                new Vector3(w * 0.7f, plateT, w * 0.7f), CStruct);
+            // 2) 요크 암(±X) — 판 밑에서 본체 밑까지 본체를 감싸 받친다(안쪽면=본체 가장자리)
+            float yArm = ((at.y - plateT) + yBodyBot) * 0.5f;
+            float hArm = (at.y - plateT) - yBodyBot;
+            for (int a = -1; a <= 1; a += 2)
+                PbBox(parent, "Floodlight_Yoke", new Vector3(at.x + a * (w * 0.5f + armT * 0.5f), yArm, at.z),
+                    new Vector3(armT, hArm, w * 0.55f), CStruct);
+            // 3) 방열핀 3장 — 요크 간격에 X로 나란히(±0.27w±finT/2 < 본체 반폭이라 비간섭)
+            for (int f = -1; f <= 1; f++)
+                PbBox(parent, "Floodlight_Fin", new Vector3(at.x + f * w * 0.27f, yBodyTop + gap * 0.5f, at.z),
+                    new Vector3(finT, gap, w * 0.82f), CMachine);
+            // 4) 램프 본체
+            PbBox(parent, "Floodlight_Housing", new Vector3(at.x, yBody, at.z),
+                new Vector3(w, hBody, w), body);
+            // 5) 베젤 림 — 렌즈 둘레 프레임(본체보다 살짝 넓게)
+            PbBox(parent, "Floodlight_Bezel", new Vector3(at.x, yBez, at.z),
+                new Vector3(w * 1.06f, bezT, w * 1.06f), CMachine);
+            // 6) 평면 렌즈(발광) — 조사면 보는 납작 원반(구 금지). Rod 짧은 원통=디스크.
+            Rod(parent, "Floodlight_Lens", new Vector3(at.x, yLens + lensT * 0.5f, at.z),
+                new Vector3(at.x, yLens - lensT * 0.5f, at.z), w * 0.42f, lens);
+        }
+
+        // 방향 지정 투광등 — at에 회전 피벗(빈 오브젝트)을 두고 하향 어셈블리를 aim으로 돌린다.
+        //   aim=identity면 하향(-Y). Euler(0,0,90)→렌즈 +X 수평, Euler(0,0,45)→+X 아래 45°(안벽 작업역).
+        static void Floodlight(Transform parent, Vector3 at, Quaternion aim, float w, Color body, Color lens)
+        {
+            var pivot = new GameObject(Numbered("Floodlight_Mount"));
+            pivot.transform.SetParent(parent, worldPositionStays: false);
+            pivot.transform.localPosition = at;
+            pivot.transform.localRotation = aim;
+            Floodlight(pivot.transform, Vector3.zero, w, body, lens);
+        }
+
+        // 비콘(항공장애등/마커등) — 구 돔 대체. baseCenter=바닥 부착점, 위로 적층.
+        //   검은 베이스 드럼 + 컬러 발광 렌즈 드럼(구 아님) + 검은 캡. 전부 맞닿음. 총높이 = 2.5r.
+        static void Beacon(Transform parent, string prefix, Vector3 baseCenter, float r, Color lensColor)
+        {
+            float hBase = r * 0.9f, hLens = r * 1.1f, hCap = r * 0.5f;
+            float y0 = baseCenter.y;
+            Rod(parent, prefix + "_Base", new Vector3(baseCenter.x, y0, baseCenter.z),
+                new Vector3(baseCenter.x, y0 + hBase, baseCenter.z), r, CDark);
+            Rod(parent, prefix + "_Lens", new Vector3(baseCenter.x, y0 + hBase, baseCenter.z),
+                new Vector3(baseCenter.x, y0 + hBase + hLens, baseCenter.z), r * 0.92f, lensColor);
+            Rod(parent, prefix + "_Cap", new Vector3(baseCenter.x, y0 + hBase + hLens, baseCenter.z),
+                new Vector3(baseCenter.x, y0 + hBase + hLens + hCap, baseCenter.z), r * 0.62f, CDark);
+        }
+
+        // 파이프/도관 90° 곡관 엘보 — 짧은 원통(Rod) segs개로 호를 근사 + 패싯 절점마다 관 굵기 구로 메움.
+        //   관 반경 r 일정(부풀지 않음 — 참고사진 토러스 엘보 형태). din=V로 도착하는 단위 진행방향, dout=V에서 나가는 단위 진행방향(직교 가정).
+        //   호 중심 O=V+Rb(dout-din), 접점 T1=V-din·Rb / T2=V+dout·Rb (직선 구간을 여기서 트림하면 접선 연속).
+        static void PipeElbow(Transform parent, string name, Vector3 V, Vector3 din, Vector3 dout,
+                              float r, float Rb, Color color, int segs = 10)
+        {
+            Vector3 O = V + Rb * (dout - din);
+            Vector3 prev = V - din * Rb;   // T1 (직선 구간과의 접점)
+            // 모든 절점(T1·T2 및 내부 패싯)에 관 굵기 구로 메움 — 짧은 원통은 접점에서도 호의 접선이 아닌 현(chord)이라
+            //   ~(90/segs/2)° 꺾여 틈이 생긴다. 구(지름=관 굵기, 안 부풀음)가 그 킹크/틈을 모두 덮는다.
+            Ball(parent, name + "_Node", prev, new Vector3(2f * r, 2f * r, 2f * r), color);  // T1 — 직선↔엘보 이음
+            for (int i = 1; i <= segs; i++)
+            {
+                float ph = (i / (float)segs) * (Mathf.PI * 0.5f);
+                Vector3 p = O - Rb * Mathf.Cos(ph) * dout + Rb * Mathf.Sin(ph) * din;
+                Rod(parent, name, prev, p, r, color);
+                Ball(parent, name + "_Node", p, new Vector3(2f * r, 2f * r, 2f * r), color);  // 모든 절점(T2 포함) 메움 → 이음 틈/킹크 제거
+                prev = p;
+            }
+        }
+
+        // 꺾인 도관 경로 — 정점 배열을 직선 Rod로 잇되, 내부 90° 굽힘마다 PipeElbow로 둥글게.
+        //   직선 구간은 양 끝이 내부 굽힘이면 Rb만큼 트림해 엘보 접점과 정확히 만난다.
+        static void ConduitPath(Transform parent, string name, Vector3[] pts, float r, float Rb, Color color)
+        {
+            int n = pts.Length;
+            var dir = new Vector3[n - 1];
+            for (int i = 0; i < n - 1; i++) dir[i] = (pts[i + 1] - pts[i]).normalized;
+            for (int i = 0; i < n - 1; i++)
+            {
+                Vector3 a = pts[i], b = pts[i + 1];
+                if (i > 0)     a += dir[i] * Rb;   // 시작점이 내부 굽힘 → 접점까지 당김
+                if (i < n - 2) b -= dir[i] * Rb;   // 끝점이 내부 굽힘 → 접점까지 당김
+                Rod(parent, name, a, b, r, color);
+            }
+            for (int i = 1; i < n - 1; i++)
+                PipeElbow(parent, name + "_Elbow", pts[i], dir[i - 1], dir[i], r, Rb, color);
+        }
+
+        // 복선 플랜지 레일 휠 — 트레드(레일 접지 원통) + 양측 플랜지(콘 플레어 림, 레일 이탈방지) + 허브 보스.
+        //   center: 휠 중심, axleAxis: 축 방향(보통 Vector3.right). treadR: 트레드 반지름(접지 기준).
+        //   매끈한 원통 한 개 → 풀리/스풀 실루엣으로 격상. 외부 모델 없이 절차 생성(둥근 부재 관례=Rod/Cone).
+        static void RailWheel(Transform parent, string name, Vector3 center, Vector3 axleAxis,
+                              float treadR, float treadHalfW, Color wheelC)
+        {
+            Vector3 ax = axleAxis.normalized;
+            float flangeR = treadR * 1.15f;     // 플랜지 오버행(레일 옆면을 무는 림). 지름 0.0299 < 휠피치 0.032 → 비간섭
+            float flangeW = treadR * 0.20f;     // 플랜지 두께
+            // 트레드(레일과 구르는 원통면)
+            Rod(parent, name, center - ax * treadHalfW, center + ax * treadHalfW, treadR, wheelC);
+            // 양측 플랜지 — 트레드(반지름 treadR)에서 림(flangeR)으로 플레어하는 절두콘.
+            for (int s = -1; s <= 1; s += 2)
+            {
+                Vector3 inner = center + ax * (s * treadHalfW);                 // 트레드 접합부
+                Vector3 outer = center + ax * (s * (treadHalfW + flangeW));     // 림 바깥면
+                Cone(parent, name + "_Flange", inner, outer, treadR, flangeR, wheelC, 24);
+            }
+            // 허브 보스(축 중앙 어두운 보스 — 림보다 안쪽으로 살짝 더 길게 빼 축 느낌)
+            Rod(parent, name + "_Hub",
+                center - ax * (treadHalfW * 1.25f), center + ax * (treadHalfW * 1.25f),
+                treadR * 0.42f, CDark);
         }
 
         // 구체(램프·돔·풍속계 컵 등 둥근 부재). scale로 눌러 돔/타원도 표현.
@@ -2650,11 +3619,11 @@ namespace Container.Crane.Sts.EditorTools
         static void BuildBoomSplices(Transform boom)
         {
             float x0 = BoomBackX, x1 = BoomTipX;
-            const float gY = 0.04f, gH = 0.05f;
-            float gTop = gY + gH * 0.5f;
+            const float gY = GirderCenterY, gH = GirderDepthH;  // [감사 H2 SSOT] 클래스 const 참조(값 불변)
+            float gTop = GirderTopLocal;
 
-            // 거더 길이를 3등분한 내부 스테이션 2곳에 스플라이스(과밀 방지)
-            foreach (float f in new[] { 0.34f, 0.67f })
+            // [감사] 스플라이스를 횡프레임/트러스 절점 격자(16분할)의 i=6,10 위에 둠 — 부재 없는 베이 중앙이 아닌 패널포인트에 현장 이음.
+            foreach (float f in new[] { 6f / 16f, 10f / 16f })
             {
                 float sx = Mathf.Lerp(x0, x1, f);
                 for (int s = -1; s <= 1; s += 2)
@@ -2680,57 +3649,38 @@ namespace Container.Crane.Sts.EditorTools
             }
         }
 
-        // 모서리 베벨(챔퍼) 큐브를 사용 — 모든 Box/Strut가 공유 메시로 "마감된 느낌"
+        // 안 깎은 단위 큐브를 공유 — 모든 Box/Strut가 같은 메시 사용(모서리 챔퍼 제거, 사용자 요청)
         static GameObject NewCube(string name, Transform parent)
         {
             var go = new GameObject(Numbered(name));
-            go.AddComponent<MeshFilter>().sharedMesh = GetBeveledCube();
+            go.AddComponent<MeshFilter>().sharedMesh = GetUnitCube();
             go.AddComponent<MeshRenderer>();
             go.transform.SetParent(parent, worldPositionStays: false);
             return go;
         }
 
-        // 12 모서리를 살짝 깎은 단위 큐브(챔퍼) 메시. 면 방향은 outward로 자동 보정, 면당 UV 0~1 유지.
-        static Mesh GetBeveledCube()
+        // 안 깎은 단위 큐브 메시(모서리 챔퍼 제거 — 사용자 요청). 면 방향은 outward로 자동 보정, 면당 UV 0~1 유지.
+        static Mesh GetUnitCube()
         {
-            if (_beveledCube != null) return _beveledCube;
-            const float h = 0.5f, c = 0.06f;   // c=베벨 폭(살짝)
-            float b = h - c;
+            if (_unitCube != null) return _unitCube;
+            const float h = 0.5f;
             var v = new List<Vector3>(); var t = new List<int>(); var uv = new List<Vector2>();
             Vector3[] ax = { Vector3.right, Vector3.up, Vector3.forward };
 
-            // 6 메인 면(축소된 사각형)
+            // 6 면(각 면 ±h 전체 — 날카로운 직각 모서리)
             for (int a = 0; a < 3; a++)
             for (int s = -1; s <= 1; s += 2)
             {
                 int a1 = (a + 1) % 3, a2 = (a + 2) % 3;
                 AddBevQuad(v, t, uv,
-                    AxV(a, s * h, a1, -b, a2, -b), AxV(a, s * h, a1, b, a2, -b),
-                    AxV(a, s * h, a1, b, a2, b),   AxV(a, s * h, a1, -b, a2, b), ax[a] * s);
+                    AxV(a, s * h, a1, -h, a2, -h), AxV(a, s * h, a1, h, a2, -h),
+                    AxV(a, s * h, a1, h, a2, h),   AxV(a, s * h, a1, -h, a2, h), ax[a] * s);
             }
-            // 12 모서리 챔퍼 면
-            for (int a = 0; a < 3; a++)
-            for (int s1 = -1; s1 <= 1; s1 += 2)
-            for (int s2 = -1; s2 <= 1; s2 += 2)
-            {
-                int a1 = (a + 1) % 3, a2 = (a + 2) % 3;
-                AddBevQuad(v, t, uv,
-                    AxV(a1, s1 * h, a2, s2 * b, a, -b), AxV(a1, s1 * h, a2, s2 * b, a, b),
-                    AxV(a1, s1 * b, a2, s2 * h, a, b),  AxV(a1, s1 * b, a2, s2 * h, a, -b),
-                    ax[a1] * s1 + ax[a2] * s2);
-            }
-            // 8 코너 삼각형
-            for (int sx = -1; sx <= 1; sx += 2)
-            for (int sy = -1; sy <= 1; sy += 2)
-            for (int sz = -1; sz <= 1; sz += 2)
-                AddBevTri(v, t, uv,
-                    new Vector3(sx * h, sy * b, sz * b), new Vector3(sx * b, sy * h, sz * b),
-                    new Vector3(sx * b, sy * b, sz * h), new Vector3(sx, sy, sz));
 
-            var m = new Mesh { name = "STS_BeveledCube" };
+            var m = new Mesh { name = "STS_UnitCube" };
             m.SetVertices(v); m.SetUVs(0, uv); m.SetTriangles(t, 0);
             m.RecalculateNormals(); m.RecalculateBounds();
-            return _beveledCube = m;
+            return _unitCube = m;
         }
 
         // 축 인덱스로 Vector3 구성
@@ -2747,17 +3697,6 @@ namespace Container.Crane.Sts.EditorTools
             { t.Add(i); t.Add(i + 2); t.Add(i + 1); t.Add(i); t.Add(i + 3); t.Add(i + 2); }
             else
             { t.Add(i); t.Add(i + 1); t.Add(i + 2); t.Add(i); t.Add(i + 2); t.Add(i + 3); }
-        }
-
-        static void AddBevTri(List<Vector3> v, List<int> t, List<Vector2> uv,
-                              Vector3 a, Vector3 b, Vector3 c, Vector3 outward)
-        {
-            int i = v.Count; v.Add(a); v.Add(b); v.Add(c);
-            uv.Add(new Vector2(0, 0)); uv.Add(new Vector2(1, 0)); uv.Add(new Vector2(0.5f, 1));
-            if (Vector3.Dot(Vector3.Cross(b - a, c - a), outward) < 0f)
-            { t.Add(i); t.Add(i + 2); t.Add(i + 1); }
-            else
-            { t.Add(i); t.Add(i + 1); t.Add(i + 2); }
         }
 
         // 늘어진 케이블(카테너리) — Unity Splines로 a→b 사이에 sag만큼 처지는 곡선 튜브 메시를 만들어 붙인다.
@@ -2784,6 +3723,76 @@ namespace Container.Crane.Sts.EditorTools
             go.AddComponent<MeshFilter>().sharedMesh = mesh;
             go.AddComponent<MeshRenderer>().sharedMaterial = GetMaterial(color);
             return go;
+        }
+
+        // 분절(세그먼트) 케이블 — 카테너리 포물선을 따라 짧은 원통 토막을 이어 붙임. 스플라인 튜브(CableCatenary)가
+        //   '딱딱'해 보일 때, 토막 이음새가 미세하게 꺾여 실제 와이어로프처럼 늘어져 보이게 한다. 토막↑ = 매끈.
+        static void CableSegmented(Transform parent, string name, Vector3 a, Vector3 b,
+                                   float sag, float radius, Color color, int segCount = 14)
+        {
+            segCount = Mathf.Max(2, segCount);
+            Vector3 prev = a;
+            for (int i = 1; i <= segCount; i++)
+            {
+                float t = i / (float)segCount;
+                Vector3 p = Vector3.Lerp(a, b, t);
+                p.y -= 4f * sag * t * (1f - t);   // 포물선 처짐(중앙 최대) — 카테너리 근사
+                Rod(parent, name, prev, p, radius, color);
+                prev = p;
+            }
+        }
+
+        // 시브 홈을 감는 분절 로프 — 중심 center, 시트 반경 rseat의 원(X-Y 평면)을 따라 startDeg에서 sweepDeg만큼
+        //   짧은 원통 토막으로 잇는다. 양 끝각은 두 로프 암(트롤리/기계실)의 접선점과 맞물려 연속. 감김각이 커질수록
+        //   '도르래에 둘러 감긴' 무거운 리브로 보인다(0°=+X, 90°=+Y 위; sweep 음수=시계방향).
+        static void SheaveReeve(Transform parent, string name, Vector3 center, float rseat,
+                                float startDeg, float sweepDeg, float ropeR, Color color, int segCount = 22)
+        {
+            segCount = Mathf.Max(3, segCount);
+            Vector3 Pt(float deg)
+            {
+                float r = deg * Mathf.Deg2Rad;
+                return center + new Vector3(Mathf.Cos(r) * rseat, Mathf.Sin(r) * rseat, 0f);
+            }
+            // [도관 표준] 곡선을 짧은 원통으로 그리면 절점마다 원통 끝이 호의 현이라 꺾여 틈/킹크가 생긴다.
+            //   전 절점(시작 포함)에 로프 굵기(지름=2·ropeR) 구를 넣어 메움 → 부풀지 않고 매끈한 곡선.
+            Vector3 prev = Pt(startDeg);
+            Ball(parent, name + "_Node", prev, new Vector3(2f * ropeR, 2f * ropeR, 2f * ropeR), color);  // 시작 절점(인접 로프 이음부) 메움
+            for (int i = 1; i <= segCount; i++)
+            {
+                Vector3 p = Pt(startDeg + sweepDeg * (i / (float)segCount));
+                Rod(parent, name, prev, p, ropeR, color);
+                Ball(parent, name + "_Node", p, new Vector3(2f * ropeR, 2f * ropeR, 2f * ropeR), color);  // 절점 메움(틈/킹크 제거)
+                prev = p;
+            }
+        }
+
+        // 시브를 감는 호이스트 로프 — 뒤(-X, 기계실 윗구간)에서 와서 시브 위를 넘어 앞·아래(스프레더)로 강하.
+        //   양 끝을 시브 치크판(±0.016) 밖으로 빼서 앞(아래)·뒤 둘 다 보이게. Splines 곡선 튜브.
+        static void SheaveWrap(Transform parent, Vector3 center, float sheaveR, float ropeRadius, Color color)
+        {
+            // 시브를 크라운(정상)으로 감고 '양 끝이 모두 아래로' 강하하는 리빙:
+            //   −X측 접선 = 뒤·아래로 → 백 페어리드(기계실 윗구간), +X측 접선 = 곧장 아래 → 스프레더(Hoist_Rope).
+            //   스프레더 강하를 더 길게(지배적) 둬 로프가 '바닥/스프레더'를 향하게(기계실 쪽으로 눕지 않게).
+            var spline = new UnityEngine.Splines.Spline();
+            Vector3[] pts = {
+                center + new Vector3(-sheaveR,        -0.028f,         0f),  // −X측 접선, 뒤·아래 → 백 페어리드(기계실 윗구간)
+                center + new Vector3(-sheaveR * 0.9f,  sheaveR * 0.4f, 0f),  // −X 상부
+                center + new Vector3( 0.000f,          sheaveR,        0f),  // 시브 정상(크라운, 홈)
+                center + new Vector3( sheaveR * 0.9f,  sheaveR * 0.4f, 0f),  // +X 상부
+                center + new Vector3( sheaveR,        -0.044f,         0f),  // +X측 접선, 곧장 아래 → 스프레더(지배적 강하)
+            };
+            foreach (var p in pts)
+                spline.Add(new Unity.Mathematics.float3(p.x, p.y, p.z),
+                           UnityEngine.Splines.TangentMode.AutoSmooth);
+            var mesh = new Mesh { name = "Sheave_Rope_Mesh" };
+            // Extrude(spline, mesh, radius, sides, segments): sides=단면 각수.
+            //   기존 5 = 5각 각기둥이라 평평한 면이 옆을 향해 '기울어진 리본'처럼 보였음 → 12각으로 둥근 로프.
+            UnityEngine.Splines.SplineMesh.Extrude(spline, mesh, ropeRadius, 12, 16);
+            var go = new GameObject(Numbered("Sheave_Rope"));
+            go.transform.SetParent(parent, worldPositionStays: false);
+            go.AddComponent<MeshFilter>().sharedMesh = mesh;
+            go.AddComponent<MeshRenderer>().sharedMaterial = GetMaterial(color);
         }
 
         // ProBuilder 편집형 박스 — CreatePrimitive 대신 ProBuilder 메시로 생성. 디자이너가 ProBuilderize 없이
@@ -2817,6 +3826,7 @@ namespace Container.Crane.Sts.EditorTools
         {
             "Truss_Gusset_129", "Truss_Gusset_130", "Joint_Bolts_1", "Joint_Bolts_2",
             "MH_DoorKick_1", "MHAccess_Bracket_2", "Ladder_Bracket_5",
+            "Boom_Cross_4",   // [2026-06-18 오너 지시] 권상 로프(HoistU_ToSheave) 통로의 바닥 횡재 — 로프 관통 제거
         };
 
         // 삭제 지정 일괄 제거 — Gusset/Joint_Bolts 외 모든 파츠(Box/Strut/Cone/PbBox…)에 대응.
@@ -2871,21 +3881,28 @@ namespace Container.Crane.Sts.EditorTools
             float metallic = 0.38f, smooth = 0.45f;   // 구조 강철 기본 — 광택 약간↑(매트 플라스틱 '토이' 느낌 완화)
             bool  useTex = true, emissive = false, useRopeTex = false;
             float emi = 0f;
+            // [디테일 페인팅] 카테고리 → PBR_Library 폴더 + 타일링. 라이브러리 없으면 ApplyPbr이 false → 절차 강철 폴백.
+            string pbr = "PaintedMetal001"; Vector2 pbrTile = new Vector2(2f, 2f);   // 기본: 도장 구조강
 
-            if (Same(c, CGlass))       { metallic = 0.0f;  smooth = 0.92f; useTex = false; }              // 유리: 매끈
-            else if (Same(c, CCable))  { metallic = 0.80f; smooth = 0.34f; useTex = false; useRopeTex = true; } // 와이어 로프: 강철 광택 + 나선 strand
-            else if (Same(c, CLight))  { metallic = 0.0f;  smooth = 0.60f; useTex = false; emissive = true; emi = 1.8f; } // 작업등 렌즈: 발광
-            else if (Same(c, CWarn))   { metallic = 0.0f;  smooth = 0.55f; emissive = true; emi = 1.1f; } // 경고/항공등: 약발광
-            else if (Same(c, CDark))   { metallic = 0.20f; smooth = 0.25f; }                              // 다크 강철/고무
-            else if (Same(c, CRail))   { metallic = 0.65f; smooth = 0.55f; }                              // 마모된 레일: 금속 광택
-            else if (Same(c, CMachine)){ metallic = 0.35f; smooth = 0.30f; }                              // 기계실 도장
-            // 그 외(CStruct/CBoom/CTrolley/CSpread): 칠한 구조 강철 기본값
+            if (Same(c, CGlass))       { metallic = 0.0f;  smooth = 0.92f; useTex = false; pbr = null; }  // 유리: 매끈
+            else if (Same(c, CCable))  { metallic = 0.80f; smooth = 0.34f; useTex = false; useRopeTex = true; pbr = null; } // 와이어 로프: 강철 광택 + 나선 strand
+            else if (Same(c, CLight))  { metallic = 0.0f;  smooth = 0.60f; useTex = false; pbr = null; emissive = true; emi = 1.8f; } // 작업등 렌즈: 발광
+            else if (Same(c, CWarn))   { metallic = 0.0f;  smooth = 0.55f; pbr = null; emissive = true; emi = 1.1f; } // 경고/항공등: 약발광
+            else if (Same(c, CDark))   { metallic = 0.20f; smooth = 0.25f; pbr = "Metal032";        pbrTile = new Vector2(3f, 3f); } // 다크 머신 강철(트위스트락/허브)
+            else if (Same(c, CRail))   { metallic = 0.65f; smooth = 0.55f; pbr = "Metal055A";       pbrTile = new Vector2(6f, 2f); } // 마모된 레일: 베어 메탈
+            else if (Same(c, CMachine)){ metallic = 0.35f; smooth = 0.30f; pbr = "CorrugatedSteel002"; pbrTile = new Vector2(3f, 3f); } // 기계실: 골강판 외벽
+            else if (Same(c, CTrolley) || Same(c, CSpread)) { pbr = null; }  // 안전색(주황/노랑): 채도 보존 위해 그레이스케일 절차강에 클린 틴트
+            // 그 외(CStruct/CBoom): 도장 구조강(PaintedMetal001)
 
             if (useTex)
             {
+                // 색(알베도)은 항상 그레이스케일 절차강 × 틴트 → 의도색(회색) 정확 유지. 표면 굴곡만 PBR 노멀/AO로 보강.
+                //   ※ 프레임/구조 강철 회색은 절대 라이브러리 Color로 바꾸지 말 것(사용자 지시) — 노멀/AO만 덧댄다.
+                Vector2 tile = (pbr != null) ? pbrTile : Vector2.one;
                 var tex = GetSteelTexture();
-                if (mat.HasProperty("_BaseMap")) mat.SetTexture("_BaseMap", tex);
-                if (mat.HasProperty("_MainTex")) mat.SetTexture("_MainTex", tex);
+                if (mat.HasProperty("_BaseMap")) { mat.SetTexture("_BaseMap", tex); mat.SetTextureScale("_BaseMap", tile); }
+                if (mat.HasProperty("_MainTex")) { mat.SetTexture("_MainTex", tex); mat.SetTextureScale("_MainTex", tile); }
+                if (pbr != null) ApplyPbrDetail(mat, pbr, tile);   // 노멀+AO만(색 불변)
             }
             else if (useRopeTex)
             {
@@ -2912,8 +3929,41 @@ namespace Container.Crane.Sts.EditorTools
         static bool Same(Color a, Color b)
             => Mathf.Abs(a.r - b.r) + Mathf.Abs(a.g - b.g) + Mathf.Abs(a.b - b.b) < 0.01f;
 
+        // PBR_Library 폴더에서 [albedo, normal, ao] 텍스처를 로드(없으면 null). AmbientCG 명명규칙: <폴더>_1K-PNG_<맵>.png
+        static Texture2D[] GetPbrSet(string folder)
+        {
+            if (_pbrCache != null && _pbrCache.TryGetValue(folder, out var cached)) return cached;
+            const string root = "Assets/PBR_Library/";
+            Texture2D Load(string suffix) =>
+                AssetDatabase.LoadAssetAtPath<Texture2D>($"{root}{folder}/{folder}_1K-PNG_{suffix}.png");
+            var set = new[] { Load("Color"), Load("NormalGL"), Load("AmbientOcclusion") };
+            _pbrCache?.Add(folder, set);
+            return set;
+        }
+
+        // PBR 라이브러리의 노멀+AO만 입혀 표면 디테일을 더함(색은 건드리지 않음).
+        //   알베도는 그레이스케일 절차강×_BaseColor 틴트가 담당 → 의도한 색이 탁해지지 않음.
+        //   AO는 강도를 낮춰(0.5) 과하게 어두워지지 않게 한다.
+        static void ApplyPbrDetail(Material mat, string folder, Vector2 tile)
+        {
+            var set = GetPbrSet(folder);
+            if (set == null) return;
+            if (set[1] != null && mat.HasProperty("_BumpMap"))          // 노멀(굴곡 디테일)
+            {
+                mat.EnableKeyword("_NORMALMAP");
+                mat.SetTexture("_BumpMap", set[1]);
+                mat.SetTextureScale("_BumpMap", tile);
+            }
+            if (set[2] != null && mat.HasProperty("_OcclusionMap"))     // AO(약하게)
+            {
+                mat.SetTexture("_OcclusionMap", set[2]);
+                mat.SetTextureScale("_OcclusionMap", tile);
+                if (mat.HasProperty("_OcclusionStrength")) mat.SetFloat("_OcclusionStrength", 0.5f);
+            }
+        }
+
         // 절차 생성 강철 디테일 텍스처 — 그레이스케일(평균≈0.9), 다중 옥타브 노이즈 + 세로 때 스트릭 + 미세 그레인.
-        // _BaseColor가 곱해져 각 색의 "칠한 강철" 질감이 됨. 에셋으로 저장하지 않음.
+        // _BaseColor가 곱해져 각 색의 "칠한 강철" 질감이 됨. PBR 라이브러리 폴백 + 안전색(주황/노랑) 전용. 에셋 미저장.
         static Texture2D GetSteelTexture()
         {
             if (_steelTex != null) return _steelTex;

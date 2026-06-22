@@ -20,13 +20,13 @@ namespace Container.Crane.Sts
         [SerializeField] Camera targetCamera;
 
         [Header("HMD 좌하단 위치 (카메라 로컬 좌표, m)")]
-        [SerializeField] Vector3 hmdOffset = new Vector3(-0.26f, -0.32f, 0.85f);
+        [SerializeField] Vector3 hmdOffset = new Vector3(-0.26f, -0.32f, CraneHud.HudDistance);
 
         [Header("패널/텍스트")]
         [SerializeField] Vector2 panelPixels = new Vector2(640f, 250f);
         [Tooltip("패널 전체 크기 배율(1px=이 값 m). 작게 하려면 줄임.")]
         [SerializeField] float worldScale = 0.00055f;
-        [SerializeField] Color bgColor = new Color(0f, 0f, 0f, 0.78f);
+        [SerializeField] Color bgColor = new Color(0f, 0f, 0f, CraneHud.PanelBgAlpha);   // 패널 배경 알파 표준(공용 토큰)
         [SerializeField] int fontSize = 18;
 
         Canvas canvas;
@@ -41,7 +41,7 @@ namespace Container.Crane.Sts
 
         void Start()
         {
-            if (controller == null) controller = FindAnyObjectByType<StsCraneVRController>();
+            if (controller == null) controller = CraneHud.FindVrController();
             BuildCanvas();
             TryAttachToCamera();
         }
@@ -49,6 +49,14 @@ namespace Container.Crane.Sts
         void LateUpdate()
         {
             if (canvas == null || text == null) return;
+
+            // 조종 HUD라 '조종 활성'(스틱클릭 진입)일 때만 표시 — 관찰(기본)이면 숨김(호스트·관전자 동일 화면).
+            if (controller == null) controller = CraneHud.FindVrController();
+            var nm = Unity.Netcode.NetworkManager.Singleton;
+            bool show = (nm == null || nm.IsServer) && controller != null && controller.ControlActive;
+            if (canvas.gameObject.activeSelf != show) canvas.gameObject.SetActive(show);
+            if (!show) return;
+
             // 빌보드 회전은 부착 시 1회만 설정 — 캔버스가 카메라 자식이라 향하는 로컬 회전은 매 프레임 동일(상수).
             if (canvas.transform.parent == null || canvas.transform.parent == transform)
                 TryAttachToCamera();

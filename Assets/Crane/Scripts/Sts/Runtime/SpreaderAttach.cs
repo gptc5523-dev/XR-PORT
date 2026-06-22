@@ -1,4 +1,5 @@
 using UnityEngine;
+using ContainerProject;
 
 namespace Container.Crane.Sts
 {
@@ -17,13 +18,22 @@ namespace Container.Crane.Sts
 
         Transform attached;
         Rigidbody attachedBody;
+        ContainerInstance attachedInstance;   // 잡은 컨테이너의 ID·등급 보유 컴포넌트(부두 배치 등 없을 수 있음).
         bool savedUseGravity;
         bool savedIsKinematic;
+        float attachedLoadKg;   // 잡은 컨테이너의 표시용 하중(kg). ContainerLoad 산출값 — 물리 mass와 분리.
+        string attachedDisplayId;   // 잡는 순간 확정되는 ISO6346 표시 번호(결정적). 안 잡았으면 null → HUD에 식별 미표시.
 
         public bool HasContainer => attached != null;
         public Transform AttachedContainer => attached;
-        /// <summary>적재된 컨테이너 질량(kg). 없으면 0. Rigidbody.mass를 그대로 반환 — 라벨/HUD 표시용.</summary>
-        public float AttachedMassKg => attachedBody != null ? attachedBody.mass : 0f;
+        /// <summary>적재된 컨테이너 하중(kg). 없으면 0. ContainerLoad 산출값 우선(1/24 미니어처라 물리 mass는 무의미),
+        /// 없으면 Rigidbody.mass 폴백. 라벨/HUD 표시용.</summary>
+        public float AttachedMassKg => attachedLoadKg > 0f ? attachedLoadKg : (attachedBody != null ? attachedBody.mass : 0f);
+        /// <summary>적재 하중(톤).</summary>
+        public float AttachedLoadTons => AttachedMassKg / 1000f;
+        /// <summary>HUD/라벨 표시용 ISO6346 식별번호 — 잡는 순간 확정(결정적). 잡은 게 없으면 null(HUD에 미표시).
+        /// ContainerInstance가 있으면 그 DisplayId, 없으면 컨테이너 이름 시드로 결정적 생성한 번호.</summary>
+        public string AttachedDisplayId => attachedDisplayId;
 
         Transform Point => attachPoint != null ? attachPoint : transform;
         /// <summary>컨테이너가 매달리는 기준 Transform. 네트워크 동기화가 클라이언트에서 동일 위치에 컨테이너를 붙이는 데 사용.</summary>
@@ -43,6 +53,20 @@ namespace Container.Crane.Sts
 
             attached = container;
             attachedBody = container.GetComponent<Rigidbody>();
+            // 표시용 하중(kg) 산출 — 물리 mass와 분리(1/24 미니어처라 실제 mass는 무의미).
+            // ContainerInstance(ID 부여 컨테이너) 있으면 그 무게, 없으면(부두 배치 등) 이름 해시로 결정적 산출.
+            float tons = 0f;
+            attachedInstance = container.GetComponentInParent<ContainerInstance>();
+            if (attachedInstance != null) tons = attachedInstance.LoadTons;
+            if (tons <= 0f) tons = ContainerLoad.WeightTons(container.name);
+            attachedLoadKg = tons * 1000f;
+            // 표시 번호 확정 — ContainerInstance가 있으면 그 ISO6346 DisplayId, 없으면(부두/Kit 배치)
+            // 컨테이너 이름을 시드로 결정적 생성 → 같은 컨테이너는 다시 잡아도 항상 같은 번호.
+            attachedDisplayId =
+                attachedInstance != null && !string.IsNullOrEmpty(attachedInstance.DisplayId)
+                    ? attachedInstance.DisplayId
+                    : ContainerIdGenerator.FormatForDisplay(
+                          ContainerIdGenerator.GenerateDeterministic(CraneHud.BaseName(container.name)));
             if (attachedBody != null)
             {
                 savedUseGravity = attachedBody.useGravity;
@@ -72,6 +96,9 @@ namespace Container.Crane.Sts
             var released = attached;
             attached = null;
             attachedBody = null;
+            attachedInstance = null;
+            attachedLoadKg = 0f;
+            attachedDisplayId = null;   // 놓으면 식별 미표시로 복귀
             return released;
         }
 

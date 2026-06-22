@@ -26,10 +26,10 @@ namespace Container.Crane.Sts
         [SerializeField] float viewHeightMax = 60f;
         [Tooltip("이 값 이상 당기면 트리거를 '누른 것'으로 인정(0~1).")]
         [SerializeField, Range(0.1f, 0.95f)] float triggerHoldThreshold = 0.6f;
-        [Tooltip("바닥 월드 Y(부두 바닥 윗면). 기본 0 — 부두가 다른 높이면 맞춰 설정.")]
+        [Tooltip("바닥 월드 Y 폴백(부두 바닥 윗면). 부두(Quay_Ground)를 못 찾을 때만 사용 — 평소엔 부두 걷는면 윗면에서 동적 산출(CranePlayerStartPlacer와 동일 방식).")]
         [SerializeField] float floorWorldY = 0f;
-        [Tooltip("바닥 위로 최소 이 높이(m)까지만 내려감 — 바닥 밑으로는 절대 안 내려가게.")]
-        [SerializeField] float minEyeAboveFloor = 0.1f;
+        [Tooltip("바닥 위로 최소 이 높이(체감 m)까지만 내려감 — 바닥 밑으로/바닥 관통(니어클립) 방지. 0.8≈낮은 쪼그림.")]
+        [SerializeField] float minEyeAboveFloor = 0.8f;
 
         /// <summary>지금 오른손 트리거를 임계 이상 당겨 '높이 조절 중'인지.
         /// StsCraneVRController가 입력 양보(걷기 정지·왼손 스틱 무효화) 판단에 참조.</summary>
@@ -40,6 +40,13 @@ namespace Container.Crane.Sts
         Vector3 baseCameraOffsetLocal;// 시작 시 카메라 오프셋 '로컬' 위치(기준 — 리그가 걸어 이동해도 안 흔들림)
         bool cameraOffsetCached;
         float viewHeightOffset;       // 기준 대비 현재 눈높이 오프셋(m, 월드 수직)
+        float resolvedFloorY;         // 부두 걷는면 윗면에서 동적 산출한 바닥 월드Y(StartPlacer와 동일 방식). 미해결이면 폴백 사용.
+        bool floorYResolved;          // 위 값이 부두에서 확정됐는지(못 찾으면 floorWorldY 폴백 유지, 매 프레임 재시도)
+        int clampLogFrames;           // 바닥 클램프 로그 스로틀용
+
+        const string QuayName = StsPartNames.QuayGround;   // CranePlayerStartPlacer와 동일 — 부두 걷는면 탐색 기준
+        readonly System.Collections.Generic.List<Behaviour> suppressedLoco = new System.Collections.Generic.List<Behaviour>();
+        bool locoSuppressed;          // 관전자: 높이조절 중 XR 로코모션을 꺼둔 상태인지
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void AutoSpawn() => CraneHud.EnsureSpawned<CraneViewHeightAdjuster>("ViewHeightAdjuster");
@@ -50,6 +57,12 @@ namespace Container.Crane.Sts
             float rTrig = 0f;
             if (right.isValid) right.TryGetFeatureValue(CommonUsages.trigger, out rTrig);
             HeightHold = rTrig > triggerHoldThreshold;
+
+            // ★ 관전자 '대각선 수직이동' 수정: 높이조절 중엔 XR 로코모션(ContinuousMove)을 꺼서 왼스틱이 '수직만' 움직이게.
+            //   호스트는 StsCraneVRController.EnforceLocomotion이 이미 같은 일을 하지만(ViewHeightActive→로코 off),
+            //   관전자는 그 컨트롤러가 꺼져 있어 로코모션이 살아 → 왼스틱이 수직(이 컴포넌트)+수평(XR 이동) 동시 적용 → 대각선.
+            if (HeightHold || locoSuppressed) UpdateLocomotionSuppression(HeightHold);
+
             if (!HeightHold) return;
 
             var left = InputDevices.GetDeviceAtXRNode(XRNode.LeftHand);
@@ -67,26 +80,42 @@ namespace Container.Crane.Sts
                 viewHeightOffset + stickY * viewHeightSpeed * Time.deltaTime, viewHeightMin, viewHeightMax);
             ApplyCameraOffsetY(newOffset);
 
-            // 바닥 밑으로는 안 내려가게 — 단 리그 스케일 인지로. (안 그러면 1/24에선 minEyeAboveFloor(0.1 월드)이
-            //   미니어처 플레이어의 낮은 눈높이(월드 ~0.057m)보다 높아, 억지로 눈을 끌어올려 max에 고정·1:1처럼 떠 보임.)
-            //   floorMinY는 월드 기준값을 스케일로 줄이고, below(월드)는 로컬 오프셋으로 환산해 더한다.
+            // 바닥 밑으로/바닥 관통 방지. 눈이 바닥 위로 다음 둘 중 '큰' 만큼 떨어져 있게 한다:
+            //   (a) minEyeAboveFloor(체감 m) × rigScale  — 디자이너 지정 최저 눈높이
+            //   (b) nearClip × 4 (월드)                  — 니어클립 안쪽에 바닥이 들면 바닥이 잘려 '뚫려' 보이므로
+            //                                              그보다 확실히 위에서 멈춤. ((a)만 쓰면 1/24에서 ~0.004m로
+            //                                              너무 낮아 바닥 관통하던 버그.)
+            //   below(월드)는 ÷rigScale로 로컬/체감 오프셋으로 환산해 더한다.
             float rigScale = cameraOffset.parent != null ? cameraOffset.parent.lossyScale.y : 1f;
-            float floorMinY = floorWorldY + minEyeAboveFloor * rigScale;
+            float nearClip = camT.TryGetComponent(out Camera camC) ? camC.nearClipPlane : 0.01f;
+            float worldClear = Mathf.Max(minEyeAboveFloor * rigScale, nearClip * 4f);
+            float floorY = ResolveFloorY();   // 부두 걷는면 윗면에서 동적 산출(StartPlacer와 정합), 못 찾으면 floorWorldY 폴백.
+            float floorMinY = floorY + worldClear;
             float below = floorMinY - camT.position.y;
-            if (below > 0f) { newOffset += below / Mathf.Max(rigScale, 1e-4f); ApplyCameraOffsetY(newOffset); }
+            if (below > 0f)
+            {
+                newOffset += below / Mathf.Max(rigScale, 1e-4f); ApplyCameraOffsetY(newOffset);
+                if ((clampLogFrames++ % 60) == 0)
+                    Debug.Log($"[ViewHeight] 바닥 클램프 작동 — 눈 월드Y={camT.position.y:0.####} → 최소 {floorMinY:0.####} " +
+                              $"(floorY={floorY:0.####}{(floorYResolved ? "(부두)" : "(폴백)")}, 여유 월드={worldClear:0.####}, nearClip={nearClip:0.###}, rigScale={rigScale:0.####}).");
+            }
 
             viewHeightOffset = newOffset;
         }
 
         void ApplyCameraOffsetY(float offset)
         {
-            // 부모(리그) 공간에서 '월드 수직(up)'에 해당하는 방향으로 '로컬' 위치를 옮긴다.
-            //   - 로컬 기준이라 리그가 걸어 이동해도 기준점(base)이 안 흔들린다 → '호스트에서 안 내려감' 해결.
-            //   - 월드 up 방향이라 오프셋 노드가 기울어 있어도 뒤로 새지 않고 곧게 위아래 → '뒤로 내려옴' 해결.
-            Vector3 localUp = cameraOffset.parent != null
-                ? cameraOffset.parent.InverseTransformDirection(Vector3.up)
-                : Vector3.up;
-            cameraOffset.localPosition = baseCameraOffsetLocal + localUp * offset;
+            Transform parent = cameraOffset.parent;
+            if (parent == null) { cameraOffset.localPosition = baseCameraOffsetLocal + Vector3.up * offset; return; }
+
+            // ★ 카메라 오프셋을 '월드 수직'으로만 이동 — 리그가 기울었거나 비균일 스케일이어도 뒤/옆으로 안 샌다.
+            //   ('관전자가 뒤로 가며 내려가던' 버그: 기존 InverseTransformDirection+로컬더하기가 리그 회전×스케일 조합에서
+            //    수평 성분을 섞었음.) 기준 로컬을 월드로 환산 → 월드 up으로 offset×리그수직스케일 만큼 이동 → 다시 로컬로.
+            //   기준(base)을 매번 parent에서 월드로 재계산하므로 리그가 걸어 이동해도 안 흔들린다.
+            float vScale = Mathf.Abs(parent.lossyScale.y) > 1e-6f ? parent.lossyScale.y : 1f;
+            Vector3 baseWorld = parent.TransformPoint(baseCameraOffsetLocal);
+            Vector3 desiredWorld = baseWorld + Vector3.up * (offset * vScale);
+            cameraOffset.localPosition = parent.InverseTransformPoint(desiredWorld);
         }
 
         void EnsureCameraOffset()
@@ -99,6 +128,89 @@ namespace Container.Crane.Sts
             if (cameraOffset == null) return;         // 부모(Camera Offset) 아직 없음 — 캐시하지 말고 다음 프레임 재시도
             baseCameraOffsetLocal = cameraOffset.localPosition;   // 로컬 기준점(고정)
             cameraOffsetCached = true;                // 제대로 찾았을 때만 캐시 — 관전자 등 리그가 늦게 뜨는 경우 대응
+
+            // 진단: 리그(부모) 회전·스케일 — '뒤로 가며 내려감'의 원인(기울기/비균일 스케일) 확인용.
+            Vector3 e = cameraOffset.parent != null ? cameraOffset.parent.rotation.eulerAngles : Vector3.zero;
+            Vector3 ls = cameraOffset.parent != null ? cameraOffset.parent.lossyScale : Vector3.one;
+            Debug.Log($"[ViewHeight] 카메라오프셋 캐시 — 부모 '{(cameraOffset.parent != null ? cameraOffset.parent.name : "null")}' " +
+                      $"euler=({e.x:0.#},{e.y:0.#},{e.z:0.#}) lossyScale=({ls.x:0.####},{ls.y:0.####},{ls.z:0.####}). " +
+                      $"※ euler x/z≠0(기울기) 또는 스케일 비균일이면 그게 뒤로밀림 원인.");
+        }
+
+        // 바닥 월드Y를 부두 걷는면 윗면에서 동적 산출 — CranePlayerStartPlacer와 '동일 방식'으로 정합.
+        //   (StartPlacer: 부두 자식 렌더러 중 수평면적 최대=아스팔트 슬래브를 골라 bounds.max.y. 레일/구조물 꼭대기 제외.)
+        //   한 번 부두에서 확정하면 캐시. 못 찾으면(부두 미생성/단독 씬) SerializeField floorWorldY를 폴백으로 두고 다음 프레임 재시도.
+        float ResolveFloorY()
+        {
+            if (floorYResolved) return resolvedFloorY;
+            Renderer surf = GetQuaySurface();
+            if (surf == null) return floorWorldY;       // 부두 못 찾음 — 폴백(재시도).
+            resolvedFloorY = surf.bounds.max.y;
+            floorYResolved = true;
+            Debug.Log($"[ViewHeight] 바닥 월드Y 동적 산출 — 부두 '{QuayName}' 걷는면 윗면 y={resolvedFloorY:0.####} (floorWorldY 폴백={floorWorldY}).");
+            return resolvedFloorY;
+        }
+
+        // 부두에서 '걷는 면'(수평 면적이 가장 큰 렌더러=아스팔트 슬래브)을 고른다 — CranePlayerStartPlacer.GetQuaySurface와 동일 로직.
+        static Renderer GetQuaySurface()
+        {
+            var quay = GameObject.Find(QuayName);
+            if (quay == null) return null;
+            Renderer ground = null; float bestArea = 0f;
+            foreach (var r in quay.GetComponentsInChildren<Renderer>())
+            {
+                Vector3 e = r.bounds.size;
+                float area = e.x * e.z;                  // 수평 면적 — 아스팔트 슬래브가 압도적으로 큼.
+                if (area > bestArea) { bestArea = area; ground = r; }
+            }
+            return ground;
+        }
+
+        // 관전자에서만 높이조절 중 XR 로코모션을 끈다(호스트는 StsCraneVRController가 관리하므로 손대지 않음).
+        void UpdateLocomotionSuppression(bool wantSuppress)
+        {
+            var ctrl = FindAnyObjectByType<StsCraneVRController>();
+            bool hostManages = ctrl != null && ctrl.enabled;     // 호스트 → 그쪽이 로코모션 관리
+            if (hostManages) { if (locoSuppressed) RestoreLocomotion(); return; }
+
+            if (wantSuppress) { if (!locoSuppressed) SuppressLocomotion(); }
+            else if (locoSuppressed) RestoreLocomotion();
+        }
+
+        void SuppressLocomotion()
+        {
+            locoSuppressed = true;
+            var t = LocoProviderType;
+            if (t == null) return;
+            suppressedLoco.Clear();
+            foreach (var o in FindObjectsByType(t, FindObjectsInactive.Exclude, FindObjectsSortMode.None))
+                if (o is Behaviour b && b.enabled) { b.enabled = false; suppressedLoco.Add(b); }
+            if (suppressedLoco.Count > 0)
+                Debug.Log($"[ViewHeight] 관전자 — 높이조절 중 XR 로코모션 {suppressedLoco.Count}개 끔(수평 이동 방지 → 수직만).");
+        }
+
+        void RestoreLocomotion()
+        {
+            foreach (var b in suppressedLoco) if (b != null) b.enabled = true;
+            suppressedLoco.Clear();
+            locoSuppressed = false;
+        }
+
+        static bool locoTypeResolved;
+        static System.Type locoProviderType;
+        static System.Type LocoProviderType
+        {
+            get
+            {
+                if (!locoTypeResolved)
+                {
+                    locoProviderType =
+                        System.Type.GetType("UnityEngine.XR.Interaction.Toolkit.Locomotion.LocomotionProvider, Unity.XR.Interaction.Toolkit")
+                        ?? System.Type.GetType("UnityEngine.XR.Interaction.Toolkit.LocomotionProvider, Unity.XR.Interaction.Toolkit");
+                    locoTypeResolved = true;
+                }
+                return locoProviderType;
+            }
         }
     }
 }

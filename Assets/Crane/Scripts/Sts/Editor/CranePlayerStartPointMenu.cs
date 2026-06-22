@@ -10,7 +10,7 @@ namespace Container.Crane.Sts.EditorTools
     /// </summary>
     public static class CranePlayerStartPointMenu
     {
-        const string MarkerName = "PlayerStartPoint";
+        const string MarkerName = StsPartNames.PlayerStartPoint;
 
         // 보류(2026-06-04): 플레이어 리그 스케일 문제(1/24 모델 vs 실척 리그)로 시작 위치 기능 전체 보류 중 —
         //   메뉴를 숨긴다. 재개 시 아래 [MenuItem] 주석만 풀면 됨.

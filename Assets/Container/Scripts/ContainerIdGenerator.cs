@@ -35,6 +35,15 @@ namespace ContainerProject
             {'S',30},{'T',31},{'U',32},{'V',34},{'W',35},{'X',36},{'Y',37},{'Z',38}
         };
 
+        /// <summary>
+        /// 키 문자열에서 '결정적으로' 컨테이너 번호 생성 — 같은 키면 항상 같은 번호(재현 가능).
+        /// 컨테이너 GameObject 이름 등 고정 식별자를 키로 주면, 그 컨테이너는 늘 동일 ISO 6346 번호를 갖는다.
+        /// </summary>
+        public static string GenerateDeterministic(string key)
+        {
+            return Generate(new System.Random(StableHash.Seed(key)));
+        }
+
         /// <summary>랜덤 컨테이너 번호 생성. 시드 없이 호출하면 매번 다른 번호.</summary>
         public static string Generate(System.Random rng = null)
         {

@@ -27,14 +27,14 @@ namespace Container.Crane.Sts.Net
         [SerializeField] float worldScale = 0.0016f;
 
         [Header("패널/텍스트")]
-        [SerializeField] Color bgColor = new Color(0f, 0f, 0f, 0.85f);
+        [SerializeField] Color bgColor = new Color(0f, 0f, 0f, CraneHud.PanelBgAlpha);   // 패널 배경 알파 표준(공용 토큰)
         [SerializeField] int fontSize = 26;
 
         [Header("입력 임계값")]
         [SerializeField] float stickThreshold = 0.6f;
         [SerializeField] float stickReset = 0.3f;
 
-        static readonly string[] Options = { "호스트 시작 (내가 조종)", "참가 (관전)" };
+        static readonly string[] Options = { "호스트 시작", "참가" };
 
         Canvas canvas;
         Text text;
@@ -48,7 +48,7 @@ namespace Container.Crane.Sts.Net
         bool aPrev, bPrev;
         float nextFind;
         bool ipEntryMode;          // 참가 선택 후, 호스트 IP(마지막 옥텟) 입력 중
-        int joinOctet = 10;        // 192.168.0.[joinOctet]
+        int joinOctet = NetConfig.DefaultJoinOctet;   // [H3] SSOT. 최종 IP = NetConfig.DefaultSubnetPrefix + joinOctet
         bool discoveredPrev;       // 자동 발견 엣지 검출(false→true 순간 한 번만 자동 접속)
         readonly StringBuilder sb = new StringBuilder(256);
 
@@ -65,7 +65,7 @@ namespace Container.Crane.Sts.Net
         void BuildCanvas()
         {
             canvas = CraneHud.BuildPanel(transform, "CraneNetMenuCanvas", new Vector2(520, 320), worldScale,
-                bgColor, fontSize, Color.white, TextAnchor.UpperLeft, new Vector2(28, 22), out text,
+                bgColor, fontSize, Color.white, TextAnchor.UpperCenter, new Vector2(28, 22), out text,
                 fitToText: true);
             text.text = "...";
         }
@@ -78,7 +78,7 @@ namespace Container.Crane.Sts.Net
             if (cam == null) return;
             canvas.transform.SetParent(cam.transform, worldPositionStays: false);
             canvas.transform.localPosition = cameraOffset;
-            canvas.transform.localRotation = Quaternion.identity;
+            CraneHud.FaceCameraChild(canvas.transform, cameraOffset);   // 카메라 향함 + 거울 해소(다른 HUD와 동일) — identity면 뒤집힘 위험
             attached = true;
         }
 
@@ -163,7 +163,7 @@ namespace Container.Crane.Sts.Net
                     if (stepX != 0) joinOctet = Mathf.Clamp(joinOctet + stepX * 10, 0, 255);
                     if (aNow && !aPrev)
                     {
-                        ui.JoinIp = IpPrefix() + joinOctet;   // 192.168.0.[joinOctet]
+                        ui.JoinIp = IpPrefix() + joinOctet;   // [대역prefix].[joinOctet] (prefix는 IpPrefix(), 폴백 NetConfig.DefaultSubnetPrefix)
                         ui.BeginClient();
                     }
                     else if (bNow && !bPrev) ipEntryMode = false;   // 선택 화면으로 복귀
@@ -178,7 +178,7 @@ namespace Container.Crane.Sts.Net
         {
             string ip = ui != null ? ui.LocalIp : null;
             int dot = string.IsNullOrEmpty(ip) ? -1 : ip.LastIndexOf('.');
-            return dot > 0 ? ip.Substring(0, dot + 1) : "192.168.0.";
+            return dot > 0 ? ip.Substring(0, dot + 1) : NetConfig.DefaultSubnetPrefix;   // [H3] 폴백 대역 SSOT
         }
 
         // 자동탐색으로 채워진 JoinIp가 있으면 그 마지막 숫자를, 없으면 1을 초기값으로.
@@ -257,35 +257,33 @@ namespace Container.Crane.Sts.Net
                 sb.AppendLine();
                 if (ui.HostDiscovered)
                 {
-                    sb.AppendLine($"<size=18><color=#7FFF7F>호스트 자동 발견: <b>{ui.JoinIp}</b></color></size>");
-                    sb.AppendLine("<size=16><color=#7FFF7F>접속 중...</color></size>");
+                    sb.AppendLine($"<size=18><color=#5FE0FF>호스트 발견 <b>{ui.JoinIp}</b> · 접속 중...</color></size>");
                 }
                 else
                 {
-                    sb.AppendLine($"<size=34><b>{IpPrefix()}<color=#FFD060>{joinOctet}</color></b></size>");
+                    sb.AppendLine($"<size=34><b>{IpPrefix()}<color=#5FE0FF>{joinOctet}</color></b></size>");
                     sb.AppendLine();
-                    sb.AppendLine("<size=16><color=#BBBBBB>호스트가 자동 발견되면 바로 접속됩니다. 안 되면 호스트 화면 '내 IP' 마지막 숫자에 맞추세요.</color></size>");
+                    sb.AppendLine("<size=16><color=#999999>호스트 '내 IP' 끝자리에 맞추세요</color></size>");
                     sb.AppendLine();
-                    sb.AppendLine("<size=15><color=#7FFF7F>스틱 ↑↓ ±1 · ←→ ±10 · A 접속 · B 뒤로</color></size>");
+                    sb.AppendLine("<size=15><color=#999999>스틱 ↑↓ ±1 · ←→ ±10 · A 접속 · B 뒤로</color></size>");
                 }
                 return sb.ToString();
             }
 
             for (int i = 0; i < Options.Length; i++)
             {
-                string cursor = (i == selected) ? "▸ " : "   ";
-                if (i == selected) sb.AppendLine($"<color=#5FE0FF><b>{cursor}{Options[i]}</b></color>");
-                else               sb.AppendLine($"<color=#999999>{cursor}{Options[i]}</color>");
+                if (i == selected) sb.AppendLine($"<color=#5FE0FF><b>▸ {Options[i]} ◂</b></color>");
+                else               sb.AppendLine($"<color=#999999>{Options[i]}</color>");
             }
             sb.AppendLine();
             if (selected == 0)
-                sb.AppendLine($"<size=16><color=#BBBBBB>내 IP: <b>{ui.LocalIp}</b> (참가자에게 불러주세요) · 최대 {ui.MaxPlayers}인</color></size>");
+                sb.AppendLine($"<size=16><color=#999999>내 IP <b>{ui.LocalIp}</b> · 최대 {ui.MaxPlayers}인</color></size>");
             else if (ui.HostDiscovered)
-                sb.AppendLine($"<size=16><color=#7FFF7F>호스트 자동 발견됨(<b>{ui.JoinIp}</b>) · A로 바로 접속</color></size>");
+                sb.AppendLine($"<size=16><color=#5FE0FF>호스트 발견됨 · A로 접속</color></size>");
             else
-                sb.AppendLine($"<size=16><color=#BBBBBB>참가: 호스트를 자동으로 찾습니다(못 찾으면 다음 화면에서 수동 입력).</color></size>");
+                sb.AppendLine($"<size=16><color=#999999>호스트를 자동으로 찾습니다</color></size>");
             sb.AppendLine();
-            sb.AppendLine("<size=15><color=#7FFF7F>오른쪽 스틱 ↑↓ 선택 · A 버튼 확정</color></size>");
+            sb.AppendLine("<size=15><color=#999999>스틱 ↑↓ 선택 · A 확정</color></size>");
             return sb.ToString();
         }
     }

@@ -5,10 +5,11 @@ using UnityEngine.UI;
 namespace Container.Crane.Sts
 {
     /// <summary>
-    /// 오른쪽 컨트롤러에 항상 붙어 다니는 모드 선택 패널.
+    /// 모드 선택 패널 — HMD 시야 '우하단'에 고정되는 head-locked HUD.
     ///   - 이동/운전/갠트리 3모드를 목록으로 보여주고 현재 모드를 강조
     ///   - 선택은 StsCraneVRController가 처리(오른쪽 스틱 위/아래 또는 B). 이 패널은 표시 전용.
-    ///   - 오른쪽 컨트롤러 Transform을 이름으로 자동 탐색(실패 시 카메라 좌하단에 폴백 → 어쨌든 보이게)
+    ///   - (변경 2026-06-16) 예전엔 오른쪽 컨트롤러에 빌보드로 붙었으나, 손 위치와 무관하게 항상 같은 자리에
+    ///     두기 위해 카메라(HMD) 자식 '우하단' 고정으로 전환. StatusHUD/ControlHintsHUD와 동일한 패턴.
     /// 씬에 안 붙여도 [RuntimeInitializeOnLoadMethod]로 자동 스폰. 이미 있으면 스킵.
     /// </summary>
     [AddComponentMenu("Container/STS Crane/Crane Mode Selector HUD")]
@@ -17,117 +18,112 @@ namespace Container.Crane.Sts
     {
         [Header("참조")]
         [SerializeField] StsCraneVRController controller;
-        [Tooltip("오른쪽 컨트롤러 Transform. 비우면 이름으로 자동 탐색.")]
-        [SerializeField] Transform rightController;
-        [Tooltip("컨트롤러를 못 찾을 때 폴백으로 붙을 카메라. 비우면 Camera.main.")]
-        [SerializeField] Camera fallbackCamera;
+        [Tooltip("HUD를 붙일 카메라. 비우면 Camera.main.")]
+        [SerializeField] Camera hmdCamera;
 
-        [Header("컨트롤러 부착")]
-        [Tooltip("컨트롤러 위(월드 up) 띄울 높이 m. 패널은 항상 카메라를 향함(빌보드) — 손을 기울여도 안 꺾임.")]
-        [SerializeField] float aboveHeight = 0.07f;
-
-        [Header("카메라 폴백(로컬 좌표, m)")]
-        [SerializeField] Vector3 cameraOffset = new Vector3(-0.30f, -0.18f, 0.7f);
+        [Header("HMD 우하단 위치 (카메라 로컬 좌표, m)")]
+        [Tooltip("x=오른쪽(+), y=아래(-). z는 CraneHud.HudDistance로 통일. VR에서 보며 미세조정.")]
+        [SerializeField] Vector3 hmdOffset = new Vector3(0.28f, -0.15f, CraneHud.HudDistance);   // STS 크레인 상태 패널 바로 아래·오른쪽 변 정렬(추정값 — 폭이 런타임 결정이라 스크린샷으로 미세조정)
+        [Tooltip("StatusHUD와 동일하게 기울임 보정 — 같은 우측 영역이라 값도 그대로 맞춤(휘어짐 방지).")]
+        [SerializeField, Range(-30f, 30f)] float tiltYawDeg = -15f;    // StatusHUD와 동일
+        [SerializeField, Range(-30f, 30f)] float tiltPitchDeg = 8f;    // StatusHUD와 동일(앞서 -8로 뒤집은 게 휘어짐 원인)
 
         [Header("패널/텍스트")]
         [SerializeField] Vector2 panelPixels = new Vector2(360f, 230f);
         [SerializeField] float worldScale = 0.0006f;
-        [SerializeField] Color bgColor = new Color(0f, 0f, 0f, 0.82f);
+        [SerializeField] Color bgColor = new Color(0f, 0f, 0f, CraneHud.PanelBgAlpha);   // 패널 배경 알파 표준(공용 토큰)
         [SerializeField] int fontSize = 20;
 
         Canvas canvas;
         Text text;
         string lastText;   // 바뀔 때만 Text.text 대입(모드/커서 바뀔 때만 변함 → 캔버스 리빌드 절감)
         float nextTextRefresh;   // 텍스트 생성/대입 스로틀(CraneHud.TextHz) — 매 프레임 문자열 생성 방지
-        bool attachedToController;
-        float nextAttachTry;   // 폴백 상태에서 전체 씬 스캔을 매 프레임 말고 ~0.5s마다만 재시도
+        bool attached;
+        float nextAttachTry;   // 카메라가 늦게 켜질 때 매 프레임 말고 ~0.5s마다만 재시도
         readonly StringBuilder sb = new StringBuilder(256);
+        Transform statusCanvasT;            // STS 크레인 상태 패널 캔버스(오른쪽 변 정렬 대상) — 1회 탐색 후 캐시
+        RectTransform statusBg, myBg;       // 두 패널의 BG(폭 측정용)
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
-        static void AutoSpawn() => CraneHud.EnsureSpawned<CraneModeSelectorHUD>("ModeHUD");
+        static void AutoSpawn() { /* 모드 선택은 CraneStatusHUD 패널에 합쳐짐 — 별도 패널 자동스폰 중단 */ }
 
         void Start()
         {
-            if (controller == null) controller = FindAnyObjectByType<StsCraneVRController>();
+            if (controller == null) controller = CraneHud.FindVrController();
             BuildCanvas();
-            TryAttach();
+            AttachToHmd();
         }
 
         void LateUpdate()
         {
             if (canvas == null || text == null) return;
 
-            // 표시 조건: 호스트로 시작했을 때(IsServer) 또는 네트워킹이 아예 없을 때(싱글)만.
-            //   - 접속 전(시작 메뉴 'STS 크레인 멀티플레이'가 떠 있는 동안)엔 숨긴다 → 처음엔 메뉴만 보이게.
-            //   - 관전자(순수 클라이언트)도 숨긴다 — 조종을 못 하니 의미가 없다.
+            // 표시 조건: (호스트/싱글) 그리고 '조종 활성'일 때만. 관찰(기본)이면 호스트·관전자 모두 숨김 → 처음엔 동일 화면.
+            //   조종 진입은 오른쪽 스틱 클릭. 그래야 관찰/조종이 분리된다.
+            if (controller == null) controller = CraneHud.FindVrController();
             var nm = Unity.Netcode.NetworkManager.Singleton;
-            bool show = nm == null || nm.IsServer;
+            bool show = (nm == null || nm.IsServer) && controller != null && controller.ControlActive;
             if (canvas.gameObject.activeSelf != show) canvas.gameObject.SetActive(show);
             if (!show) return;
 
-            // 컨트롤러가 늦게 활성화되는 경우 — 폴백 상태면 주기적으로만 재시도해 컨트롤러로 승격
-            //   (전체 씬 Transform 스캔이라 매 프레임 돌리지 않음)
-            if (!attachedToController && Time.time >= nextAttachTry)
+            // 카메라가 늦게 켜지는 경우 — 아직 못 붙었으면 주기적으로만 재시도.
+            if (!attached && Time.time >= nextAttachTry)
             {
                 nextAttachTry = Time.time + 0.5f;
-                TryAttach();
+                AttachToHmd();
             }
 
-            // 컨트롤러에 붙었으면 매 프레임 손 위에 띄우고 카메라를 향하게(빌보드).
-            if (attachedToController)
-                CraneHud.FaceCameraAbove(canvas.transform, rightController, aboveHeight,
-                    fallbackCamera != null ? fallbackCamera : Camera.main);
+            if (attached) AlignRightToStatus();   // 오른쪽 변을 STS 크레인 상태 패널에 맞춤(런타임 폭 측정)
 
             if (CraneHud.Due(ref nextTextRefresh, CraneHud.TextHz))
                 CraneHud.SetTextIfChanged(text, ref lastText, BuildText());
         }
 
-        // ───────── 부착(오른쪽 컨트롤러 우선, 실패 시 카메라) ─────────
-        void TryAttach()
+        // ───────── HMD(카메라) 우하단에 고정 부착 ─────────
+        //   카메라 자식 + 로컬좌표 + 1회 빌보드(FaceCameraChild로 거울/뒤집힘 해소). 매 프레임 추적 불필요 —
+        //   캔버스가 카메라 자식이라 머리를 따라 같은 자리에 그대로 떠 있다(StatusHUD/ControlHintsHUD와 동일).
+        void AttachToHmd()
         {
             if (canvas == null) return;
+            var cam = hmdCamera != null ? hmdCamera : Camera.main;
+            if (cam == null) return;
 
-            if (rightController == null) rightController = FindRightController();
-            if (rightController != null)
-            {
-                // 위치/회전은 LateUpdate의 FaceCameraAbove가 매 프레임 잡는다(여기선 부모만 지정).
-                canvas.transform.SetParent(rightController, worldPositionStays: false);
-                if (!attachedToController)
-                    Debug.Log($"[ModeHUD] 오른쪽 컨트롤러 '{rightController.name}'에 부착");
-                attachedToController = true;
-                return;
-            }
-
-            // 폴백 — 카메라 좌하단(머리 따라옴). 어쨌든 보이게.
-            var cam = fallbackCamera != null ? fallbackCamera : Camera.main;
-            if (cam != null)
-            {
-                canvas.transform.SetParent(cam.transform, worldPositionStays: false);
-                canvas.transform.localPosition = cameraOffset;
-                canvas.transform.localRotation = Quaternion.identity;
-                attachedToController = false;
-                if (Time.frameCount % 120 == 0)
-                    Debug.LogWarning($"[ModeHUD] 오른쪽 '컨트롤러' 객체 미발견 — 손엔 안 붙임, 카메라 좌하단 폴백. " +
-                                     $"활성 후보(이 중 컨트롤러 이름을 알려주거나 rightController에 직접 지정): {RightSideCandidates()}");
-            }
+            canvas.transform.SetParent(cam.transform, worldPositionStays: false);
+            canvas.transform.localPosition = hmdOffset;
+            CraneHud.FaceCameraChild(canvas.transform, hmdOffset, tiltPitchDeg, tiltYawDeg);   // StatusHUD와 동일 보정 — 휘어짐 방지
+            attached = true;
         }
 
-        // 오른쪽 컨트롤러 탐색 — ArrowHUD와 동일한 견고한 공유 로직(CraneHud) 사용.
-        //   기존 '첫 매치' 방식은 'Right Controller Stabilized' 같은 보조 객체를 잡아 패널이
-        //   엉뚱한 곳에 붙어 안 보이던 원인이 됐다. 못 찾으면 null → 카메라 폴백(손엔 절대 안 붙음).
-        static Transform FindRightController() => CraneHud.FindController("right");
-
-        // 대소문자 무시 부분일치 — ToLowerInvariant(프레임당 문자열 할당) 대신 IndexOf 사용
-        static bool Has(string name, string sub) => name.IndexOf(sub, System.StringComparison.OrdinalIgnoreCase) >= 0;
-
-        // 진단용 — 'right'/'controller'/'hand' 들어간 활성 객체 이름 나열(실제 컨트롤러 이름 확인용)
-        static string RightSideCandidates()
+        // ───────── 오른쪽 변을 STS 크레인 상태 패널에 자동 정렬 ─────────
+        //   fitToText라 패널 폭이 런타임 결정 → 정적 x로는 못 맞춤. 두 패널 모두 카메라 자식·중심피벗이므로
+        //   상태 패널 오른쪽 변(중심 + 반폭)을 읽어 내 중심을 (그 오른쪽 변 − 내 반폭)으로 잡으면 오른쪽 변이 일치.
+        //   폭(월드) = BG.rect.width × 캔버스 localScale. 상태 패널 없으면(테스트 씬) 정적 hmdOffset 유지.
+        void AlignRightToStatus()
         {
-            var names = new StringBuilder();
-            foreach (var t in FindObjectsByType<Transform>(FindObjectsInactive.Exclude, FindObjectsSortMode.None))
-                if (Has(t.name, "right") || Has(t.name, "controller") || Has(t.name, "hand"))
-                    names.Append(t.name).Append("  ·  ");
-            return names.Length > 0 ? names.ToString() : "(없음)";
+            if (canvas == null) return;
+            if (myBg == null) myBg = canvas.transform.Find("BG") as RectTransform;
+            if (myBg == null || myBg.rect.width <= 1f) return;   // 레이아웃 아직이면 다음 프레임
+
+            if (statusCanvasT == null)
+            {
+                var go = GameObject.Find(StsPartNames.CraneStatusCanvas);
+                if (go == null) return;   // 상태 패널 미발견 → 정적 위치 유지
+                statusCanvasT = go.transform;
+                statusBg = statusCanvasT.Find("BG") as RectTransform;
+            }
+            if (statusBg == null || statusBg.rect.width <= 1f) return;
+
+            float statusRight = statusCanvasT.localPosition.x + statusBg.rect.width * statusCanvasT.localScale.x * 0.5f;
+            float myHalf = myBg.rect.width * canvas.transform.localScale.x * 0.5f;
+            float newX = statusRight - myHalf;
+
+            var p = canvas.transform.localPosition;
+            if (Mathf.Abs(p.x - newX) > 0.0005f)   // 바뀔 때만 갱신(빌보드 재계산 절감)
+            {
+                p.x = newX; p.y = hmdOffset.y; p.z = hmdOffset.z;
+                canvas.transform.localPosition = p;
+                CraneHud.FaceCameraChild(canvas.transform, p, tiltPitchDeg, tiltYawDeg);   // 위치 변경 → 빌보드 재설정
+            }
         }
 
         // ───────── Canvas/배경/텍스트 자동 생성 ─────────
@@ -164,13 +160,16 @@ namespace Container.Crane.Sts
             sb.AppendLine("<size=13><color=#BBBBBB>스틱 ↑↓ 선택 · B로 확정</color></size>");
 
             // 모드별 버튼 안내 — 처음 하는 사람도 어느 버튼이 무슨 동작인지 알게.
-            //   집기/놓기(Y/X)는 모든 모드 공통, 운전실 시점(A)은 운전·갠트리에서만.
-            string btns = ((StsCraneVRController.Mode)cur == StsCraneVRController.Mode.Move)
-                ? "<b>Y</b> 잡기 · <b>X</b> 놓기"
-                : "<b>Y</b> 잡기 · <b>X</b> 놓기 · <b>A</b> 운전실";
-            sb.AppendLine($"<size=13><color=#7FFF7F>{btns}</color></size>");
+            //   집기/놓기(Y/X)는 모든 모드 공통, 운전실 시점(A)은 조종·갠트리에서만(Move·controller null 제외).
+            //   주의: cur가 -1(controller 일시 null)일 때 (Mode)(-1)==Move가 false라 A가 잘못 떴음 → cur 값으로 명시 비교.
+            bool cabCapable = cur == (int)StsCraneVRController.Mode.Crane
+                           || cur == (int)StsCraneVRController.Mode.Gantry;
+            string btns = cabCapable
+                ? "<b>Y</b> 잡기 · <b>X</b> 놓기 · <b>A</b> 운전실"
+                : "<b>Y</b> 잡기 · <b>X</b> 놓기";
+            sb.AppendLine($"<size=13><color=#5FE0FF>{btns}</color></size>");   // 안내=청록(녹색은 상태 전용)
             // 시점 높이 조절 안내(모든 모드 공통) — 오른손 검지 트리거 누른 채 왼손 스틱 위/아래.
-            sb.AppendLine("<size=13><color=#7FFF7F>오른<b>트리거</b>+왼스틱 ↑↓ : 시점 높이</color></size>");
+            sb.AppendLine("<size=13><color=#5FE0FF>오른<b>트리거</b>+왼스틱 ↑↓ : 시점 높이</color></size>");
             return sb.ToString();
         }
     }

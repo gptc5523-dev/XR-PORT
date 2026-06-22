@@ -34,6 +34,9 @@ namespace Container.Crane.Sts
 
         public bool Is40 => is40;
 
+        /// <summary>현재 반길이(로컬 X, m) — 신축 중 보간값. SpreaderPusher 박스 동적 크기 산정용.</summary>
+        public float CurrentHalf => current;
+
         /// <summary>Builder가 암·텔레빔 참조, 반길이, 시작 사이즈를 한 번에 주입.</summary>
         public void Configure(Transform armLeft, Transform armRight,
                               Transform teleLeft, Transform teleRight,

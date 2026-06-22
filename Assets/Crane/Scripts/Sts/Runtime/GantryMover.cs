@@ -30,6 +30,10 @@ namespace Container.Crane.Sts
         [Header("장애물 정지")]
         [Tooltip("주행 경로(다리 콜라이더 앞)에 컨테이너 등 장애물이 있으면 그 방향 주행을 멈춘다(밀지 않음).")]
         [SerializeField] bool stopOnObstacle = true;
+
+        /// <summary>장애물 정지 on/off — 자동 시나리오가 베이로 주행할 땐 끄고(컨테이너를 장애물로 오인해 멈추는 것 방지),
+        /// 끝나면 원복한다. 수동 VR 주행에선 true 유지.</summary>
+        public bool StopOnObstacle { get => stopOnObstacle; set => stopOnObstacle = value; }
         [Tooltip("장애물 감지 여유 거리(m).")]
         [SerializeField] float obstacleSkin = 0.03f;
         [Tooltip("장애물로 감지할 레이어(기본 전체). 화물(Rigidbody)만 정지시키므로 보통 그대로 둬도 됨.")]
@@ -67,13 +71,31 @@ namespace Container.Crane.Sts
                 {
                     if (hit.collider == null) continue;
                     if (hit.collider.transform.IsChildOf(transform)) continue;   // 자기(크레인·잡은 화물) 제외
-                    // 바닥/안벽/통로/플레이어 리그 등 '정적 구조물'은 무시 — 자유 화물(Rigidbody)만 장애물로 정지.
-                    //   (프로젝트 전반에서 '집을 수 있는 화물 = Rigidbody' 규약: SpreaderGrabber/CraneNetSync와 동일)
-                    if (hit.collider.attachedRigidbody == null) continue;
+                    // 컨테이너면 자유/고정 무관 장애물. [버그수정2] ContainerInstance 단독 판정은 메뉴/씬의 테스트
+                    //   컨테이너(ContainerInstance 미부착, Rigidbody+BoxCollider만)를 전부 놓쳐 감지가 무력화됐었다.
+                    //   → ContainerInstance 또는 Rigidbody 보유면 컨테이너로 인정. 둘 다 없는 바닥/안벽/리그 등 정적 구조물만 무시.
+                    if (hit.collider.GetComponentInParent<ContainerProject.ContainerInstance>() == null
+                        && hit.collider.attachedRigidbody == null) continue;
+                    QaBlockEdge(true, target, hit.collider.name);   // QA S-PHYS-4: 막힘 검출(밀지 않음) — 엣지에서만
                     return true;
                 }
             }
+            QaBlockEdge(false, target, null);
             return false;
+        }
+
+        // QA 콘솔 판정(S-PHYS-4) — 막힘 상태가 바뀐 순간만 한 줄. blocked=true면 MoveTo가 WriteAxis를 안 해
+        //   위치 불변(moved=false)임이 AxisMoverBase에서 보장된다.
+        bool qaBlockedPrev;
+        void QaBlockEdge(bool blocked, float target, string obstacle)
+        {
+            if (!QaLog.Enabled || blocked == qaBlockedPrev) return;
+            qaBlockedPrev = blocked;
+            if (blocked)
+                QaLog.Check("GANTRY", "block", true,
+                    $"target={QaLog.F(target)} obstacle={obstacle} blocked=true moved=false");
+            else
+                QaLog.Info("GANTRY", "clear", $"target={QaLog.F(target)} blocked=false moved=true");
         }
 
         // legColliders가 비어 있을 때만(초기/구버전 크레인) ~1s마다 재탐색 + 1회 경고.
@@ -86,7 +108,7 @@ namespace Container.Crane.Sts
 
             var list = new List<Collider>();
             foreach (var t in GetComponentsInChildren<Transform>(true))
-                if (CraneHud.BaseName(t.name) == "Leg_Collider")
+                if (CraneHud.BaseName(t.name) == StsPartNames.LegCollider)
                 {
                     var c = t.GetComponent<Collider>();
                     if (c != null) list.Add(c);

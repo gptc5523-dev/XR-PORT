@@ -41,9 +41,21 @@ namespace Container.Crane.Sts
             this.radius = radius;
             this.sagFactor = sagFactor;
             nodePos = null; nodeVel = null;   // 재시드
+            Apply();   // 생성 직후 즉시 1회 배치 — ExecuteAlways LateUpdate는 에디터 정적 씬에서 안 돌 수 있어,
+                       // 세그먼트가 기본 실린더(거대) 크기로 원점에 방치되는 것 방지.
         }
 
         void LateUpdate() => Apply();
+
+#if UNITY_EDITOR
+        // 에디터 Scene에서 트롤리를 옮기거나 위치가 바뀌어도 로프가 따라오게 한다.
+        //   ExecuteAlways의 LateUpdate는 '정적 씬'(아무 변화 없음)에선 매 프레임 안 돌 수 있어,
+        //   Scene 리페인트마다 호출되는 OnRenderObject로 보완(Play 중엔 LateUpdate가 담당).
+        void OnRenderObject()
+        {
+            if (!Application.isPlaying) Apply();
+        }
+#endif
 
         void Apply()
         {

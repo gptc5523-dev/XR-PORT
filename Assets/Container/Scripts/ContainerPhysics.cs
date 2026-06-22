@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace ContainerProject
@@ -68,6 +69,22 @@ namespace ContainerProject
     {
         [SerializeField] bool debugLog = true;
 
+        // 바닥 관통 방지(하드 클램프) — 스프레더가 잡은(kinematic·무한질량) 컨테이너로 바닥의 동적 컨테이너를
+        //   '강제로 눌러도' 바닥 콜라이더(VirtualFloor, 두께 ≈0.1)를 뚫고 빠지지 않게, 매 FixedUpdate에서
+        //   컨테이너 '콜라이더 밑면'을 바닥 윗면으로 되돌린다.  ▸ 잡힌(kinematic) 컨테이너는 제외(공중 이송 정상).
+        //   ▸ 토플/적층은 X·Z·회전이라 무관.
+        //
+        // [외부감사 S1 수정 2026-06-17 · 물리팀(한도연·한도경)+수학팀(오세훈·서지안)]
+        //   종전: 피봇 y(=메시 중심, ProceduralContainerMesh centerPivot)를 바닥에 맞춤 → 중심이 바닥에 닿을 땐
+        //         이미 밑면이 반높이(0.05398m=2.591×1/24÷2)만큼 잠긴 뒤라 관통을 절반 허용하고도 못 막았음.
+        //   수정: 콜라이더 월드 AABB 최저점(bounds.min.y)으로 침투를 재고, 밑면을 바닥 윗면으로 끌어올림.
+        //         정착 떨림 방지 스킨(FloorGuardSkin 4mm)보다 깊을 때만 작동 → 잔여 관통 상한 54mm→4mm.
+        //   ※ 가설 수정 · Quest 실기 미검증([[feedback_dont_claim_fixed_without_test]]).
+        const float FloorGuardSkin = 0.004f;   // 정착 시 자연 침투(≈ContactOffset 0.001)보다 크게 — 떨림 없이 깊은 관통만 교정
+        readonly List<Rigidbody> _bodies = new List<Rigidbody>();
+        readonly List<Collider>  _cols   = new List<Collider>();   // _bodies와 1:1 평행 — 밑면(bounds) 측정용
+        float _floorTopY;
+
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void AutoSpawn()
         {
@@ -77,18 +94,78 @@ namespace ContainerProject
 
         void Start()
         {
-            int n = TuneAllInScene();
-            if (debugLog) Debug.Log($"[ContainerPhysics] 적층 안정화 일괄 적용 — 컨테이너 {n}개");
+            _floorTopY = FindFloorTopY(out bool hasFloor);
+            int n = TuneAllInScene(_bodies);
+            // _bodies와 1:1로 콜라이더를 캐시(밑면 측정용). 콜라이더 없으면 null → 피봇 폴백.
+            _cols.Clear();
+            foreach (var rb in _bodies) _cols.Add(rb != null ? rb.GetComponent<Collider>() : null);
+            if (debugLog) Debug.Log($"[ContainerPhysics] 적층 안정화 일괄 적용 — 컨테이너 {n}개, " +
+                                    $"바닥 윗면 y={_floorTopY:F3}({(hasFloor ? "VirtualFloor" : "기본 0")})");
         }
 
-        /// <summary>씬의 모든 'Container' 강체에 ContainerPhysics.Apply 적용. 적용 개수 반환.</summary>
-        public static int TuneAllInScene()
+        // 바닥 윗면 아래로 내려간 동적 컨테이너의 '밑면'을 되돌려, 강제 누름에도 바닥을 못 뚫게 한다.
+        // QA 컨테이너 높이(1/24) ≈ 0.108m, 반높이 ≈ 0.054m — 잔여 관통이 반높이에 이르면 구버전(피봇 기준) 회귀.
+        const float QaHalfHeight = 0.054f;
+        bool qaGuardActive;   // QA: 바닥가드 보정 진행 상태(엣지에서만 콘솔 출력)
+
+        void FixedUpdate()
+        {
+            float worstPen = 0f; bool anyCorr = false; string worstName = null;
+            for (int i = _bodies.Count - 1; i >= 0; i--)
+            {
+                var rb = _bodies[i];
+                if (rb == null) { _bodies.RemoveAt(i); _cols.RemoveAt(i); continue; }
+                if (rb.isKinematic) continue;                 // 잡혀서 옮겨지는 중 — 제외
+
+                // 콜라이더 월드 AABB 최저점 = 컨테이너 실제 밑면. 피봇(중심)이 아니라 이걸로 침투를 잰다.
+                var col = _cols[i];
+                float bottomY     = (col != null) ? col.bounds.min.y : rb.position.y;
+                float penetration = _floorTopY - bottomY;
+                if (penetration > FloorGuardSkin)
+                {
+                    var p = rb.position; p.y += penetration; rb.position = p;   // 밑면을 바닥 윗면까지 끌어올림
+                    var v = rb.linearVelocity; if (v.y < 0f) { v.y = 0f; rb.linearVelocity = v; }
+                    anyCorr = true;
+                    if (penetration > worstPen) { worstPen = penetration; worstName = rb.name; }
+                }
+            }
+
+            // QA S-PHYS-3: 바닥가드 보정이 시작/종료된 순간만 한 줄(매틱 폭주 방지).
+            //   PASS = 보정 시점 침투가 반높이(0.054) 미만 — 즉 매틱 잡아 깊은 관통을 안 허용(구버전 회귀 아님).
+            if (Container.Crane.Sts.QaLog.Enabled && anyCorr != qaGuardActive)
+            {
+                qaGuardActive = anyCorr;
+                if (anyCorr)
+                    Container.Crane.Sts.QaLog.Check("FLOOR", "guard", worstPen < QaHalfHeight,
+                        $"body={worstName} floorTopY={_floorTopY:F3} penetration={worstPen:F3} " +
+                        $"skin={FloorGuardSkin:F3} halfHeight={QaHalfHeight:F3} corrected=true");
+                else
+                    Container.Crane.Sts.QaLog.Info("FLOOR", "settle", "penetration<=skin corrected=false (정착)");
+            }
+        }
+
+        // 바닥 콜라이더(VirtualFloor) 윗면의 월드 y. 없으면 0(부두 아스팔트 윗면 규약).
+        static float FindFloorTopY(out bool found)
+        {
+            found = false;
+            var vf = GameObject.Find("VirtualFloor");
+            if (vf != null && vf.TryGetComponent<BoxCollider>(out var bc))
+            {
+                found = true;
+                return bc.transform.TransformPoint(bc.center + new Vector3(0f, bc.size.y * 0.5f, 0f)).y;
+            }
+            return 0f;
+        }
+
+        /// <summary>씬의 모든 'Container' 강체에 ContainerPhysics.Apply 적용. 적용한 강체를 collect 리스트에 모은다(바닥 가드 추적용). 적용 개수 반환.</summary>
+        public static int TuneAllInScene(List<Rigidbody> collect)
         {
             int n = 0;
             foreach (var rb in FindObjectsByType<Rigidbody>(FindObjectsInactive.Include, FindObjectsSortMode.None))
             {
                 if (rb.name.IndexOf("Container", System.StringComparison.OrdinalIgnoreCase) < 0) continue;
                 ContainerPhysics.Apply(rb, rb.GetComponent<Collider>());
+                collect?.Add(rb);
                 n++;
             }
             return n;
