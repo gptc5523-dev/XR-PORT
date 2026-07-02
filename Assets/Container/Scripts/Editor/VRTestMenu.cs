@@ -48,54 +48,16 @@ namespace ContainerProject.EditorTools
             return PaletteColors[Random.Range(0, PaletteColors.Length)];
         }
 
-        [MenuItem("Container/컨테이너 생성 (1개)", false, 2)]
+        [MenuItem("Object/컨테이너/컨테이너 생성 (1개)", false, 2)]
         public static void SpawnSingleProcedural()
         {
             SpawnSingle(length: ProceduralContainerMesh.Length20ft, suffix: "");
         }
 
-        [MenuItem("Container/컨테이너 생성 40ft (1개)", false, 3)]
+        [MenuItem("Object/컨테이너/컨테이너 생성 40ft (1개)", false, 3)]
         public static void SpawnSingleProcedural40ft()
         {
             SpawnSingle(length: ProceduralContainerMesh.Length40ft, suffix: "40ft");
-        }
-
-        [MenuItem("Container/컨테이너 생성 20ft+40ft (각 1개)", false, 4)]
-        public static void SpawnBothSizes()
-        {
-            // 기존 컨테이너 모두 삭제 (Std Set 동일 패턴)
-            var existing = Object.FindObjectsByType<CubeReset>(FindObjectsSortMode.None);
-            foreach (var c in existing) Undo.DestroyObjectImmediate(c.gameObject);
-
-            // 폭(가로) 방향으로 나란히 — 컨테이너 폭 + 여유만큼 좌우로 벌림
-            const float gap = 0.03f;
-            const float containerWidth = 2.438f / 24f;   // 미니어처 폭(1/24)
-            float half = (containerWidth + gap) * 0.5f;
-
-            SpawnOneOffset(ProceduralContainerMesh.Length20ft, "20ft", -half);
-            var last = SpawnOneOffset(ProceduralContainerMesh.Length40ft, "40ft", +half);
-
-            Selection.activeGameObject = last;
-            var sv = SceneView.lastActiveSceneView;
-            if (sv != null) sv.FrameSelected();
-            Debug.Log("[VRTestMenu] Procedural 20ft + 40ft 각 1개 스폰 — kinematic 고정. 그랩 후 놓으면 물리 활성화.");
-        }
-
-        // 단일 컨테이너를 hOffset(폭 방향) 위치에 스폰. 에디터 미리보기에서도 겹치지 않게 실제 위치를 벌려 둔다.
-        static GameObject SpawnOneOffset(float length, string suffix, float hOffset)
-        {
-            var go = BuildOne(PaletteRandom(),
-                              "Container_Procedural_" + suffix, length);
-            var reset = go.GetComponent<CubeReset>();
-            if (reset != null) { reset.SetHorizontalOffset(hOffset); reset.SetVerticalOffset(0f); }
-            // 메시 긴 축이 X라 폭(Z) 방향으로 벌려 나란히 배치 → 에디터에서 둘이 겹쳐 보이던 문제 해결.
-            // Play 진입 시 CubeReset.PlaceInFrontOfCamera 가 카메라 기준 위치로 다시 배치한다.
-            go.transform.position = new Vector3(0f, 0f, hOffset);
-            // 스폰 직후엔 kinematic 고정(물리 튕김 방지). 그랩 후 놓으면 CubeReset 이 풀어줌.
-            var rb = go.GetComponent<Rigidbody>();
-            if (rb != null) rb.isKinematic = true;
-            Undo.RegisterCreatedObjectUndo(go, "Spawn 20ft + 40ft");
-            return go;
         }
 
         static void SpawnSingle(float length, string suffix)
@@ -118,60 +80,7 @@ namespace ContainerProject.EditorTools
             Debug.Log($"[VRTestMenu] 분해형 컨테이너 1개 스폰 (length={length}m, bounds: {go.GetComponent<BoxCollider>().size}, parts: {go.GetComponentsInChildren<MeshFilter>().Length}개)");
         }
 
-        [MenuItem("Container/컨테이너 생성 (2x2)", false, 5)]
-        public static void SpawnProcedural2x2()
-        {
-            // 재실행 대비 — 기존 절차 컨테이너 제거(CubeReset 유무 무관, 이름으로)
-            foreach (var existing in Object.FindObjectsByType<GameObject>(FindObjectsSortMode.None))
-                if (existing.name.StartsWith("Container_Procedural")) Undo.DestroyObjectImmediate(existing);
-
-            var quay = GameObject.Find(Container.Crane.Sts.StsPartNames.QuayGround);
-            if (quay == null)
-                Debug.LogWarning("[VRTestMenu] Quay_Ground 가 없습니다 — 월드 원점 기준 배치. 먼저 'Container/부두 바닥 생성' 권장.");
-
-            // 부두 야드('부두에 컨테이너 배치', X 0.60~1.08) 바다쪽 옆에 2x2 블록을 '고정' 배치.
-            //   ★ CubeReset 미부착(withReset:false) → Play 시 카메라 앞 절대높이로 순간이동하지 않고 부두에 안착.
-            //     (기존엔 CubeReset이 카메라 앞 1.4m로 옮겨, 1/24 리그에선 크레인 높이로 떠버렸음 — 그래서 부두 고정으로 변경.)
-            //   긴 축 Z(야드와 동일 정렬), 좌/우 칸은 X로 폭만큼 벌리고 위 칸은 Y로 적층.
-            const float yRest = 0.002f;
-            const float ContainerH = ProceduralContainerMesh.HeightStd * ProceduralContainerMesh.DefaultMiniatureScale;
-            const float yStack = yRest + ContainerH;   // 위 칸을 아래 칸 지붕에 '딱' 안착(군더더기 +4mm 제거 — 공중부양 원인). contactOffset이 접촉 감지만 하고 안착 간격은 0(restOffset)이라 면이 맞닿음.
-            const float colGap = ProceduralContainerMesh.StdWidth * ProceduralContainerMesh.DefaultMiniatureScale + 0.006f;
-            const float baseX = 1.22f;   // 야드 마지막(1.08) 바다쪽 옆
-            var rot = Quaternion.Euler(0f, 90f, 0f);
-
-            var specs = new (Vector3 pos, string name)[]
-            {
-                (new Vector3(baseX,          yRest,  0f), "Container_Procedural_BL"),
-                (new Vector3(baseX + colGap, yRest,  0f), "Container_Procedural_BR"),
-                (new Vector3(baseX,          yStack, 0f), "Container_Procedural_TL"),
-                (new Vector3(baseX + colGap, yStack, 0f), "Container_Procedural_TR"),
-            };
-
-            GameObject last = null;
-            for (int i = 0; i < specs.Length; i++)
-            {
-                var go = BuildOne(PaletteAt(i), specs[i].name, withReset: false);
-                go.transform.SetPositionAndRotation(specs[i].pos, rot);
-                if (quay != null) go.transform.SetParent(quay.transform, worldPositionStays: true);
-                var rb = go.GetComponent<Rigidbody>();
-                if (rb != null) { rb.isKinematic = false; rb.useGravity = true; }   // 부두에 중력 안착, 집으면 풀림
-                Undo.RegisterCreatedObjectUndo(go, "Spawn Procedural 2x2");
-                last = go;
-            }
-            if (last != null)
-            {
-                Selection.activeGameObject = last;
-                var sv = SceneView.lastActiveSceneView;
-                if (sv != null) sv.FrameSelected();
-            }
-            Debug.Log("[VRTestMenu] 절차 컨테이너 2x2 — 부두 야드 바다쪽 옆에 고정 배치(CubeReset 없음 → 카메라 앞으로 안 튐).");
-        }
-
-        // Quay_Ground 육지쪽 야드에 20ft·40ft 혼합 20개를 적하 시작 상태로 고정 배치(X-0.55/0.0).
-        // CubeReset 미부착 → Play 시 카메라 앞으로 순간이동하지 않고 부두에 그대로 안착(크레인/손 집기 가능).
-        [MenuItem("Container/부두에 컨테이너 배치", false, 6)]
-        public static void PlaceContainersOnQuay()
+        static void PlaceContainersOnQuay_REMOVED()
         {
             // 재실행 대비 — 기존 야드 컨테이너 제거.
             // 순회 중 부모를 DestroyImmediate하면 자식도 즉시 파괴되어 배열 뒷항목이 죽은 채 남음 →
@@ -185,7 +94,7 @@ namespace ContainerProject.EditorTools
             var quay = GameObject.Find(Container.Crane.Sts.StsPartNames.QuayGround);
             if (quay == null)
                 Debug.LogWarning("[VRTestMenu] Quay_Ground 가 없습니다 — 월드 원점 기준으로 배치합니다. " +
-                                 "먼저 'Container/Create Quay Ground' 실행을 권장합니다.");
+                                 "먼저 'Ground/부두 바닥 생성' 실행을 권장합니다.");
 
             // 긴 축 = Z(안벽과 나란히) → 로컬 X(길이)를 월드 Z로 돌리는 Y축 90° 회전.
             // 바닥 피봇이라 y=아스팔트 윗면. 시작 관통 방지로 살짝 띄움.
@@ -268,7 +177,7 @@ namespace ContainerProject.EditorTools
         //    - '크레인 주변' 판정: STS_Crane GantryMover.Min~Max(갠트리 Z 도달 범위). 주변이면 좀 더 높이 쌓음.
         //  슬롯 피치 40ft → 40ft는 슬롯당 1개, 20ft는 앞뒤 2개. 같은 칸 스택은 같은 사이즈·색, 높이는 랜덤.
         //  isKinematic 고정(배경). Yard_Container(적하 시나리오)와 이름 분리(YardPark_), 재실행 시 자체 정리.
-        [MenuItem("Container/컨테이너 야드 배치 (크레인 주변)", false, 7)]
+        [MenuItem("Object/컨테이너/컨테이너 야드 배치 (크레인 주변)", false, 7)]
         public static void FillContainerYard()
         {
             // 재실행 정리 — 이전 주차장 적치분만 제거(YardPark_ prefix).
@@ -377,7 +286,7 @@ namespace ContainerProject.EditorTools
         // 물리/그랩은 루트 한 덩어리로 동작: 루트에 Rigidbody+XRGrabInteractable+단일 BoxCollider(전체 바운즈),
         //   파트 콜라이더는 끄고(addColliders:false) 루트 박스 하나로만 충돌 → 컴파운드 콜라이더 중복 방지.
         // withReset:false → CubeReset 미부착(Play 시 카메라 앞으로 순간이동하지 않음). 야드 고정 배치용.
-        static GameObject BuildOne(Color bodyColor, string name, float length = -1f, bool withReset = true)
+        public static GameObject BuildOne(Color bodyColor, string name, float length = -1f, bool withReset = true)
         {
             // 1. 셰이더
             Shader litShader = Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Standard");

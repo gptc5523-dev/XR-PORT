@@ -38,7 +38,7 @@ namespace Container.Crane.Sts.EditorTools
         //   배→항구 양하 시나리오(CraneUnloadScenario)를 크레인에 한 번에 붙인다. Play하면 갠트리 주행범위를
         //   스스로 계산(GantryRangeFit)하고 윗단부터 최대 maxContainers개를 육지 야드에 적치한다.
         //   클래스명이 바뀌어(CraneYardScenario→CraneUnloadScenario) 크레인에 'Missing Script'가 남아 있으면 함께 정리한다.
-        const string UnloadMenu = "Container/STS 크레인 양하 시나리오 부착";
+        const string UnloadMenu = "Object/크레인/STS 크레인 양하 시나리오 부착";
 
         [MenuItem(UnloadMenu, false, 20)]
         static void AttachUnload()

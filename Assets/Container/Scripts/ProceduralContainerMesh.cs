@@ -307,16 +307,11 @@ namespace ContainerProject
             float hx = Width  * 0.5f;
             float hz = Length * 0.5f;
 
-            // Bottom side rails (좌/우 길이 방향)
+            // Bottom side rails (좌/우 길이 방향) — 지게차 포켓 분할/터널 포함(공유 헬퍼)
             float bottomRailY = CornerCastH * 0.5f;
             float railZSpan   = Length - CornerCastD * 2f;
             float endRailXSpan= Width  - CornerCastW * 2f;
-            for (int sx = -1; sx <= 1; sx += 2)
-            {
-                b.AddBox(2,
-                    center: new Vector3(sx * (hx - CornerPostW * 0.5f), bottomRailY, 0f),
-                    size:   new Vector3(CornerPostW, RailH, railZSpan));
-            }
+            AddBottomSideRailsWithForkPockets(b, 2);
             // Top side rails
             float topRailY = Height - CornerCastH * 0.5f;
             for (int sx = -1; sx <= 1; sx += 2)
@@ -348,6 +343,65 @@ namespace ContainerProject
                 b.AddBox(2,
                     center: new Vector3(sx * (hx - CornerPostW * 0.5f), postY, sz * (hz - CornerPostW * 0.5f)),
                     size:   new Vector3(CornerPostW, postHeight, CornerPostW));
+            }
+        }
+
+        // ── 바닥 사이드 레일 + 지게차 포켓(공유) ──
+        //   단일메시 BuildFrame(submesh 2)·분해 Kit 모두 호출해 동일 형상 보장.
+        //   20ft급(Length<9m)이면 사이드 레일을 포켓 구간에서 3분할하고, X 전관통 터널(상·하판+Z양벽)을 추가한다.
+        //   포켓 Z위치·폭은 언더프레임 하우징(ForkPocketZ/ForkPocketWidth)과 동일, 개구 높이는 레일상단~하우징 바닥(~109mm).
+        static void AddBottomSideRailsWithForkPockets(MeshBuilder b, int submesh)
+        {
+            float hx          = Width * 0.5f;
+            float bottomRailY = CornerCastH * 0.5f;
+            float railZSpan   = Length - CornerCastD * 2f;
+            bool  hasPockets  = Length < 9.0f;
+            float pHalf       = ForkPocketWidth * 0.5f;
+            float halfRailZ   = railZSpan * 0.5f;
+
+            for (int sx = -1; sx <= 1; sx += 2)
+            {
+                float cx = sx * (hx - CornerPostW * 0.5f);
+                if (hasPockets)
+                {
+                    float[] zb = { -halfRailZ, -ForkPocketZ - pHalf, -ForkPocketZ + pHalf,
+                                    ForkPocketZ - pHalf,  ForkPocketZ + pHalf,  halfRailZ };
+                    var segs = new (float a, float b)[] { (zb[0], zb[1]), (zb[2], zb[3]), (zb[4], zb[5]) };
+                    foreach (var s in segs)
+                    {
+                        float len = s.b - s.a;
+                        if (len <= 0.001f) continue;
+                        b.AddBox(submesh, new Vector3(cx, bottomRailY, (s.a + s.b) * 0.5f),
+                                 new Vector3(CornerPostW, RailH, len));
+                    }
+                }
+                else
+                {
+                    b.AddBox(submesh, new Vector3(cx, bottomRailY, 0f),
+                             new Vector3(CornerPostW, RailH, railZSpan));
+                }
+            }
+
+            if (!hasPockets) return;
+            // 포켓 터널 — X 전관통, 상·하판 + Z 양벽(X양끝 개방)
+            //   개구는 바닥 사이드 레일과 동일 높이(상·하단 일치) → Mid 레일과 턱 없이 정렬.
+            //   더 깊은 보강 하우징은 언더프레임 ForkPocketDepth 박스가 별도로 표현(아래로 매달림).
+            float tunXSpan   = hx * 2f;                       // = Width (전관통)
+            float pocketTopY = bottomRailY + RailH * 0.5f;    // 레일 상단
+            float pocketBotY = bottomRailY - RailH * 0.5f;    // 레일 하단(= Mid 레일 바닥과 일치)
+            float pocketH    = pocketTopY - pocketBotY;       // = RailH(0.092)
+            float pocketCy   = (pocketTopY + pocketBotY) * 0.5f;
+            float topPlateY  = pocketTopY - ForkPlateT * 0.5f;
+            float botPlateY  = pocketBotY + ForkPlateT * 0.5f;
+            for (int pz = -1; pz <= 1; pz += 2)
+            {
+                float zc = pz * ForkPocketZ;
+                b.AddBox(submesh, new Vector3(0f, topPlateY, zc), new Vector3(tunXSpan, ForkPlateT, ForkPocketWidth));
+                b.AddBox(submesh, new Vector3(0f, botPlateY, zc), new Vector3(tunXSpan, ForkPlateT, ForkPocketWidth));
+                b.AddBox(submesh, new Vector3(0f, pocketCy, zc - pHalf + ForkPlateT * 0.5f),
+                         new Vector3(tunXSpan, pocketH, ForkPlateT));
+                b.AddBox(submesh, new Vector3(0f, pocketCy, zc + pHalf - ForkPlateT * 0.5f),
+                         new Vector3(tunXSpan, pocketH, ForkPlateT));
             }
         }
 
@@ -590,9 +644,10 @@ namespace ContainerProject
         const float CrossMemberSpacing = 0.30f;   // 실측 중심 간격(~300mm)
         const float CrossMemberThick   = 0.05f;   // Z 두께(C채널 플랜지 폭 근사)
         const float CrossMemberDepth   = 0.018f;  // 바닥판 아래로 매달리는 깊이
-        const float ForkPocketZ        = 1.0f;    // 포크포켓 중심 Z(±, 20ft 2개)
-        const float ForkPocketWidth    = 0.32f;   // 포켓 개구 폭(Z)
+        const float ForkPocketZ        = 1.025f;  // 포크포켓 중심 Z(±, 20ft 2개) — ISO 표준 센터간격 2050mm
+        const float ForkPocketWidth    = 0.35f;   // 포켓 개구 폭(Z) — ISO 표준 350mm
         const float ForkPocketDepth    = 0.022f;  // 보강 하우징 깊이(크로스멤버보다 굵게, 최저점 y≈0.0045>0 유지)
+        const float ForkPlateT         = 0.006f;  // 포켓 강판 두께(6mm) — 단일메시·Kit 공유
         const float GooseneckHalfW     = 0.34f;   // 구스넥 터널 반폭(X)
         const float GooseneckLen       = 1.30f;   // 구스넥 터널 길이(전면에서 Z)
         const float GooseneckDepth     = 0.022f;  // 최저점 y≈0.0045>0 (캐스팅 안착 유지)
@@ -605,10 +660,14 @@ namespace ContainerProject
             float centerY   = floorOutY - CrossMemberDepth * 0.5f;  // 바닥판 바로 아래 매달림
             int n = Mathf.Max(3, Mathf.RoundToInt(railZSpan / CrossMemberSpacing));
             float usable = railZSpan - CrossMemberThick;            // 양 끝 캐스팅 안쪽으로 들임
+            // 포켓 구간을 가로지르는 크로스멤버는 제거(지게차 타인 인입 경로 확보).
+            //   |z - ForkPocketZ| < ForkPocketWidth/2 + CrossMemberThick/2 이면 개구를 침범 → skip.
+            float fpGate = ForkPocketWidth * 0.5f + CrossMemberThick * 0.5f;
             for (int i = 0; i < n; i++)
             {
                 float t = (n == 1) ? 0.5f : (float)i / (n - 1);
                 float z = -railZSpan * 0.5f + CrossMemberThick * 0.5f + usable * t;
+                if (Mathf.Abs(Mathf.Abs(z) - ForkPocketZ) < fpGate) continue;  // 포켓 개구 침범 멤버 제외
                 b.AddBox(submesh, new Vector3(0f, centerY, z), new Vector3(spanX, CrossMemberDepth, CrossMemberThick));
             }
 

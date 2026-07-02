@@ -22,7 +22,7 @@ namespace Container.Crane.Sts.Net.EditorTools
         const string PrefabDir = "Assets/Crane/Net";
         const string PrefabPath = PrefabDir + "/PlayerAvatar.prefab";
 
-        [MenuItem("Container/LAN 멀티플레이 셋업 (5인)", false, 60)]   // "5" = NetConfig.MaxPlayers (어트리뷰트 const 제약상 직접 표기)
+        [MenuItem("Scene/LAN 멀티플레이 셋업 (5인)", false, 60)]   // "5" = NetConfig.MaxPlayers (어트리뷰트 const 제약상 직접 표기)
         public static void Setup()
         {
             var avatar = CreateOrLoadAvatarPrefab();

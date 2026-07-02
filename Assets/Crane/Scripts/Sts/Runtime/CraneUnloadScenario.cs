@@ -171,7 +171,7 @@ namespace Container.Crane.Sts
             if (all.Count == 0)
             {
                 Debug.LogWarning($"[{Tag}] 컨테이너 0개 — 중단. (씬에 화물이 있는지, 직전 사이클이 크레인에 매단 채 " +
-                                 "남겼는지 확인. 메뉴 'Container/부두에 컨테이너 배치'로 재배치 가능)");
+                                 "남겼는지 확인. 메뉴 'Object/컨테이너/부두에 컨테이너 배치'로 재배치 가능)");
                 RestoreGantryStop();
                 yield break;
             }

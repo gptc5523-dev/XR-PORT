@@ -20,7 +20,7 @@ namespace Container.Crane.Sts.EditorTools
             var crane = Object.FindFirstObjectByType<StsCrane>();
             if (crane == null)
             {
-                Debug.LogWarning("[PlcBridgeMenu] 씬에 StsCrane이 없습니다 — 먼저 'Container/STS 크레인 생성' 실행.");
+                Debug.LogWarning("[PlcBridgeMenu] 씬에 StsCrane이 없습니다 — 먼저 'Object/크레인/STS 크레인 생성' 실행.");
                 return;
             }
 
@@ -45,7 +45,7 @@ namespace Container.Crane.Sts.EditorTools
             var crane = Object.FindFirstObjectByType<StsCrane>();
             if (crane == null)
             {
-                Debug.LogWarning("[PlcBridgeMenu] 씬에 StsCrane이 없습니다 — 먼저 'Container/STS 크레인 생성' 실행.");
+                Debug.LogWarning("[PlcBridgeMenu] 씬에 StsCrane이 없습니다 — 먼저 'Object/크레인/STS 크레인 생성' 실행.");
                 return;
             }
 

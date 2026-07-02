@@ -25,7 +25,7 @@ namespace Container.Crane.Sts.EditorTools
     ///
     /// ※ 보류(미사용)된 디테일 형상 블록은 같은 폴더의 DEFERRED_DETAILS.md 에 백업돼 있다.
     /// </summary>
-    public static class StsCraneCreator
+    public static partial class StsCraneCreator
     {
         const float Scale = StsConfig.ModelScale;   // SSOT — 런타임 StsConfig.ModelScale(1/24)과 동일. const은 const 참조 가능.
 
@@ -146,7 +146,7 @@ namespace Container.Crane.Sts.EditorTools
         // 접합부 볼트 패턴 — 한 메시에 여러 볼트 헤드. 같은 패턴끼리 메시 1개 재사용(드로콜·정점 절약)
         static Dictionary<string, Mesh> _boltCache;
 
-        [MenuItem("Container/STS 크레인 생성", false, 0)]
+        [MenuItem("Object/크레인/STS 크레인 생성", false, 0)]
         public static void CreateFromMenu40ft() => CreateAtContainer(SpreaderHalf40);
 
         // 컨테이너 위치에 지정 스프레더 사이즈(반길이)로 생성 — 기존 인스턴스는 교체.
@@ -159,6 +159,17 @@ namespace Container.Crane.Sts.EditorTools
             // 컨테이너가 스프레더 정지 위치 아래에 오도록 배치
             Vector3 anchor = FindContainerAnchor();
             Vector3 pos = anchor - new Vector3(TrolleyRestX, 0f, 0f);
+
+            // [부두 우선 정렬] 씬에 Quay_Ground가 이미 있으면 크레인 X를 '육지측' QuayRail에 스냅한다.
+            //   ★ 크레인 루트 X = 육지측 레일(LandLegX=0), 중심이 아니다. 루트를 육지 QuayRail에 놓으면
+            //     Rail_Land가 육지 QuayRail에, Rail_Water(=root+LegSpanX 0.75u)가 바다 QuayRail에 정확히 포개진다.
+            //   (부두를 먼저 깔고 크레인을 나중에 만들면 컨테이너 앵커가 부두와 무관한 곳이라 크레인이 부두를 벗어나던 문제 —
+            //    QuayRail이 곧 크레인 자리이므로 그쪽으로 생성. [[feedback_match_real_world_reference]])
+            if (TryFindQuayRailLandX(out float quayLandX))
+            {
+                Debug.Log($"[STS] 기존 Quay_Ground 발견 → 크레인 루트 X를 육지측 QuayRail {quayLandX:F3}u에 정렬(컨테이너 앵커 X={pos.x:F3}u 대신). Rail_Water는 {quayLandX + LegSpanX:F3}u.");
+                pos.x = quayLandX;
+            }
 
             var root = Create(pos, spreaderHalf);
 
@@ -1062,9 +1073,17 @@ namespace Container.Crane.Sts.EditorTools
                 float sz = s * GirderGapZ;
                 Vector3 C = new Vector3(apex.x, sheaveY, sz);
                 // 클레비스 치크판 2장(스테이 평면 z=sz 양옆, 0.008 간격) — 디자이너 편집용 PbBox
+                //   [공중부양 수정] 치크 윗변을 정점 가로보(Apex) 밑면(apex.y-0.02)까지 연장해 크로스헤드에 직결.
+                //   종전 치크 top(sheaveY+0.015=apex.y-0.027)이 시브하우스 캡 밑면(apex.y-0.0245)보다 2.5mm(실척 60mm)
+                //   아래라 소켓·핀·치크 뭉치가 정점 구조에 안 닿고 떠 보였다. 실물 STS A-프레임의 스테이 정착 러그처럼
+                //   러그(치크)를 정점 크로스헤드에 용접. 아랫변(sheaveY-0.015)·핀·소켓 위치는 불변 → 스테이 각도·장력 동일.
+                float cheekTop = apex.y - 0.02f;                 // 정점 가로보(Apex) 밑면
+                float cheekBot = C.y - 0.015f;                   // 종전 아랫변 유지(sheaveY-0.015)
+                float cheekCY  = (cheekTop + cheekBot) * 0.5f;
+                float cheekH   = cheekTop - cheekBot;
                 for (int e = -1; e <= 1; e += 2)
-                    PbBox(root, "Apex_StayCheek", C + new Vector3(0f, 0f, e * 0.010f),
-                        new Vector3(0.024f, 0.030f, 0.004f), CStruct);
+                    PbBox(root, "Apex_StayCheek", new Vector3(C.x, cheekCY, C.z + e * 0.010f),
+                        new Vector3(0.024f, cheekH, 0.004f), CStruct);
                 // 정착 핀(축 Z) — 치크 사이를 관통, 스테이 클레비스 아이가 매달림
                 Rod(root, "Apex_StayPin",
                     C + new Vector3(0f, 0f, -0.016f), C + new Vector3(0f, 0f, 0.016f), 0.006f, CDark);
@@ -1450,7 +1469,10 @@ namespace Container.Crane.Sts.EditorTools
             }
         }
 
-        static void BuildOperatorCab(Transform trolley)
+        //  mountTopY: 통합 마운트 상단 Y(운전실이 매달리는 상부 구조 밑면, cab-local model 단위).
+        //    STS(기본 −0.05)=트롤리 박스 하단. RTG는 프레임 밑면(t-local 23.2)에 맞추려 −0.072를 넘긴다
+        //    (RtgCraneCreator.BuildTrolleyCab의 holder scale24·pos.y24.88 기준: post top=mountTopY+0.003 → t-local 23.224).
+        static void BuildOperatorCab(Transform trolley, float mountTopY = -0.05f)
         {
             // 육지쪽 매달림 — 현실 STS대로 운전실은 스프레더의 '육지쪽(−X)'에 있고 운전자가 '바다쪽(+X=배)'을 바라본다.
             //   [2026-06-18 오너+레퍼런스+수학팀] 실제 STS 운전자는 선박 셀에 컨테이너 꽂는 걸 봐야 하므로 시선이
@@ -1613,7 +1635,7 @@ namespace Container.Crane.Sts.EditorTools
             //  박스 X[cab-local −0.157~+0.133]·Z(±0.12) 풋프린트 안 → 포스트가 박스 하단면에 정확히 안착.
             // ============================================================================
             {
-                float mountTopY = -0.05f;                 // 트롤리 박스 하단(본체 yBot)
+                // mountTopY = 상부 결합면(STS 박스 하단 −0.05 / RTG 프레임 밑면 대응 −0.072). 파라미터로 주입.
                 float mountBotY = roofTopY - 0.001f;      // 운전실 지붕 결합부 -0.075 (1mm 묻힘)
                 float bt = 0.006f;                        // 종재 단면 t — 코너 솔리드 가로질러 덮기
                 // 수직 마운트 포스트 4 (front/back × 좌우) — 굵은 box
@@ -1664,7 +1686,7 @@ namespace Container.Crane.Sts.EditorTools
 
         // 스프레더 — 중앙 고정부(항상 20ft) + 좌/우 텔레스코픽 암(끝빔 + 트위스트락).
         // spreaderHalf(반길이)로 암 위치를 정함: 20ft=중앙 끝에 밀착, 40ft=바깥으로 신장(텔레스코핑 빔이 연결).
-        static void BuildSpreaderVisual(Transform spreader, float spreaderHalf)
+        static void BuildSpreaderVisual(Transform spreader, float spreaderHalf, bool includeHead = true)
         {
             // 컨테이너 긴 축이 안벽/주행 방향(Z)을 향하도록 스프레더 전체를 90° 회전
             // (부속은 긴 축=로컬 X로 배치 → Y축 90° 회전으로 월드 Z가 긴 축이 됨)
@@ -1681,7 +1703,9 @@ namespace Container.Crane.Sts.EditorTools
                 Box(spreader, "Beam_Flange", new Vector3(0f, sy * 0.016f, 0f),
                     new Vector3(hl0 * 2f, 0.006f, hw * 2f + 0.008f), CSpread);
 
-            // ── 헤드블록(중앙) — 크로스 프레임 + 데드엔드 로프 소켓 4 (시브 없는 dead-end형) ──
+            // ── 헤드블록 — includeHead=false(예: RTG)면 외부가 자체 헤드블록을 얹으므로 생략 ──
+            if (includeHead)
+            {
             float hbY = 0.058f;
             for (int sx = -1; sx <= 1; sx += 2)
             for (int sz = -1; sz <= 1; sz += 2)
@@ -1710,6 +1734,7 @@ namespace Container.Crane.Sts.EditorTools
                 Rod(spreader, "Head_Rope_Pin",                    // 클레비스 핀(베이스 관통, 양옆 돌출)
                     sk + new Vector3(0f, 0.001f, -0.011f), sk + new Vector3(0f, 0.001f, 0.011f), 0.0022f, CDark);
             }
+            }   // if (includeHead)
 
             // ── 부속(중앙) — 파워팩/정션박스/작업등 ──
             Vector3[] ppTips = PowerPack(spreader, "Spreader_PowerPack", new Vector3(0.07f, 0.022f, 0f),
@@ -1755,7 +1780,7 @@ namespace Container.Crane.Sts.EditorTools
                 // 끝단 크로스 빔(컨테이너 단부) — 암 원점
                 Box(a, "End_Beam", new Vector3(-sx * 0.008f, 0f, 0f),
                     new Vector3(0.016f, 0.03f, hw * 2f + 0.012f), CSpread);
-                // 트위스트락 2(앞/뒤 코너) — 회색 락헤드 + 락 콘(아래로 뾰족)
+                // 트위스트락 2(앞/뒤 코너) — 둥근 핀(Head) + 길쭉 쐐기 락 콘(Cone). 실물 구조.
                 for (int sz = -1; sz <= 1; sz += 2)
                 {
                     // [감사 SPR-1] 트위스트락 Z를 컨테이너 외폭/2(0.0508)가 아닌 ISO 코너캐스팅 '횡 중심'에 정렬.
@@ -1767,9 +1792,7 @@ namespace Container.Crane.Sts.EditorTools
                     //   기존 −0.006은 20ft 0.120/40ft 0.248로 ~1.8mm(실척 ~43mm) 안쪽 빗남 → −0.0042로 두 사이즈 동시 정렬(±0.1mm).
                     Vector3 c = new Vector3(-sx * 0.0042f, 0f, sz * isoCornerHalfZ);
                     TwistlockHead(a, c, CMetal);
-                    Cone(a, StsPartNames.TwistlockCone,
-                        c + new Vector3(0f, -0.036f, 0f), c + new Vector3(0f, -0.024f, 0f),
-                        0.004f, 0.009f, CMetal, 16);
+                    TwistlockCone(a, c, CMetal);
                 }
             }
 
@@ -1788,12 +1811,11 @@ namespace Container.Crane.Sts.EditorTools
                            spreaderHalf > hl0 + 1e-4f);
         }
 
-        // 트위스트락 하우징 — 컨테이너 코너캐스팅에 안착하는 락 헤드.
-        //   'Twistlock_Head'(빈 그룹)를 코너 수직축에 두고, 그 아래로 본체→숄더→가이드 플랜지를
-        //   3단으로 넓혀 깔때기형 랜딩 가이드 실루엣을 만든다(콘이 플랜지 밑으로 돌출).
-        //   ★ 전 부재가 코너 수직축 기준 4회대칭(정사각) → SpreaderLockAnimator의 90° 트위스트가
-        //     자기복귀(시각 변화 없음)로 적용돼 하우징이 어색하게 돌지 않는다(콘과 동일 회전축).
-        //   ★ 끝빔 밑면 y=-0.015 위는 빔에 묻혀 안 보이므로 디테일은 그 아래(y<-0.015)에 집중.
+        // 트위스트락 핀(둥근 샤프트) — 실물: 스프레더 코너 하우징 안의 회전 너트에 나사 체결된 원형 핀.
+        //   'Twistlock_Head'(빈 그룹)를 코너 수직축(=트위스트 회전축)에 두고, 그 아래로 둥근 핀을 내린다.
+        //   ★ 핀은 원형이라 90° 회전이 시각적으로 무변화(자기복귀). '보이는 잠금'은 아래의 뭉툭한 락 헤드(숄더)가 담당.
+        //   ★ 끝빔 밑면 y=-0.015 위는 빔에 묻히므로, 가는 샤프트는 전부 빔 속에 숨고(체결 너트) '짧은 락 헤드'만 밑으로 노출.
+        //     (2026-07-02 곤봉 교정: 옛 샤프트가 빔 아래로 길게 노출돼 '가는 막대+혹=곤봉' 실루엣이었음 → 샤프트 끝을 빔 속 -0.014로 끌어올려 감춤.)
         static void TwistlockHead(Transform arm, Vector3 corner, Color metal)
         {
             var head = new GameObject(Numbered(StsPartNames.TwistlockHead));
@@ -1801,12 +1823,46 @@ namespace Container.Crane.Sts.EditorTools
             head.transform.localPosition = corner;       // 콘과 동일한 코너 수직축 = 트위스트 회전축
             Transform h = head.transform;
 
-            // 단조 본체 — 끝빔에 묻혀 장착(상단은 빔 속, 하단만 노출)
-            PbBox(h, "Twistlock_Body",     new Vector3(0f, -0.012f,  0f), new Vector3(0.018f, 0.026f, 0.018f), metal);
-            // 머시닝 숄더 — 본체와 플랜지 사이 체결 밴드(스텝 디테일)
-            PbBox(h, "Twistlock_Shoulder", new Vector3(0f, -0.0205f, 0f), new Vector3(0.021f, 0.004f, 0.021f), CMachine);
-            // 랜딩 가이드 플랜지 — 코너캐스팅 상면에 안착하는 최하단 깔때기 립(가장 넓음)
-            PbBox(h, "Twistlock_Guide",    new Vector3(0f, -0.0245f, 0f), new Vector3(0.024f, 0.005f, 0.024f), CStruct);
+            // 체결 너트/칼라 — 끝빔 밑면에 물리는 머시닝 칼라(실물 더블칼라 나사부). 빔 속~밑면.
+            Rod(h, "Twistlock_Collar", new Vector3(0f, 0.006f, 0f), new Vector3(0f, 0.000f, 0f), 0.0013f, CMachine);
+            // 단조 핀 샤프트 — 빔 속(+0.005)에서 락 헤드 넥 상단(arm -0.014)까지. 끝이 빔 밑면(-0.015)보다 위라 전부 빔 속에 숨음(곤봉 방지).
+            Rod(h, "Twistlock_Body",   new Vector3(0f, 0.005f, 0f), new Vector3(0f, -0.014f, 0f), 0.001f, metal);
+        }
+
+        // 트위스트락 콘(락 헤드) — 코너캐스팅 타원 구멍에 삽입돼 90° 돌아 걸리는 단조 락 헤드.
+        //   'Twistlock_Cone'(그룹) 원점 = 코너 수직축 위 y=-0.020(SpreaderGrabber 잡기/안착 기준점 = 콘 노즈 tip Y).
+        //   [곤봉 교정 2026-07-02] 원점을 -0.03→-0.020로 올려 빔 밑면(-0.015) 아래 노출을 0.015→0.005(실척 360→120mm)로 축소.
+        //     실물 트위스트락은 샤프트가 코너 하우징 안에 숨고 '짧은 헤드'만 빼꼼 나옴 — 옛 0.015 노출은 '가는 막대+혹=곤봉'이라 오류.
+        //     안착 기준점도 함께 올라가 '안착 시 스프레더가 컨테이너 위 360mm 부양'하던 비현실 갭이 120mm로 개선(잡기 밴드 [-0.049,+0.015] 내라 안전).
+        //   ★ 아래(삽입)=좁은 유도 노즈 → 가운데=넓은 베어링 숄더(90° 회전 시 캐스팅 밑에 걸림) → 위=샤프트로 넥킹.
+        //   ★ 장축=Z(상면 구멍 장축 0.00519)에 정렬 삽입 → 90° 회전 시 X로 돌아 숄더가 캐스팅 밑에 걸림(=실제 잠금).
+        //     장축 0.00433<0.00519, 단축 0.00233<0.00265 → 구멍 통과 여유(실척 헤드 ≈104×56mm, ISO 오벌홀 124.5×63.5mm).
+        //   ★ 둥근 단조 부재라 Cone(프러스텀) 관례 적용 + headGroup X스케일로 타원 단면(Z장축·X단축)을 만든다.
+        static void TwistlockCone(Transform arm, Vector3 corner, Color metal)
+        {
+            var cone = new GameObject(Numbered(StsPartNames.TwistlockCone));
+            cone.transform.SetParent(arm, worldPositionStays: false);
+            cone.transform.localPosition = corner + new Vector3(0f, -0.020f, 0f);
+            Transform c = cone.transform;
+
+            const float zHalf     = 0.00217f;  // 장축 half (104mm/24/2) — 숄더 최대폭
+            const float xHalf     = 0.00117f;  //  단축 half (56mm/24/2)
+            const float shaftHalf = 0.001f;    // 샤프트 반경(=Twistlock_Body) — 넥 상단
+            const float tipHalf   = 0.0009f;   // 노즈 끝 반경(단조 블런트 촉)
+
+            // 타원 단면 그룹 — 원형 프러스텀을 X로 눌러 Z장축/X단축 타원으로(스케일 = 단축half/장축half ≈ 0.539).
+            //   ★ 이름은 "Twistlock_Head"(StsPartNames.TwistlockHead)와 겹치면 SpreaderLockAnimator가 이중 수집·회전하므로 반드시 다른 이름.
+            var ell = new GameObject("Twistlock_LockHead");
+            ell.transform.SetParent(c, worldPositionStays: false);
+            ell.transform.localScale = new Vector3(xHalf / zHalf, 1f, 1f);
+            Transform h = ell.transform;
+
+            // 노즈(유도 쐐기): local y 0→0.0022, tip→숄더로 벌어짐. tip Y=그룹원점(=안착 기준·arm -0.020, 빔 밑 0.005 노출).
+            Cone(h, "Twistlock_LugNose", new Vector3(0f, 0f,      0f), new Vector3(0f, 0.0022f, 0f), tipHalf,   zHalf,     metal, 20);
+            // 숄더(베어링 밴드): 0.0022→0.0032, 곧은 옆면 — 90° 회전 시 코너캐스팅 밑에 걸리는 어깨.
+            Cone(h, "Twistlock_LugBody", new Vector3(0f, 0.0022f, 0f), new Vector3(0f, 0.0032f, 0f), zHalf,     zHalf,     metal, 20);
+            // 넥(샤프트 전이): 0.0032→0.006(arm -0.014, 빔 속), 숄더→샤프트로 좁혀 위쪽 샤프트에 매끈히 연결.
+            Cone(h, "Twistlock_LugNeck", new Vector3(0f, 0.0032f, 0f), new Vector3(0f, 0.006f,  0f), zHalf,     shaftHalf, metal, 20);
         }
 
         // 호이스트 로프 4줄 — spreaderRoot(붐 레벨 y=0) → 스프레더 헤드.
@@ -3892,6 +3948,10 @@ namespace Container.Crane.Sts.EditorTools
             else if (Same(c, CRail))   { metallic = 0.65f; smooth = 0.55f; pbr = "Metal055A";       pbrTile = new Vector2(6f, 2f); } // 마모된 레일: 베어 메탈
             else if (Same(c, CMachine)){ metallic = 0.35f; smooth = 0.30f; pbr = "CorrugatedSteel002"; pbrTile = new Vector2(3f, 3f); } // 기계실: 골강판 외벽
             else if (Same(c, CTrolley) || Same(c, CSpread)) { pbr = null; }  // 안전색(주황/노랑): 채도 보존 위해 그레이스케일 절차강에 클린 틴트
+            else if (Same(c, Tk_CabRed)) { metallic = 0.42f; smooth = 0.74f; useTex = false; pbr = null; } // 트럭 캡: 자동차 도장(매끈 글로시·클린 틴트, 구조강 텍스처 미적용)
+            else if (Same(c, Tk_Rim))    { metallic = 0.88f; smooth = 0.70f; useTex = false; pbr = null; } // 휠 림/크롬/발판/연료탱크: 알루미늄·크롬 광택
+            else if (Same(c, Tk_DarkGlass)) { metallic = 0.0f; smooth = 0.94f; useTex = false; pbr = null; } // 측면 틴트 유리: 매끈 반사
+            else if (Same(c, Tk_WindGlass)) { metallic = 0.0f; smooth = 0.90f; useTex = false; pbr = null; } // 앞유리 틴트 글래스: 매끈 반사(강판텍스처 off)
             // 그 외(CStruct/CBoom): 도장 구조강(PaintedMetal001)
 
             if (useTex)
@@ -4052,6 +4112,26 @@ namespace Container.Crane.Sts.EditorTools
             var named = GameObject.Find("Container_Procedural");
             if (named != null) return named.transform.position;
             return Vector3.zero;
+        }
+
+        /// <summary>씬에 이미 있는 Quay_Ground의 '육지측' QuayRail 월드 X를 반환.
+        /// ★ 크레인 루트 X = 육지측 레일(LandLegX=0)이다 — 중심이 아님. 바다측 다리는 +X(WaterLegX=+LegSpanX).
+        ///   따라서 크레인 루트를 '육지측 QuayRail'(= 물측이 +X이므로 두 레일 중 작은 X)에 놓으면
+        ///   Rail_Land가 육지 QuayRail에, Rail_Water(root+LegSpanX)가 바다 QuayRail에 정확히 포개진다.
+        /// 부두(또는 QuayRail)가 없으면 false → 호출부는 컨테이너 앵커 기준 유지.</summary>
+        static bool TryFindQuayRailLandX(out float landX)
+        {
+            landX = 0f;
+            var quay = GameObject.Find(StsPartNames.QuayGround);
+            if (quay == null) return false;
+            bool found = false;
+            foreach (var t in quay.GetComponentsInChildren<Transform>(true))
+                if (t.name == "QuayRail")
+                {
+                    if (!found || t.position.x < landX) landX = t.position.x;   // 육지측 = 물측(+X) 반대 = 최소 X
+                    found = true;
+                }
+            return found;
         }
     }
 }

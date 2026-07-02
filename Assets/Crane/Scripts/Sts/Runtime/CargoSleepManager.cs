@@ -88,6 +88,10 @@ namespace Container.Crane.Sts
                 if (rb == null || managedSet.Contains(rb)) continue;
                 if (rb.name.IndexOf("Container", System.StringComparison.OrdinalIgnoreCase) < 0) continue;
                 if (craneRoot != null && rb.transform.IsChildOf(craneRoot)) continue;   // 크레인/스프레더 자식 제외
+                // 배 화물(ShipContainer)은 재우지 않는다 — 부두 화물처럼 '항상 동적' 유지.
+                //   재우면 잡았다 놓을 때 SpreaderAttach가 kinematic을 복원/재우기가 낙하를 얼려서 공중에 뜬다.
+                //   PhysX가 정착한 강체를 자동 sleep하므로 항상 동적이어도 정상상태 CPU는 거의 0(잡을 때만 깨움 부하).
+                if (rb.name.StartsWith("ShipContainer", System.StringComparison.OrdinalIgnoreCase)) continue;
                 if (rb.isKinematic) continue;   // '원래 동적'만 — 야드 배경(kinematic) 보존
                 var e = new Entry { rb = rb, col = rb.GetComponent<Collider>(), awake = true };
                 managed.Add(e);

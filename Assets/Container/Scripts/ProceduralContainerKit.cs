@@ -125,14 +125,78 @@ namespace ContainerProject
             float topRailY    = Height - CornerCastH * 0.5f;
             float railZSpan   = Length - CornerCastD * 2f;
             float endRailXSpan= Width  - CornerCastW * 2f;
+
+            // ── 지게차 포켓(fork pocket) 개구 — 사이드 레일 관통 ──
+            //   언더프레임에 이미 존재하는 포켓 하우징(BuildUnderframe: ForkPocketZ/ForkPocketWidth)과
+            //   Z위치·개구폭을 그대로 일치시킨다(어긋남 방지). 높이=RailH(레일 전 높이 관통), X 전관통.
+            //   20ft급(길이<9m)에만 적용(40ft는 포켓 없음). 레일이 포켓에서 3분할된다.
+            bool hasForkPockets = Length < 9.0f;      // ForkPlateT는 클래스 상수(공유)
+            float pocketZc  = ForkPocketZ;             // 기존 상수 재사용(=1.0)
+            float pocketOpenW = ForkPocketWidth;       // 기존 상수 재사용(=0.32)
+            float halfRailZ = railZSpan * 0.5f;
+            float pHalf = pocketOpenW * 0.5f;
+
             for (int sx = -1; sx <= 1; sx += 2)
             {
                 float cx = sx * (hx - CornerPostW * 0.5f);
                 string sn = sx < 0 ? "Xn" : "Xp";
-                Part($"Rail_BotSide_{sn}", gFrame.transform, mats.frame,
-                    mb => mb.AddBox(0, new Vector3(cx, bottomRailY, 0f), new Vector3(CornerPostW, RailH, railZSpan)));
+                if (hasForkPockets)
+                {
+                    // 두 포켓이 비우는 구간을 제외하고 사이드 레일을 3분할(중앙·양끝)로 생성.
+                    // z 경계: [-halfRailZ, -Zc-pHalf, -Zc+pHalf, Zc-pHalf, Zc+pHalf, halfRailZ]
+                    float[] zb = { -halfRailZ, -pocketZc - pHalf, -pocketZc + pHalf,
+                                    pocketZc - pHalf,  pocketZc + pHalf,  halfRailZ };
+                    var segs = new (float a, float b)[] { (zb[0], zb[1]), (zb[2], zb[3]), (zb[4], zb[5]) };
+                    string[] segName = { "Zn", "Mid", "Zp" };
+                    for (int s = 0; s < segs.Length; s++)
+                    {
+                        float za = segs[s].a, zc2 = segs[s].b;
+                        float segLen = zc2 - za;
+                        if (segLen <= 0.001f) continue;
+                        float segCz = (za + zc2) * 0.5f;
+                        Part($"Rail_BotSide_{sn}_{segName[s]}", gFrame.transform, mats.frame,
+                            mb => mb.AddBox(0, new Vector3(cx, bottomRailY, segCz),
+                                            new Vector3(CornerPostW, RailH, segLen)));
+                    }
+                }
+                else
+                {
+                    Part($"Rail_BotSide_{sn}", gFrame.transform, mats.frame,
+                        mb => mb.AddBox(0, new Vector3(cx, bottomRailY, 0f), new Vector3(CornerPostW, RailH, railZSpan)));
+                }
                 Part($"Rail_TopSide_{sn}", gFrame.transform, mats.frame,
                     mb => mb.AddBox(0, new Vector3(cx, topRailY, 0f), new Vector3(CornerPostW, RailH, railZSpan)));
+            }
+
+            // ── 포켓 터널 2개 — 폭(X) 전관통, 상·하판 + Z 양벽(X양끝 개방) ──
+            if (hasForkPockets)
+            {
+                float cxInner = hx - CornerPostW * 0.5f;       // 사이드 레일 중심 X
+                float tunXSpan = cxInner * 2f + CornerPostW;   // 레일 바깥면~바깥면 전관통
+                // 개구는 바닥 사이드 레일 세그먼트(Rail_BotSide_*)와 동일 높이로 정렬 → 턱 없음.
+                //   더 깊은 보강은 언더프레임 ForkPocketDepth 하우징이 별도 표현(아래로 매달림).
+                float pocketTopY = bottomRailY + RailH * 0.5f;            // 레일 상단 = 0.1135
+                float pocketBotY = bottomRailY - RailH * 0.5f;            // 레일 하단 = 0.0215
+                float pocketH    = pocketTopY - pocketBotY;              // = RailH(0.092)
+                float pocketCy   = (pocketTopY + pocketBotY) * 0.5f;
+                float topPlateY  = pocketTopY - ForkPlateT * 0.5f;
+                float botPlateY  = pocketBotY + ForkPlateT * 0.5f;
+                for (int pz = -1; pz <= 1; pz += 2)
+                {
+                    float zc = pz * pocketZc;
+                    string pn = pz < 0 ? "Zn" : "Zp";
+                    Part($"ForkPocket_{pn}", gFrame.transform, mats.frame, mb =>
+                    {
+                        // 상판 / 하판(지게차 발이 닿는 면)
+                        mb.AddBox(0, new Vector3(0f, topPlateY, zc), new Vector3(tunXSpan, ForkPlateT, pocketOpenW));
+                        mb.AddBox(0, new Vector3(0f, botPlateY, zc), new Vector3(tunXSpan, ForkPlateT, pocketOpenW));
+                        // Z 양벽(개구 앞/뒤 면) — 개구 전 높이
+                        mb.AddBox(0, new Vector3(0f, pocketCy, zc - pHalf + ForkPlateT * 0.5f),
+                                  new Vector3(tunXSpan, pocketH, ForkPlateT));
+                        mb.AddBox(0, new Vector3(0f, pocketCy, zc + pHalf - ForkPlateT * 0.5f),
+                                  new Vector3(tunXSpan, pocketH, ForkPlateT));
+                    });
+                }
             }
             for (int sz = -1; sz <= 1; sz += 2)
             {

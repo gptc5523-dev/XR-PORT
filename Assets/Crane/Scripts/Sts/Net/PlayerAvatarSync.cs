@@ -28,12 +28,6 @@ namespace Container.Crane.Sts.Net
         float nextSend;
         bool avatarVisible = true;   // 현재 렌더 표시 상태(소유자=1인칭이면 false). 런타임 추가 부품(전신 마네킹) 동기화에 사용.
 
-        // ─── 3인칭 앵커(자기 카메라가 뒤로 빠질 때 아바타를 그 자리에 고정) ───
-        //   소유자가 3인칭으로 전환하면 카메라가 몸 뒤로 이동하는데, 머리가 카메라를 따라가면 자기 몸을 못 본다.
-        //   → 앵커 ON이면 머리를 고정 포즈에 묶고 손은 옆구리 휴식 자세로 둔다(원격에도 '제자리에 선' 모습이 전송됨).
-        bool tpAnchor;
-        Vector3 tpHeadPos; Quaternion tpHeadRot;
-
         // ─── 전신 마네킹 빌더(PlayerAvatarBody)가 참조하는 접근자 ───
         /// <summary>머리(HMD) Transform — 매 프레임 카메라/네트워크 포즈로 갱신됨.</summary>
         public Transform Head => head;
@@ -43,17 +37,8 @@ namespace Container.Crane.Sts.Net
         public Transform RightHand => rightHand;
         /// <summary>참가자 식별색(머리 틴트와 동일) — 안전모 등 강조용.</summary>
         public Color OwnerColor => Palette[(int)(OwnerClientId % (ulong)Palette.Length)];
-        /// <summary>현재 아바타 렌더 표시 여부(소유자 1인칭이면 false). 빌더가 새 부품 초기 가시성에 사용.</summary>
-        public bool AvatarVisible => avatarVisible;
-        /// <summary>아바타 전체 렌더러 on/off — 3인칭 토글이 자기 아바타를 보이게 할 때 호출(외부 공개).</summary>
-        public void SetAvatarVisible(bool v) => SetVisible(v);
         /// <summary>현재 표시 상태를 모든 자식 렌더러(런타임 추가 부품 포함)에 다시 적용 — 마네킹 부품 생성 직후 호출.</summary>
         public void ReapplyVisibility() => SetVisible(avatarVisible);
-
-        /// <summary>3인칭 진입 — 머리를 이 고정 포즈(headPos·yaw)에 묶고, 카메라는 호출측이 뒤로 뺀다. 손은 휴식 자세.</summary>
-        public void SetThirdPersonAnchor(Vector3 headPos, Quaternion headYaw) { tpAnchor = true; tpHeadPos = headPos; tpHeadRot = headYaw; }
-        /// <summary>3인칭 해제 — 머리/손을 다시 실제 HMD·컨트롤러로 추적.</summary>
-        public void ClearThirdPersonAnchor() => tpAnchor = false;
 
         // 참가자(OwnerClientId)별 색 — 선명한 밝은 색으로 서로 구분.
         static readonly Color[] Palette =
@@ -84,19 +69,16 @@ namespace Container.Crane.Sts.Net
         public override void OnNetworkSpawn()
         {
             // ★ 아바타를 미니어처 월드(1/24)에 맞춰 축소 — 안 하면 0.2m 머리 구가 미니어처(사람 키 ~0.07m) 월드에서
-            //   '거대한 공'으로 뜬다(=사용자가 본 '보라색 동그라미'). 머리/손 위치는 Apply가 월드 좌표로 직접 세우므로
-            //   루트 스케일과 무관 → 위치는 그대로, 시각 크기만 1/24로 맞춰진다. 축척은 StsCrane.ModelScale 단일 소스.
+            //   '거대한 공'으로 뜬다. 머리/손 위치는 Apply가 월드 좌표로 직접 세우므로 루트 스케일과 무관 →
+            //   위치는 그대로, 시각 크기만 1/24로 맞춰진다. 축척은 StsCrane.ModelScale 단일 소스.
             var crane = FindAnyObjectByType<StsCrane>();
             float s = crane != null ? crane.ModelScale : StsConfig.ModelScale;   // 폴백도 SSOT 값(1/24)
             transform.localScale = Vector3.one * s;
 
-            // 참가자마다 안전모 색을 다르게 — OwnerClientId는 모든 기기에서 동일해 색이 일치한다.
-            if (tintTarget != null)
-                tintTarget.material.color = Palette[(int)(OwnerClientId % (ulong)Palette.Length)];
-
             if (IsOwner) SetVisible(false);   // 내 아바타는 내 화면에서 숨김
 
-            // 전신 마네킹(목·가슴·골반·다리·양팔 IK)을 절차적으로 부착 — 프리팹 수정 없이 모든 클라이언트에서 동일하게 생성.
+            // 전신 마네킹(목·가슴·골반·다리·양팔 IK)을 절차적으로 부착 — 프리팹 수정 없이 모든 클라이언트에서 동일 생성.
+            //   참가자색은 머리 전체가 아니라 헬멧(PlayerAvatarBody.BuildHelmet)에만 칠해 차콜 마네킹을 유지.
             if (GetComponent<PlayerAvatarBody>() == null) gameObject.AddComponent<PlayerAvatarBody>();
         }
 
@@ -115,26 +97,11 @@ namespace Container.Crane.Sts.Net
         // ─── 소유자: 자기 XR 리그(머리/양손) 월드 포즈를 네트워크에 올림 ───
         void WriteLocalPose()
         {
-            RigPose p;
-            if (tpAnchor)
-            {
-                // 3인칭: 머리는 고정 포즈, 손은 옆구리 휴식 자세(컨트롤러가 카메라와 함께 뒤로 빠졌으므로 무시).
-                //   휴식 오프셋은 아바타 로컬 실척 m → 루트 스케일(1/24)을 곱해 월드로. (마네킹 비율과 일치)
-                float sc = transform.localScale.x;
-                p = new RigPose { hP = tpHeadPos, hR = tpHeadRot };
-                p.lP = tpHeadPos + tpHeadRot * (new Vector3(-0.18f, -0.62f, 0.06f) * sc); p.lR = tpHeadRot;
-                p.rP = tpHeadPos + tpHeadRot * (new Vector3( 0.18f, -0.62f, 0.06f) * sc); p.rR = tpHeadRot;
-                Apply(p, 1f);
-                if (sendRate <= 0f || Time.unscaledTime >= nextSend)
-                { if (sendRate > 0f) nextSend = Time.unscaledTime + 1f / sendRate; nPose.Value = p; }
-                return;
-            }
-
             if (cam == null) cam = Camera.main;   // 한 번만 검색해 캐시(매 프레임 태그 스캔 방지)
             if (cam == null) return;
             Transform space = cam.transform.parent;   // Camera Offset = XR 트래킹 공간 원점
 
-            p = new RigPose
+            var p = new RigPose
             {
                 hP = cam.transform.position, hR = cam.transform.rotation,
             };

@@ -19,8 +19,8 @@ namespace Container.Crane.Sts.Net
         // ── 비율(눈높이 0에서 아래로, 로컬 실척 m. +Z=정면, +X=오른쪽). S≈1.75 기준 인체 비율 ──
         const float NeckDrop = 0.10f;   // 목 밑동
         const float ShoulderDrop = 0.20f, ShoulderHalf = 0.20f;   // 어깨 높이/반폭
-        const float ChestTop = 0.16f, ChestBot = 0.46f, ChestR = 0.155f;
-        const float PelvisDrop = 0.70f, PelvisR = 0.125f, HipHalf = 0.09f;
+        const float ChestR = 0.15f;     // 가슴 굵기 (가슴→복부→골반을 겹쳐 끊김 없이 연결)
+        const float PelvisDrop = 0.70f, PelvisR = 0.13f, HipHalf = 0.09f;
         const float KneeDrop = 1.14f, KneeFwd = 0.02f;
         const float AnkleDrop = 1.60f, AnkleFwd = 0.05f, FootFwd = 0.13f;
         const float ThighR = 0.075f, ShinR = 0.060f;
@@ -113,21 +113,32 @@ namespace Container.Crane.Sts.Net
             var refR = sync.Head != null ? sync.Head.GetComponentInChildren<Renderer>() : null;
             if (refR != null && refR.sharedMaterial != null) sh = refR.sharedMaterial.shader;
             mat = sh != null ? new Material(sh) : new Material(Shader.Find("Standard"));
-            mat.color = Charcoal;
-            if (mat.HasProperty("_BaseColor")) mat.SetColor("_BaseColor", Charcoal);
+            // [임시] 마네킹 전체 빨강(요청). 차콜 마네킹으로 되돌리려면 Charcoal로 교체.
+            var body = Color.red;
+            mat.color = body;
+            if (mat.HasProperty("_BaseColor")) mat.SetColor("_BaseColor", body);
+
+            // [임시] 머리·목·양손(프리팹 구체)도 같은 빨강으로 칠해 전신 통일.
+            TintExisting(sync.Head);
+            TintExisting(sync.LeftHand);
+            TintExisting(sync.RightHand);
 
             bodyRoot = new GameObject("Body").transform;
             bodyRoot.SetParent(transform, false);   // 아바타 루트(1/24) 자식 — 로컬 m가 자동 축소
 
-            // ── 몸통(고정) ──
-            Capsule("Chest", new Vector3(0, -ChestTop, 0), new Vector3(0, -ChestBot, 0), ChestR);
+            // ── 몸통(고정, 가슴→복부→골반을 서로 겹쳐 허리에서 끊기지 않게 연속화) ──
+            Capsule("Chest",   new Vector3(0, -0.13f, 0.01f), new Vector3(0, -0.40f, 0f), ChestR);
+            Capsule("Abdomen", new Vector3(0, -0.38f, 0f),    new Vector3(0, -0.64f, 0f), 0.135f);   // 가슴↔골반 다리(허리 공백 제거)
             Sphere("Pelvis", new Vector3(0, -PelvisDrop, 0), PelvisR);
             // 어깨-가슴 윗단 연결(목→어깨 라인)
-            Capsule("Shoulders", new Vector3(-ShoulderHalf, -ShoulderDrop, 0), new Vector3(ShoulderHalf, -ShoulderDrop, 0), 0.065f);
+            Capsule("Shoulders", new Vector3(-ShoulderHalf, -ShoulderDrop, 0), new Vector3(ShoulderHalf, -ShoulderDrop, 0), 0.075f);
 
             // ── 다리(고정) ──
             BuildLeg(-1f);
             BuildLeg(+1f);
+
+            // ── 참가자 식별 헬멧(머리에 부착해 머리 회전 따라감) — 몸/머리는 차콜, ID는 헬멧 색으로 ──
+            BuildHelmet();
 
             // ── 팔 부품(매 프레임 IK로 갱신) ──
             shoulderPosL = new Vector3(-ShoulderHalf, -ShoulderDrop, 0f);
@@ -142,6 +153,34 @@ namespace Container.Crane.Sts.Net
             foreArmR = Capsule("ForeArmR", Vector3.zero, Vector3.up * 0.1f, ForeArmR);
 
             sync.ReapplyVisibility();   // 1인칭(소유자)이면 방금 만든 부품도 숨김 처리
+        }
+
+        // 참가자색 헬멧 — 머리(sync.Head) 자식으로 붙여 머리 회전을 그대로 따라간다. 머리 로컬 구 반경 0.5 기준.
+        void BuildHelmet()
+        {
+            if (sync.Head == null) return;
+            // [임시] 헬멧도 전부 빨강(요청). 참가자별 식별색으로 되돌리려면 sync.OwnerColor로 교체.
+            var capCol = Color.red;
+            var capMat = new Material(mat.shader);
+            capMat.color = capCol;
+            if (capMat.HasProperty("_BaseColor")) capMat.SetColor("_BaseColor", capCol);
+
+            var go = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            go.name = "Helmet";
+            var col = go.GetComponent<Collider>(); if (col != null) Destroy(col);
+            go.transform.SetParent(sync.Head, false);
+            go.transform.localPosition = new Vector3(0f, 0.16f, 0f);   // 정수리 위
+            go.transform.localScale = new Vector3(1.08f, 0.72f, 1.08f); // 살짝 크고 납작하게(안전모)
+            var r = go.GetComponent<MeshRenderer>();
+            if (r != null) { r.sharedMaterial = capMat; r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off; }
+        }
+
+        // 프리팹 기본 부품(머리·목·손)의 렌더러를 마네킹 머티리얼(빨강)로 교체 — 자식(목 등) 포함.
+        void TintExisting(Transform t)
+        {
+            if (t == null) return;
+            foreach (var r in t.GetComponentsInChildren<MeshRenderer>(true))
+                r.sharedMaterial = mat;
         }
 
         void BuildLeg(float side)

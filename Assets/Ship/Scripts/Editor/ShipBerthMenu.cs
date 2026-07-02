@@ -21,7 +21,6 @@ namespace Container.Ship.EditorTools
     public static class ShipBerthMenu
     {
         const string CraneName = "STS_Crane";
-        const string ShipName  = "ContainerShip";
 
         /// <summary>바다측 레일 ↔ 배 현측 접안 틈(실척 m). 레일-코핑 ~3.5m + 펜더 ~1.5m.</summary>
         const float BerthGapMeters = 5f;
@@ -29,6 +28,8 @@ namespace Container.Ship.EditorTools
         /// <summary>
         /// 컨테이너선을 크레인 안벽에 접안 정렬한다. 성공 시 true.
         ///   ShipCreator.CreateShip이 생성 직후 자동 호출한다(별도 메뉴 없이 생성 한 번으로 접안까지).
+        ///   접안은 '생성 순간' 자동으로만 수행하며 별도 정렬 메뉴는 두지 않는다(오너 지시 2026-07-03).
+        ///   크레인·배 위치가 나중에 바뀌면 배를 다시 생성하면 재접안된다.
         ///   크레인('STS_Crane')이 아직 없으면 false + 안내 메시지(배는 그대로 둠 — 호출부가 처리).
         /// </summary>
         public static bool TryBerth(GameObject ship, out string msg)
@@ -36,7 +37,7 @@ namespace Container.Ship.EditorTools
             var crane = GameObject.Find(CraneName);
             if (crane == null)
             {
-                msg = $"[ShipBerth] 씬에 '{CraneName}'가 없어 접안을 건너뜁니다. 크레인 생성 후 'Container/컨테이너선 안벽 접안 정렬'로 정렬하세요.";
+                msg = $"[ShipBerth] 씬에 '{CraneName}'가 없어 접안을 건너뜁니다. 크레인을 먼저 생성한 뒤 컨테이너선을 다시 생성하면 자동 접안됩니다.";
                 return false;
             }
 

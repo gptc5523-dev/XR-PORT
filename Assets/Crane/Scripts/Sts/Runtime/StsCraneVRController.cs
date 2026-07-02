@@ -75,12 +75,6 @@ namespace Container.Crane.Sts
         [Tooltip("바닥 부품 '아래'로 카메라를 내릴 거리(크레인 로컬 m, 스케일 무관). 바닥 패널 밑에서 발밑 화물을 막힘없이 내려다본다. VR에서 미세조정.")]
         [SerializeField, Range(0f, 0.04f)] float cabFloorDropDown = 0.008f;   // 바닥 반두께(~0.003) + 여유(~0.005). 실척 ≈ 0.008×24 ≈ 0.19m
 
-        [Header("3인칭 시점 (왼쪽 스틱 클릭 토글)")]
-        [Tooltip("카메라를 내 아바타 '뒤'로 뺄 거리(실척 m). 모델 1/24 축척 자동 반영.")]
-        [SerializeField] float tpBackReal = 2.5f;
-        [Tooltip("카메라를 '위'로 올릴 높이(실척 m). 어깨 너머로 내려다보게.")]
-        [SerializeField] float tpUpReal = 0.6f;
-
         StsCrane crane;
         SpreaderGrabber grabber;
 
@@ -108,12 +102,6 @@ namespace Container.Crane.Sts
         readonly List<Collider> rigColliders = new List<Collider>();   // 시점 중 잠시 끈 리그 콜라이더(복구용)
         /// <summary>운전실 시점(내려다보기) 활성 여부.</summary>
         public bool CabView => cabView;
-
-        // 3인칭 시점 상태 (왼쪽 스틱 클릭 토글) — 카메라를 내 아바타 뒤로 빼고, 아바타는 제자리에 고정 표시
-        bool thirdPerson, prevTpBtn;
-        Container.Crane.Sts.Net.PlayerAvatarSync tpAvatar;
-        /// <summary>3인칭 시점 활성 여부.</summary>
-        public bool ThirdPerson => thirdPerson;
 
         bool prevGrab, prevRelease, prevCycleBtn, prevModeToggleBtn;
         bool controlActive;   // 관찰(false, 기본) ⇄ 조종(true) — 오른쪽 스틱클릭 토글
@@ -172,7 +160,6 @@ namespace Container.Crane.Sts
 
         void OnDisable()
         {
-            if (thirdPerson) ExitThirdPerson();   // 3인칭이면 원위치 + 아바타 앵커 해제
             if (cabView) ExitCabView();   // 운전실 시점이면 시점 원위치 복귀
             mode = Mode.Move;   // 컨트롤러 끄면 로코모션 복구
             ApplyMode();
@@ -217,13 +204,7 @@ namespace Container.Crane.Sts
             }
             prevModeToggleBtn = modeToggleNow;
 
-            // ───── 3인칭 시점 토글: 왼쪽 스틱 클릭 — 관찰/조종·모드 무관하게 어디서나 ─────
-            //   카메라를 내 아바타 뒤·위로 빼고, 아바타는 누른 순간 위치에 고정 표시(머리가 카메라 따라오지 않게 앵커).
-            bool tpBtnNow = Btn(left, CommonUsages.primary2DAxisClick);
-            if (tpBtnNow && !prevTpBtn) { if (thirdPerson) ExitThirdPerson(); else EnterThirdPerson(); }
-            prevTpBtn = tpBtnNow;
-
-            // 관찰 모드: 조종 입력(모드선택/확정/시점/집기/축이동) 전면 차단. 걷기·시점높이·3인칭은 위에서 이미 처리됨.
+            // 관찰 모드: 조종 입력(모드선택/확정/시점/집기/축이동) 전면 차단. 걷기·시점높이는 위에서 이미 처리됨.
             if (!controlActive) { driveRS = driveLS = Vector2.zero; return; }
 
             // ───── 모드 선택: 스틱 위/아래로 '후보'만 이동 → B로 '확정' ─────
@@ -364,7 +345,6 @@ namespace Container.Crane.Sts
         // ───────── 운전실 시점 (카메라를 운전실 좌석 눈높이 앵커로 이동, 크기 변경 없음) ─────────
         void EnterCabView()
         {
-            if (thirdPerson) ExitThirdPerson();   // 3인칭과 상호 배타(둘 다 리그를 옮김)
             var cam = Camera.main;
             var trolleyT = (crane.Trolley as Component)?.transform;
             if (cam == null || trolleyT == null)
@@ -463,72 +443,6 @@ namespace Container.Crane.Sts
             if (debugLog) Debug.Log("[Crane] A → 운전실 시점 OFF (원위치 복귀)");
         }
 
-        // ───────── 3인칭 시점 (카메라를 내 아바타 뒤·위로, 아바타는 제자리 고정 표시) ─────────
-        //   운전실 시점과 같은 '리그 평행이동' 패턴을 재사용(위치 저장 → 콜라이더 끔 → 카메라를 목표로 이동 → 복귀).
-        //   핵심: 아바타 머리는 카메라를 매 프레임 따라가므로, 카메라만 빼면 자기 몸을 못 본다 →
-        //         아바타에 3인칭 앵커(머리 고정·손 휴식)를 걸어 '누른 순간 위치'에 세워 둔 뒤 카메라를 뒤로 뺀다.
-        void EnterThirdPerson()
-        {
-            var cam = Camera.main;
-            if (cam == null) { if (debugLog) Debug.LogWarning("[Crane] 3인칭 실패 — Main 카메라 없음"); return; }
-            var avatar = FindLocalAvatar();
-            if (avatar == null)
-            { if (debugLog) Debug.LogWarning("[Crane] 3인칭 실패 — 내 아바타 없음(Host 또는 클라이언트로 접속해야 아바타가 생김)"); return; }
-
-            if (cabView) ExitCabView();   // 운전실 시점과 상호 배타(둘 다 리그를 옮김)
-
-            rig = cam.transform.root;
-            savedRigPos = rig.position; savedRigRot = rig.rotation; rigSaved = true;
-
-            // 논리적 몸 위치 = 누른 순간 카메라(눈) 위치, 정면 = 카메라 수평 방향(yaw)
-            Vector3 headPos = cam.transform.position;
-            Vector3 fwd = cam.transform.forward; fwd.y = 0f;
-            if (fwd.sqrMagnitude < 1e-4f) fwd = Vector3.forward;
-            fwd.Normalize();
-            Quaternion yaw = Quaternion.LookRotation(fwd, Vector3.up);
-
-            avatar.SetThirdPersonAnchor(headPos, yaw);
-            avatar.SetAvatarVisible(true);
-            tpAvatar = avatar;
-
-            // 리그가 크레인/컨테이너를 밀지 않게 콜라이더 잠시 끔(운전실 시점과 동일).
-            rigColliders.Clear();
-            foreach (var c in rig.GetComponentsInChildren<Collider>(true))
-                if (c.enabled) { c.enabled = false; rigColliders.Add(c); }
-
-            // 카메라 수평 시선을 몸 정면(yaw)에 맞춘 뒤(회전 먼저), 카메라를 몸 뒤·위 목표로 평행이동.
-            //   거리/높이는 실척 m → 모델 1/24 축척을 곱해 미니어처 월드 단위로.
-            Vector3 camFwd = cam.transform.forward; camFwd.y = 0f;
-            if (camFwd.sqrMagnitude > 1e-4f)
-                rig.rotation = Quaternion.FromToRotation(camFwd.normalized, fwd) * rig.rotation;
-            Vector3 camTarget = headPos + yaw * (new Vector3(0f, tpUpReal, -tpBackReal) * crane.ModelScale);
-            rig.position += camTarget - cam.transform.position;
-
-            thirdPerson = true;
-            EnforceLocomotion();   // 3인칭 중엔 걷기 정지(카메라가 몸에서 떨어져 나가지 않게)
-            Haptic(InputDevices.GetDeviceAtXRNode(XRNode.RightHand), 0.4f, 0.06f);
-            if (debugLog) Debug.Log($"[Crane] 왼쪽 스틱 클릭 → 3인칭 ON (뒤 {tpBackReal}m·위 {tpUpReal}m)");
-        }
-
-        void ExitThirdPerson()
-        {
-            if (rigSaved && rig != null) { rig.position = savedRigPos; rig.rotation = savedRigRot; }
-            foreach (var c in rigColliders) if (c != null) c.enabled = true;
-            rigColliders.Clear();
-            if (tpAvatar != null) { tpAvatar.ClearThirdPersonAnchor(); tpAvatar.SetAvatarVisible(false); tpAvatar = null; }
-            thirdPerson = false;
-            rigSaved = false;
-            EnforceLocomotion();
-            if (debugLog) Debug.Log("[Crane] 왼쪽 스틱 클릭 → 3인칭 OFF (원위치 복귀)");
-        }
-
-        // 로컬(내) 아바타 = IsOwner인 PlayerAvatarSync. 네트워크 미접속이면 null(아바타 미스폰).
-        static Container.Crane.Sts.Net.PlayerAvatarSync FindLocalAvatar()
-        {
-            foreach (var a in FindObjectsByType<Container.Crane.Sts.Net.PlayerAvatarSync>(FindObjectsSortMode.None))
-                if (a.IsOwner) return a;
-            return null;
-        }
 
         // 컨트롤러 짧은 진동 — 모드 전환 피드백
         static void Haptic(UnityEngine.XR.InputDevice d, float amplitude, float seconds)
@@ -553,7 +467,7 @@ namespace Container.Crane.Sts
         void EnforceLocomotion()
         {
             EnsureLocoProviders();
-            bool locoOn = (mode == Mode.Move) && !ViewHeightActive() && !thirdPerson;
+            bool locoOn = (mode == Mode.Move) && !ViewHeightActive();
             foreach (var b in locoProviders)
                 if (b != null && b.enabled != locoOn) b.enabled = locoOn;
             if (suppressWhileControlling != null)

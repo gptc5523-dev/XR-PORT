@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using Unity.Netcode;
 using UnityEngine;
+using UnityEngine.XR.Interaction.Toolkit.Interactables;
 using Container.Crane.Sts;
 
 namespace Container.Crane.Sts.Net
@@ -73,6 +74,37 @@ namespace Container.Crane.Sts.Net
                 Has == o.Has && Index == o.Index && GrabWorld == o.GrabWorld && AttachLocal == o.AttachLocal;
         }
 
+        // ───────── 컨테이너 핸드오프(누구나 손으로 옮기고 전원이 봄) 동기화 ─────────
+        [Tooltip("핸드오프(소유권 이전) 후 같은 손이 즉시 되집는 핑퐁을 막는 쿨다운(초).")]
+        [SerializeField] float handoffCooldown = 0.75f;
+        [Tooltip("들고 있는 컨테이너 포즈 전송 주기(Hz). 매 프레임이면 인원·개수만큼 대역폭 폭증 → 제한. 0이면 매 프레임.")]
+        [SerializeField] float containerSendRate = 25f;
+
+        /// <summary>'지금 누군가 손에 들고 있는' 컨테이너만 올리는 활성 목록(정지한 컨테이너는 전송 0).
+        ///   Index=결정적 인덱스, Owner=든 사람, Pos/Rot=월드 포즈. 마지막에 집은 사람이 Owner(핸드오프).</summary>
+        struct HeldContainer : INetworkSerializable, System.IEquatable<HeldContainer>
+        {
+            public int Index; public ulong Owner; public Vector3 Pos; public Quaternion Rot;
+            public void NetworkSerialize<T>(BufferSerializer<T> s) where T : IReaderWriter
+            {
+                s.SerializeValue(ref Index); s.SerializeValue(ref Owner);
+                s.SerializeValue(ref Pos);   s.SerializeValue(ref Rot);
+            }
+            public bool Equals(HeldContainer o) => Index == o.Index && Owner == o.Owner && Pos == o.Pos && Rot == o.Rot;
+        }
+        readonly NetworkList<HeldContainer> nHeld = new();
+
+        // 결정적 컨테이너 스냅샷(초기 배치 좌표 정렬 — 씬이 모든 기기 동일하므로 같은 인덱스=같은 개체).
+        //   이름이 전부 "ShipContainer"라 이름 정렬은 불안정 → 좌표(0.1m 반올림)로 안정 정렬.
+        List<Transform> containerSnapshot;
+        readonly List<XRGrabInteractable> containerGrabs = new();   // snapshot과 인덱스 정렬
+        readonly HashSet<int> myOwned = new();              // 내가 손에 든 인덱스
+        readonly HashSet<int> appliedRemote = new();        // 남이 들어 내가 kinematic 적용 중인 인덱스
+        readonly Dictionary<int, bool> origKinematic = new();   // 적용 전 원래 isKinematic
+        readonly Dictionary<int, float> grabCooldownUntil = new();
+        readonly List<int> _tmpA = new(); readonly List<int> _tmpB = new(); readonly HashSet<int> _activeNow = new();
+        float nextContainerSend;
+
         StsCrane crane;
         SpreaderHoist hoist;
         SpreaderTelescope telescope;
@@ -128,6 +160,7 @@ namespace Container.Crane.Sts.Net
             EnsureRefs();
             if (!IsServer)
                 DisableControlOnClient();   // 관전자: 조종 입력/로직 정지
+            SubscribeContainers();          // 호스트·관전자 모두: 손 집기/놓기 후킹(핸드오프)
         }
 
         // 세션 종료/디스폰(호스트 끊김 포함) 시 정리 — 안 하면 클라이언트가 든 컨테이너가 키네마틱·부유
@@ -141,6 +174,7 @@ namespace Container.Crane.Sts.Net
             disabledOnClient.Clear();
             clientHasContainer = false;
             clientConfigured = false;
+            UnsubscribeContainers();   // 핸드오프 후킹/물리 복원
         }
 
         void EnsureRefs()
@@ -178,6 +212,8 @@ namespace Container.Crane.Sts.Net
 
             if (IsServer) ServerWrite();
             else ClientApply();
+
+            ContainerTick();   // 호스트·관전자 모두: 컨테이너 핸드오프 송신/적용
         }
 
         // ───────── 호스트: 현재 크레인 상태를 네트워크 변수에 기록 ─────────
@@ -327,6 +363,209 @@ namespace Container.Crane.Sts.Net
             if (index < 0) return null;
             var list = BuildContainerList();
             return (index < list.Count) ? list[index] : null;
+        }
+
+        // ════════════════════ 컨테이너 핸드오프 ════════════════════
+        // 누구나 손으로 컨테이너를 옮기면 전원이 본다. A가 든 걸 B가 집으면 소유권이 B로 넘어가(마지막 집기 우선)
+        // A 손에서 떨어진다. 컨테이너는 NetworkObject가 아니라 '결정적 인덱스'로 식별(씬 동일 → 같은 인덱스=같은 개체).
+
+        static float RoundDm(float v) => Mathf.Round(v * 10f) / 10f;   // 0.1m 반올림(물리 지터 흡수)
+
+        // 모든 컨테이너를 '초기 배치 좌표'로 안정 정렬한 결정적 스냅샷. 한 번 만들고 고정(움직여도 인덱스 불변).
+        void SubscribeContainers()
+        {
+            var found = new List<Transform>();
+            foreach (var rb in FindObjectsByType<Rigidbody>(FindObjectsInactive.Exclude, FindObjectsSortMode.None))
+            {
+                if (rb == null) continue;
+                if (rb.name.IndexOf("Container", System.StringComparison.OrdinalIgnoreCase) < 0) continue;
+                found.Add(rb.transform);
+            }
+            found.Sort((a, b) =>
+            {
+                Vector3 pa = a.position, pb = b.position;
+                int c = RoundDm(pa.x).CompareTo(RoundDm(pb.x)); if (c != 0) return c;
+                c = RoundDm(pa.y).CompareTo(RoundDm(pb.y));     if (c != 0) return c;
+                return RoundDm(pa.z).CompareTo(RoundDm(pb.z));
+            });
+            containerSnapshot = found;
+
+            containerGrabs.Clear();
+            for (int i = 0; i < found.Count; i++)
+            {
+                var g = found[i].GetComponent<XRGrabInteractable>();
+                containerGrabs.Add(g);
+                if (g == null) continue;
+                int idx = i;   // 클로저 캡처
+                g.selectEntered.AddListener(_ => OnLocalGrab(idx));
+                g.selectExited.AddListener(_ => OnLocalRelease(idx));
+            }
+        }
+
+        void UnsubscribeContainers()
+        {
+            for (int i = 0; i < containerGrabs.Count; i++)
+            {
+                var g = containerGrabs[i];
+                if (g == null) continue;
+                g.selectEntered.RemoveAllListeners();
+                g.selectExited.RemoveAllListeners();
+                if (!g.enabled) g.enabled = true;
+            }
+            foreach (var idx in new List<int>(appliedRemote)) RestoreContainerPhysics(idx);
+            containerGrabs.Clear(); myOwned.Clear(); appliedRemote.Clear();
+            origKinematic.Clear(); grabCooldownUntil.Clear(); _activeNow.Clear();
+        }
+
+        Transform CSnap(int idx) =>
+            (containerSnapshot != null && idx >= 0 && idx < containerSnapshot.Count) ? containerSnapshot[idx] : null;
+        XRGrabInteractable GrabOf(int idx) =>
+            (idx >= 0 && idx < containerGrabs.Count) ? containerGrabs[idx] : null;
+        int FindHeld(int idx) { for (int i = 0; i < nHeld.Count; i++) if (nHeld[i].Index == idx) return i; return -1; }
+
+        // 크레인이 든 화물은 손 핸드오프 대상에서 제외(크레인 동기화와 충돌 방지).
+        bool IsCraneHeld(int idx)
+        {
+            var t = CSnap(idx); if (t == null) return false;
+            if (clientHeld != null && clientHeld == t) return true;
+            if (attach != null && attach.AttachedContainer == t) return true;
+            return false;
+        }
+
+        void OnLocalGrab(int idx)
+        {
+            if (IsCraneHeld(idx)) return;
+            myOwned.Add(idx);
+            grabCooldownUntil.Remove(idx);
+            var t = CSnap(idx);
+            if (t != null) ClaimContainerServerRpc(idx, t.position, t.rotation);
+        }
+
+        void OnLocalRelease(int idx)
+        {
+            if (!myOwned.Remove(idx)) return;   // 이미 소유권을 뺏긴(핸드오프) 경우엔 무시
+            var t = CSnap(idx);
+            if (t != null) ReleaseContainerServerRpc(idx, t.position, t.rotation);
+        }
+
+        void ContainerTick()
+        {
+            var nm = NetworkManager.Singleton;
+            ulong me = nm != null ? nm.LocalClientId : 0;
+            float now = Time.unscaledTime;
+
+            // (1) 내가 든 것 포즈 송신(스로틀)
+            if (myOwned.Count > 0 && (containerSendRate <= 0f || now >= nextContainerSend))
+            {
+                if (containerSendRate > 0f) nextContainerSend = now + 1f / containerSendRate;
+                foreach (var idx in myOwned)
+                {
+                    var t = CSnap(idx);
+                    if (t != null) PoseContainerServerRpc(idx, t.position, t.rotation);
+                }
+            }
+
+            // (2) 소유권 상실 감지(핸드오프) → 내 손 강제 해제 + 쿨다운
+            if (myOwned.Count > 0)
+            {
+                _tmpA.Clear();
+                foreach (var idx in myOwned)
+                {
+                    int li = FindHeld(idx);
+                    if (li >= 0 && nHeld[li].Owner != me) _tmpA.Add(idx);
+                }
+                foreach (var idx in _tmpA) LoseOwnership(idx, now);
+            }
+
+            // (3) 남이 든 컨테이너 적용(kinematic + 보간)
+            float k = smooth <= 0f ? 1f : 1f - Mathf.Exp(-smooth * Time.deltaTime);
+            _activeNow.Clear();
+            for (int i = 0; i < nHeld.Count; i++)
+            {
+                var e = nHeld[i];
+                _activeNow.Add(e.Index);
+                if (e.Owner == me) continue;        // 내가 든 건 XR이 직접 움직임
+                if (IsCraneHeld(e.Index)) continue;
+                var t = CSnap(e.Index);
+                if (t == null) continue;
+                EnsureKinematic(e.Index, t);
+                t.position = Vector3.Lerp(t.position, e.Pos, k);
+                t.rotation = Quaternion.Slerp(t.rotation, e.Rot, k);
+                appliedRemote.Add(e.Index);
+            }
+
+            // (4) 놓여서 목록에서 빠진 컨테이너 → 물리 복원
+            if (appliedRemote.Count > 0)
+            {
+                _tmpB.Clear();
+                foreach (var idx in appliedRemote) if (!_activeNow.Contains(idx)) _tmpB.Add(idx);
+                foreach (var idx in _tmpB) RestoreContainerPhysics(idx);
+            }
+
+            // (5) 쿨다운 끝난 interactable 재활성
+            if (grabCooldownUntil.Count > 0)
+            {
+                _tmpB.Clear();
+                foreach (var kv in grabCooldownUntil) if (now >= kv.Value) _tmpB.Add(kv.Key);
+                foreach (var idx in _tmpB)
+                {
+                    grabCooldownUntil.Remove(idx);
+                    var g = GrabOf(idx); if (g != null && !g.enabled) g.enabled = true;
+                }
+            }
+        }
+
+        void LoseOwnership(int idx, float now)
+        {
+            myOwned.Remove(idx);
+            var g = GrabOf(idx);
+            if (g != null) g.enabled = false;            // 손에서 즉시 떨어뜨림(XR 선택 취소)
+            grabCooldownUntil[idx] = now + handoffCooldown;
+        }
+
+        void EnsureKinematic(int idx, Transform t)
+        {
+            var rb = t.GetComponent<Rigidbody>();
+            if (rb == null) return;
+            if (!origKinematic.ContainsKey(idx)) origKinematic[idx] = rb.isKinematic;
+            rb.isKinematic = true;
+        }
+
+        void RestoreContainerPhysics(int idx)
+        {
+            appliedRemote.Remove(idx);
+            var t = CSnap(idx);
+            var rb = t != null ? t.GetComponent<Rigidbody>() : null;
+            if (rb != null) rb.isKinematic = origKinematic.TryGetValue(idx, out var k0) && k0;
+            origKinematic.Remove(idx);
+        }
+
+        // ─── 서버 권위: 소유권/포즈/해제 (컨테이너는 NetworkObject가 아니므로 Owner 불요 → RequireOwnership=false) ───
+        [ServerRpc(RequireOwnership = false)]
+        void ClaimContainerServerRpc(int idx, Vector3 pos, Quaternion rot, ServerRpcParams p = default)
+        {
+            if (IsCraneHeld(idx)) return;               // 크레인 화물은 가로채기 불가
+            ulong sender = p.Receive.SenderClientId;
+            var e = new HeldContainer { Index = idx, Owner = sender, Pos = pos, Rot = rot };
+            int li = FindHeld(idx);
+            if (li >= 0) nHeld[li] = e; else nHeld.Add(e);   // 마지막 집기 우선(핸드오프)
+        }
+
+        [ServerRpc(RequireOwnership = false)]
+        void PoseContainerServerRpc(int idx, Vector3 pos, Quaternion rot, ServerRpcParams p = default)
+        {
+            int li = FindHeld(idx); if (li < 0) return;
+            var e = nHeld[li];
+            if (e.Owner != p.Receive.SenderClientId) return;   // 주인만 갱신(뺏긴 자의 늦은 패킷 무시)
+            e.Pos = pos; e.Rot = rot; nHeld[li] = e;
+        }
+
+        [ServerRpc(RequireOwnership = false)]
+        void ReleaseContainerServerRpc(int idx, Vector3 pos, Quaternion rot, ServerRpcParams p = default)
+        {
+            int li = FindHeld(idx); if (li < 0) return;
+            if (nHeld[li].Owner != p.Receive.SenderClientId) return;   // 이미 남이 가져갔으면 무시
+            nHeld.RemoveAt(li);
         }
     }
 }

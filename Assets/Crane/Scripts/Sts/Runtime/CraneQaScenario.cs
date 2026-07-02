@@ -84,7 +84,7 @@ namespace Container.Crane.Sts
             yield return ScanContainers(found);
             if (found.Count == 0)
             {
-                QaLog.Info("DRIVE", "abort", "reason=no-containers (씬에 컨테이너 필요 — 'Container/부두에 컨테이너 배치')");
+                QaLog.Info("DRIVE", "abort", "reason=no-containers (씬에 컨테이너 필요 — 'Object/컨테이너/부두에 컨테이너 배치')");
                 yield break;
             }
             found.Sort((a, b) => b.center.y.CompareTo(a.center.y));   // 윗단부터

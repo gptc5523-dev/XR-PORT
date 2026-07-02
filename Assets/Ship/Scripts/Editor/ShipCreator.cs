@@ -43,7 +43,7 @@ namespace Container.Ship.EditorTools
             new Color(0.78f, 0.78f, 0.75f), new Color(0.32f, 0.13f, 0.13f),
         };
 
-        [MenuItem("Container/컨테이너선 생성 (선체+상부구조)")]
+        [MenuItem("Object/선박/컨테이너선 생성 (선체+상부구조)")]
         public static void CreateShip()
         {
             var root = new GameObject(RootName);
@@ -94,7 +94,7 @@ namespace Container.Ship.EditorTools
                       $"파트: 선체+해치+선수루+거주구/펀넬.");
 
             // 생성 직후 자동 접안 정렬(오너 지시 — 생성 한 번으로 안벽 접안까지). 크레인이 아직 없으면
-            //   조용히 건너뛰고(배는 원점에 둠) 안내만 — 나중에 'Container/컨테이너선 안벽 접안 정렬'로 정렬 가능.
+            //   조용히 건너뛰고(배는 원점에 둠) 안내만 — 크레인 생성 후 배를 다시 생성하면 자동 접안된다.
             if (!ShipBerthMenu.TryBerth(root, out string berthMsg))
                 Debug.LogWarning(berthMsg);   // 크레인 미존재 — 배는 원점, 안내만
             Selection.activeGameObject = root;
@@ -102,7 +102,7 @@ namespace Container.Ship.EditorTools
         }
 
         // ── 갑판에 '우리 컨테이너'(절차 메시) 그랩 가능하게 적재 — 위치는 CargoSlots에서 산출 ──
-        [MenuItem("Container/컨테이너선에 컨테이너 적재 (그랩)")]
+        [MenuItem("Object/선박/컨테이너선에 컨테이너 적재 (그랩)")]
         public static void LoadShipCargo()
         {
             var ship = GameObject.Find(RootName);
