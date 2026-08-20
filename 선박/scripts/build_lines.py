@@ -21,8 +21,13 @@ for blk_set in (bpy.data.meshes, bpy.data.cameras, bpy.data.lights, bpy.data.mat
 scene = bpy.context.scene
 root = bpy.data.collections.new("ContainerShip_Lines")
 scene.collection.children.link(root)
-col_st = bpy.data.collections.new("Lines_Stations"); root.children.link(col_st)
-col_lg = bpy.data.collections.new("Lines_Long");     root.children.link(col_lg)
+# 블록별 스테이션 하위 컬렉션 (Lines_B1…B5) — 종방향 선은 전선 공통 최상위
+col_blk = {}
+for i in range(hf.N_BLK):
+    nm = hf.block_name(i)
+    c = bpy.data.collections.new(f"Lines_{nm}"); root.children.link(c)
+    col_blk[nm] = c
+col_lg = bpy.data.collections.new("Lines_Long"); root.children.link(col_lg)
 
 def add_poly(name, pts, coll):
     """pts: [(x,y,z)...] → POLY 커브 오브젝트"""
@@ -43,10 +48,12 @@ st_ys = hf.station_ys()
 for y in st_ys:
     sec = hf.section(y)
     if len(sec) < 2: continue
+    blk = hf.block_of(y)
     pts = [(x, y, z) for x, z in sec]
     name = f"St_{y:+08.2f}"
-    add_poly(name, pts, col_st)
-    report["stations"].append({"name": name, "y": y, "pts": [[round(x,6), round(z,6)] for x, z in sec]})
+    add_poly(name, pts, col_blk[blk])
+    report["stations"].append({"name": name, "y": y, "block": blk,
+                               "pts": [[round(x,6), round(z,6)] for x, z in sec]})
 
 # ── 종방향 곡선 샘플링 (끝단·개구는 조밀) ───────────────────────────────
 def y_samples(y0, y1, dense_zones, base=1.5, dense=0.4):
@@ -99,7 +106,12 @@ for xb in hf.buttock_xs():
 os.makedirs(os.path.join(ROOT, "build"), exist_ok=True)
 report["counts"] = {"stations": len(report["stations"]), "longitudinals": len(report["longitudinals"]),
                     "objects": len(bpy.data.objects), "meshes": len(bpy.data.meshes)}
+report["blocks"] = {"bounds": hf.BOUNDS,
+                    "alloc": {hf.block_name(i): sum(1 for s in report["stations"] if s["block"] == hf.block_name(i))
+                              for i in range(hf.N_BLK)}}
 json.dump(report, open(os.path.join(ROOT, "build", "lines_report.json"), "w"), ensure_ascii=False)
-bpy.ops.wm.save_as_mainfile(filepath=os.path.join(ROOT, "build", "ship.blend"))
+BLEND = os.path.expanduser(hf.SPEC["meta"]["output"]["blend"])
+os.makedirs(os.path.dirname(BLEND), exist_ok=True)
+bpy.ops.wm.save_as_mainfile(filepath=BLEND)
 print(f"[build_lines] stations {report['counts']['stations']} · long {report['counts']['longitudinals']}"
-      f" · meshes {report['counts']['meshes']} · saved build/ship.blend")
+      f" · meshes {report['counts']['meshes']} · saved {BLEND}")

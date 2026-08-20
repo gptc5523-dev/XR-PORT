@@ -95,5 +95,78 @@ check("L9", 0 < r_max <= hf.R_BULB + 1e-6, f"벌브 최대 반폭(씬) {r_max:.4
 n_oh = sum(1 for s in sts if s["y"] > hf.Y_AP - 1e-6)
 check("L10", n_oh >= 3, f"AP({hf.Y_AP})~트랜섬 스테이션 {n_oh} (요구 ≥3)")
 
-print(f"\n== 게이트 L군: {'PASS' if not FAIL else 'FAIL ' + str(FAIL)} ({len(sts)} 스테이션 · {len(longs)} 종통선) ==")
+# ── B군: 5등분 블록 (오너 지시 — 가로 정확 등분) ──
+blk = rep.get("blocks", {})
+# B1 등분: 경계가 정확한 1/5 등분인가 (씬 리포트 ↔ 수식)
+bl = [b2 - b1 for b1, b2 in zip(hf.BOUNDS, hf.BOUNDS[1:])]
+dev = max(abs(v - hf.L_BLK) for v in bl)
+gap_sum = abs(sum(bl) - (hf.Y_TR - hf.Y_BULB))
+check("B1", blk.get("bounds") == hf.BOUNDS and dev < 1e-9 and gap_sum < 1e-9,
+      f"블록장 {hf.L_BLK:.4f} m ×{hf.N_BLK} · 등분 최대 편차 {dev:.2e} · 이음 틈/겹침 {gap_sum:.2e}")
+# B2 경계 스냅: 내부 경계마다 스테이션이 정확히 존재 (삽입 아닌 이동 — 오차 0)
+st_set = {round(s["y"], 6) for s in sts}
+miss = [b for b in hf.BOUNDS[1:-1] if round(b, 6) not in st_set]
+check("B2", not miss, f"경계 스테이션 스냅 오차 0 × {len(hf.BOUNDS)-2-len(miss)} (누락 {miss})")
+# B3 블록 배분: 빈 블록 0 · 배속 규칙(경계=선미쪽) 일치
+alloc = blk.get("alloc", {})
+mis_assign = [s["name"] for s in sts if s.get("block") != hf.block_of(s["y"])]
+check("B3", alloc and min(alloc.values()) >= 1 and not mis_assign,
+      f"배분 {'/'.join(f'{k}:{v}' for k, v in sorted(alloc.items()))} · 오배속 {len(mis_assign)}")
+
+# ── C군: 철골 (cage_report.json 있을 때만) ──
+CAGE_PATH = os.path.join(ROOT, "build", "cage_report.json")
+if os.path.exists(CAGE_PATH):
+    cg = json.load(open(CAGE_PATH, encoding="utf-8"))
+    frs, strs = cg["frames"], cg["longitudinals"]
+    fy = sorted(f["y"] for f in frs)
+    fgaps = [b - a for a, b in zip(fy, fy[1:])]
+    # C1 늑골 간격: 0.4~3.4 · 블록 내 주격자 균일(벌브 보충 링 제외)
+    h = cg["counts"]["h"]
+    uni_bad = 0
+    for i in range(hf.N_BLK):
+        bn = hf.block_name(i)
+        ys_b = sorted(f["y"] for f in frs if f["block"] == bn and f["y"] >= hf.Y_STEM - 1e-6)
+        uni_bad += sum(1 for a, b in zip(ys_b, ys_b[1:]) if abs((b - a) - h) > 1e-6 and (b - a) > h + 1e-6)
+    check("C1", all(0.4 - 1e-6 <= g <= 3.4 + 1e-9 for g in fgaps) and h <= 3.4 and uni_bad == 0,
+          f"늑골 {len(fy)} · h {h:.4f} (≤3.4) · 간격 {min(fgaps):.3f}~{max(fgaps):.3f} · 균일 위반 {uni_bad}")
+    # C2 이음 늑골: 내부 경계 오차 0 ×4 · 커버리지(벌브~트랜섬) · 오버행 ≥3
+    fset = {round(y, 6) for y in fy}
+    miss = [b for b in hf.BOUNDS[1:-1] if round(b, 6) not in fset]
+    n_oh = sum(1 for y in fy if y > hf.Y_AP - 1e-6)
+    check("C2", not miss and min(fy) < hf.Y_STEM + 0.1 and abs(max(fy) - hf.Y_TR) < 1e-6 and n_oh >= 3,
+          f"이음 오차 0 × {4-len(miss)} (누락 {miss}) · 범위 [{min(fy):.2f},{max(fy):.2f}] · 오버행 늑골 {n_oh}")
+    # C3 늑골 곡률반경 ≥ 0.40 (판 냉간성형 20·t)
+    def min_radius(pts):
+        """판 냉간성형 반경 — 반폭 0.30m 미만(스템바·중심선 형강)은 성형 판이 아니므로 제외
+        (구판 오탐 규약: 「짧은 변이 판폭 미만이면 성형 대상 아님」)"""
+        rmin = 1e9
+        for (x0,z0),(x1,z1),(x2,z2) in zip(pts, pts[1:], pts[2:]):
+            if max(x0, x1, x2) < 0.30: continue          # 판폭 미만 형강(스템바) 구간
+            if min(x0, x1, x2) < 0.05: continue          # 중심선 이음(용접 시임) — 성형 아님
+            a = math.hypot(x1-x0, z1-z0); b = math.hypot(x2-x1, z2-z1); c = math.hypot(x2-x0, z2-z0)
+            area2 = abs((x1-x0)*(z2-z0) - (x2-x0)*(z1-z0))
+            if area2 < 1e-12: continue
+            rmin = min(rmin, a*b*c / (2*area2))
+        return rmin
+    worst_r = min(((min_radius(f["pts"]), f["name"]) for f in frs), key=lambda t: t[0])
+    check("C3", worst_r[0] >= 0.40, f"늑골 최소 곡률반경 {worst_r[0]:.3f} m ({worst_r[1]}, 요구 ≥0.40)")
+    # C4 종통재 꺾임 ≤ 20°
+    w2 = ("-", 0.0); over2 = 0
+    for L in strs:
+        P = L["pts"]
+        for i in range(1, len(P)-1):
+            v0 = [P[i][k]-P[i-1][k] for k in range(3)]; v1 = [P[i+1][k]-P[i][k] for k in range(3)]
+            n0 = math.sqrt(sum(a*a for a in v0)); n1 = math.sqrt(sum(a*a for a in v1))
+            if n0 < 1e-9 or n1 < 1e-9: continue
+            cth = max(-1.0, min(1.0, sum(a*b for a,b in zip(v0,v1))/(n0*n1)))
+            ang = math.degrees(math.acos(cth))
+            if ang > w2[1]: w2 = (L["name"], ang)
+            if ang > 20.0: over2 += 1
+    check("C4", over2 == 0, f"종통재 {len(strs)} · 20° 초과 {over2} · 최대 {w2[1]:.1f}° ({w2[0]})")
+    # C5 블록 배분·메시 0
+    alloc_c = cg["blocks"]
+    check("C5", min(alloc_c.values()) >= 1 and cg["counts"]["meshes"] == 0,
+          f"배분 {'/'.join(f'{k}:{v}' for k,v in sorted(alloc_c.items()))} · 메시 {cg['counts']['meshes']} (요구 0)")
+
+print(f"\n== 게이트: {'PASS' if not FAIL else 'FAIL ' + str(FAIL)} ({len(sts)} 스테이션 · {len(longs)} 종통선) ==")
 sys.exit(1 if FAIL else 0)

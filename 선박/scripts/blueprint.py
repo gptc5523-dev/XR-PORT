@@ -181,6 +181,17 @@ line(sx(mast_y-2.2), pz(z_deck(mast_y)+fc["height"]+S["masts"]["fore_h"]*0.75), 
 rx_y = dh["y_fwd"]+dh["length"]*0.5
 line(sx(rx_y), pz(dhz1+dh["wheelhouse_h"]), sx(rx_y), pz(dhz1+dh["wheelhouse_h"]+S["masts"]["radar_h"]), w=1.3)
 
+# 5등분 블록 (오너 지시 2026-08-20 — 전장 정확 등분, B1=선미)
+n_b = SPEC["blocks"]["count"]
+lb = LOA / n_b
+for k in range(1, n_b):
+    ybk = yb_tip + lb * k
+    line(sx(ybk), pz(-2), sx(ybk), pz(D+3), ACC, 0.9, dash="4 4", op=0.75)
+for k in range(n_b):
+    yc = yb_tip + lb * (k + 0.5)
+    text(sx(yc), pz(4.5), f"B{n_b-k}", 12, ACC, "middle", mono=True, bold=True)
+text(OX+4, pz(4.5), f"BLOCKS ×{n_b} = {lb:.1f} m", 10, ACC, mono=True)
+
 # 치수선 (측면도) — 전부 기선 아래로 (구조물 관통 금지)
 dim_h(pz(-6.5), y_tr, yb_tip, f"LOA {LOA:.1f} m")
 dim_h(pz(-13), yAP, yFP, f"LPP {LPP:.1f} m", above=True)

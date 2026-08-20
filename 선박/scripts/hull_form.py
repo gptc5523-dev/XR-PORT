@@ -175,26 +175,59 @@ def section(y, n_wl=26):
     return pts
 
 def x_at_z(y, z):
-    """단면에서 높이 z 의 반폭(선형 보간). 범위 밖이면 None."""
-    pts = section(y)
-    if not pts: return None
-    if z < pts[0][1] - 1e-9 or z > pts[-1][1] + 1e-9: return None
-    for (x0, z0), (x1, z1) in zip(pts, pts[1:]):
-        if z0 - 1e-9 <= z <= z1 + 1e-9:
-            if abs(z1 - z0) < 1e-12: return max(x0, x1)
-            t = (z - z0) / (z1 - z0)
-            return x0 + (x1 - x0) * t
-    return None
+    """높이 z 의 반폭 — **해석식 직접 평가** (폴리라인 보간은 초입 급경사에서
+    노드 통과 순간 기울기가 점프해 종통선에 가짜 너클을 만든다). 범위 밖이면 None."""
+    if y < Y_BULB or y > Y_TR: return None
+    zk, zd = z_keel(y), sheer(y)
+    if z < zk - 1e-9 or z > zd + 1e-9: return None
+    bd = half_deck(y)
+    rb = bulb_r(y)
+    FLARE = 1.35
+    def bulb(base):
+        if rb > 1e-6 and abs(z - Z_BULB) < rb:
+            xb = math.sqrt(rb * rb - (z - Z_BULB) ** 2)
+            return (base ** 6.0 + xb ** 6.0) ** (1.0 / 6.0) if base > 1e-9 else xb
+        return base
+    if y < Y_STEM:                    # 벌브 전용
+        return bulb(0.0) if rb > 1e-6 else None
+    if zk >= T - 1e-6:                # 선미 오버행
+        u = (z - zk) / max(1e-12, zd - zk)
+        return bulb(bd * (u ** FLARE))
+    bw, fb, n = half_wl(y), flat_bottom(y), section_exp(y)
+    if z <= T:
+        u = (z - zk) / max(1e-12, T - zk)
+        base = fb + (bw - fb) * (1.0 - (1.0 - u) ** n) ** (1.0 / n)
+        return max(0.0, bulb(base))
+    u = (z - T) / max(1e-12, zd - T)
+    return bulb(bw + (bd - bw) * (u ** FLARE))
 
 def z_at_x(y, xb):
-    """단면에서 반폭 xb 가 되는 최저 z (버톡 라인용). 없으면 None."""
-    pts = section(y)
+    """반폭 xb 가 되는 최저 z (버톡 라인용) — 조밀 폴리라인에서 첫 교차."""
+    pts = section(y, n_wl=120)
     if not pts or max(p[0] for p in pts) < xb: return None
     for (x0, z0), (x1, z1) in zip(pts, pts[1:]):
         if (x0 - xb) * (x1 - xb) <= 0 and abs(x1 - x0) > 1e-12:
             t = (xb - x0) / (x1 - x0)
             return z0 + (z1 - z0) * t
     return None
+
+# ── 5등분 블록 (스펙 blocks — 오너 지시 2026-08-20) ─────────────────────
+BLK = SPEC["blocks"]
+N_BLK = BLK["count"]
+L_BLK = (Y_TR - Y_BULB) / N_BLK                     # = LOA/5 = 58.8
+BOUNDS = [round(Y_BULB + L_BLK * k, 6) for k in range(N_BLK + 1)]   # 선수→선미 오름차순
+ERECTION_ORDER = BLK["erection_order"]
+
+def block_name(i):
+    """구간 인덱스(0=선수측) → 블록명 (B1=선미)"""
+    return f"B{N_BLK - i}"
+
+def block_of(y):
+    """y 가 속한 블록명. 내부 경계 위의 값은 선미쪽(+y) 블록에 배속."""
+    for i in range(N_BLK):
+        if BOUNDS[i] <= y < BOUNDS[i + 1] - 1e-9:
+            return block_name(i)
+    return block_name(N_BLK - 1) if y >= BOUNDS[N_BLK] - 1e-9 else block_name(0)
 
 # ── 스테이션 배치 ────────────────────────────────────────────────────────
 def station_ys():
@@ -212,8 +245,30 @@ def station_ys():
     rng(Y_STEM, Y_BULB + 0.4, 1.2)               # 벌브 (코끝 0.4m 전까지)
     for s in (Y_AP, Y_FP, Y_PROP, 0.0):
         ys.add(round(s, 4))
-    out = sorted(ys, reverse=True)               # 선미(+)→선수(−)
-    return [v for i, v in enumerate(out) if i == 0 or abs(v - out[i-1]) > 0.5]
+    out = sorted(ys)
+    out = [v for i, v in enumerate(out) if i == 0 or abs(v - out[i-1]) > 0.5]
+    # 블록 경계 스냅 — 삽입 금지, 가장 가까운 스테이션을 「이동」 (스펙 boundary_rule)
+    specials = {round(v, 4) for v in (Y_AP, Y_FP, 0.0, Y_PROP)} | set(BOUNDS)
+    for b in BOUNDS[1:-1]:
+        i = min(range(len(out)), key=lambda k: abs(out[k] - b))
+        out[i] = b
+    # 이동으로 생긴 근접쌍 정리 — 특이점(경계·AP·FP·미드십·프로펠러)은 남기고 이웃을 뺀다
+    cleaned = []
+    for v in sorted(out):
+        if cleaned and v - cleaned[-1] <= 0.5:
+            if round(cleaned[-1], 4) in specials and round(v, 4) not in specials:
+                continue
+            if round(v, 4) in specials and round(cleaned[-1], 4) not in specials:
+                cleaned[-1] = v
+                continue
+        cleaned.append(v)
+    # 스냅 이동으로 벌어진 간격(>8.0)은 중점으로 채움 (구판 규약 — 경계 삽입과 무관한 보충)
+    filled = []
+    for v in cleaned:
+        while filled and v - filled[-1] > 8.0:
+            filled.append(round((filled[-1] + v) / 2.0, 4))
+        filled.append(v)
+    return sorted(filled, reverse=True)          # 선미(+)→선수(−)
 
 def waterline_zs():
     zs = [1.0, 2.0, 3.3, Z_BULB, 8.0, Z_BULB + R_BULB, 11.0, T, 15.5, 18.0, 21.0, D]

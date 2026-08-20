@@ -6,6 +6,10 @@
     "version": "1.0.0",
     "date": "2026-08-20",
     "sources": "문서/레퍼런스/선박/컨테이너선_실물_레퍼런스.md R1~R7 (KCS·DTC 벤치마크, A-3 대조표 채택값)",
+    "output": {
+      "blend": "~/_Blender/3D Object/ObjectIng/ContainerShip.blend",
+      "_note": "오너 지시 2026-08-20 — Blender 작업 파일은 ObjectIng 에 둔다. 리포트·렌더는 선박/build/"
+    },
     "coordinate_frame": {
       "unit": "meter (1 BU = 1 m)",
       "up": "+Z",
@@ -39,6 +43,15 @@
     "y_transom_deck": 144.2,
     "y_wl_aft_end": 136.0,
     "_derived": "LOA = 149.8 + 144.2 = 294.0 · 구상선수 돌출 8.8 = 0.031·LPP(§2) · 선미는 WL이 +136에서 끝나고 데크가 +144.2까지 나가는 large stern overhang(A-3 정정 4, DTC)"
+  },
+
+  "blocks": {
+    "count": 5,
+    "method": "전장(볼브 코끝~트랜섬) 정확 등분 — 오너 지시 2026-08-20 (격벽·베이 스냅 없음, 내부 구조는 블록 경계와 무관)",
+    "numbering": "B1=선미 → B5=선수 (신좌표: 선미=+y)",
+    "erection_order": ["B3", "B2", "B4", "B1", "B5"],
+    "boundary_rule": "블록 경계 스테이션·늑골은 「삽입」하지 않고 가장 가까운 것을 「이동」한다 (삽입 시 간격 퇴화 → 종통선 파손 전례)",
+    "_derived": "경계 y = y_bulb_tip + k·(LOA/5), k=0..5 · 블록장 = 294.0/5 = 58.8 m"
   },
 
   "hull": {
