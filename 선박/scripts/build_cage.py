@@ -27,7 +27,7 @@ for i in range(hf.N_BLK):
     nm = hf.block_name(i)
     c = bpy.data.collections.new(f"Cage_{nm}"); root.children.link(c)
     col_blk[nm] = c
-col_lg = bpy.data.collections.new("Cage_Long"); root.children.link(col_lg)
+# 롤케익 절단(스펙 cut_rule): 종통재도 경계에서 잘라 블록 컬렉션에 담는다
 
 def add_poly(name, pts, coll):
     cu = bpy.data.curves.new(name, type='CURVE'); cu.dimensions = '3D'
@@ -84,7 +84,25 @@ def y_samples(y0, y1, base=1.0, dense=0.35):
         y += dense if any(a <= y <= b for a, b in DENSE) else base
     ys.append(round(y1, 5))
     return ys
+def split_by_blocks(pts, evalf):
+    inner = hf.BOUNDS[1:-1]
+    segs, cur = [], [pts[0]]
+    for p0, p1 in zip(pts, pts[1:]):
+        for b in inner:
+            if p0[1] < b - 1e-9 and p1[1] > b + 1e-9:
+                bp = evalf(b)
+                if bp is not None:
+                    cur.append(bp); segs.append(cur); cur = [bp]
+        cur.append(p1)
+        if any(abs(p1[1] - b) < 1e-9 for b in inner):
+            segs.append(cur); cur = [p1]
+    if len(cur) > 1: segs.append(cur)
+    return segs
+
 for z in [float(v) for v in range(1, 24, 2)]:
+    def ev_st(y, z=z):
+        x = hf.x_at_z(y, z)
+        return (x, y, z) if x is not None else None
     pts = []
     for y in y_samples(hf.Y_BULB, hf.Y_TR):
         x = hf.x_at_z(y, z)
@@ -96,9 +114,12 @@ for z in [float(v) for v in range(1, 24, 2)]:
             pts = []
     if len(pts) >= 3:
         name = f"Str_{z:05.2f}"
-        add_poly(name, pts, col_lg)
-        report["longitudinals"].append({"name": name,
-                                        "pts": [[round(a,6), round(b,6), round(c,6)] for a, b, c in pts]})
+        for seg in split_by_blocks(pts, ev_st):
+            if len(seg) < 2: continue
+            blk = hf.block_of((seg[0][1] + seg[-1][1]) / 2.0)
+            add_poly(f"{name}_{blk}", seg, col_blk[blk])
+            report["longitudinals"].append({"name": name, "seg": f"{name}_{blk}", "block": blk,
+                "pts": [[round(a,6), round(b,6), round(c,6)] for a, b, c in seg]})
 
 report["counts"] = {"frames": len(report["frames"]), "longitudinals": len(report["longitudinals"]),
                     "meshes": len(bpy.data.meshes), "h": h, "n_per_block": n_per}

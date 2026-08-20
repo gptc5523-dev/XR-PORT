@@ -65,10 +65,10 @@ xw = interp_x(mid["pts"], hf.T); xd = mid["pts"][-1][0]
 check("L5", abs(mid["y"]) < 1e-6 and abs(xw - hf.HB) < 1e-4 and abs(xd - hf.HB) < 1e-4,
       f"미드십(y={mid['y']}) WL반폭 {xw:.5f} · 갑판 {xd:.5f} (요구 {hf.HB})")
 
-# L6 평행중앙부 WL 반폭 일정
-wl = next((L for L in longs if L["name"] == f"WL_{hf.T:05.2f}"), None)
-xs_pm = [p[0] for p in wl["pts"] if hf.PM["y_fwd"] + 1e-6 < p[1] < hf.PM["y_aft"] - 1e-6] if wl else []
-check("L6", wl is not None and xs_pm and max(xs_pm) - min(xs_pm) < 1e-6,
+# L6 평행중앙부 WL 반폭 일정 (절단된 세그먼트 전체 합산)
+wl_pts = [p for L in longs if L["name"] == f"WL_{hf.T:05.2f}" for p in L["pts"]]
+xs_pm = [p[0] for p in wl_pts if hf.PM["y_fwd"] + 1e-6 < p[1] < hf.PM["y_aft"] - 1e-6]
+check("L6", xs_pm and max(xs_pm) - min(xs_pm) < 1e-6,
       f"WL(T) 평행부 표본 {len(xs_pm)} · 편차 {max(xs_pm)-min(xs_pm) if xs_pm else -1:.2e}")
 
 # L7 개수: 스테이션·종통선·메시 0
@@ -76,11 +76,11 @@ exp_st = len([y for y in hf.station_ys() if len(hf.section(y)) >= 2])
 check("L7", rep["counts"]["stations"] == exp_st and rep["counts"]["meshes"] == 0,
       f"스테이션 {rep['counts']['stations']}/{exp_st} · 종통선 {rep['counts']['longitudinals']} · 메시 {rep['counts']['meshes']} (요구 0)")
 
-# L8 프로펠러 개구 여유 (씬 킬 커브 실측)
-keel = next(L for L in longs if L["name"] == "CL_Keel")
+# L8 프로펠러 개구 여유 (씬 킬 커브 실측 — 세그먼트 합산)
+keel_pts = sorted((p for L in longs if L["name"] == "CL_Keel" for p in L["pts"]), key=lambda p: p[1])
 need = hf.Z_SHAFT + hf.R_PROP + hf.APERTURE_CLR
 z_at_prop = None
-for a, b in zip(keel["pts"], keel["pts"][1:]):
+for a, b in zip(keel_pts, keel_pts[1:]):
     if a[1] - 1e-9 <= hf.Y_PROP <= b[1] + 1e-9:
         t = (hf.Y_PROP - a[1]) / max(1e-12, b[1] - a[1]); z_at_prop = a[2] + (b[2]-a[2])*t
 check("L8", z_at_prop is not None and z_at_prop >= need - 1e-4,
@@ -112,6 +112,33 @@ alloc = blk.get("alloc", {})
 mis_assign = [s["name"] for s in sts if s.get("block") != hf.block_of(s["y"])]
 check("B3", alloc and min(alloc.values()) >= 1 and not mis_assign,
       f"배분 {'/'.join(f'{k}:{v}' for k, v in sorted(alloc.items()))} · 오배속 {len(mis_assign)}")
+
+# B4 롤케익 절단면 연속성 — 같은 곡선의 이웃 조각이 경계점을 공유(틈 0)하고 접선이 이어지는가
+def seam_check(entries, ang_limit):
+    from collections import defaultdict
+    groups = defaultdict(list)
+    for L in entries:
+        if "seg" in L: groups[L["name"]].append(L)
+    n_seam, max_gap, worst = 0, 0.0, ("-", 0.0)
+    for name, segs in groups.items():
+        segs.sort(key=lambda L: L["pts"][0][1])
+        for a, b in zip(segs, segs[1:]):
+            pa, pb = a["pts"], b["pts"]
+            n_seam += 1
+            max_gap = max(max_gap, math.dist(pa[-1], pb[0]))
+            if len(pa) >= 2 and len(pb) >= 2:
+                v0 = [pa[-1][k] - pa[-2][k] for k in range(3)]
+                v1 = [pb[1][k] - pb[0][k] for k in range(3)]
+                n0 = math.sqrt(sum(q*q for q in v0)); n1 = math.sqrt(sum(q*q for q in v1))
+                if n0 > 1e-9 and n1 > 1e-9:
+                    cth = max(-1.0, min(1.0, sum(p*q for p, q in zip(v0, v1)) / (n0*n1)))
+                    ang = math.degrees(math.acos(cth))
+                    if ang > worst[1]: worst = (name, ang)
+    return n_seam, max_gap, worst
+if any("seg" in L for L in longs):
+    ns, mg, wo = seam_check(longs, 25.0)
+    check("B4", mg < 1e-9 and wo[1] <= 25.0,
+          f"선도 절단면 {ns} · 최대 틈 {mg:.2e} m (요구 0) · 이음 접선 최대 {wo[1]:.1f}° ({wo[0]})")
 
 # ── C군: 철골 (cage_report.json 있을 때만) ──
 CAGE_PATH = os.path.join(ROOT, "build", "cage_report.json")
@@ -167,6 +194,11 @@ if os.path.exists(CAGE_PATH):
     alloc_c = cg["blocks"]
     check("C5", min(alloc_c.values()) >= 1 and cg["counts"]["meshes"] == 0,
           f"배분 {'/'.join(f'{k}:{v}' for k,v in sorted(alloc_c.items()))} · 메시 {cg['counts']['meshes']} (요구 0)")
+    # C6 종통재 절단면 연속성
+    if any("seg" in L for L in strs):
+        ns2, mg2, wo2 = seam_check(strs, 20.0)
+        check("C6", mg2 < 1e-9 and wo2[1] <= 20.0,
+              f"종통재 절단면 {ns2} · 최대 틈 {mg2:.2e} m · 이음 접선 최대 {wo2[1]:.1f}° ({wo2[0]})")
 
 print(f"\n== 게이트: {'PASS' if not FAIL else 'FAIL ' + str(FAIL)} ({len(sts)} 스테이션 · {len(longs)} 종통선) ==")
 sys.exit(1 if FAIL else 0)

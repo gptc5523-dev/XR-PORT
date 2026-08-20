@@ -27,7 +27,7 @@ for i in range(hf.N_BLK):
     nm = hf.block_name(i)
     c = bpy.data.collections.new(f"Lines_{nm}"); root.children.link(c)
     col_blk[nm] = c
-col_lg = bpy.data.collections.new("Lines_Long"); root.children.link(col_lg)
+# 롤케익 절단(스펙 cut_rule): 종방향 선도 경계에서 잘라 블록 컬렉션에 담는다 — 별도 Long 컬렉션 없음
 
 def add_poly(name, pts, coll):
     """pts: [(x,y,z)...] → POLY 커브 오브젝트"""
@@ -68,17 +68,43 @@ def y_samples(y0, y1, dense_zones, base=1.5, dense=0.4):
 DENSE = [(hf.ST["skeg"]["y_aft"] - 4.0, hf.Y_TR), (hf.Y_BULB, hf.Y_FP + 12.0),
          (hf.FK["y_aft"] - 4.0, hf.FK["y_aft"] + 16.0)]   # 버톡 종단(빌지 이탈부) 조밀
 
-def add_long(name, pts):
+def split_by_blocks(pts, evalf):
+    """롤케익 절단 — 경계 y 를 지나는 곳에서 정확한 경계점(수식 평가)을 양쪽에 공유시켜 자른다."""
+    inner = hf.BOUNDS[1:-1]
+    segs, cur = [], [pts[0]]
+    for p0, p1 in zip(pts, pts[1:]):
+        for b in inner:
+            if p0[1] < b - 1e-9 and p1[1] > b + 1e-9:
+                bp = evalf(b)
+                if bp is not None:
+                    cur.append(bp); segs.append(cur); cur = [bp]
+        cur.append(p1)
+        if any(abs(p1[1] - b) < 1e-9 for b in inner):
+            segs.append(cur); cur = [p1]
+    if len(cur) > 1: segs.append(cur)
+    return segs
+
+def add_long(name, pts, evalf):
     if len(pts) < 3: return
-    add_poly(name, pts, col_lg)
-    report["longitudinals"].append({"name": name, "pts": [[round(a,6), round(b,6), round(c,6)] for a, b, c in pts]})
+    for seg in split_by_blocks(pts, evalf):
+        if len(seg) < 2: continue
+        blk = hf.block_of((seg[0][1] + seg[-1][1]) / 2.0)
+        segname = f"{name}_{blk}"
+        add_poly(segname, seg, col_blk[blk])
+        report["longitudinals"].append({"name": name, "seg": segname, "block": blk,
+            "pts": [[round(a,6), round(b,6), round(c,6)] for a, b, c in seg]})
 
 # 킬/중심선 프로필 (벌브 코끝 → 트랜섬 하단)
-add_long("CL_Keel", [(0.0, y, hf.z_keel(y)) for y in y_samples(hf.Y_BULB, hf.Y_TR, DENSE)])
+ev_cl = lambda y: (0.0, y, hf.z_keel(y))
+add_long("CL_Keel", [ev_cl(y) for y in y_samples(hf.Y_BULB, hf.Y_TR, DENSE)], ev_cl)
 # 갑판 현측선 (시어)
-add_long("Deck_Edge", [(hf.half_deck(y), y, hf.sheer(y)) for y in y_samples(hf.Y_STEM, hf.Y_TR, DENSE)])
+ev_dk = lambda y: (hf.half_deck(y), y, hf.sheer(y))
+add_long("Deck_Edge", [ev_dk(y) for y in y_samples(hf.Y_STEM, hf.Y_TR, DENSE)], ev_dk)
 # 워터라인
 for z in hf.waterline_zs():
+    def ev_wl(y, z=z):
+        x = hf.x_at_z(y, z)
+        return (x, y, z) if x is not None else None
     pts = []
     for y in y_samples(hf.Y_BULB, hf.Y_TR, DENSE, base=1.5):
         x = hf.x_at_z(y, z)
@@ -88,9 +114,12 @@ for z in hf.waterline_zs():
             break                      # 단일 구간만 (뒤쪽 재진입 방지)
         else:
             pts = []
-    add_long(f"WL_{z:05.2f}", pts)
+    add_long(f"WL_{z:05.2f}", pts, ev_wl)
 # 버톡 라인
 for xb in hf.buttock_xs():
+    def ev_bt(y, xb=xb):
+        zz = hf.z_at_x(y, xb)
+        return (xb, y, zz) if zz is not None else None
     pts = []
     for y in y_samples(hf.Y_BULB, hf.Y_TR, DENSE, base=1.5):
         zz = hf.z_at_x(y, xb)
@@ -100,7 +129,7 @@ for xb in hf.buttock_xs():
             break
         else:
             pts = []
-    add_long(f"BUT_{xb:05.2f}", pts)
+    add_long(f"BUT_{xb:05.2f}", pts, ev_bt)
 
 # ── 저장 + 리포트 ───────────────────────────────────────────────────────
 os.makedirs(os.path.join(ROOT, "build"), exist_ok=True)
