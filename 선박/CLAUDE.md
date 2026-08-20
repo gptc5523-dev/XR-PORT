@@ -55,9 +55,13 @@ spec/ship_spec.json      스펙 (유일한 진실)
 spec/ship_spec.schema.json
 scripts/                 각 에이전트가 만드는 bpy 스크립트
 gates/gate_check.py      결정론적 검증
-build/                   .blend, 렌더, 리포트 산출물
+build/                   렌더·리포트 산출물 (JSON·SVG·PNG)
 ASSET_LEDGER.md          에셋 출처 원장
 ```
+
+**Blender 작업 파일(.blend)은 `~/_Blender/3D Object/ObjectIng/ContainerShip.blend`**
+(오너 지시 2026-08-20 · 경로는 스펙 `meta.output.blend` 가 정본). 프로펠러 부품
+`Propeller.blend` 와 같은 폴더다.
 
 ## 표준 작업 순서
 
