@@ -15,13 +15,13 @@ namespace Container.Crane.Sts
     /// </summary>
     public static class StsPartNames
     {
-        // ── 다리/주행(갠트리) ─────────────────────────────────────────────
+        // 다리/주행(갠트리)
         /// <summary>다리 기둥(포스트). 갠트리 라벨 앵커.</summary>
         public const string LegPost = "Leg_Post";
         /// <summary>다리 충돌체(Numbered 접미사 붙음 → BaseName 비교). GantryMover가 수집.</summary>
         public const string LegCollider = "Leg_Collider";
 
-        // ── 트롤리/운전실 시점 ────────────────────────────────────────────
+        // 트롤리/운전실 시점
         /// <summary>트롤리 본체 헤드. VR 운전실 시점 앵커 기본값.</summary>
         public const string TrolleyHead = "Trolley_Head";
         /// <summary>전용 운전실 시점(좌석 눈높이). StsCraneVRController가 우선 탐색.</summary>
@@ -34,17 +34,17 @@ namespace Container.Crane.Sts
         /// VR 운전실 시점의 눈 '아래' 기준 — 이 바닥 패널 밑에 카메라를 둬 발밑 화물을 막힘없이 내려다본다.</summary>
         public const string CabFloorRear = "Cab_Fb_FloorRear";
 
-        // ── 스프레더 트위스트락 ───────────────────────────────────────────
+        // 스프레더 트위스트락
         /// <summary>트위스트락 콘(Numbered 접미사 → BaseName 비교). 잠금 애니/잡기 기준점.</summary>
         public const string TwistlockCone = "Twistlock_Cone";
         /// <summary>트위스트락 헤드(Numbered 접미사 → BaseName 비교).</summary>
         public const string TwistlockHead = "Twistlock_Head";
 
-        // ── 결박(타이다운) ────────────────────────────────────────────────
+        // 결박(타이다운)
         /// <summary>결박 봉 이름 접두사. TiedownController가 StartsWith로 수집(여러 개).</summary>
         public const string TiedownRodPrefix = "Tiedown_Rod";
 
-        // ── 붐/기계실/평형추(정적 라벨용) ─────────────────────────────────
+        // 붐/기계실/평형추(정적 라벨용)
         /// <summary>붐 거더(트롤리 레일). 정적 라벨 앵커(현재 라벨 호출은 주석 처리됨).</summary>
         public const string BoomGirder = "Boom_Girder";
         /// <summary>기계실. 정적 라벨 앵커(현재 주석 처리됨).</summary>
@@ -56,21 +56,39 @@ namespace Container.Crane.Sts
         /// 주의: 감사 #1·#2로 'Counterweight' 생산부가 삭제됨(아래 감사 메모 참조).</summary>
         public const string Counterweight = "Counterweight";
 
-        // ── 부두(Quay) ────────────────────────────────────────────────────
+        // 부두(Quay)
         /// <summary>부두 바닥(걷는 면). StartPlacer/ViewHeightAdjuster/GantryRangeFit/VRTest가 탐색.</summary>
         public const string QuayGround = "Quay_Ground";
         /// <summary>레일 이름 접두사(Rail_Land/Rail_Water/Rail_Sweeper …). 소비부는 StartsWith로 레인 탐색.</summary>
         public const string RailPrefix = "Rail_";
+        /// <summary>부두 걷는 면(아스팔트 슬래브). 지면 Y 산출부(StartPlacer/ViewHeightAdjuster/RTG 배치)가
+        /// '수평 면적 최대' 휴리스틱 대신 이 이름을 1순위로 쓴다 — 바다(Sea)가 슬래브보다 넓어 오선택되던 문제 차단.</summary>
+        public const string QuayAsphalt = "Asphalt";
+        /// <summary>바다 수면. 걷는 면이 아니다(수면은 데크 아래 StsConfig.SeaLevelY) — 지면 탐색에서 제외 대상.</summary>
+        public const string QuaySea = "Sea";
+        /// <summary>부두에 깔린 고정 주행레일. **안벽 위치의 SSOT** — 크레인·배·갠트리 범위가 모두 이 X를 기준으로 정렬한다.
+        /// 생산부 StsQuayGroundCreator / 소비부 StsCraneCreator·ShipBerthMenu·GantryRangeFit.</summary>
+        public const string QuayRail = "QuayRail";
+        /// <summary>RTG 스택 존(장치장 블록) 바닥. RTG 배치가 이 렌더러를 찾아 그 위에 접지한다.</summary>
+        public const string YardBlockZone = "YardBlock_Zone";
+        /// <summary>야드 마킹 계열 이름 접두 — 현행 "YardBlock_Zone/Rows/Edge" 와 구판 "Yard_Row/Slot/Edge" 를 모두 덮는다.
+        /// ★ "Yard_"(밑줄 포함)로 비교하면 현행 "YardBlock_*" 이 걸리지 않아 야드 중심 탐색이 조용히 실패한다.</summary>
+        public const string YardPrefix = "Yard";
 
-        // ── 플레이어 시작 마커 ────────────────────────────────────────────
+        /// <summary>수면 계열 이름("Sea", "Sea_Foam" …) 판정 — 걷는 면/지면 Y 탐색에서 제외할 때 쓴다.
+        /// 바다 메시가 아스팔트 슬래브보다 수평 면적이 넓어 '면적 최대' 휴리스틱이 바다를 고르는 사고를 막는다.</summary>
+        public static bool IsSeaName(string name)
+            => name == QuaySea || (name != null && name.StartsWith(QuaySea + "_"));
+
+        // 플레이어 시작 마커
         /// <summary>플레이어 시작 지점 마커. 타입(CranePlayerStartPoint)으로 못 찾을 때 이름 폴백.</summary>
         public const string PlayerStartPoint = "PlayerStartPoint";
 
-        // ── HUD 캔버스 ────────────────────────────────────────────────────
+        // HUD 캔버스
         /// <summary>크레인 상태 패널 캔버스. CraneStatusHUD가 생성, ModeSelectorHUD가 GameObject.Find로 추적.</summary>
         public const string CraneStatusCanvas = "CraneStatusCanvas";
 
-        // ── 외부 XR 리그 명명 추정(우리 빌더가 만드는 게 아님) ────────────
+        // 외부 XR 리그 명명 추정(우리 빌더가 만드는 게 아님)
         // CraneHud.FindController / CraneControllerArrowHUD가 XRI/Hands 리그의 컨트롤러 객체를 이름으로 휴리스틱
         // 탐색할 때 쓰는 소문자 부분문자열(대소문자 무시 비교). 리그 패키지가 바꾸면 휴리스틱이 깨질 수 있으므로
         // 장기적으로는 SerializeField로 노출(인스펙터 지정)하는 편이 안전하다. 지금은 동작 불변 유지.

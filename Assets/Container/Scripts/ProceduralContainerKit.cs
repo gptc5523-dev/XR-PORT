@@ -70,7 +70,7 @@ namespace ContainerProject
             var gBody  = NewGroup("Body", root.transform);
             var gDoor  = NewGroup("Doors", root.transform);
 
-            // ── 부품 1개 = 메시 빌드 콜백 → 독립 GameObject 래핑 ──
+            // 부품 1개 = 메시 빌드 콜백 → 독립 GameObject 래핑
             GameObject Part(string name, Transform parent, Material mat, Action<MeshBuilder> build)
             {
                 var mb = new MeshBuilder();
@@ -102,7 +102,7 @@ namespace ContainerProject
             float hx = Width  * 0.5f;
             float hz = Length * 0.5f;
 
-            // ───────────────── 코너 캐스팅 8개 (BuildCornerCastings 미러) ─────────────────
+            // 코너 캐스팅 8개 (BuildCornerCastings 미러)
             for (int sx = -1; sx <= 1; sx += 2)
             for (int sz = -1; sz <= 1; sz += 2)
             for (int sy = 0; sy <= 1; sy++)
@@ -120,13 +120,13 @@ namespace ContainerProject
                     mb => AddCornerCastingWithHoles(mb, 0, center, size, ox, oz, isTop));
             }
 
-            // ───────────────── 프레임 12개 (BuildFrame 미러) ─────────────────
+            // 프레임 12개 (BuildFrame 미러)
             float bottomRailY = CornerCastH * 0.5f;
             float topRailY    = Height - CornerCastH * 0.5f;
             float railZSpan   = Length - CornerCastD * 2f;
             float endRailXSpan= Width  - CornerCastW * 2f;
 
-            // ── 지게차 포켓(fork pocket) 개구 — 사이드 레일 관통 ──
+            // 지게차 포켓(fork pocket) 개구 — 사이드 레일 관통
             //   언더프레임에 이미 존재하는 포켓 하우징(BuildUnderframe: ForkPocketZ/ForkPocketWidth)과
             //   Z위치·개구폭을 그대로 일치시킨다(어긋남 방지). 높이=RailH(레일 전 높이 관통), X 전관통.
             //   20ft급(길이<9m)에만 적용(40ft는 포켓 없음). 레일이 포켓에서 3분할된다.
@@ -168,7 +168,7 @@ namespace ContainerProject
                     mb => mb.AddBox(0, new Vector3(cx, topRailY, 0f), new Vector3(CornerPostW, RailH, railZSpan)));
             }
 
-            // ── 포켓 터널 2개 — 폭(X) 전관통, 상·하판 + Z 양벽(X양끝 개방) ──
+            // 포켓 터널 2개 — 폭(X) 전관통, 상·하판 + Z 양벽(X양끝 개방)
             if (hasForkPockets)
             {
                 float cxInner = hx - CornerPostW * 0.5f;       // 사이드 레일 중심 X
@@ -219,7 +219,7 @@ namespace ContainerProject
                     mb => mb.AddBox(0, new Vector3(cx, postY, cz), new Vector3(CornerPostW, postHeight, CornerPostW)));
             }
 
-            // ───────────────── 본체 패널/지붕/바닥 5개 (BuildBodyPanels/Roof/Floor 미러) ─────────────────
+            // 본체 패널/지붕/바닥 5개 (BuildBodyPanels/Roof/Floor 미러)
             float panelTop    = Height - CornerCastH * 0.5f - RailH * 0.5f;
             float panelBottom = CornerCastH * 0.5f + RailH * 0.5f;
             float panelHeight = panelTop - panelBottom;
@@ -257,7 +257,7 @@ namespace ContainerProject
             // 언더프레임(횡단 크로스멤버) — 프레임 회색. 메인 BuildUnderframe 공유(파트라 submesh 0).
             Part("Underframe", gFrame.transform, mats.frame, mb => BuildUnderframe(mb, 0));
 
-            // ───────────────── 도어 19개 (BuildDoors 미러, 부품 분리) ─────────────────
+            // 도어 19개 (BuildDoors 미러, 부품 분리)
             float doorZ       = Length * 0.5f;
             float panelMidY   = (panelTop + panelBottom) * 0.5f;
             float fullWidth   = Width - (CornerPostW + postInset) * 2f;
@@ -304,7 +304,7 @@ namespace ContainerProject
                         // 캠킵 키퍼 (상/하 캠이 헤더·실에 물리는 ㄷ자 리텐션 브래킷)
                         AddCamKeeper(mb, 0, x, panelTop - LockCamSize * 0.5f, lockBarZ, doorZ);
                         AddCamKeeper(mb, 0, x, panelBottom + LockCamSize * 0.5f, lockBarZ, doorZ);
-                        // [디자인팀 재설계] cam-lock 회전 핸들 — 허브+레버암+수직 그립+도어 캐치. 단일메시·Kit 공유 헬퍼(좌표·치수 단일화).
+                        // cam-lock 회전 핸들 — 허브+레버암+수직 그립+도어 캐치. 단일메시·Kit 공유 헬퍼(좌표·치수 단일화).
                         AddCamLockHandle(mb, 0, x, panelMidY, lockBarZ, handleSide);
                         float bracketCenterZ = doorZ + LockBracketD * 0.5f;
                         for (int br = 0; br < LockBracketsPerBar; br++)

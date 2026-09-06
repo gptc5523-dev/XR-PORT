@@ -58,7 +58,7 @@ namespace Container.Crane.Sts
             if (right.isValid) right.TryGetFeatureValue(CommonUsages.trigger, out rTrig);
             HeightHold = rTrig > triggerHoldThreshold;
 
-            // ★ 관전자 '대각선 수직이동' 수정: 높이조절 중엔 XR 로코모션(ContinuousMove)을 꺼서 왼스틱이 '수직만' 움직이게.
+            // 관전자 '대각선 수직이동' 수정: 높이조절 중엔 XR 로코모션(ContinuousMove)을 꺼서 왼스틱이 '수직만' 움직이게.
             //   호스트는 StsCraneVRController.EnforceLocomotion이 이미 같은 일을 하지만(ViewHeightActive→로코 off),
             //   관전자는 그 컨트롤러가 꺼져 있어 로코모션이 살아 → 왼스틱이 수직(이 컴포넌트)+수평(XR 이동) 동시 적용 → 대각선.
             if (HeightHold || locoSuppressed) UpdateLocomotionSuppression(HeightHold);
@@ -108,7 +108,7 @@ namespace Container.Crane.Sts
             Transform parent = cameraOffset.parent;
             if (parent == null) { cameraOffset.localPosition = baseCameraOffsetLocal + Vector3.up * offset; return; }
 
-            // ★ 카메라 오프셋을 '월드 수직'으로만 이동 — 리그가 기울었거나 비균일 스케일이어도 뒤/옆으로 안 샌다.
+            // 카메라 오프셋을 '월드 수직'으로만 이동 — 리그가 기울었거나 비균일 스케일이어도 뒤/옆으로 안 샌다.
             //   ('관전자가 뒤로 가며 내려가던' 버그: 기존 InverseTransformDirection+로컬더하기가 리그 회전×스케일 조합에서
             //    수평 성분을 섞었음.) 기준 로컬을 월드로 환산 → 월드 up으로 offset×리그수직스케일 만큼 이동 → 다시 로컬로.
             //   기준(base)을 매번 parent에서 월드로 재계산하므로 리그가 걸어 이동해도 안 흔들린다.
@@ -156,9 +156,13 @@ namespace Container.Crane.Sts
         {
             var quay = GameObject.Find(QuayName);
             if (quay == null) return null;
+            // ★ 1순위 = 'Asphalt' 이름 직접 지목, 면적 폴백에서도 바다(Sea/Sea_Foam)는 제외.
+            //   수면은 데크 아래(StsConfig.SeaLevelY)라, 면적만 보면 바다를 골라 눈높이가 4m 가라앉는다.
             Renderer ground = null; float bestArea = 0f;
             foreach (var r in quay.GetComponentsInChildren<Renderer>())
             {
+                if (r.gameObject.name == StsPartNames.QuayAsphalt) return r;
+                if (StsPartNames.IsSeaName(r.gameObject.name)) continue;
                 Vector3 e = r.bounds.size;
                 float area = e.x * e.z;                  // 수평 면적 — 아스팔트 슬래브가 압도적으로 큼.
                 if (area > bestArea) { bestArea = area; ground = r; }

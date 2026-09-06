@@ -28,10 +28,10 @@ namespace Container.Crane.Sts
         [Tooltip("트롤리/스프레더 말풍선을 좌우(Z)로 벌려 겹침 방지하는 양(월드 m).")]
         [SerializeField] float sideStagger = 0.16f;
         [Tooltip("패널 크기 배율(1px=이 값 m). 모델이 1/24라 작게.")]
-        [SerializeField] float worldScale = 0.0009f;   // 가독성 ↑ (0.0006→0.0009, 50% 크게)
+        [SerializeField] float worldScale = 0.0009f;   // 가독성 ↑
         [SerializeField] Vector2 panelPixels = new Vector2(360f, 150f);
         [SerializeField] Color bgColor = new Color(0f, 0f, 0f, CraneHud.PanelBgAlpha);   // 패널 배경 알파 표준(공용 토큰)
-        [SerializeField] int fontSize = 26;   // 가독성 ↑ (22→26)
+        [SerializeField] int fontSize = 26;   // 가독성 ↑
 
         [Header("표시 규칙(난잡 방지)")]
         [Tooltip("이 거리(m)보다 멀면 라벨 숨김(가독성). 0이면 항상 표시.")]
@@ -193,7 +193,7 @@ namespace Container.Crane.Sts
                 Vector3 toBubble = bubblePos - camPos;
                 float dist = toBubble.magnitude;
 
-                // ── 표시 규칙(난잡 방지) ──
+                // 표시 규칙(난잡 방지)
                 bool show;
                 if (L.kind == Kind.Static)
                     // 고정 부품: 거리 안 + '쳐다볼 때'만 → 평소엔 안 보임

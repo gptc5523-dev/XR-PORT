@@ -53,13 +53,23 @@ namespace Container.Crane.Sts
         protected abstract int GizmoAxis { get; }
         protected abstract Color GizmoColor { get; }
 
+        /// <summary>Min/Max 축값을 기즈모용 월드 점으로 변환. 기본은 '부모 로컬 축' 해석 —
+        /// 월드 절대값으로 구동하는 축(SpreaderHoist.worldVertical)은 반드시 override할 것.</summary>
+        protected virtual Vector3 GizmoPointAt(float axisValue)
+        {
+            Vector3 l = transform.localPosition;
+            l[GizmoAxis] = axisValue;
+            // localPosition이 사는 공간 = 부모 공간. 부모가 없으면 그게 곧 월드다.
+            // (옛 폴백 parent=transform은 자기 TRS를 자기 localPosition에 다시 곱해
+            //  루트에 붙는 GantryMover의 범위선을 스케일 배만큼 날려버렸다.)
+            Transform parent = transform.parent;
+            return parent != null ? parent.TransformPoint(l) : l;
+        }
+
         void OnDrawGizmosSelected()
         {
-            Transform parent = transform.parent != null ? transform.parent : transform;
-            Vector3 aL = transform.localPosition, bL = transform.localPosition;
-            aL[GizmoAxis] = Min; bL[GizmoAxis] = Max;
-            Vector3 a = parent.TransformPoint(aL);
-            Vector3 b = parent.TransformPoint(bL);
+            Vector3 a = GizmoPointAt(Min);
+            Vector3 b = GizmoPointAt(Max);
             Gizmos.color = GizmoColor;
             Gizmos.DrawLine(a, b);
             Gizmos.DrawWireSphere(a, 0.04f);

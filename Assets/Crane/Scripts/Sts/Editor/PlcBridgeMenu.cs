@@ -20,7 +20,7 @@ namespace Container.Crane.Sts.EditorTools
             var crane = Object.FindFirstObjectByType<StsCrane>();
             if (crane == null)
             {
-                Debug.LogWarning("[PlcBridgeMenu] 씬에 StsCrane이 없습니다 — 먼저 'Object/크레인/STS 크레인 생성' 실행.");
+                Debug.LogWarning("[PlcBridgeMenu] 씬에 StsCrane이 없습니다 — 먼저 'Model ▸ PG ▸ 크레인 ▸ STS 크레인 생성' 실행.");
                 return;
             }
 
@@ -45,7 +45,7 @@ namespace Container.Crane.Sts.EditorTools
             var crane = Object.FindFirstObjectByType<StsCrane>();
             if (crane == null)
             {
-                Debug.LogWarning("[PlcBridgeMenu] 씬에 StsCrane이 없습니다 — 먼저 'Object/크레인/STS 크레인 생성' 실행.");
+                Debug.LogWarning("[PlcBridgeMenu] 씬에 StsCrane이 없습니다 — 먼저 'Model ▸ PG ▸ 크레인 ▸ STS 크레인 생성' 실행.");
                 return;
             }
 
@@ -71,9 +71,8 @@ namespace Container.Crane.Sts.EditorTools
                       "▶Play 진입 → 기록된 시나리오대로 크레인이 재현됩니다. 원복은 Inspector에서 PlcBridge 제거.");
         }
 
-        // [메뉴 삭제 2026-06-17] '가상 PLC 분리(직접조종 복귀)' 메뉴 제거(오너 지시).
-        //   분리는 Inspector에서 PlcBridge 컴포넌트를 떼면 된다 — PlcBridge.OnDisable이 PlcDriven=false를
-        //   자동 복원하므로 가속 오경보 잔류 없이 안전(과거 이 메뉴가 하던 정리를 컴포넌트에 내재화).
+        // 분리는 Inspector에서 PlcBridge 컴포넌트를 떼면 된다 — PlcBridge.OnDisable이 PlcDriven=false를
+        // 자동 복원하므로 가속 오경보 잔류 없이 안전(과거 이 메뉴가 하던 정리를 컴포넌트에 내재화).
     }
 }
 #endif

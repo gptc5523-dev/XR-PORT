@@ -14,7 +14,18 @@ namespace Container.Ship.EditorTools
     /// </summary>
     public static class ShipCreator
     {
-        const string RootName = "ContainerShip";
+        const string RootName = ShipConfig.ShipRootName;   // SSOT — 접안부·부두 재생성과 공유
+
+        // ── 갑판 화물 LOD 임계값 (화면 상대 높이) ──
+        // 산식 : relativeHeight = D_bound / (d × 2 × tan(FOV_v / 2))     — 문서/컨테이너_규격.md Part 5 §10.7
+        //   D_bound = √(12.192² + 2.438² + 2.591²) = 12.70 m (40ft 표준고 대각)
+        //   FOV_v   = 96° (Quest 3 세로) → 2·tan(48°) = 2.2212
+        //   d = 15.1 m → 12.70 / (15.1 × 2.2212) = 0.3787
+        //   d = 250 m  → 12.70 / (250  × 2.2212) = 0.0229   (컬링)
+        // ★ 거리(m)를 그대로 넣으면 안 된다 — 씬은 1 유닛 = 24 m(StsConfig.ModelScale = 1/24).
+        //   상대 높이는 크기·거리가 함께 스케일되므로 단위에 무관해 이 값을 그대로 쓸 수 있다.
+        const float CargoLod0Height = 0.3787f;   // 이보다 크면(≈15.1 m 이내) 원본 — 집어 든 경우
+        const float CargoLod1Height = 0.0229f;   // 이보다 작으면(≈250 m 밖) 컬링
 
         // ── 통일 도장 팔레트 (네이비 선체 기준 실선 livery) ──
         // 선체: 토프사이드 네이비 / 선저 적방오 / 부트탑 흑 / 갑판 녹색
@@ -43,7 +54,7 @@ namespace Container.Ship.EditorTools
             new Color(0.78f, 0.78f, 0.75f), new Color(0.32f, 0.13f, 0.13f),
         };
 
-        [MenuItem("Object/선박/컨테이너선 생성 (선체+상부구조)")]
+        [MenuItem("Model/PG/선박/컨테이너선 생성 (선체+상부구조)", false, 10)]
         public static void CreateShip()
         {
             var root = new GameObject(RootName);
@@ -102,7 +113,7 @@ namespace Container.Ship.EditorTools
         }
 
         // ── 갑판에 '우리 컨테이너'(절차 메시) 그랩 가능하게 적재 — 위치는 CargoSlots에서 산출 ──
-        [MenuItem("Object/선박/컨테이너선에 컨테이너 적재 (그랩)")]
+        [MenuItem("Model/PG/선박/컨테이너선에 컨테이너 적재 (그랩)", false, 11)]
         public static void LoadShipCargo()
         {
             var ship = GameObject.Find(RootName);
@@ -118,6 +129,18 @@ namespace Container.Ship.EditorTools
             var cMesh = ProceduralContainerMesh.BuildSized(
                 ProceduralContainerMesh.Length40ft, ProceduralContainerMesh.StdWidth, ProceduralContainerMesh.HeightStd,
                 "ShipCargo_40ft", ProceduralContainerMesh.DefaultMiniatureScale, centerPivot: true, xIsLength: true);
+
+            // ★ 배경 화물용 저폴리(LOD1) — 갑판 화물은 대수가 많아 예산의 지배항이다.
+            //   근거: 문서/컨테이너_규격.md Part 5 §10.5·§11.9. 관측점 실측 거리 18~175 m 에서
+            //   대부분이 33 m 밖이고, 실측 GPU 처리율 기준 허용치가 대당 1,100~3,100 tris 다.
+            //   집을 수 있는 물체라 가까이 오는 경우가 있으므로 LOD0(원본)은 유지하고 LODGroup 으로 전환한다.
+            var cMeshLod1 = ProceduralContainerMesh.BuildSizedLod(
+                ProceduralContainerMesh.Length40ft, ProceduralContainerMesh.StdWidth, ProceduralContainerMesh.HeightStd,
+                lodLevel: 1,
+                meshName: "ShipCargo_40ft_LOD1", scale: ProceduralContainerMesh.DefaultMiniatureScale,
+                centerPivot: true, xIsLength: true);
+            Debug.Log($"[Ship] 화물 메시 — LOD0 {cMesh.triangles.Length / 3:N0} tris · LOD1 {cMeshLod1.triangles.Length / 3:N0} tris "
+                    + $"({1f - (float)cMeshLod1.triangles.Length / cMesh.triangles.Length:P1} 감축)");
 
             // 머티리얼 변주(0 Body·1 Door·2 Frame·3 Castings·4 Marking) — 프레임/캐스팅/마킹 공유
             var frame   = Mat(new Color(0.20f, 0.20f, 0.21f), 0.4f, 0.30f);
@@ -143,8 +166,25 @@ namespace Container.Ship.EditorTools
                 g.transform.SetParent(parent.transform, false);
                 g.transform.localPosition = new Vector3(sl.x, sl.y, sl.z) * ms;
                 g.transform.localRotation = rot;
+                var mats = variants[Mathf.RoundToInt(sl.w) % CCargo.Length];
                 g.AddComponent<MeshFilter>().sharedMesh = cMesh;
-                g.AddComponent<MeshRenderer>().sharedMaterials = variants[Mathf.RoundToInt(sl.w) % CCargo.Length];
+                var r0 = g.AddComponent<MeshRenderer>(); r0.sharedMaterials = mats;
+
+                // LOD1 은 자식 렌더러로 둔다 — 부모(g)에 그랩·강체·콜라이더가 붙어 있어 그대로 유지된다.
+                var lodGo = new GameObject("LOD1");
+                lodGo.transform.SetParent(g.transform, false);
+                lodGo.AddComponent<MeshFilter>().sharedMesh = cMeshLod1;
+                var r1 = lodGo.AddComponent<MeshRenderer>(); r1.sharedMaterials = mats;
+
+                // 화면 상대 높이 임계값 — 문서 §10.7 산식. 씬은 1 유닛 = 24 m(StsConfig.ModelScale=1/24)라
+                //   거리 상수를 직접 넣으면 안 된다. 여기 값은 이미 상대 높이라 단위 무관하다.
+                var lg = g.AddComponent<LODGroup>();
+                lg.SetLODs(new[] {
+                    new LOD(CargoLod0Height, new Renderer[] { r0 }),   // 근거리: 원본(집어 든 경우)
+                    new LOD(CargoLod1Height, new Renderer[] { r1 }),   // 그 밖: 저폴리
+                });
+                lg.RecalculateBounds();
+
                 var box = g.AddComponent<BoxCollider>(); box.center = Vector3.zero; box.size = colSize;
                 // 부두 컨테이너와 동일한 '동적 강체'. kinematic으로 두면 스프레더 물리충돌(SpreaderPusher,
                 //   kinematic 콜라이더)이 못 민다 — PhysX는 kinematic↔kinematic 접촉을 해소하지 않아 그냥 통과한다.

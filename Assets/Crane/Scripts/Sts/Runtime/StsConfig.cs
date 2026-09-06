@@ -22,13 +22,13 @@ namespace Container.Crane.Sts
         /// </summary>
         public const float InvModelScale = 24f;
 
-        // ── 크레인/부두 공유 치수 (SSOT, 외부 감사 H2) ─────────────────────────────
+        // 크레인/부두 공유 치수 (SSOT, 외부 감사 H2)
         //   StsCraneCreator(크레인 생성)·StsQuayGroundCreator(부두 레일)·GantryRangeFitMenu
         //   (주행반경 폴백)가 같은 값을 각자 하드코딩하던 것을 여기로 일원화. 한 곳만 바꾸면
         //   부두/갠트리 기하가 크레인과 어긋나던 구조를 제거한다. 값은 종전과 비트 단위 동일.
 
         /// <summary>레일 게이지(X, 육지/바다 두 주행레일 간격) — 실척 m. 모델 단위 = ×ModelScale.
-        /// [외부감사 S3 증분2 2026-06-17] 15→18: Post-Panamax 표준 게이지. 아웃리치45/게이지18=2.50 ∈ 2.3~2.6 ✓.
+        /// [외부감사 S3 증분2] 15→18: Post-Panamax 표준 게이지. 아웃리치45/게이지18=2.50 ∈ 2.3~2.6 ✓.
         /// 부두 레일(StsQuayGroundCreator)도 이 SSOT를 추종하므로 다리 접지 유지.</summary>
         public const float LegGaugeXMeters = 18f;
 
@@ -49,5 +49,32 @@ namespace Container.Crane.Sts
 
         /// <summary>주행 레일 단면 높이(Y) — 모델 단위. 크레인 짧은 레일·부두 고정 레일 공통.</summary>
         public const float RailSectionH = 0.008f;
+
+        // ── 부두 수직 단면(데크 · 수면 · 안벽 깊이) SSOT ──────────────────────────────
+        //   종전엔 '데크 윗면 y=0' 과 '수면 y≈0' 이 사실상 같은 높이라, 안벽이 물에 잠긴 얇은 판처럼 보였다
+        //   (오너 지적 2026-08-10: "너무 얇다 / 지면과 바다 높이가 안 맞는다").
+        //   데크 y=0 은 크레인 접지·VirtualFloor·컨테이너 착지의 공통 기준이라 절대 못 움직이므로,
+        //   '수면을 데크 아래로 내리고 안벽을 해저까지 두껍게' 하는 방식으로 실제 안벽 단면을 만든다.
+        //
+        //   실물 레퍼런스(포스트파나막스 컨테이너 터미널, 부산신항급):
+        //     · 코핑(데크) 레벨  = 평균해면 +4.0 m
+        //     · 선석 계획수심    = −16 ~ −17 m (14,000TEU급 흘수 13 m + 여유수심)
+        //     · 안벽(케이슨) 높이 = 4 + 17 = 21 m
+        //   소비부: StsQuayGroundCreator(슬래브 두께·바다 높이), ShipBerthMenu(흘수선 = 수면).
+
+        /// <summary>데크(안벽 윗면 y=0) ↔ 수면 높이차 = 건현/코핑고 — 실척 m.</summary>
+        public const float QuayDeckAboveSeaMeters = 4f;
+
+        /// <summary>선석 계획수심(수면 → 해저) — 실척 m. 배 흘수 13 m + 여유수심 4 m.</summary>
+        public const float BerthWaterDepthMeters = 17f;
+
+        /// <summary>안벽 전면 높이(데크 → 해저) = 코핑고 + 계획수심 — 실척 m. 슬래브 두께 SSOT.</summary>
+        public const float QuayWallHeightMeters = QuayDeckAboveSeaMeters + BerthWaterDepthMeters;
+
+        /// <summary>수면 월드 Y — 모델 단위(데크 y=0 기준 아래). 바다 메시·배 흘수선의 공통 기준.</summary>
+        public const float SeaLevelY = -QuayDeckAboveSeaMeters * ModelScale;
+
+        /// <summary>안벽 슬래브 두께(데크 윗면 y=0 → 해저) — 모델 단위.</summary>
+        public const float QuayWallThickness = QuayWallHeightMeters * ModelScale;
     }
 }

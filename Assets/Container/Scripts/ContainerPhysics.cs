@@ -70,16 +70,9 @@ namespace ContainerProject
         [SerializeField] bool debugLog = true;
 
         // 바닥 관통 방지(하드 클램프) — 스프레더가 잡은(kinematic·무한질량) 컨테이너로 바닥의 동적 컨테이너를
-        //   '강제로 눌러도' 바닥 콜라이더(VirtualFloor, 두께 ≈0.1)를 뚫고 빠지지 않게, 매 FixedUpdate에서
+        //   '강제로 눌러도' 바닥 콜라이더(부두 슬래브 Asphalt)를 뚫고 빠지지 않게, 매 FixedUpdate에서
         //   컨테이너 '콜라이더 밑면'을 바닥 윗면으로 되돌린다.  ▸ 잡힌(kinematic) 컨테이너는 제외(공중 이송 정상).
         //   ▸ 토플/적층은 X·Z·회전이라 무관.
-        //
-        // [외부감사 S1 수정 2026-06-17 · 물리팀(한도연·한도경)+수학팀(오세훈·서지안)]
-        //   종전: 피봇 y(=메시 중심, ProceduralContainerMesh centerPivot)를 바닥에 맞춤 → 중심이 바닥에 닿을 땐
-        //         이미 밑면이 반높이(0.05398m=2.591×1/24÷2)만큼 잠긴 뒤라 관통을 절반 허용하고도 못 막았음.
-        //   수정: 콜라이더 월드 AABB 최저점(bounds.min.y)으로 침투를 재고, 밑면을 바닥 윗면으로 끌어올림.
-        //         정착 떨림 방지 스킨(FloorGuardSkin 4mm)보다 깊을 때만 작동 → 잔여 관통 상한 54mm→4mm.
-        //   ※ 가설 수정 · Quest 실기 미검증([[feedback_dont_claim_fixed_without_test]]).
         const float FloorGuardSkin = 0.004f;   // 정착 시 자연 침투(≈ContactOffset 0.001)보다 크게 — 떨림 없이 깊은 관통만 교정
         readonly List<Rigidbody> _bodies = new List<Rigidbody>();
         readonly List<Collider>  _cols   = new List<Collider>();   // _bodies와 1:1 평행 — 밑면(bounds) 측정용
@@ -100,7 +93,7 @@ namespace ContainerProject
             _cols.Clear();
             foreach (var rb in _bodies) _cols.Add(rb != null ? rb.GetComponent<Collider>() : null);
             if (debugLog) Debug.Log($"[ContainerPhysics] 적층 안정화 일괄 적용 — 컨테이너 {n}개, " +
-                                    $"바닥 윗면 y={_floorTopY:F3}({(hasFloor ? "VirtualFloor" : "기본 0")})");
+                                    $"바닥 윗면 y={_floorTopY:F3}({(hasFloor ? "레거시 VirtualFloor" : "데크 y=0 규약")})");
         }
 
         // 바닥 윗면 아래로 내려간 동적 컨테이너의 '밑면'을 되돌려, 강제 누름에도 바닥을 못 뚫게 한다.
@@ -144,7 +137,8 @@ namespace ContainerProject
             }
         }
 
-        // 바닥 콜라이더(VirtualFloor) 윗면의 월드 y. 없으면 0(부두 아스팔트 윗면 규약).
+        // 바닥 윗면의 월드 y. 레거시 'VirtualFloor'가 남아 있으면 그것을, 없으면 데크 y=0(=부두
+        // 슬래브 Asphalt 윗면) 규약을 쓴다. 두 값은 같다 — 데크 y=0 은 StsConfig 의 못 움직이는 기준.
         static float FindFloorTopY(out bool found)
         {
             found = false;

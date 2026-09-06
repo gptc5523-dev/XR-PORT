@@ -190,7 +190,7 @@ namespace Container.Crane.Sts.Net
             return 1;
         }
 
-        // ───────── 크레인 조종 입력 차단/복구 ─────────
+        // 크레인 조종 입력 차단/복구
         void SuppressController()
         {
             if (controllerSuppressed) return;
@@ -205,7 +205,7 @@ namespace Container.Crane.Sts.Net
             controllerSuppressed = false;   // 관전자(forceEnable=false)는 꺼둔 채로 둠
         }
 
-        // ───────── 이동(로코모션) 잠금/복구 ─────────
+        // 이동(로코모션) 잠금/복구
         // 메뉴 떠 있는 동안 씬의 모든 XR LocomotionProvider(이동/텔레포트/회전)를 끈다.
         // StsCraneVRController.ApplyMode와 같은 방식 — 내가 끈 것만 기억했다가 그대로 복구.
         void LockLocomotion()
@@ -252,7 +252,7 @@ namespace Container.Crane.Sts.Net
 
             if (ipEntryMode)
             {
-                // ── 호스트 IP 입력 화면(수동 폴백) ──
+                // 호스트 IP 입력 화면(수동 폴백)
                 sb.AppendLine("<color=#5FE0FF><b>호스트 IP 입력</b></color>");
                 sb.AppendLine();
                 if (ui.HostDiscovered)

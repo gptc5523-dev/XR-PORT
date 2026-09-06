@@ -31,7 +31,7 @@ namespace ContainerProject
             new ColorEntry { name = "HMM Orange",     color = new Color(1.00f, 0.62f, 0.20f) },
             new ColorEntry { name = "Rust Brown",     color = new Color(0.45f, 0.30f, 0.22f) },
             new ColorEntry { name = "Steel Gray",     color = new Color(0.55f, 0.55f, 0.58f) },
-            // ── 추가 선사/일반 컨테이너 색 (현실 항만 레퍼런스 기반, 빈 색조[한색·녹색·노랑·보라·중성] 보강) ──
+            // 추가 선사/일반 컨테이너 색 (현실 항만 레퍼런스 기반, 빈 색조[한색·녹색·노랑·보라·중성] 보강)
             //    전부 기존색과 ΔE2000 ≥ 12로 검증해 같은 계열 중복 없음.
             new ColorEntry { name = "Hanjin Blue",     color = new Color(0.09f, 0.33f, 0.60f) },  // 미드 로열블루
             new ColorEntry { name = "Yang Ming Teal",  color = new Color(0.16f, 0.46f, 0.46f) },  // 청록

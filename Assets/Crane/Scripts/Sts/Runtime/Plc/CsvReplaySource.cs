@@ -80,7 +80,7 @@ namespace Container.Crane.Sts.Plc
             return s;
         }
 
-        // ── CSV 파싱 (헤더 이름 기반 — 컬럼 순서 변동에 견고) ──
+        // CSV 파싱 (헤더 이름 기반 — 컬럼 순서 변동에 견고)
         static void ParseCsv(string text, out PlcSnapshot[] frames, out float[] times, List<string> missingCols)
         {
             frames = new PlcSnapshot[0]; times = new float[0];

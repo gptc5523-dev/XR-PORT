@@ -37,7 +37,7 @@ namespace Container.Crane.Sts
         [SerializeField] int fontSize = 46;
         [SerializeField] Color arrowColor = new Color(0.373f, 0.878f, 1f, 1f);   // #5FE0FF (Accent 토큰과 정합)
         [SerializeField] Color bgColor = new Color(0f, 0f, 0f, 0.55f);   // 예외: 화살표는 부두/하늘 배경 덜 가리려 표준(PanelBgAlpha)보다 투명
-        [SerializeField] float worldScale = 0.00042f;   // 기존 0.0006에서 축소 — 화살표가 너무 컸음
+        [SerializeField] float worldScale = 0.00042f;   // 화살표가 너무 컸음
 
         Canvas leftCanvas, rightCanvas;
         Text leftText, rightText;
@@ -89,7 +89,7 @@ namespace Container.Crane.Sts
             UpdateSide(rightCanvas, rightText, rightController, rightAttached, r, rightHeight, cam);
         }
 
-        // ───────── 모드별 화살표(빈 문자열 = 그 손은 숨김) ─────────
+        // 모드별 화살표(빈 문자열 = 그 손은 숨김)
         static void ArrowsFor(StsCraneVRController.Mode mode, out string left, out string right)
         {
             switch (mode)
@@ -126,7 +126,7 @@ namespace Container.Crane.Sts
                 canvas.gameObject.SetActive(on);
         }
 
-        // ───────── 부착(왼/오른 각각, 실패 쪽은 다음 주기에 재시도) ─────────
+        // 부착(왼/오른 각각, 실패 쪽은 다음 주기에 재시도)
         //   원점/미추적 객체는 거른다 → 못 찾으면 안 붙이고(=숨김) 다음 주기에 재시도 → 바닥 잔상 방지.
         void TryAttach()
         {
@@ -170,7 +170,7 @@ namespace Container.Crane.Sts
             return s.Length > 0 ? s.ToString() : "(없음)";
         }
 
-        // ───────── 화살표 캔버스 1개 생성(글자만, 배경은 살짝) ─────────
+        // 화살표 캔버스 1개 생성(글자만, 배경은 살짝)
         Canvas BuildArrowCanvas(string name, out Text text)
         {
             var canvas = CraneHud.BuildPanel(transform, name, new Vector2(220f, 160f), worldScale,

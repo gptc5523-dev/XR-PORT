@@ -73,7 +73,11 @@ namespace Procedural
             AddQuad(submesh, ia, ib, ic, id);
         }
 
-        public Mesh ToMesh(string name)
+        /// <param name="tangents">
+        /// 탄젠트 생성 여부. 기본 true(기존 동작 불변). 노멀맵을 쓰지 않는 저폴리 LOD 는 false 로 —
+        /// 정점이 48 B → 32 B 가 되어 GPU 처리율 구간이 달라진다(문서/컨테이너_규격.md Part 5 §11.7 실측).
+        /// </param>
+        public Mesh ToMesh(string name, bool tangents = true)
         {
             var mesh = new Mesh { name = name };
             if (_verts.Count > 65535)
@@ -94,7 +98,7 @@ namespace Procedural
                     mesh.SetTriangles(System.Array.Empty<int>(), s);
             }
 
-            mesh.RecalculateTangents();
+            if (tangents) mesh.RecalculateTangents();
             mesh.RecalculateBounds();
             return mesh;
         }

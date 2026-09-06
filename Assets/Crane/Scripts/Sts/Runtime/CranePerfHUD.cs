@@ -50,28 +50,28 @@ namespace Container.Crane.Sts
         string lastText;
         float nextTextRefresh;
 
-        // ─── 집계 창(무할당) ───
+        // 집계 창(무할당)
         int winFrames;          // 창 내 프레임 수
         float winTime;          // 창 내 누적 unscaledDeltaTime
         float winWorstMs;       // 창 내 최악(최대) 프레임타임 ms
         float showFps, showAvgMs, showWorstMs;   // 직전 창에서 확정된 표시값
 
-        // ─── CPU/GPU(FrameTimingManager) ───
+        // CPU/GPU(FrameTimingManager)
         readonly FrameTiming[] timings = new FrameTiming[1];
         float cpuMs, gpuMs;
         bool gpuTimingOk;
 
-        // ─── GC ───
+        // GC
         int prevGcCount;
         float gcPerSec;
         long heapBytes;
 
-        // ─── 콘솔 로그 집계(HUD 창과 독립, logIntervalSec 구간) ───
+        // 콘솔 로그 집계(HUD 창과 독립, logIntervalSec 구간)
         int logFrames;
         float logTime, logWorstMs;
         int logGcBase;
 
-        // ─── 강체 수(1초마다만 스캔) ───
+        // 강체 수(1초마다만 스캔)
         int rbTotal, rbDynamic;
         float nextRbScan;
 
@@ -118,7 +118,7 @@ namespace Container.Crane.Sts
 
             if (Time.unscaledTime >= nextRbScan) { ScanRigidbodies(); nextRbScan = Time.unscaledTime + 1f; }
 
-            // ── HUD 창 집계(0.5s) ──
+            // HUD 창 집계(0.5s)
             if (showHud)
             {
                 winFrames++; winTime += dt;
@@ -143,7 +143,7 @@ namespace Container.Crane.Sts
                 }
             }
 
-            // ── 콘솔 로그 집계(logIntervalSec, HUD와 독립) ──
+            // 콘솔 로그 집계(logIntervalSec, HUD와 독립)
             if (logToConsole)
             {
                 logFrames++; logTime += dt;
@@ -209,7 +209,7 @@ namespace Container.Crane.Sts
             return sb.ToString();
         }
 
-        // ───────── Canvas/배치(CraneStatusHUD와 동일 패턴) ─────────
+        // Canvas/배치(CraneStatusHUD와 동일 패턴)
         void BuildCanvas()
         {
             canvas = CraneHud.BuildPanel(transform, "CranePerfCanvas", panelPixels, worldScale,

@@ -73,7 +73,8 @@ namespace Container.Crane.Sts
 
         StsCrane crane;
         SpreaderLockAnimator lockAnim;
-        SpreaderTelescope telescope;   // 잡은 컨테이너 크기에 맞춰 20/40ft 신축
+        SpreaderTelescope telescope;      // (절차 STS) 잡은 컨테이너 크기에 맞춰 20/40ft 신축(스케일)
+        RtgSpreaderTelescope rtgTele;     // (FBX RTG) 슬라이드 방식 신축
         SpreaderHoist spreaderHoist;   // 잡은 컨테이너 밑면 기준으로 하강 바닥 한계 설정
         Transform[] twistlocks;   // Twistlock_Cone들 — 잡기 기준점
         readonly List<Rigidbody> bodies = new List<Rigidbody>();   // 크레인 외부의 집을 수 있는 강체들(재사용 버퍼 — 매 갱신 새 할당 방지)
@@ -108,11 +109,17 @@ namespace Container.Crane.Sts
             crane = GetComponent<StsCrane>();
             lockAnim = GetComponentInChildren<SpreaderLockAnimator>(true);
             telescope = GetComponentInChildren<SpreaderTelescope>(true);
+            rtgTele = GetComponentInChildren<RtgSpreaderTelescope>(true);
             spreaderHoist = crane != null ? crane.Spreader as SpreaderHoist : null;
 
             var list = new List<Transform>();
             foreach (var t in GetComponentsInChildren<Transform>(true))
-                if (CraneHud.BaseName(t.name) == StsPartNames.TwistlockCone) list.Add(t);
+            {
+                // 절차 크레인: 'Twistlock_Cone'(BaseName). FBX 크레인: 'Spreader_Twistlock_F_L' 등(콘 4개).
+                if (CraneHud.BaseName(t.name) == StsPartNames.TwistlockCone
+                    || t.name.StartsWith("Spreader_Twistlock_"))
+                    list.Add(t);
+            }
             twistlocks = list.ToArray();
 
             // 직렬화된 기존 씬 인스턴스가 옛 boundary 값(0.002)으로 남아 있어도 신뢰 가능한 최소로 올린다
@@ -203,7 +210,7 @@ namespace Container.Crane.Sts
                 $"seated={seated} dXZ={QaLog.F(segXZ)} gap={QaLog.F(segGap)} grabbed={willGrab}");
             if (c == null) return;
 
-            // ── 코너 안착 게이트 ── 근접만으론 안 잠긴다. 트위스트락이 컨테이너 상단 코너캐스팅 위에
+            // 코너 안착 게이트 — 근접만으론 안 잠긴다. 트위스트락이 컨테이너 상단 코너캐스팅 위에
             //   '동심 정렬(중심 ±registerTolXZ) + 윗면 높이 안착'했을 때만 체결한다(자동 신축으로 사이즈가
             //   맞으므로 이 조건이 곧 콘 4개가 코너캐스팅 위에 놓임과 동치). 옆면 근처·공중·측면진입은 거부.
             if (requireSeatedRegistration && !seated)
@@ -221,11 +228,12 @@ namespace Container.Crane.Sts
             float pivotToTop = hasBounds ? (b.max.y - c.position.y) : 0f;
 
             // 잡은 컨테이너 긴 축 길이로 스프레더 텔레스코픽 자동 신축(20/40ft). 놓아도 유지.
-            if (telescope != null && hasBounds)
+            if ((telescope != null || rtgTele != null) && hasBounds)
             {
                 float longSide = Mathf.Max(b.size.x, b.size.z);
                 bool is40 = longSide > sizeThreshold;
-                telescope.Set40(is40);
+                if (telescope != null) telescope.Set40(is40);
+                if (rtgTele != null) rtgTele.SetSize(is40 ? RtgSpreaderTelescope.Size.Ft40 : RtgSpreaderTelescope.Size.Ft20);
                 if (debugLog) Debug.Log($"[Crane] 컨테이너 긴축 {longSide:F3}m → {(is40 ? "40ft" : "20ft")} 신축");
             }
 
@@ -272,6 +280,7 @@ namespace Container.Crane.Sts
             }
             if (spreaderHoist != null) spreaderHoist.SetFloorOffset(0f);   // 빈 스프레더 바닥 한계 복원
             if (lockAnim != null) lockAnim.SetLocked(false);
+            if (rtgTele != null) rtgTele.SetSize(RtgSpreaderTelescope.Size.Ft40);   // 빈 스프레더는 40ft 기준자세로 복원
             if (debugLog) Debug.Log("[Crane] 놓기(Detach)");
         }
 
@@ -431,7 +440,7 @@ namespace Container.Crane.Sts
         {
             if (!QaLog.Enabled) return;
 
-            // ── S-PASS-2 측면충돌: sideHit 상승 엣지(빈 스프레더가 옆면 깊숙이 진입한 순간). ──
+            // S-PASS-2 측면충돌: sideHit 상승 엣지(빈 스프레더가 옆면 깊숙이 진입한 순간).
             if (sideHit && !qaPrevSideHit)
             {
                 float depth = top - refBottomY;
@@ -440,7 +449,7 @@ namespace Container.Crane.Sts
                     $"holding={holding} depth={QaLog.F(depth)} threshold={QaLog.F(threshold)} sideHit=true clampApplied=false");
             }
 
-            // ── S-PASS-3 적층 안착: '실제로 얹힌 순간'(IsLanded 상승 엣지)에만 판정. ──
+            // S-PASS-3 적층 안착: '실제로 얹힌 순간'(IsLanded 상승 엣지)에만 판정.
             //   주의: 공중에서 footprint만 겹친 시점(over=true, 높이 높음)이 아니라, 든 컨테이너 밑면이
             //   받침 윗면에 닿아 멈춘 순간을 본다(이전 버전은 공중 over-엣지에서 판정해 오탐 FAIL이 났음).
             bool landedStack = holding && IsLanded;
@@ -449,7 +458,7 @@ namespace Container.Crane.Sts
                     $"holding=true overlapFrac={QaLog.F(selOverlap)} threshold={QaLog.F(landingOverlapFrac)} " +
                     $"top={QaLog.F(top)} refBottomY={QaLog.F(refBottomY)} landed=true");
 
-            // ── S-PASS-1 빈 스프레더 통과방지: 윗면 근처에 클램프되어 멈춘 순간(상승 엣지). ──
+            // S-PASS-1 빈 스프레더 통과방지: 윗면 근처에 클램프되어 멈춘 순간(상승 엣지).
             //   refBottomY가 윗면(limit) 근처에 머물면(아래로 안 뚫음) PASS. 공중(refBottomY≫limit)은 제외.
             //   판정: top 아래로 내려가면 클램프가 즉시 되밀고 있어야(corr>0) 통과방지 정상. top 근처/위면 그대로 OK.
             //   FAIL = top 아래인데 보정이 없음(corr≈0) = 클램프 미작동·관통. 프레임 끊김의 1틱 과하강은 corr>0라 통과.
@@ -458,12 +467,12 @@ namespace Container.Crane.Sts
                 QaLog.Check("PASS", "clamp", corr > 1e-4f || refBottomY >= limit - 0.012f,
                     $"holding=false refBottomY={QaLog.F(refBottomY)} top={QaLog.F(top)} limit={QaLog.F(limit)} corr={QaLog.F(corr)}");
 
-            // ── S-PASS-4 옆 나란히(적층 오인 금지): 든 채 over가 풀린 순간(겹침<0.4라 받침 아님). ──
+            // S-PASS-4 옆 나란히(적층 오인 금지): 든 채 over가 풀린 순간(겹침<0.4라 받침 아님).
             if (holding && !over && qaPrevOver)
                 QaLog.Info("LAND", "side",
                     $"holding=true over=false maxOverlap={QaLog.F(maxOverlapSeen)} threshold={QaLog.F(landingOverlapFrac)} below=false");
 
-            // ── S-PHYS-2 통과방지 클램프 보정량 수렴: 클램프 중 corr가 의미있게 변할 때만(정착하면 조용). ──
+            // S-PHYS-2 통과방지 클램프 보정량 수렴: 클램프 중 corr가 의미있게 변할 때만(정착하면 조용).
             if (corr > 0f && (qaCorrPrev < 0f || Mathf.Abs(corr - qaCorrPrev) > 1e-4f))
             {
                 float prev = Mathf.Max(qaCorrPrev, 0f);

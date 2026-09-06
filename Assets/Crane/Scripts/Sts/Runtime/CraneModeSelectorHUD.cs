@@ -8,7 +8,7 @@ namespace Container.Crane.Sts
     /// 모드 선택 패널 — HMD 시야 '우하단'에 고정되는 head-locked HUD.
     ///   - 이동/운전/갠트리 3모드를 목록으로 보여주고 현재 모드를 강조
     ///   - 선택은 StsCraneVRController가 처리(오른쪽 스틱 위/아래 또는 B). 이 패널은 표시 전용.
-    ///   - (변경 2026-06-16) 예전엔 오른쪽 컨트롤러에 빌보드로 붙었으나, 손 위치와 무관하게 항상 같은 자리에
+    ///   - 예전엔 오른쪽 컨트롤러에 빌보드로 붙었으나, 손 위치와 무관하게 항상 같은 자리에
     ///     두기 위해 카메라(HMD) 자식 '우하단' 고정으로 전환. StatusHUD/ControlHintsHUD와 동일한 패턴.
     /// 씬에 안 붙여도 [RuntimeInitializeOnLoadMethod]로 자동 스폰. 이미 있으면 스킵.
     /// </summary>
@@ -79,7 +79,7 @@ namespace Container.Crane.Sts
                 CraneHud.SetTextIfChanged(text, ref lastText, BuildText());
         }
 
-        // ───────── HMD(카메라) 우하단에 고정 부착 ─────────
+        // HMD(카메라) 우하단에 고정 부착
         //   카메라 자식 + 로컬좌표 + 1회 빌보드(FaceCameraChild로 거울/뒤집힘 해소). 매 프레임 추적 불필요 —
         //   캔버스가 카메라 자식이라 머리를 따라 같은 자리에 그대로 떠 있다(StatusHUD/ControlHintsHUD와 동일).
         void AttachToHmd()
@@ -94,7 +94,7 @@ namespace Container.Crane.Sts
             attached = true;
         }
 
-        // ───────── 오른쪽 변을 STS 크레인 상태 패널에 자동 정렬 ─────────
+        // 오른쪽 변을 STS 크레인 상태 패널에 자동 정렬
         //   fitToText라 패널 폭이 런타임 결정 → 정적 x로는 못 맞춤. 두 패널 모두 카메라 자식·중심피벗이므로
         //   상태 패널 오른쪽 변(중심 + 반폭)을 읽어 내 중심을 (그 오른쪽 변 − 내 반폭)으로 잡으면 오른쪽 변이 일치.
         //   폭(월드) = BG.rect.width × 캔버스 localScale. 상태 패널 없으면(테스트 씬) 정적 hmdOffset 유지.
@@ -126,7 +126,7 @@ namespace Container.Crane.Sts
             }
         }
 
-        // ───────── Canvas/배경/텍스트 자동 생성 ─────────
+        // Canvas/배경/텍스트 자동 생성
         void BuildCanvas()
         {
             // fitToText: 검정 배경이 글자 분량에 맞춰 자동 축소(여백=아래 inset). panelPixels는 무시됨.
@@ -136,7 +136,7 @@ namespace Container.Crane.Sts
             text.text = "...";
         }
 
-        // ───────── 모드 목록 텍스트 ─────────
+        // 모드 목록 텍스트
         string BuildText()
         {
             sb.Clear();

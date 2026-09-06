@@ -28,18 +28,29 @@ namespace Container.Crane.Sts
             transform.localPosition = p;
         }
 
-        // 트롤리 X 이동 후 스프레더도 같은 X로 동기화.
+        // 스프레더가 트롤리의 자식이면(예: FBX RTG 계층 Trolley→Spreader) 트롤리가 이동할 때 부모를 따라
+        //   자동으로 딸려온다 → 여기서 X를 또 쓰면 이중 적용(두 배 이동·프레임 불일치로 정렬 깨짐).
+        //   자식이 아닐 때(STS: 스프레더 루트가 트롤리의 형제)만 수동 동기화한다. 참조가 바뀔 때만 1회 재판정.
+        Transform syncCheckedFor;
+        bool spreaderIsDescendant;
+
+        // 트롤리 X 이동 후 스프레더도 같은 X로 동기화(단, 트롤리 자식이면 생략).
         protected override void OnMoved(float clamped)
         {
-            if (spreaderRoot != null)
+            if (spreaderRoot == null) return;
+            if (spreaderRoot != syncCheckedFor)
             {
-                var sp = spreaderRoot.localPosition;
-                sp.x = clamped;
-                spreaderRoot.localPosition = sp;
+                syncCheckedFor = spreaderRoot;
+                spreaderIsDescendant = spreaderRoot.IsChildOf(transform);
             }
+            if (spreaderIsDescendant) return;   // 부모(트롤리)가 이미 X로 옮김 → 중복 금지
+
+            var sp = spreaderRoot.localPosition;
+            sp.x = clamped;
+            spreaderRoot.localPosition = sp;
         }
 
-        // ───────── 이동 경로 장애물 정지 (충돌방지 — 갠트리와 동일 방식) ─────────
+        // 이동 경로 장애물 정지 (충돌방지 — 갠트리와 동일 방식)
         [Header("장애물 정지 (충돌방지)")]
         [Tooltip("이동 경로에 컨테이너 등 장애물이 있으면 그 방향 이동을 멈춘다(밀지 않음).")]
         [SerializeField] bool stopOnObstacle = true;
@@ -67,7 +78,7 @@ namespace Container.Crane.Sts
             {
                 if (hit.collider == null) continue;
                 if (hit.collider.transform.IsChildOf(transform)) continue;   // 자기(트롤리·잡은 화물) 제외
-                // 컨테이너면 자유/고정 무관 장애물. [버그수정2] ContainerInstance 단독 판정은 메뉴/씬의 테스트
+                // 컨테이너면 자유/고정 무관 장애물. ContainerInstance 단독 판정은 메뉴/씬의 테스트
                 //   컨테이너(ContainerInstance 미부착, Rigidbody+BoxCollider만)를 전부 놓쳐 감지가 무력화됐었다.
                 //   → ContainerInstance 또는 Rigidbody 보유면 컨테이너로 인정. 둘 다 없는 바닥·안벽·리그 등 정적 구조물만 무시.
                 if (hit.collider.GetComponentInParent<ContainerProject.ContainerInstance>() == null

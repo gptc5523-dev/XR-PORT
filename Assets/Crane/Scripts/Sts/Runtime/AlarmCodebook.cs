@@ -85,7 +85,7 @@ namespace Container.Crane.Sts
             if (!_loadOk)
                 Debug.LogError($"[AlarmCodebook] 코드북이 비어 있음(파싱 실패 또는 0건) — 알람 시스템 오프라인으로 간주(fail-to-safe).");
 
-            // [외부감사 S4 2026-06-17 · 구본승] 코드북 무결성 자가검증(EnsureLoaded는 1회만 실행 — 로그도 1회).
+            // 코드북 무결성 자가검증(EnsureLoaded는 1회만 실행 — 로그도 1회).
             //   ① 선언 총량(totalDefined) vs 실제 항목 수 — JSON 편집 누락/중복을 탐지.
             //   ② 중복 코드로 색인에서 빠진 항목 수 — _all 길이와 색인 수의 차.
             //   ③ XR 비대상(xr:false) 개수 — 원본 문서(MBE-DOC-2026-XR-002) '23 vs 25' 불일치 추적건.
@@ -146,7 +146,7 @@ namespace Container.Crane.Sts
             get { EnsureLoaded(); return _all.Where(e => e != null && e.xr); }
         }
 
-        // ── 표시·라벨 헬퍼 (CraneFault와 단일화) ──
+        // 표시·라벨 헬퍼 (CraneFault와 단일화)
 
         /// <summary>심각도 표시색 — 코드북 §7. (Fatal 적 / Critical 주황 / Warning 노랑 / Info 회색)</summary>
         public static Color Color(AlarmEntry e) => CraneFault.SevColor(e.Severity);

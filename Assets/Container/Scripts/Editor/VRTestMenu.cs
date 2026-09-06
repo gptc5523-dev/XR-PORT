@@ -48,13 +48,13 @@ namespace ContainerProject.EditorTools
             return PaletteColors[Random.Range(0, PaletteColors.Length)];
         }
 
-        [MenuItem("Object/컨테이너/컨테이너 생성 (1개)", false, 2)]
+        [MenuItem("Model/PG/컨테이너/컨테이너 생성 (1개)", false, 2)]
         public static void SpawnSingleProcedural()
         {
             SpawnSingle(length: ProceduralContainerMesh.Length20ft, suffix: "");
         }
 
-        [MenuItem("Object/컨테이너/컨테이너 생성 40ft (1개)", false, 3)]
+        [MenuItem("Model/PG/컨테이너/컨테이너 생성 40ft (1개)", false, 3)]
         public static void SpawnSingleProcedural40ft()
         {
             SpawnSingle(length: ProceduralContainerMesh.Length40ft, suffix: "40ft");
@@ -80,208 +80,7 @@ namespace ContainerProject.EditorTools
             Debug.Log($"[VRTestMenu] 분해형 컨테이너 1개 스폰 (length={length}m, bounds: {go.GetComponent<BoxCollider>().size}, parts: {go.GetComponentsInChildren<MeshFilter>().Length}개)");
         }
 
-        static void PlaceContainersOnQuay_REMOVED()
-        {
-            // 재실행 대비 — 기존 야드 컨테이너 제거.
-            // 순회 중 부모를 DestroyImmediate하면 자식도 즉시 파괴되어 배열 뒷항목이 죽은 채 남음 →
-            // 먼저 매칭 대상만 모은 뒤 파괴하고, 파괴 시점에도 null 가드(자식이 먼저 죽었을 수 있음).
-            var stale = new System.Collections.Generic.List<GameObject>();
-            foreach (var existing in Object.FindObjectsByType<GameObject>(FindObjectsSortMode.None))
-                if (existing != null && existing.name.StartsWith("Yard_Container")) stale.Add(existing);
-            foreach (var existing in stale)
-                if (existing != null) Undo.DestroyObjectImmediate(existing);
-
-            var quay = GameObject.Find(Container.Crane.Sts.StsPartNames.QuayGround);
-            if (quay == null)
-                Debug.LogWarning("[VRTestMenu] Quay_Ground 가 없습니다 — 월드 원점 기준으로 배치합니다. " +
-                                 "먼저 'Ground/부두 바닥 생성' 실행을 권장합니다.");
-
-            // 긴 축 = Z(안벽과 나란히) → 로컬 X(길이)를 월드 Z로 돌리는 Y축 90° 회전.
-            // 바닥 피봇이라 y=아스팔트 윗면. 시작 관통 방지로 살짝 띄움.
-            const float yRest = 0.002f;
-            const float scale  = ProceduralContainerMesh.DefaultMiniatureScale;
-
-            // 컨테이너를 '육지쪽 야드'에 둔다(양하 후 상태/적하 시작 상태에 해당하는 배치).
-            // ── 단일 1단 행(계산 배치) — 추측 금지: 씬의 실제 레일·갠트리 좌표에서 산출 ──
-            //   · X: STS_Crane의 Rail_Land 월드 X(= Quay가 노란 Lane을 그리는 바로 그 X)에서
-            //        (Lane오프셋0.045 + Lane반폭0.007 + 여유0.04 + 컨테이너 반폭)만큼 '육지쪽'으로 → Lane 비침범.
-            //        레일에 최대한 붙여(가장 가깝게) 트롤리 백리치 도달을 보장. 단일 X = 한 줄.
-            //   · Z: GantryMover.Min~Max(크레인이 닿는 Z) 안에 중앙정렬, 80%만 사용 → 들어가는 만큼만 배치.
-            //   1단(토플 없음·깔끔)·20ft/40ft 교대 혼합·yaw 90°(길이축 Z).
-            const float gapZ = 0.06f;
-            float halfW  = ProceduralContainerMesh.StdWidth * scale * 0.5f;
-            float len20m = ProceduralContainerMesh.Length20ft * scale;
-            float len40m = ProceduralContainerMesh.Length40ft * scale;
-
-            var craneGo = GameObject.Find("STS_Crane");
-            float railLandX = -0.30f;   // 폴백(크레인 못 찾을 때)
-            if (craneGo != null)
-            {
-                float lo = float.MaxValue;
-                foreach (var tr in craneGo.GetComponentsInChildren<Transform>(true))
-                    if (tr.name.StartsWith(Container.Crane.Sts.StsPartNames.RailPrefix) && tr.position.x < lo) lo = tr.position.x;
-                if (lo < float.MaxValue) railLandX = lo;
-            }
-            float zMin = -1.0f, zMax = 1.0f;
-            var gm = craneGo != null ? craneGo.GetComponent<Container.Crane.Sts.GantryMover>() : null;
-            if (gm != null) { zMin = gm.Min; zMax = gm.Max; }
-            float zMid = (zMin + zMax) * 0.5f, zUse = (zMax - zMin) * 0.8f;
-
-            // 행 X — Land 레일에서 육지쪽으로 Lane+여유+반폭 (레일에 최대한 붙여 도달 보장)
-            float rowX = railLandX - (0.045f + 0.007f + 0.04f + halfW);
-
-            // 들어가는 만큼 교대 길이 누적(중앙정렬)
-            var lens = new System.Collections.Generic.List<float>();
-            float tot = 0f; int k = 0;
-            while (true)
-            {
-                float len = (k % 2 == 1) ? len40m : len20m;
-                float add = (lens.Count == 0) ? len : gapZ + len;
-                if (tot + add > zUse) break;
-                tot += add; lens.Add(len); k++;
-            }
-            if (lens.Count == 0) lens.Add(len20m);   // 최소 1개
-
-            GameObject last = null;
-            float zc = zMid - tot * 0.5f;
-            for (int i = 0; i < lens.Count; i++)
-            {
-                bool is40 = (i % 2 == 1);
-                float realLen = is40 ? ProceduralContainerMesh.Length40ft : ProceduralContainerMesh.Length20ft;
-                float center = zc + lens[i] * 0.5f;
-                string nm = $"Yard_Container_{(is40 ? "40ft" : "20ft")}_{i:00}";
-                var go = BuildOne(PaletteAt(i), nm, realLen, withReset: false);
-                go.transform.SetPositionAndRotation(new Vector3(rowX, yRest, center), Quaternion.Euler(0f, 90f, 0f));
-                if (quay != null) go.transform.SetParent(quay.transform, worldPositionStays: true);
-                var rb = go.GetComponent<Rigidbody>();
-                if (rb != null) { rb.isKinematic = false; rb.useGravity = true; }
-                Undo.RegisterCreatedObjectUndo(go, "Place Containers on Quay");
-                last = go;
-                zc += lens[i] + gapZ;
-            }
-
-            if (last != null)
-            {
-                Selection.activeGameObject = last;
-                var sv = SceneView.lastActiveSceneView;
-                if (sv != null) sv.FrameSelected();
-            }
-            Debug.Log($"[VRTestMenu] 단일 행 {lens.Count}개(1단·20/40 혼합) — 행 X={rowX:F3} (Land레일 {railLandX:F3}의 육지쪽, Lane 비침범), " +
-                      $"갠트리 도달 Z[{zMin:F2},{zMax:F2}] 중앙정렬(80% 사용). 적하 시나리오가 집어 바다로 싣습니다. " +
-                      $"한 줄 도달 한계라 {lens.Count}개 — 더 필요하면 갠트리 주행범위↑ 또는 여러 줄.");
-        }
-
-        // 컨테이너 야드 배치 — 칸을 확률(fillRate)로 띄엄띄엄만 채우는 '랜덤 듬성' 배치(컨테이너 수↓ → 랙 해소).
-        //  ★ 좌표는 추측 없이 씬 실측에서 산출:
-        //    - 격자: 주차장 마킹(Yard_Edge/Row/Slot) bounds → rows(폭 X)·slots(길이 Z)·Wc·slotL (BuildContainerYard와 동일)
-        //    - '크레인 주변' 판정: STS_Crane GantryMover.Min~Max(갠트리 Z 도달 범위). 주변이면 좀 더 높이 쌓음.
-        //  슬롯 피치 40ft → 40ft는 슬롯당 1개, 20ft는 앞뒤 2개. 같은 칸 스택은 같은 사이즈·색, 높이는 랜덤.
-        //  isKinematic 고정(배경). Yard_Container(적하 시나리오)와 이름 분리(YardPark_), 재실행 시 자체 정리.
-        [MenuItem("Object/컨테이너/컨테이너 야드 배치 (크레인 주변)", false, 7)]
-        public static void FillContainerYard()
-        {
-            // 재실행 정리 — 이전 주차장 적치분만 제거(YardPark_ prefix).
-            var stale = new System.Collections.Generic.List<GameObject>();
-            foreach (var go in Object.FindObjectsByType<GameObject>(FindObjectsSortMode.None))
-                if (go != null && go.name.StartsWith("YardPark_")) stale.Add(go);
-            foreach (var go in stale) if (go != null) Undo.DestroyObjectImmediate(go);
-
-            var quay = GameObject.Find(Container.Crane.Sts.StsPartNames.QuayGround);
-            if (quay == null)
-            {
-                Debug.LogWarning("[VRTestMenu] Quay_Ground 가 없습니다 — 먼저 'Ground/...' 부두 바닥을 생성하세요.");
-                return;
-            }
-
-            // 주차장 마킹 실측 → 격자 역산(전체 AABB + 분리선 개수)
-            Bounds yard = default; bool has = false; int rowLines = 0, slotLines = 0;
-            foreach (var t in quay.GetComponentsInChildren<Transform>(true))
-            {
-                if (t.name == "Yard_Edge" || t.name == "Yard_Row" || t.name == "Yard_Slot")
-                {
-                    var rend = t.GetComponent<Renderer>();
-                    if (rend != null) { if (!has) { yard = rend.bounds; has = true; } else yard.Encapsulate(rend.bounds); }
-                }
-                if (t.name == "Yard_Row")  rowLines++;
-                if (t.name == "Yard_Slot") slotLines++;
-            }
-            if (!has)
-            {
-                Debug.LogWarning("[VRTestMenu] 주차장 마킹(Yard_Edge/Row/Slot)이 없습니다 — 'Ground/컨테이너 주차장'을 켜고 부두 바닥을 재생성하세요.");
-                return;
-            }
-
-            int rows  = rowLines + 1;     // 줄(폭축 X)
-            int slots = slotLines + 1;    // 슬롯(길이축 Z, 40ft 피치)
-            float xMin = yard.min.x, zMin = yard.min.z;
-            float Wc    = (yard.max.x - xMin) / rows;     // 줄 폭(컨테이너 폭 ≈ 2.438/24)
-            float slotL = (yard.max.z - zMin) / slots;    // 슬롯 피치(40ft ≈ 12.192/24)
-
-            const float s     = ProceduralContainerMesh.DefaultMiniatureScale;
-            const float yRest = 0.002f;
-            float containerH  = ProceduralContainerMesh.HeightStd * s;       // 티어 적층 피치(지붕에 안착)
-            float len20       = ProceduralContainerMesh.Length20ft * s;      // 20ft 미니어처 길이 — 한 슬롯(40ft)에 앞뒤 2개
-            var rot = Quaternion.Euler(0f, 90f, 0f);                          // 길이축(로컬 X) → 월드 Z
-
-            // '크레인 주변' Z 범위 = 갠트리 도달(GantryMover.Min~Max). 못 찾으면 주차장 Z 전체로 폴백.
-            float gCenter = (yard.min.z + yard.max.z) * 0.5f, gReach = yard.max.z - yard.min.z;
-            var craneGo = GameObject.Find("STS_Crane");
-            var gm = craneGo != null ? craneGo.GetComponent<Container.Crane.Sts.GantryMover>() : null;
-            if (gm != null) { gCenter = (gm.Min + gm.Max) * 0.5f; gReach = gm.Max - gm.Min; }
-            float nearHalf = gReach * 0.5f;
-
-            // 랜덤 듬성 배치 — 칸을 확률로 띄엄띄엄만 채워 컨테이너 수를 줄임(랙 해소). 같은 칸 스택은 같은 사이즈·색(선사 정렬감).
-            const float fillRate = 0.4f;   // 칸 채움 확률(낮을수록 컨테이너 적음). 너무 많으면 ↓.
-
-            int idx = 0, made = 0; GameObject last = null;
-
-            GameObject Place(Color col, float lenReal, float x, float y, float z, string nm)
-            {
-                var go = BuildOne(col, nm, lenReal, withReset: false);
-                go.transform.SetPositionAndRotation(new Vector3(x, y, z), rot);
-                go.transform.SetParent(quay.transform, worldPositionStays: true);
-                var rb = go.GetComponent<Rigidbody>();
-                if (rb != null) { rb.isKinematic = true; rb.useGravity = false; }   // 배경 고정(집으면 별도 해제)
-                Undo.RegisterCreatedObjectUndo(go, "Fill Container Yard");
-                made++; last = go;
-                return go;
-            }
-
-            for (int j = 0; j < slots; j++)
-            {
-                float slotZ = zMin + slotL * (j + 0.5f);
-                bool near = Mathf.Abs(slotZ - gCenter) <= nearHalf;          // 크레인 주변이면 좀 더 높이 쌓을 수 있음
-                for (int r = 0; r < rows; r++)
-                {
-                    if (Random.value > fillRate) continue;                  // 듬성 — 대부분 빈 칸으로 수 감소
-                    float rowX = xMin + Wc * (r + 0.5f);
-                    bool is40 = Random.value < 0.5f;                        // 칸 사이즈 랜덤(40/20)
-                    Color col = PaletteAt(idx);                             // 칸(스택) 공통색 — 같은 스택 같은 색
-                    int tiers = Random.Range(1, (near ? 3 : 2) + 1);       // 높이 랜덤(주변 최대 3단, 밖 최대 2단)
-                    for (int tr = 0; tr < tiers; tr++)
-                    {
-                        float y = yRest + tr * containerH;
-                        if (is40)
-                            Place(col, ProceduralContainerMesh.Length40ft, rowX, y, slotZ, $"YardPark_40_{idx:000}_{tr}");
-                        else                                                // 20ft 슬롯: 앞뒤 2개로 40ft 슬롯을 메움
-                            foreach (float dz in new[] { -(len20 * 0.5f + 0.002f), +(len20 * 0.5f + 0.002f) })
-                                Place(col, ProceduralContainerMesh.Length20ft, rowX, y, slotZ + dz, $"YardPark_20_{idx:000}_{tr}");
-                    }
-                    idx++;
-                }
-            }
-
-            if (last != null)
-            {
-                Selection.activeGameObject = last;
-                var sv = SceneView.lastActiveSceneView;
-                if (sv != null) sv.FrameSelected();
-            }
-            Debug.Log($"[VRTestMenu] 야드 랜덤 배치 — 격자 {rows}줄×{slots}슬롯, 칸 채움률 {fillRate:P0}로 {idx}칸 사용, 컨테이너 {made}개. " +
-                      $"같은 칸 스택=같은 사이즈·색, 높이 랜덤(주변 ~3단). 많/적으면 fillRate 조정.");
-        }
-
-        // ───────────────────────────── 컨테이너 빌더 (분해형/파트 분리) ─────────────────────────────
+        // 컨테이너 빌더 (분해형/파트 분리)
         // 모든 스폰 메뉴가 이걸 쓴다 → 컨테이너는 항상 분해형(부품마다 독립 GameObject, 디자이너가 바로 편집).
         // 물리/그랩은 루트 한 덩어리로 동작: 루트에 Rigidbody+XRGrabInteractable+단일 BoxCollider(전체 바운즈),
         //   파트 콜라이더는 끄고(addColliders:false) 루트 박스 하나로만 충돌 → 컴파운드 콜라이더 중복 방지.
@@ -321,7 +120,7 @@ namespace ContainerProject.EditorTools
                 : ProceduralContainerMesh.BuildKit(mats, name, centerPivot: false, addColliders: false);
 
             // 4. 루트 콜라이더 = 컨테이너 '공칭 외형'(ISO 코너캐스팅 기준 length×width×height) 단일 박스.
-            //    [버그수정] 기존엔 전체 파트 합산 AABB(RootLocalBounds)라 도어 락바·핸들·힌지 돌출까지 포함돼
+            //    기존엔 전체 파트 합산 AABB(RootLocalBounds)라 도어 락바·핸들·힌지 돌출까지 포함돼
             //    강철 외피보다 수 mm~1cm 부풀었고, 그 결과 강철 면은 떨어져 있는데 콜라이더만 닿아 컨테이너끼리
             //    '관통'처럼 보였다. 메시는 바닥 피봇·X=길이·X/Z 중심정렬(ProceduralContainerMesh.ApplyTransform)이라
             //    공칭 박스를 산식으로 직접 지정한다(돌출 하드웨어는 콜라이더에서 제외).

@@ -29,7 +29,7 @@ namespace Container.Crane.Sts
         [Tooltip("마지막 움직임 후 이 시간(초) 동안은 '운전' 유지 — 간헐 입력에 상태가 깜빡이지 않게.")]
         [SerializeField] float runCoast = 0.25f;
 
-        // ── 가속도 한계 알람(코드북 1021/2021/3021) ──
+        // 가속도 한계 알람(코드북 1021/2021/3021)
         // 미사용이던 '속도' 데이터를 한 번 더 미분해 '가속도(실척 m/s²)'를 얻고, 정격 초과 급조작을 자연발생 알람으로.
         // 실척 환산: 모델 units/s ÷ ModelScale(=1/24) = 실척 m/s (CraneStatusHUD.UpdateSpeeds와 동일 규약).
         // 임계 기본값은 STS 통상 정격 가속도(주행 느림·트롤리/권상 빠름)에 급조작 여유를 더한 보수값 — 실기 튜닝용 SerializeField.

@@ -12,7 +12,7 @@ namespace Container.Crane.Sts.Plc
     /// </summary>
     public sealed class VirtualPlcSource : IPlcSource
     {
-        // ── 실척 가동 범위 (m) ──
+        // 실척 가동 범위 (m)
         // 하드코딩 금지(SSOT=무버 기하). PlcBridge가 무버 Max/Min에서 산출해 주입한다:
         //   RangeM = (Max − Min) × (1/ModelScale).  주입 후 ResyncRangeDependent()로 range 의존값 재동기화.
         // 헤드리스 단독 사용 시에는 호출측이 직접 set한 뒤 ResyncRangeDependent()를 부른다(미주입이면 0→축 정지).
@@ -20,7 +20,7 @@ namespace Container.Crane.Sts.Plc
         public float TrRangeM = 0f;
         public float HoRangeM = 0f;
 
-        // ── 정격 속도(m/s)·가속(m/s²) — SSOT: CraneAxisProfile ──
+        // 정격 속도(m/s)·가속(m/s²) — SSOT: CraneAxisProfile
         //  H5(정격 속도·가감속 하드코딩) 대응: 값은 CraneAxisProfile 단일 출처를 참조(여기 박지 않음).
         //  트립 판정(CraneOpMode)도 같은 출처를 참조해 정격↔트립 관계가 한곳에서 관리된다.
         //  필드는 (테스트가 set할 수 있게) 유지하되 기본값만 프로파일에서 가져온다 → 동작 비트 동일.
@@ -165,7 +165,7 @@ namespace Container.Crane.Sts.Plc
                 Accel = a;
 
                 // 정착 스냅 — 미세 떨림 제거.
-                //  ★ 재감사 신규결함 #4: 스냅이 잔여속도를 1틱에 0으로 죽이면, 트립 측정(CraneOpMode.StepAccel)이
+                //  스냅이 잔여속도를 1틱에 0으로 죽이면, 트립 측정(CraneOpMode.StepAccel)이
                 //    위치를 2차 미분해 인공 가속 스파이크 a = Δv/dt 를 본다. 기존 임계 vNow<0.02 → 50Hz(dt=0.02s)에서
                 //    a ≈ 0.02/0.02 = 1.0 m/s² → GT 트립 0.25·HO 트립 0.833을 초과(디바운스만으로 흡수 — 안전마진 취약).
                 //

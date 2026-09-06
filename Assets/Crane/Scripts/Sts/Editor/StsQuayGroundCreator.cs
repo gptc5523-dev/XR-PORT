@@ -23,6 +23,10 @@ namespace Container.Crane.Sts.EditorTools
     {
         const string RootName  = StsPartNames.QuayGround;
         const string CraneName = "STS_Crane";
+        // 계선주 — 블렌더 제작 FBX. RTG_Crane.fbx 와 같은 관례: 실척 m 로 내보내고 유니티에서 측정·보정한다.
+        //   없으면 아래 Cyl() 절차생성으로 조용히 폴백하므로, FBX 임포트 전에도 부두 생성이 깨지지 않는다.
+        const string BollardFbx        = "Assets/Crane/Models/Quay_Bollard.fbx";
+        const float  RealBollardHeightM = 1.368f;   // Blender 실측 총높이(기둥 1.08 + 갓 0.288)
 
         // 기본 치수(크레인을 못 찾을 때) — X=apron(붐 방향), Z=안벽 길이(레일 방향), 모델 단위
         //   ★ 폴백도 크레인이 있을 때와 '같은 산식'을 쓴다. 종전 X 12u(288m)·Z 20u(480m)는 별도 매직넘버라
@@ -967,13 +971,77 @@ namespace Container.Crane.Sts.EditorTools
                 int n = Mathf.Max(2, Mathf.RoundToInt(len / gapZ));
                 float bx = quayEdgeX - sgn * 0.045f;       // 가장자리에서 안쪽(육지)으로
                 const float postH = 0.045f, postR = 0.009f, capH = 0.012f, capR = 0.014f;
+                var bollFbx = AssetDatabase.LoadAssetAtPath<GameObject>(BollardFbx);
+                float bollScale = BollardFbxScale(bollFbx);   // 루프 밖에서 1회 측정
                 for (int i = 0; i <= n; i++)
                 {
                     float z = -len * 0.5f + len * i / n;
+                    if (bollFbx != null)
+                    {
+                        var go = (GameObject)PrefabUtility.InstantiatePrefab(bollFbx);
+                        go.name = "Quay_Bollard";
+                        go.transform.SetParent(root, worldPositionStays: false);
+                        go.transform.localPosition = new Vector3(bx, 0f, z);   // FBX 원점 = 바닥
+                        go.transform.localScale    = Vector3.one * bollScale;
+                        foreach (var r in go.GetComponentsInChildren<MeshRenderer>())
+                            r.sharedMaterial = bollMat;                        // URP 머티리얼은 기존 것 재사용
+                        continue;
+                    }
                     Cyl(root, "Quay_Bollard", new Vector3(bx, postH * 0.5f, z), postR, postH, bollMat);
                     Cyl(root, "Quay_BollardCap", new Vector3(bx, postH + capH * 0.5f, z), capR, capH, bollMat);
                 }
             }
+        }
+
+        /// <summary>파일럿 검증 — 씬의 기존 절차생성 계선주 옆에 블렌더 FBX 계선주를 1개 놓는다.
+        /// 스케일·피벗·머티리얼·이름 4가지가 한 화면에서 비교된다. 확인 뒤 지우면 된다.</summary>
+        [MenuItem("Model/FBX/부두/계선주 파일럿 비교 (기존 옆에 1개)", false, 20)]
+        static void BollardPilot()
+        {
+            var fbx = AssetDatabase.LoadAssetAtPath<GameObject>(BollardFbx);
+            if (fbx == null)
+            {
+                EditorUtility.DisplayDialog("계선주 파일럿",
+                    $"FBX를 찾을 수 없습니다:\n{BollardFbx}\n\n유니티 창을 한 번 포커스해 임포트되게 하세요.", "확인");
+                return;
+            }
+
+            // 기존 절차생성 계선주 하나를 기준점으로 삼는다(없으면 원점).
+            var refGo = GameObject.Find(RootName)?.transform.Find("Quay_Bollard");
+            Transform parent = refGo != null ? refGo.parent : GameObject.Find(RootName)?.transform;
+            Vector3 pos = refGo != null ? refGo.localPosition : Vector3.zero;
+            pos.y = 0f;                       // FBX 원점 = 바닥
+            pos.z += 20f * StsConfig.ModelScale;   // 실척 20m 옆(= 계선주 간격)에 나란히
+
+            var go = (GameObject)PrefabUtility.InstantiatePrefab(fbx);
+            go.name = "Quay_Bollard_FBX_Pilot";
+            go.transform.SetParent(parent, worldPositionStays: false);
+            go.transform.localPosition = pos;
+            go.transform.localScale    = Vector3.one * BollardFbxScale(fbx);
+            foreach (var r in go.GetComponentsInChildren<MeshRenderer>())
+                r.sharedMaterial = MakeMat(CBollard, 0.5f, 0.30f, null);
+
+            Undo.RegisterCreatedObjectUndo(go, "Bollard FBX Pilot");
+            Selection.activeGameObject = go;
+            SceneView.lastActiveSceneView?.FrameSelected();
+
+            float hU = RtgCraneFbxPlacer.CombinedBounds(go).size.y;
+            Debug.Log($"[계선주 파일럿] 배치 완료 — localScale {go.transform.localScale.x:F4}, " +
+                      $"실측 높이 {hU:F4}u(={hU * StsConfig.InvModelScale:F3}m, 목표 {RealBollardHeightM:F3}m). " +
+                      $"부모 '{(parent != null ? parent.name : "(없음)")}'. 기존 절차생성 계선주와 나란히 놓았습니다.");
+        }
+
+        /// <summary>FBX 인스턴스를 '실척 높이 × ModelScale' 로 맞추는 배율. FBX 단위계(m/cm)를 몰라도
+        /// 측정으로 수렴하므로 RTG_Crane.fbx 와 동일하게 임포트 설정 변화에 영향받지 않는다.</summary>
+        static float BollardFbxScale(GameObject fbx)
+        {
+            if (fbx == null) return 1f;
+            var probe = (GameObject)PrefabUtility.InstantiatePrefab(fbx);
+            probe.transform.localScale = Vector3.one;
+            float h = RtgCraneFbxPlacer.CombinedBounds(probe).size.y;
+            Object.DestroyImmediate(probe);
+            float target = RealBollardHeightM * StsConfig.ModelScale;
+            return h > 1e-5f ? target / h : 1f;
         }
 
         // 원시 실린더(콜라이더 없음) — 계선주 등 둥근 부재용. height=전체높이, center=수직 중심.

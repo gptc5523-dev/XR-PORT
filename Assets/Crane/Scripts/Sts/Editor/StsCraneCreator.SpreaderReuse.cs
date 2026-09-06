@@ -15,7 +15,7 @@ namespace Container.Crane.Sts.EditorTools
     public static partial class StsCraneCreator
     {
         /// <summary>holder 아래에 STS 40ft 스프레더(헤드블록·트위스트락·텔레스코픽·부속·작업등)를 그대로 생성.</summary>
-        //   [2026-07-02 오너 지시] includeHead:true — STS 스프레더를 헤드블록까지 통째로 복사.
+        //   includeHead:true — STS 스프레더를 헤드블록까지 통째로 복사.
         //   STS 헤드블록 소켓(실척 x±1.2,z±1.8, 본체중심 y9.392)이 RTG 리빙 로프점·Spreader_Hose 종단과 정합(RTG 자체 헤드블록은 폐기).
         public static void BuildSpreaderForReuse(Transform holder)
             => BuildSpreaderVisual(holder, SpreaderHalf40, includeHead: true);

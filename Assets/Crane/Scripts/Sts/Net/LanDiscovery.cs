@@ -46,7 +46,7 @@ namespace Container.Crane.Sts.Net
             ReleaseMulticastLock();
         }
 
-        // ───────── Android(Quest) 멀티캐스트/브로드캐스트 수신 락 ─────────
+        // Android(Quest) 멀티캐스트/브로드캐스트 수신 락
         //   안드로이드는 전력 절약을 위해 기본적으로 자신 앞으로 온 유니캐스트만 올려보내고
         //   브로드캐스트/멀티캐스트 패킷은 버린다. WifiManager.MulticastLock을 잡아야 수신된다.
 #if UNITY_ANDROID && !UNITY_EDITOR

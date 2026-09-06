@@ -16,12 +16,12 @@ namespace ContainerProject
     public static class ContainerLoad
     {
         // 상태 등급 경계 (총중량 Gross, 톤). ISO 6346 컨테이너 max gross ≈ 30.5t.
-        // ※ 이 경계는 '컨테이너 자체 과적(ISO)' 라벨용 — 크레인 과부하(SWL)와 별개(H1 분리).
+        // 이 경계는 '컨테이너 자체 과적(ISO)' 라벨용 — 크레인 과부하(SWL)와 별개(H1 분리).
         public const float NormalMax  = 24f;    // 이하 = 정상
         public const float CautionMax = 30.5f;  // 이하 = 주의 / 초과 = 이상(컨테이너 과적)
 
-        // ── 크레인 과부하(SWL) — 컨테이너 ISO 한계와 무관한 '크레인 정격 인양하중' 기준(H1) ──
-        // ※ 실제 SWL은 ㈜엠비이 벤더 확인 대상(질의서 H1). 통상 STS 단동 SWL ≈ 50~65t(트윈리프트는 컨테이너당 절반).
+        // 크레인 과부하(SWL) — 컨테이너 ISO 한계와 무관한 '크레인 정격 인양하중' 기준(H1)
+        // 실제 SWL은 ㈜엠비이 벤더 확인 대상(질의서 H1). 통상 STS 단동 SWL ≈ 50~65t(트윈리프트는 컨테이너당 절반).
         //   단일 ISO 컨테이너(max 30.5t)는 정상 운전에서 SWL을 넘지 않는다 → '상시 과부하 트립'(가상 32t) 오경보 제거.
         public const float RatedLoadTon    = 65f;     // 크레인 정격 인양하중(SWL), 톤 — 벤더 확인 후 확정.
         public const float OverloadWarnFrac = 1.05f;  // 정격 105% — 경고

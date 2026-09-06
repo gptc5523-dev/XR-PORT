@@ -5,7 +5,7 @@ namespace Container.Crane.Sts
     /// <summary>
     /// 갠트리 주행범위(로컬 Z Min/Max)를 '씬의 부두 레일 + 크레인 바퀴 실측'으로 계산해 적용하는 런타임 SSOT.
     ///
-    /// [왜 런타임인가 — 2026-06-22]
+    /// [왜 런타임인가]
     ///   주행범위 계산이 에디터 메뉴(GantryRangeFitMenu)에만 있어, 전량 양하 시나리오를 그냥 Play하면
     ///   갠트리 Min/Max가 기본값(±1)인 채여서 배 앞/뒤 베이가 '도달불가'로 걸러지던 문제가 있었다.
     ///   → 계산을 여기(런타임)로 옮겨 자동 시나리오가 시작 시 스스로 맞추게 하고, 에디터 메뉴·부두/크레인
@@ -55,8 +55,8 @@ namespace Container.Crane.Sts
             string limName = "Lane";
             if (!TryChildBoundsZ(quay, "Lane", out float limMinZ, out float limMaxZ))
             {
-                limName = "QuayRail";
-                if (!TryChildBoundsZ(quay, "QuayRail", out limMinZ, out limMaxZ))
+                limName = StsPartNames.QuayRail;
+                if (!TryChildBoundsZ(quay, StsPartNames.QuayRail, out limMinZ, out limMaxZ))
                 {
                     msg = $"'{StsPartNames.QuayGround}' 안에서 'Lane'/'QuayRail'을 못 찾았습니다.";
                     return false;

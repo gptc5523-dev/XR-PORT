@@ -131,7 +131,7 @@ namespace Container.Crane.Sts
             text.text = "...";
         }
 
-        // ───────── HMD 카메라 부착(head-locked) ─────────
+        // HMD 카메라 부착(head-locked)
         void TryAttachToCamera()
         {
             if (canvas == null) return;

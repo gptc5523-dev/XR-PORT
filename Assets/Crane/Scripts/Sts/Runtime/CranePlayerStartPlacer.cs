@@ -31,6 +31,8 @@ namespace Container.Crane.Sts
         [SerializeField] bool forceInsideQuay = true;
         [Tooltip("부두 가장자리에서 안쪽으로 들이는 여유(m). 가장자리에 딱 붙어 떨어지는 것 방지.")]
         [SerializeField] float quayEdgeInset = 0.1f;
+        [Tooltip("켜면 걷는 중에도 항상 부두 안에 머문다(안벽 밖·바다 위·허공 진입 차단). 끄면 자유 비행 점검 가능.")]
+        [SerializeField] bool keepOnQuay = true;
         [SerializeField] bool debugLog = true;
 
         const string QuayName = StsPartNames.QuayGround;
@@ -39,12 +41,72 @@ namespace Container.Crane.Sts
         int attempts;               // 현재 요청에 대한 재시도 프레임 수.
         bool warned;
 
+        // 이탈 차단(LateUpdate) 캐시 — 매 프레임 GameObject.Find/FindAnyObjectByType 을 돌지 않게 보관.
+        Renderer quayCache;
+        StsCraneVRController vrCache;
+        Container.Crane.Flat.FlatPlayerRig flatCache;
+        float nextRefind;           // 캐시가 비었을 때만 이 시각 이후 재탐색.
+        bool clampActive;           // 이탈 차단 중 — 엣지에서만 로그(매 프레임 스팸 방지).
+
         bool netHooked;             // NetworkManager 접속 콜백 구독 완료.
         bool replacedAfterConnect;  // 접속 후 재배치 1회 완료(중복 방지).
         bool placingAfterConnect;   // 다음 배치가 '접속 후 재배치'인지(QA START/replace 라인 구분용).
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void AutoSpawn() => CraneHud.EnsureSpawned<CranePlayerStartPlacer>("PlayerStartPlacer");
+
+        // 부두 밖 이탈 차단 — 스폰 때만 걸던 ClampToBounds 를 '이동 중에도' 매 프레임 적용한다.
+        //
+        //   [왜 콜라이더로는 못 막는가] 플레이어는 CharacterController·중력·솔리드 콜라이더를 전부 쓰지 않는다
+        //   (CranePlayerRigScale.BypassCharacterControllerLocomotion + PlayerColliderPolicy). 평면 모드는
+        //   FlatPlayerRig 가 transform.position 을 직접 더하고, VR 은 XRI 가 XR Origin 을 직접 옮긴다.
+        //   그래서 바닥 콜라이더를 아무리 정확히 깔아도 안벽 밖·바다 위·허공으로 계속 걸어 나갈 수 있었다.
+        //   막는 건 콜라이더가 아니라 '이 경계'다.
+        //
+        //   [운전실 시점은 제외] 트롤리는 아웃리치만큼 바다 위로 나가고 시점이 그걸 따라간다
+        //   (FlatCraneController.LateUpdate / StsCraneVRController.FollowTrolley). 그때 클램프하면
+        //   시점이 안벽에 붙어 끌린다. 두 컨트롤러가 각자 내거는 신호(MovementLocked / CabView)로 쉰다.
+        //
+        //   [LateUpdate 인 이유] 위 두 추종이 LateUpdate 라 같은 단계에서 판정해야 한 프레임 어긋남이 없다.
+        void LateUpdate()
+        {
+            if (!keepOnQuay) return;
+
+            var cam = Camera.main; if (cam == null) return;
+            Transform rig = cam.transform.root; if (rig == null) return;
+
+            RefreshCaches();
+            if (InCabView()) { clampActive = false; return; }
+            if (quayCache == null) return;
+
+            Bounds b = quayCache.bounds;
+            Vector3 p = rig.position;
+            Vector3 c = ClampToBounds(p, b, quayEdgeInset);
+            // 데크 아래(안벽 속·물속)로도 못 내려간다. 위로는 자유 — 운전실·점검 시점 상승을 막지 않는다.
+            c.y = Mathf.Max(p.y, b.max.y + floorClearance);
+            if ((c - p).sqrMagnitude <= 1e-10f) { clampActive = false; return; }
+
+            rig.position = c;
+            if (debugLog && !clampActive)
+                QaLog.Info("BOUNDS", "clamp", $"rig={QaLog.V(p)} -> {QaLog.V(c)} " +
+                    $"quay=x({b.min.x:F2}..{b.max.x:F2}) z({b.min.z:F2}..{b.max.z:F2}) inset={QaLog.F(quayEdgeInset)}");
+            clampActive = true;
+        }
+
+        // 운전실 시점(평면·VR)인가 — 그동안은 시점이 트롤리를 따라 바다 위로 나가므로 클램프를 쉰다.
+        bool InCabView()
+            => (vrCache != null && vrCache.CabView) || (flatCache != null && flatCache.MovementLocked);
+
+        // 비어 있는 캐시만 1초에 한 번 다시 찾는다(리그·크레인·부두가 늦게 떠도 붙는다).
+        void RefreshCaches()
+        {
+            if (quayCache != null && vrCache != null && flatCache != null) return;
+            if (Time.unscaledTime < nextRefind) return;
+            nextRefind = Time.unscaledTime + 1f;
+            if (quayCache == null) quayCache = GetQuaySurface();
+            if (vrCache   == null) vrCache   = FindAnyObjectByType<StsCraneVRController>();
+            if (flatCache == null) flatCache = FindAnyObjectByType<Container.Crane.Flat.FlatPlayerRig>();
+        }
 
         void Update()
         {
@@ -65,7 +127,7 @@ namespace Container.Crane.Sts
             }
         }
 
-        // ───────── 네트워크 접속 후 1회 재배치 ─────────
+        // 네트워크 접속 후 1회 재배치
         void EnsureNetHook()
         {
             if (netHooked) return;
@@ -93,7 +155,7 @@ namespace Container.Crane.Sts
             if (nm != null) nm.OnClientConnectedCallback -= OnClientConnected;
         }
 
-        // ───────── 실제 배치 ─────────
+        // 실제 배치
         // 성공 시 true, 아직 준비 안 됨(다음 프레임 재시도)이면 false.
         bool TryPlaceRig()
         {
@@ -147,7 +209,7 @@ namespace Container.Crane.Sts
                 Debug.Log($"[PlayerStartPlacer] 시작 배치 — pos {pos}, facing {faceDir}, " +
                           $"기준={(marker != null ? "마커" : "부두중앙")}, 부두클램프={(forceInsideQuay && quay != null)}.");
 
-            // ───── QA 콘솔 판정(문서/QA_테스트시나리오.md 그룹 A) ─────
+            // QA 콘솔 판정(문서/QA_테스트시나리오.md 그룹 A)
             //   S-START-2: 걷는 면(최대 수평면적 렌더러) 선택 — 부두 '구조물 꼭대기'(레일 등)와 대비해 보고.
             //   S-START-1: 발 높이(rigY)가 걷는 면 윗면(floorY)에 닿고, 거대증상 기준(구조물 꼭대기) 위가 아님.
             float structureTop = QuayStructureTopY();
@@ -190,9 +252,14 @@ namespace Container.Crane.Sts
         {
             var quay = GameObject.Find(QuayName);
             if (quay == null) return null;
+            // ★ 1순위 = 이름('Asphalt') 직접 지목. '수평 면적 최대' 휴리스틱은 바다(Sea)가 아스팔트보다 넓어
+            //   바다를 걷는 면으로 고를 수 있다(수면은 데크 아래 StsConfig.SeaLevelY ⇒ 물속 스폰).
+            //   면적 폴백에서도 바다는 이름으로 제외한다.
             Renderer ground = null; float bestArea = 0f;
             foreach (var r in quay.GetComponentsInChildren<Renderer>())
             {
+                if (r.gameObject.name == StsPartNames.QuayAsphalt) return r;
+                if (StsPartNames.IsSeaName(r.gameObject.name)) continue;
                 Vector3 e = r.bounds.size;
                 float area = e.x * e.z;                    // 수평 면적 — 아스팔트 슬래브가 압도적으로 큼.
                 if (area > bestArea) { bestArea = area; ground = r; }

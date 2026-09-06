@@ -16,7 +16,7 @@ namespace Container.Crane.Sts
     ///   ※ 로코모션은 이미 CharacterController 우회 + 중력off(CranePlayerRigScale)라, 솔리드 콜라이더를 꺼도
     ///     걷기/서있기에 영향 없음(시작 위치는 CranePlayerStartPlacer가 잡음).
     ///   ※ 네트워크 동기화 불필요 — 각 클라이언트가 자기 로컬 리그(Camera.main.root)에만 적용.
-    ///     원격 아바타(PlayerAvatar.prefab)는 콜라이더가 없어 남의 아바타가 내 컨테이너를 밀지 않음.
+    ///     원격 플레이어는 시각 아바타가 없어(제거됨) 남의 표현이 내 씬 물리에 개입하지 않음.
     ///   ※ 트리거는 안 건드림(끄면 손 집기/포크 UI가 깨짐). 솔리드만 끈다.
     /// </summary>
     [AddComponentMenu("Container/STS Crane/Player Collider Policy")]

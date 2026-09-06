@@ -26,6 +26,10 @@ namespace Container.Ship
     /// </summary>
     public static class ShipConfig
     {
+        /// <summary>컨테이너선 루트 오브젝트 이름 — 생성부(ShipCreator)·접안부(ShipBerthMenu)·
+        /// 부두 재생성(StsQuayGroundCreator)이 공유하는 SSOT. 각자 문자열을 박아두면 재접안이 조용히 끊긴다.</summary>
+        public const string ShipRootName = "ContainerShip";
+
         /// <summary>실척 m × ModelScale = 모델 단위. 크레인·컨테이너와 동일한 1/24 미니어처 환산비.</summary>
         public const float ModelScale = StsConfig.ModelScale;
 

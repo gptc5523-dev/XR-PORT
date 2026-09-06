@@ -45,7 +45,7 @@ namespace Container.Crane.Sts
         string lastText;          // 직전 표시 문자열 — 바뀔 때만 Text.text 대입(캔버스 리빌드 절감)
         float nextTextRefresh;    // 다음 텍스트 갱신 시각(CraneHud.TextHz 스로틀 — 매 프레임 문자열 생성/GC 방지)
 
-        // ─── 속도 측정 ───
+        // 속도 측정
         // 크레인이 실척의 1/24로 생성됨(StsCraneCreator.Scale=1/24). 모델 속도(units/s)를 ÷Scale 하면 실척 m/s.
         // 축척은 StsCrane.ModelScale 단일 소스 참조(모델 units/s ÷ ModelScale = 실척 m/s)
         float prevTrolley, prevHoist, prevGantry;   // 직전 프레임 위치(모델 units)
@@ -94,7 +94,7 @@ namespace Container.Crane.Sts
                 CraneHud.SetTextIfChanged(text, ref lastText, BuildText());
         }
 
-        // ───────── 축별 현재 속도 측정(실척 m/min) ─────────
+        // 축별 현재 속도 측정(실척 m/min)
         void UpdateSpeeds()
         {
             if (crane == null) { speedPrimed = false; return; }
@@ -140,7 +140,7 @@ namespace Container.Crane.Sts
             prev = cur;
         }
 
-        // ───────── HMD 카메라 부착(head-locked) ─────────
+        // HMD 카메라 부착(head-locked)
         void TryAttachToCamera()
         {
             if (canvas == null) return;
@@ -173,7 +173,7 @@ namespace Container.Crane.Sts
             return Camera.allCameras.Length > 0 ? Camera.allCameras[0] : null;
         }
 
-        // ───────── Canvas/배경/텍스트 자동 생성 ─────────
+        // Canvas/배경/텍스트 자동 생성
         void BuildCanvas()
         {
             // fitToText: 배경이 글자 분량에 맞춰 자동 축소(빈 여백 제거). inset이 글자~배경 여백(padding)이 됨.
@@ -182,7 +182,7 @@ namespace Container.Crane.Sts
             text.text = "...";
         }
 
-        // ───────── 상태 텍스트 ─────────
+        // 상태 텍스트
         string BuildText()
         {
             sb.Clear();

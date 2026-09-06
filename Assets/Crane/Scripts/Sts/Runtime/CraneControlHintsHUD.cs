@@ -75,7 +75,7 @@ namespace Container.Crane.Sts
             CraneHud.FaceCameraChild(canvas.transform, hmdOffset);   // 카메라 향함 + 거울 해소 — 부착 시 1회
         }
 
-        // ───────── Canvas/배경/텍스트 자동 생성 ─────────
+        // Canvas/배경/텍스트 자동 생성
         void BuildCanvas()
         {
             // fitToText: 배경이 글자 분량에 맞춰 자동 축소(빈 여백 제거)
@@ -84,7 +84,7 @@ namespace Container.Crane.Sts
             text.text = "...";
         }
 
-        // ───────── 모드별 조작 안내 텍스트 ─────────
+        // 모드별 조작 안내 텍스트
         string BuildText()
         {
             sb.Clear();

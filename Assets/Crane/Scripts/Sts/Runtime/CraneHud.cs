@@ -11,7 +11,7 @@ namespace Container.Crane.Sts
     /// </summary>
     internal static class CraneHud
     {
-        // ───────── 디자인 토큰 (HUD 공용 시각 언어) ─────────
+        // 디자인 토큰 (HUD 공용 시각 언어)
         // 패널 배경 알파·의미색을 한 곳에 모아 7개 HUD가 같은 시각 언어를 쓰게 한다.
         //   기존엔 HUD마다 배경 알파(0.55~0.85)·강조 hex(#7FFF7F 등)가 흩어져 통일감이 약했다.
         //   ColorUtility.ToHtmlStringRGB(=Hex)로 rich-text 인라인 색에도 같은 값을 끌어쓴다.
@@ -132,7 +132,7 @@ namespace Container.Crane.Sts
             return canvas;
         }
 
-        // ───────── VR 오클루전 해소(깊이 무시, 항상 최상단) ─────────
+        // VR 오클루전 해소(깊이 무시, 항상 최상단)
         // world-space 캔버스는 기본 깊이테스트(LEqual)라 크레인 부재 등 3D 오브젝트가 HUD 앞에 오면
         //   HUD가 그 뒤로 그려져 가려진다("object랑 겹쳐 글자 안 보임"의 직접 원인).
         // [1순위] ZTest를 셰이더에 박은 전용 오버레이(Container/CraneHudOverlay) 사용 — 머티리얼 ZTest

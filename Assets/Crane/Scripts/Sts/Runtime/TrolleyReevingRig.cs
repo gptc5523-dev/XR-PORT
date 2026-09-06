@@ -22,7 +22,8 @@ namespace Container.Crane.Sts
         // ※ [SerializeField] 필수 — Play 진입(도메인 리로드) 시 Configure 참조가 직렬화 안 되면 null로 리셋된다.
         [SerializeField] Transform trolley;
         [SerializeField] Vector3[] trolleyLocal;   // fall별 트롤리 앵커(트롤리 원점 기준 boom-로컬 오프셋)
-        [SerializeField] Vector3[] sheaveCenter;   // fall별 시브 중심(boom-로컬)
+        [SerializeField] Vector3[] sheaveCenter;   // fall별 시브 중심(boom-로컬, 고정 폴백)
+        [SerializeField] Transform[] sheaveXform;  // fall별 시브 실제 Transform(러핑 추종) — 있으면 매 프레임 이 월드좌표를 boom-로컬로 변환해 사용(붐 기립 시 로프가 시브 따라감)
         [SerializeField] float[]   seat;           // fall별 시브 시트(로프 피치) 반경
         [SerializeField] float[]   tangentSign;    // 접선 분기: +1=상부(az+off) / -1=하부(az-off)
         [SerializeField] float[]   exitDeg;        // 드럼쪽 탈출 접점 각(고정) — 호의 끝
@@ -37,11 +38,13 @@ namespace Container.Crane.Sts
 
         public void Configure(Transform trolley, Vector3[] trolleyLocal, Vector3[] sheaveCenter,
                               float[] seat, float[] tangentSign, float[] exitDeg, float[] wrapSign,
-                              Transform[] segments, int spanPer, int arcPer, float radius, float spanSag)
+                              Transform[] segments, int spanPer, int arcPer, float radius, float spanSag,
+                              Transform[] sheaveXform = null)
         {
             this.trolley = trolley;
             this.trolleyLocal = trolleyLocal;
             this.sheaveCenter = sheaveCenter;
+            this.sheaveXform = sheaveXform;
             this.seat = seat;
             this.tangentSign = tangentSign;
             this.exitDeg = exitDeg;
@@ -73,11 +76,23 @@ namespace Container.Crane.Sts
                 || exitDeg.Length != falls || wrapSign.Length != falls || segments.Length != falls * segPer) return;
 
             Vector3 tLocal = trolley.localPosition;
+            Transform boomT = trolley.parent;   // 리그 좌표계 = boom-로컬(트롤리·세그먼트 부모)
 
             for (int f = 0; f < falls; f++)
             {
                 Vector3 A = tLocal + trolleyLocal[f];
-                Vector3 C = sheaveCenter[f];
+                // [러핑] 시브 실제 Transform 있으면 그 월드좌표를 boom-로컬로 변환(붐 기립 추종) — 없으면 고정 폴백.
+                bool luffed = sheaveXform != null && f < sheaveXform.Length && sheaveXform[f] != null && boomT != null;
+                Vector3 C = luffed ? boomT.InverseTransformPoint(sheaveXform[f].position) : sheaveCenter[f];
+                // [러핑] 붐 기립각 θ — 시브 마커는 luffPivot 하위(로컬 회전 항등)라 그 월드회전=피벗회전.
+                //   boom-로컬로 환산하면 순수 Z회전 θ. 시브가 통째로 θ만큼 돌므로 탈출 접점각도 degD→degD+θ 여야 스윕된 RiseRail과 정확히 만난다.
+                float luffTheta = 0f;
+                if (luffed)
+                {
+                    Quaternion luffLocal = Quaternion.Inverse(boomT.rotation) * sheaveXform[f].rotation;
+                    luffTheta = luffLocal.eulerAngles.z;
+                    if (luffTheta > 180f) luffTheta -= 360f;   // [-180,180]
+                }
                 float r = seat[f];
 
                 // ── 시브 접점(외접선) — A에서 반경 r 원으로의 접선각. 직선 A→Tt는 원에 접해 Tt에서 꺾임 0.
@@ -88,8 +103,9 @@ namespace Container.Crane.Sts
                 float degT = baseAng + tangentSign[f] * off;
                 Vector3 Tt = OnCircle(C, r, degT);
 
-                // ── 감김 호: degT → exitDeg(고정)를 wrapSign 방향으로. degT가 트롤리 따라 변해도 연속.
-                float sweep = Mathf.Repeat(exitDeg[f] - degT, 360f);   // [0,360)
+                // ── 감김 호: degT → (exitDeg+θ)를 wrapSign 방향으로. degT는 트롤리 추종, 탈출각은 붐 기립 추종 → 양끝 연속.
+                float exitAng = exitDeg[f] + luffTheta;
+                float sweep = Mathf.Repeat(exitAng - degT, 360f);   // [0,360)
                 if (wrapSign[f] < 0f) sweep -= 360f;                   // CW면 (-360,0]
 
                 // ── 노드 구성: A …span… Tt …arc… Te. Tt 중복 없이 이어붙임.

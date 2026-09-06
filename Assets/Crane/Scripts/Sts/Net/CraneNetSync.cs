@@ -47,7 +47,7 @@ namespace Container.Crane.Sts.Net
         readonly NetworkVariable<int>   nAlarmCode = new(0, E, S);   // 활성 알람(최고 심각도 1건) 코드. 0=이상 없음 — 관전자도 같은 알람을 보도록 동기화.
         readonly NetworkVariable<int>   nOpMode    = new(0, E, S);   // 운영상태(운전/정지/이상) = (int)OpMode. 호스트 판정을 관전자도 동일하게 보도록 동기화.
 
-        // 컨테이너 적재 동기화 — [외부감사 S2 수정 2026-06-17] has/index/grabWorld/attachLocal을
+        // 컨테이너 적재 동기화 — has/index/grabWorld/attachLocal을
         //   분리 NetworkVariable 4개로 보내면 수신 순서가 역전될 수 있어(대역폭 혼잡 시) has=true가
         //   먼저 도착하면 클라가 초기 0 오프셋으로 잘못 붙던 위험이 있었다. 한 구조체(단일 NetworkVariable)로
         //   묶어 4필드를 '원자적'으로 한 번에 전송 → 부분 갱신 불가, 선언순서 의존 제거.
@@ -74,7 +74,7 @@ namespace Container.Crane.Sts.Net
                 Has == o.Has && Index == o.Index && GrabWorld == o.GrabWorld && AttachLocal == o.AttachLocal;
         }
 
-        // ───────── 컨테이너 핸드오프(누구나 손으로 옮기고 전원이 봄) 동기화 ─────────
+        // 컨테이너 핸드오프(누구나 손으로 옮기고 전원이 봄) 동기화
         [Tooltip("핸드오프(소유권 이전) 후 같은 손이 즉시 되집는 핑퐁을 막는 쿨다운(초).")]
         [SerializeField] float handoffCooldown = 0.75f;
         [Tooltip("들고 있는 컨테이너 포즈 전송 주기(Hz). 매 프레임이면 인원·개수만큼 대역폭 폭증 → 제한. 0이면 매 프레임.")]
@@ -216,7 +216,7 @@ namespace Container.Crane.Sts.Net
             ContainerTick();   // 호스트·관전자 모두: 컨테이너 핸드오프 송신/적용
         }
 
-        // ───────── 호스트: 현재 크레인 상태를 네트워크 변수에 기록 ─────────
+        // 호스트: 현재 크레인 상태를 네트워크 변수에 기록
         void ServerWrite()
         {
             // 연속 축 값은 sendRate(Hz)로 제한 — 매 프레임 쓰면 이동 중 72~90Hz로 전송돼 LAN/Wi-Fi가 포화.
@@ -259,7 +259,7 @@ namespace Container.Crane.Sts.Net
             if (opm != nOpMode.Value) nOpMode.Value = opm;
         }
 
-        // ───────── 관전자: 네트워크 값으로 크레인 시각 재현 ─────────
+        // 관전자: 네트워크 값으로 크레인 시각 재현
         void ClientApply()
         {
             float k = smooth <= 0f ? 1f : 1f - Mathf.Exp(-smooth * Time.deltaTime);
@@ -365,7 +365,7 @@ namespace Container.Crane.Sts.Net
             return (index < list.Count) ? list[index] : null;
         }
 
-        // ════════════════════ 컨테이너 핸드오프 ════════════════════
+        // 컨테이너 핸드오프
         // 누구나 손으로 컨테이너를 옮기면 전원이 본다. A가 든 걸 B가 집으면 소유권이 B로 넘어가(마지막 집기 우선)
         // A 손에서 떨어진다. 컨테이너는 NetworkObject가 아니라 '결정적 인덱스'로 식별(씬 동일 → 같은 인덱스=같은 개체).
 
@@ -540,7 +540,7 @@ namespace Container.Crane.Sts.Net
             origKinematic.Remove(idx);
         }
 
-        // ─── 서버 권위: 소유권/포즈/해제 (컨테이너는 NetworkObject가 아니므로 Owner 불요 → RequireOwnership=false) ───
+        // 서버 권위: 소유권/포즈/해제 (컨테이너는 NetworkObject가 아니므로 Owner 불요 → RequireOwnership=false)
         [ServerRpc(RequireOwnership = false)]
         void ClaimContainerServerRpc(int idx, Vector3 pos, Quaternion rot, ServerRpcParams p = default)
         {

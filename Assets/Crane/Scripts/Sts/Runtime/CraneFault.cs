@@ -27,7 +27,7 @@ namespace Container.Crane.Sts
     /// </summary>
     public static class CraneFault
     {
-        // ── 1차년도 활성 알람 코드(코드북 실제 코드만 상수로 보관) ──
+        // 1차년도 활성 알람 코드(코드북 실제 코드만 상수로 보관)
         //   ※ 심각도/AutoStop/메시지는 코드에 두지 않는다. 항상 AlarmCodebook(SSOT)에서 떠 쓴다(H4).
         //     코드만 명명 상수로 두어 Evaluate*가 읽기 쉽게 하고, FaultDef는 아래 getter가 지연 조회로 구성.
         public const int CodeOverload     = 3012;   // HO 과부하 (정격 초과)
@@ -44,7 +44,7 @@ namespace Container.Crane.Sts
         public const int CodeTrolleyAccel = 2021;   // TR 가속도 한계 초과
         public const int CodeHoistAccel   = 3021;   // HO 가속도 한계 초과
 
-        // ── FaultDef 지연 조회 프로퍼티(API 표면 유지) ──
+        // FaultDef 지연 조회 프로퍼티(API 표면 유지)
         //   정적 초기화 시점에 Resources.Load를 호출하면 순서 위험이 있으므로 static readonly 즉시 초기화 금지.
         //   각 프로퍼티가 호출 시점에 AlarmCodebook.Get으로 구성(코드북은 1회 지연 로드 후 캐시).
         public static FaultDef Overload     => FromCodebook(CodeOverload);
@@ -61,7 +61,7 @@ namespace Container.Crane.Sts
         public static FaultDef TrolleyAccel => FromCodebook(CodeTrolleyAccel);
         public static FaultDef HoistAccel   => FromCodebook(CodeHoistAccel);
 
-        // ── 유일하게 허용된 하드코딩 안전 디폴트 — SSOT 예외, fail-to-safe용 ──
+        // 유일하게 허용된 하드코딩 안전 디폴트 — SSOT 예외, fail-to-safe용
         //   재감사 신규결함 #1 시정: 코드북 로드 실패 시 알람 전체가 '조용히 무효화'(알람 0 → 정상인 척 운전)되는
         //   단일 실패점을 차단한다. 개별 170개 알람을 날조(H4 금지)하는 게 아니라, "알람 시스템 자체가 불가"라는
         //   단 하나의 명시적 비상 정의만 코드북 없이 허용한다. AutoStop=true(안전측 실패).
@@ -89,7 +89,7 @@ namespace Container.Crane.Sts
 
         /// <summary>
         /// 주입 결함 — 설정되면 모든 자연 발생 알람보다 <b>우선</b> 반환(결함 데모/검증용).
-        /// 외부에서 AlarmCodebook 코드를 떠 채운다(현재 자동 주입 시나리오는 없음 — 결함 시연 삭제 2026-06-22). 기본 무효(IsValid=false). 사용 후 반드시 default로 클리어.
+        /// 외부에서 AlarmCodebook 코드를 떠 채운다(현재 자동 주입 시나리오는 없음). 기본 무효(IsValid=false). 사용 후 반드시 default로 클리어.
         /// </summary>
         public static FaultDef Injected;
 

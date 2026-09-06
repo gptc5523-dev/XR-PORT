@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEditor;
-using Container.Crane.Sts;   // StsConfig, StsPartNames, TrolleyMover
+using Container.Crane.Sts;              // StsConfig, StsPartNames, TrolleyMover
+using Container.Crane.Sts.EditorTools;  // StsQuayGroundCreator.TryQuayBerthAnchor (안벽 위치 SSOT)
 
 namespace Container.Ship.EditorTools
 {
@@ -15,7 +16,7 @@ namespace Container.Ship.EditorTools
     /// ── 계산(실척 m) ──
     ///   배 중심선 X = 바다측레일 X + 접안틈 + 선폭/2.   (배 피벗 = 중심선 x0·미드십 z0·흘수선 y0)
     ///   배 Z = 크레인 Z (크레인이 미드십 화물구 위에 오게 — 거주구/브리지 z −92~−114 간섭 회피).
-    ///   배 Y = 0 (흘수선 = 안벽/바다 표면 y0).
+    ///   배 Y = StsConfig.SeaLevelY (흘수선 = 수면 = 안벽 데크 아래 코핑고 4 m).
     ///   검증: (바다측레일 X + 아웃리치) ≥ (배 중심선 + 선폭/2) 이면 크레인이 전폭을 덮는다.
     /// </summary>
     public static class ShipBerthMenu
@@ -30,43 +31,59 @@ namespace Container.Ship.EditorTools
         ///   ShipCreator.CreateShip이 생성 직후 자동 호출한다(별도 메뉴 없이 생성 한 번으로 접안까지).
         ///   접안은 '생성 순간' 자동으로만 수행하며 별도 정렬 메뉴는 두지 않는다(오너 지시 2026-07-03).
         ///   크레인·배 위치가 나중에 바뀌면 배를 다시 생성하면 재접안된다.
-        ///   크레인('STS_Crane')이 아직 없으면 false + 안내 메시지(배는 그대로 둠 — 호출부가 처리).
+        ///   안벽 위치는 부두(Quay_Ground의 바다측 QuayRail)가 1순위 앵커라 **크레인 없이 부두만 있어도 접안**한다.
+        ///   부두도 크레인도 없을 때만 false + 안내(배는 그대로 둠 — 호출부가 처리).
         /// </summary>
         public static bool TryBerth(GameObject ship, out string msg)
         {
             var crane = GameObject.Find(CraneName);
-            if (crane == null)
-            {
-                msg = $"[ShipBerth] 씬에 '{CraneName}'가 없어 접안을 건너뜁니다. 크레인을 먼저 생성한 뒤 컨테이너선을 다시 생성하면 자동 접안됩니다.";
-                return false;
-            }
-
             float scale = StsConfig.ModelScale;
 
-            // 1) 바다측 레일 X(월드) — Rail_Water 바운즈 중심. 폴백: 크레인 X + 게이지(실척).
-            float waterRailX;
-            if (TryFindWorldX(crane.transform, StsPartNames.RailPrefix + "Water", out float railX))
-                waterRailX = railX;
-            else
+            // 1) 바다측 레일 X(월드) — 안벽 위치의 SSOT는 '부두'다. 우선순위:
+            //      ① Quay_Ground 의 바다측 QuayRail   ← 부두만 있으면 크레인 없이도 접안된다
+            //      ② 크레인의 Rail_Water*             ← 부두를 아직 안 깐 경우
+            //      ③ 크레인 위치 + 게이지(실척)        ← 최후 폴백
+            //   ★ 종전엔 크레인이 없으면 바로 return false 라 배가 원점에 남았고, 원점은 슬래브 한가운데(육지)라
+            //     "컨테이너선 생성하면 육지로 출력된다"가 됐다(오너 지적 2026-08-10). 부두 기준으로 바꿔 해소.
+            float waterRailX; float quayCenterZ = 0f; bool haveQuay;
+            string anchor;
+            haveQuay = StsQuayGroundCreator.TryQuayBerthAnchor(out waterRailX, out quayCenterZ);
+            if (haveQuay) anchor = $"부두 '{StsPartNames.QuayGround}'의 바다측 {StsPartNames.QuayRail}";
+            else if (crane != null && TryFindWorldX(crane.transform, StsPartNames.RailPrefix + "Water", out float railX))
+            { waterRailX = railX; anchor = "크레인 Rail_Water"; }
+            else if (crane != null)
             {
                 waterRailX = crane.transform.position.x + StsConfig.LegGaugeXMeters * scale;
-                Debug.LogWarning($"[ShipBerth] 'Rail_Water'를 못 찾아 폴백(크레인 X + 게이지)으로 바다측 레일 X를 추정합니다.");
+                anchor = "크레인 위치 + 게이지(폴백)";
+                Debug.LogWarning("[ShipBerth] 부두 QuayRail·크레인 Rail_Water를 못 찾아 폴백(크레인 X + 게이지)으로 바다측 레일 X를 추정합니다.");
+            }
+            else
+            {
+                msg = $"[ShipBerth] 씬에 부두('{StsPartNames.QuayGround}')도 크레인('{CraneName}')도 없어 접안을 건너뜁니다. " +
+                      $"'Ground/부두 바닥 생성'을 먼저 실행하면 컨테이너선이 자동으로 접안합니다.";
+                return false;
             }
 
             // 2) 목표 좌표(모델 단위)
             float beamHalf   = ShipConfig.BeamMeters * 0.5f * scale;   // 선폭/2
             float berthGap   = BerthGapMeters * scale;                 // 접안 틈
             float targetX = waterRailX + berthGap + beamHalf;          // 배 중심선 X(피벗=중심선)
-            float targetZ = crane.transform.position.z;               // 크레인이 미드십 위
-            float targetY = 0f;                                        // 흘수선 = 표면 y0
+            // Z: 크레인이 있으면 크레인이 미드십 위에 오게, 없으면 선석(안벽) 중앙.
+            float targetZ = crane != null ? crane.transform.position.z : quayCenterZ;
+            // 배 피벗 = 흘수선 → 수면 높이에 맞춘다. 수면은 데크(y=0) 아래 코핑고만큼(StsConfig.SeaLevelY, ≈−4m).
+            //   종전 0f는 '수면=데크'였던 시절 값이라, 안벽에 건현이 생긴 뒤로는 배가 물 위에 뜬 것처럼 보인다.
+            float targetY = StsConfig.SeaLevelY;                       // 흘수선 = 수면
 
-            // 3) 아웃리치 커버 검증 — 크레인이 전폭을 덮는가.
-            float outreachReachX;
-            var trolley = crane.GetComponentInChildren<TrolleyMover>();
-            if (trolley != null) outreachReachX = crane.transform.position.x + trolley.Max;  // 트롤리 바다쪽 한계(월드)
-            else                 outreachReachX = waterRailX + 45f * scale;                  // 폴백: 정격 아웃리치 45m
+            // 3) 아웃리치 커버 검증 — 크레인이 전폭을 덮는가. 크레인이 없으면 검증 생략(배치는 그대로 한다).
             float shipFarSideX = targetX + beamHalf;                   // 배 반대편(바다측) 현측
-            float coverMargin  = outreachReachX - shipFarSideX;        // ≥0 이면 전폭 커버
+            float outreachReachX = 0f, coverMargin = 0f;
+            if (crane != null)
+            {
+                var trolley = crane.GetComponentInChildren<TrolleyMover>();
+                if (trolley != null) outreachReachX = crane.transform.position.x + trolley.Max;  // 트롤리 바다쪽 한계(월드)
+                else                 outreachReachX = waterRailX + 45f * scale;                  // 폴백: 정격 아웃리치 45m
+                coverMargin = outreachReachX - shipFarSideX;           // ≥0 이면 전폭 커버
+            }
 
             // 4) 배치
             Undo.RecordObject(ship.transform, "Berth ContainerShip");
@@ -76,26 +93,47 @@ namespace Container.Ship.EditorTools
             // 5) 보고(실척 환산)
             float inv = StsConfig.InvModelScale;
             msg =
-                $"[ShipBerth] 컨테이너선 접안 완료 — 배 중심선 X={targetX:F3}u({targetX*inv:F1}m), Z={targetZ:F3}u, Y=0(흘수선).\n" +
-                $"  바다측 레일 X={waterRailX:F3}u({waterRailX*inv:F1}m) + 접안틈 {BerthGapMeters:F0}m + 선폭/2 {ShipConfig.BeamMeters*0.5f:F1}m.\n" +
-                $"  아웃리치 도달 X={outreachReachX:F3}u({outreachReachX*inv:F1}m) vs 반대현측 X={shipFarSideX:F3}u({shipFarSideX*inv:F1}m) → " +
-                (coverMargin >= 0f ? $"전폭 커버 ✓ 여유 {coverMargin*inv:F1}m." : $"⚠ 커버 부족 {(-coverMargin*inv):F1}m — 접안틈을 줄이거나 크레인 아웃리치 확인.");
-            if (coverMargin >= 0f) Debug.Log(msg);
-            else                   Debug.LogWarning(msg);
+                $"[ShipBerth] 컨테이너선 접안 완료 — 배 중심선 X={targetX:F3}u({targetX*inv:F1}m), Z={targetZ:F3}u, " +
+                $"Y={targetY:F3}u(흘수선=수면, 안벽 데크 아래 {StsConfig.QuayDeckAboveSeaMeters:F1}m).\n" +
+                $"  앵커={anchor} · 바다측 레일 X={waterRailX:F3}u({waterRailX*inv:F1}m) + 접안틈 {BerthGapMeters:F0}m + 선폭/2 {ShipConfig.BeamMeters*0.5f:F1}m.\n" +
+                (crane == null
+                    ? $"  크레인 없음 → 아웃리치 커버 검증 생략(안벽 중앙 Z에 접안). 크레인을 만들면 부두 재생성 시 자동 재접안."
+                    : $"  아웃리치 도달 X={outreachReachX:F3}u({outreachReachX*inv:F1}m) vs 반대현측 X={shipFarSideX:F3}u({shipFarSideX*inv:F1}m) → " +
+                      (coverMargin >= 0f ? $"전폭 커버 ✓ 여유 {coverMargin*inv:F1}m." : $"⚠ 커버 부족 {(-coverMargin*inv):F1}m — 접안틈을 줄이거나 크레인 아웃리치 확인."));
+            if (crane == null || coverMargin >= 0f) Debug.Log(msg);
+            else                                    Debug.LogWarning(msg);
             return true;
         }
 
-        /// <summary>root 하위에서 이름이 일치하는 첫 Transform의 월드 렌더러 바운즈 중심 X를 반환.</summary>
-        static bool TryFindWorldX(Transform root, string name, out float worldX)
+        /// <summary>
+        /// 씬에 '이미 있는' 컨테이너선을 다시 접안시킨다. 배가 없으면 아무것도 하지 않는다(조용히 통과).
+        ///
+        /// 접안은 생성 순간 자동으로만 한다는 원칙(오너 지시 2026-07-03)은 그대로다 — 이건 그 원칙의 반대 방향
+        /// 구멍을 막는 것이다. 부두를 다시 깔면 안벽 X(레일 위치)와 수면 Y(StsConfig.SeaLevelY)가 바뀌는데,
+        /// 배는 제자리에 남아 공중에 뜨거나 안벽에서 떨어진다. 배를 손으로 다시 만들게 하지 않고 부두 쪽에서 맞춘다.
+        /// (로그는 TryBerth가 남긴다 — 별도 메뉴는 두지 않는다.)
+        /// </summary>
+        public static void ReberthExistingShip()
         {
-            worldX = 0f;
+            var ship = GameObject.Find(ShipConfig.ShipRootName);
+            if (ship == null) return;
+            TryBerth(ship, out _);
+        }
+
+        /// <summary>root 하위에서 이름이 namePrefix로 '시작'하는 Transform 중 가장 바다측(+X) 월드 X를 반환.
+        /// ★ 정확일치가 아니라 접두 비교다 — 크레인의 실제 레일 이름은 'Rail_Water_1'(생성부가 일련번호를 붙인다)이라
+        ///   종전 `t.name != name` 비교는 **항상 실패**해 매번 폴백으로 빠졌다(경고 로그 상시 발생).</summary>
+        static bool TryFindWorldX(Transform root, string namePrefix, out float worldX)
+        {
+            worldX = 0f; bool found = false;
             foreach (var t in root.GetComponentsInChildren<Transform>(true))
             {
-                if (t.name != name) continue;
-                if (TryWorldBounds(t, out Bounds b)) { worldX = b.center.x; return true; }
-                worldX = t.position.x; return true;
+                if (!t.name.StartsWith(namePrefix)) continue;
+                float x = TryWorldBounds(t, out Bounds b) ? b.center.x : t.position.x;
+                worldX = found ? Mathf.Max(worldX, x) : x;   // 바다측 = +X 관례
+                found = true;
             }
-            return false;
+            return found;
         }
 
         static bool TryWorldBounds(Transform t, out Bounds b)

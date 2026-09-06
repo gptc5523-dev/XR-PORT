@@ -71,7 +71,7 @@ namespace Container.Crane.Sts
         [Tooltip("위 부품 기준 카메라 오프셋(크레인 로컬 m, 스케일 무관). x=앞뒤(-=기계실/육지, +=바다), y=상하, z=좌우.")]
         [SerializeField] Vector3 cabLocalOffset = new Vector3(-0.035f, -0.03f, -0.05f);
         [Tooltip("운전실 '바닥' 부품 이름 — 전용 시점일 때 눈 위치를 이 바닥 '아래'에 둔다(발밑 화물 내려다보기). 못 찾으면 좌석 눈높이(Cab_Viewpoint) 유지.")]
-        [SerializeField] string cabFloorAnchorName = StsPartNames.CabFloorRear;   // [2026-06-22 오너] 실재 부품(Cab_Fb_FloorRear)으로 교체 — 옛 Cab_Kick은 생산부 없어 좌석 안에 갇혔음
+        [SerializeField] string cabFloorAnchorName = StsPartNames.CabFloorRear;   // 옛 Cab_Kick은 생산부 없어 좌석 안에 갇혔음
         [Tooltip("바닥 부품 '아래'로 카메라를 내릴 거리(크레인 로컬 m, 스케일 무관). 바닥 패널 밑에서 발밑 화물을 막힘없이 내려다본다. VR에서 미세조정.")]
         [SerializeField, Range(0f, 0.04f)] float cabFloorDropDown = 0.008f;   // 바닥 반두께(~0.003) + 여유(~0.005). 실척 ≈ 0.008×24 ≈ 0.19m
 
@@ -183,12 +183,12 @@ namespace Container.Crane.Sts
             // QA 자동 시나리오 합성 입력 — 기기 대신 주입값으로 스틱을 대체(나머지 처리는 동일 → FixedUpdate 축적분 경로 그대로).
             if (qaDrive) { rs = qaRS; ls = qaLS; }
 
-            // ───── 시점 높이 조절은 CraneViewHeightAdjuster(별도 컴포넌트, 호스트/관전자 공통)가 담당 ─────
+            // 시점 높이 조절은 CraneViewHeightAdjuster(별도 컴포넌트, 호스트/관전자 공통)가 담당
             //   조종 컨트롤러는 '조절 중'이면 왼손 스틱을 높이 전용으로 양보(호이스트/갠트리 입력 무효화)한다.
             //   걷기 정지는 EnforceLocomotion의 locoOn 조건이 ViewHeightActive()로 매 프레임 반영한다.
             if (ViewHeightActive()) ls = Vector2.zero;
 
-            // ───── 관찰 ⇄ 조종 토글: 오른쪽 스틱 클릭(primary2DAxisClick). 기본은 관찰(controlActive=false) ─────
+            // 관찰 ⇄ 조종 토글: 오른쪽 스틱 클릭(primary2DAxisClick). 기본은 관찰(controlActive=false)
             //   관찰: 크레인은 PLC/시뮬이 움직이고 사용자 조종 입력은 전면 차단 → 호스트·관전자 동일 화면(모드선택 HUD도 숨김).
             //   조종: 스틱 클릭 한 번으로 진입, 이때만 모드선택 HUD가 뜨고 축 조종이 열린다.
             bool modeToggleNow = Btn(right, CommonUsages.primary2DAxisClick);
@@ -207,7 +207,7 @@ namespace Container.Crane.Sts
             // 관찰 모드: 조종 입력(모드선택/확정/시점/집기/축이동) 전면 차단. 걷기·시점높이는 위에서 이미 처리됨.
             if (!controlActive) { driveRS = driveLS = Vector2.zero; return; }
 
-            // ───── 모드 선택: 스틱 위/아래로 '후보'만 이동 → B로 '확정' ─────
+            // 모드 선택: 스틱 위/아래로 '후보'만 이동 → B로 '확정'
             //   스틱만으론 모드가 안 바뀜(후보 하이라이트만 이동). B를 눌러야 실제 전환.
             //   → 조종모드에서 오른쪽 스틱 좌우(트롤리) 조작 중 모드가 빠지는 충돌 해소.
             //   추가 가드: 좌우로 밀 땐(|x|≥0.5) 후보도 안 움직임. 중앙 복귀 후에만 다음 이동 인정(폭주 방지).
@@ -232,7 +232,7 @@ namespace Container.Crane.Sts
             //   끝난 뒤(LateUpdate)에 카메라를 정렬해 트롤리 이동(FixedUpdate)과의 한 프레임 어긋남/저더를 막는다.
             if (cabView && mode == Mode.Move) ExitCabView();
 
-            // ───── 공통: 집기 / 놓기 (모드 무관) ─────
+            // 공통: 집기 / 놓기 (모드 무관)
             bool grabNow = Btn(left, CommonUsages.secondaryButton);     // Y
             bool releaseNow = Btn(left, CommonUsages.primaryButton);    // X
             if (grabNow && !prevGrab) { if (debugLog) Debug.Log("[Crane] Y 입력 → 집기(Grab)"); grabber?.Grab(); }
@@ -240,7 +240,7 @@ namespace Container.Crane.Sts
             if (releaseNow && !prevRelease) { if (debugLog) Debug.Log("[Crane] X 입력 → 놓기(Release)"); grabber?.Release(); }
             prevRelease = releaseNow;
 
-            // ───── 모드별 조종 입력 저장 → 실제 축 이동은 FixedUpdate에서(물리 정합) ─────
+            // 모드별 조종 입력 저장 → 실제 축 이동은 FixedUpdate에서(물리 정합)
             //   입력 샘플링은 Update(프레임률)에서, kinematic 화물을 끌고 가는 축 적분은 FixedUpdate(고정틱)에서
             //   처리해 PhysX 접촉/스윕과 박자를 맞춘다 — 프레임률 의존·터널링 완화. (이동모드는 FixedUpdate가 무시)
             driveRS = rs;
@@ -315,7 +315,7 @@ namespace Container.Crane.Sts
         // QA 축 이동 로그 엣지 추적 — 이동 시작 시점에만 1줄 찍어 매 물리틱 폭주 방지.
         bool qaTrolleyActive, qaHoistActive, qaGantryActive;
 
-        // ───────── QA 자동 시나리오 합성 입력(VR 기기 없이 production 경로를 그대로 구동) ─────────
+        // QA 자동 시나리오 합성 입력(VR 기기 없이 production 경로를 그대로 구동)
         bool qaDrive; Vector2 qaRS, qaLS;
         /// <summary>QA: 합성 스틱 구동 시작 — controlActive를 켜고 모드 확정. 이후 Update가 기기 대신 주입값을 쓴다.</summary>
         public void QaBeginDrive(Mode m) { qaDrive = true; controlActive = true; SetMode(m); }
@@ -342,7 +342,7 @@ namespace Container.Crane.Sts
             if (debugLog) Debug.Log($"[Crane] 모드 → {ModeNames[(int)mode]}");
         }
 
-        // ───────── 운전실 시점 (카메라를 운전실 좌석 눈높이 앵커로 이동, 크기 변경 없음) ─────────
+        // 운전실 시점 (카메라를 운전실 좌석 눈높이 앵커로 이동, 크기 변경 없음)
         void EnterCabView()
         {
             var cam = Camera.main;
@@ -365,10 +365,10 @@ namespace Container.Crane.Sts
                 if (c.enabled) { c.enabled = false; rigColliders.Add(c); }
 
             // 카메라가 운전실 시점에 오도록 리그를 평행 이동.
-            //   ★ 전용 앵커면: 시선(전방/요)은 Cab_Viewpoint 기준, 눈 '위치'는 운전실 후방 바닥 패널(Cab_Fb_FloorRear)
+            //   전용 앵커면: 시선(전방/요)은 Cab_Viewpoint 기준, 눈 '위치'는 운전실 후방 바닥 패널(Cab_Fb_FloorRear)
             //     '아래'로 내린다 — 좌석 눈높이는 바닥/콘솔/벽에 가려 발밑 화물이 안 보이므로, 바닥 패널 밑에서
             //     전면 경사창으로 바로 아래(스프레더/선박 셀)를 막힘없이 내려다보게 한다. (옛 Cab_Kick은 생산부가 없어
-            //     항상 폴백→좌석 눈높이에 갇혀 '조종실 안' 시점이 됐었음 — 2026-06-22 오너 지시로 실재 바닥부품으로 교체.)
+            //     항상 폴백→좌석 눈높이에 갇혀 '조종실 안' 시점이 됐었음.)
             //   레거시 앵커면: 기준부품 + 오프셋(트롤리 회전만 반영·스케일 안 곱함).
             Transform cabFloor = dedicated ? FindCabFloor(trolleyT) : null;
             Transform eyeAnchor = cabFloor != null ? cabFloor : cabAnchor;
@@ -410,7 +410,7 @@ namespace Container.Crane.Sts
 
         // 운전실 '바닥' 부품(Cab_Fb_FloorRear 등) 찾기 — 전용 시점에서 눈 위치를 이 바닥 '아래'에 둬 발밑 화물을 내려다보게.
         //   1순위: 직렬화된 cabFloorAnchorName  2순위: 실재 후방 바닥 패널(Cab_Fb_FloorRear).
-        //   ※ 기존 씬 인스턴스가 옛 'Cab_Kick'(생산부 없음)으로 직렬화돼 있어도 인스펙터 수정 없이 동작하도록 2순위 폴백을 둔다.
+        //   기존 씬 인스턴스가 옛 'Cab_Kick'(생산부 없음)으로 직렬화돼 있어도 인스펙터 수정 없이 동작하도록 2순위 폴백을 둔다.
         //   둘 다 못 찾으면 null → EnterCabView가 좌석 눈높이(Cab_Viewpoint)로 폴백.
         Transform FindCabFloor(Transform trolleyT)
         {
@@ -512,7 +512,7 @@ namespace Container.Crane.Sts
             if (walkSpeed <= 0f) return;
             var locoType = LocomotionProviderType;
             if (locoType == null) return;
-            // ★ rigScale을 곱하지 않는다(중요). XRI ContinuousMoveProvider는 이동량 계산 시 이미
+            // rigScale을 곱하지 않는다(중요). XRI ContinuousMoveProvider는 이동량 계산 시 이미
             //   `m_MoveSpeed * deltaTime * originTransform.localScale.x`로 리그 스케일(1/24)을 곱한다
             //   ("Adjust speed with user scale"). 여기서 또 walkSpeed×rigScale을 넣으면 1/24 × 1/24 = 1/576이라
             //   걷기가 사실상 0이 된다(턴은 회전이라 스케일 무관 → 정상 → '오른쪽만 되고 왼쪽 걷기 안 됨').
