@@ -27,6 +27,10 @@ namespace Container.Crane.Sts.EditorTools
         //   없으면 아래 Cyl() 절차생성으로 조용히 폴백하므로, FBX 임포트 전에도 부두 생성이 깨지지 않는다.
         const string BollardFbx        = "Assets/Crane/Models/Quay_Bollard.fbx";
         const float  RealBollardHeightM = 1.368f;   // Blender 실측 총높이(기둥 1.08 + 갓 0.288)
+        // 연석 — 블렌더 제작 4m 프리캐스트 유닛. 통짜 압출이 아니라 유닛을 깔아 줄눈이 보이게 한다.
+        const string CurbFbx           = "Assets/Crane/Models/Quay_Curb.fbx";
+        const float  RealCurbHeightM   = 0.528f;    // = curbH(0.022u) × InvModelScale. 단면 0.72W × 0.528H
+        const float  CurbUnitPitchM    = 4.0f;      // 유닛 피치 = 유닛 실길이 3.985m + 줄눈 0.015m
 
         // 기본 치수(크레인을 못 찾을 때) — X=apron(붐 방향), Z=안벽 길이(레일 방향), 모델 단위
         //   ★ 폴백도 크레인이 있을 때와 '같은 산식'을 쓴다. 종전 X 12u(288m)·Z 20u(480m)는 별도 매직넘버라
@@ -955,12 +959,37 @@ namespace Container.Crane.Sts.EditorTools
             float edgeMargin = QuayEdgeMargin;  // 바다측 레일 → 안벽(quay) 가장자리 ≈4m (SSOT)
             float quayEdgeX = Mathf.Clamp(waterRailX + sgn * edgeMargin, -(hx - 0.02f), hx - 0.02f);
 
-            // 연석(緣石) — 안벽 가장자리 따라 낮은 콘크리트 턱 (ProBuilder). Ground 메뉴 토글로 선택.
+            // 연석(緣石) — 안벽 가장자리 따라 낮은 콘크리트 턱. Ground 메뉴 토글로 선택.
+            //   4m 프리캐스트 유닛 FBX 를 피치대로 깐다. 단면이 일정한 직선이라 통짜 압출로도 형상은
+            //   같지만, 줄눈이 없으면 VR에서 안벽 376m의 길이감이 죽는다. FBX 없으면 종전 통짜로 폴백.
             if (IncludeCurb)
             {
                 var concrete = MakeMat(CConcrete, 0.0f, 0.15f, null);
                 const float curbW = 0.03f, curbH = 0.022f;
-                PbBox(root, "Quay_Curb", new Vector3(quayEdgeX, curbH * 0.5f, 0f), new Vector3(curbW, curbH, len), concrete);
+                var curbFbx = AssetDatabase.LoadAssetAtPath<GameObject>(CurbFbx);
+                if (curbFbx != null)
+                {
+                    float pitch = CurbUnitPitchM * StsConfig.ModelScale;
+                    // 내림 — 올림하면 마지막 유닛이 안벽 끝을 최대 반피치(2m) 넘어 바다로 튀어나온다.
+                    int   units = Mathf.FloorToInt(len / pitch);   // 4m 유닛이 하나도 안 들어가면 연석 없음
+                    float run   = pitch * units;                                // 실제 덮는 길이 — 안벽 중앙 정렬
+                    float s     = FbxScaleByHeight(curbFbx, RealCurbHeightM);   // 루프 밖에서 1회 측정
+                    var group   = new GameObject("Quay_Curb").transform;        // 유닛 수십 개가 루트에 흩어지지 않게
+                    group.SetParent(root, worldPositionStays: false);
+                    for (int i = 0; i < units; i++)
+                    {
+                        var go = (GameObject)PrefabUtility.InstantiatePrefab(curbFbx);
+                        go.name = "Quay_CurbUnit";
+                        go.transform.SetParent(group, worldPositionStays: false);
+                        // FBX 원점 = 바닥면·유닛 길이 중앙
+                        go.transform.localPosition = new Vector3(quayEdgeX, 0f, -run * 0.5f + pitch * (i + 0.5f));
+                        go.transform.localScale    = Vector3.one * s;
+                        foreach (var r in go.GetComponentsInChildren<MeshRenderer>())
+                            r.sharedMaterial = concrete;
+                    }
+                }
+                else
+                    PbBox(root, "Quay_Curb", new Vector3(quayEdgeX, curbH * 0.5f, 0f), new Vector3(curbW, curbH, len), concrete);
             }
 
             // 계선주(bollard) — 연석 살짝 안쪽(육지쪽)으로 줄지어. 실척 ~20m 간격. Ground 메뉴 토글로 선택.
@@ -972,7 +1001,7 @@ namespace Container.Crane.Sts.EditorTools
                 float bx = quayEdgeX - sgn * 0.045f;       // 가장자리에서 안쪽(육지)으로
                 const float postH = 0.045f, postR = 0.009f, capH = 0.012f, capR = 0.014f;
                 var bollFbx = AssetDatabase.LoadAssetAtPath<GameObject>(BollardFbx);
-                float bollScale = BollardFbxScale(bollFbx);   // 루프 밖에서 1회 측정
+                float bollScale = FbxScaleByHeight(bollFbx, RealBollardHeightM);   // 루프 밖에서 1회 측정
                 for (int i = 0; i <= n; i++)
                 {
                     float z = -len * 0.5f + len * i / n;
@@ -1017,7 +1046,7 @@ namespace Container.Crane.Sts.EditorTools
             go.name = "Quay_Bollard_FBX_Pilot";
             go.transform.SetParent(parent, worldPositionStays: false);
             go.transform.localPosition = pos;
-            go.transform.localScale    = Vector3.one * BollardFbxScale(fbx);
+            go.transform.localScale    = Vector3.one * FbxScaleByHeight(fbx, RealBollardHeightM);
             foreach (var r in go.GetComponentsInChildren<MeshRenderer>())
                 r.sharedMaterial = MakeMat(CBollard, 0.5f, 0.30f, null);
 
@@ -1032,15 +1061,16 @@ namespace Container.Crane.Sts.EditorTools
         }
 
         /// <summary>FBX 인스턴스를 '실척 높이 × ModelScale' 로 맞추는 배율. FBX 단위계(m/cm)를 몰라도
-        /// 측정으로 수렴하므로 RTG_Crane.fbx 와 동일하게 임포트 설정 변화에 영향받지 않는다.</summary>
-        static float BollardFbxScale(GameObject fbx)
+        /// 측정으로 수렴하므로 RTG_Crane.fbx 와 동일하게 임포트 설정 변화에 영향받지 않는다.
+        /// 계선주·연석 등 블렌더 제작 부재가 공통으로 쓴다.</summary>
+        static float FbxScaleByHeight(GameObject fbx, float realHeightM)
         {
             if (fbx == null) return 1f;
             var probe = (GameObject)PrefabUtility.InstantiatePrefab(fbx);
             probe.transform.localScale = Vector3.one;
             float h = RtgCraneFbxPlacer.CombinedBounds(probe).size.y;
             Object.DestroyImmediate(probe);
-            float target = RealBollardHeightM * StsConfig.ModelScale;
+            float target = realHeightM * StsConfig.ModelScale;
             return h > 1e-5f ? target / h : 1f;
         }
 
@@ -1078,6 +1108,7 @@ namespace Container.Crane.Sts.EditorTools
         {
             var shader = Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Standard");
             var mat = new Material(shader) { name = "Quay_Mat" };
+            mat.enableInstancing = true;   // 연석 유닛·계선주가 같은 머티리얼 → 드로우콜 폭증 방지
             if (mat.HasProperty("_BaseColor")) mat.SetColor("_BaseColor", c);
             if (mat.HasProperty("_Color"))     mat.SetColor("_Color", c);
             if (mat.HasProperty("_Metallic"))   mat.SetFloat("_Metallic", metallic);
