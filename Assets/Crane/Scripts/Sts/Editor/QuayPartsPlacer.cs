@@ -21,6 +21,7 @@ namespace Container.Crane.Sts.EditorTools
         const string BollardFbx = "Assets/Crane/Models/Quay_Bollard.fbx";
         const string RailFbx    = "Assets/Crane/Models/Quay_Rail.fbx";
         const string CaissonFbx = "Assets/Crane/Models/Quay_Caisson.fbx";
+        const string SeaFbx     = "Assets/Crane/Models/Sea.fbx";
 
         // 부재 실척 높이 — 블렌더 빌드 스크립트와 쌍으로 유지한다(문서/스크립트/부두연석_유닛_빌드.py).
         const float CurbHeightM    = 0.528f;   // 단면 0.72W × 0.528H
@@ -152,6 +153,30 @@ namespace Container.Crane.Sts.EditorTools
             Done(root, $"레일 2줄 × {units}유닛 · 게이지 {StsConfig.LegGaugeXMeters:F0}m · " +
                        $"해측 −{PortConfig.ApronSeawardM:F0}m/육측 −{PortConfig.ApronSeawardM + StsConfig.LegGaugeXMeters:F0}m · " +
                        $"피치 {RailPitchM:F0}m · 총 {run * StsConfig.InvModelScale:F1}m · scale {scale:F4}");
+        }
+
+        /// <summary>바다 — 수면이 StsConfig.SeaLevelY 에 정확히 오도록 해저 깊이만큼 내려 놓는다.
+        /// 이름이 Sea/Sea_* 여야 StsPartNames.IsSeaName() 이 지면 탐색에서 걸러낸다. 안 그러면
+        /// 바다(588×1,516m)가 아스팔트(30×340m)보다 넓어 '면적 최대' 휴리스틱이 바다를 골라
+        /// RTG·플레이어가 수면 위에 선다. 콜라이더는 달지 않는다 — 안벽 밖에는 바닥이 없다.</summary>
+        [MenuItem("Model/FBX/항구/바다 배치 (Sea)", false, 4)]
+        static void PlaceSea()
+        {
+            if (!BerthReady("바다")) return;
+            var fbx = Load(SeaFbx, "바다"); if (fbx == null) return;
+
+            float scale = FbxScaleByHeight(fbx, PortConfig.WaterDepthMeters);
+            // 겹침 1m 만큼 안벽 안으로 파고들게 — x=0 에서 면이 딱 만나면 Z-fighting.
+            float x = (PortConfig.SeaWidthMeters - PortConfig.SeaOverlapM) * 0.5f * StsConfig.ModelScale;
+            float y = -PortConfig.QuayWallHeightMeters * StsConfig.ModelScale;   // 원점 = 해저
+
+            var root = NewRoot(StsPartNames.QuaySea);
+            Place(fbx, root, StsPartNames.QuaySea + "_Body", new Vector3(x, y, 0f), scale);
+
+            Done(root, $"수면 y={StsConfig.SeaLevelY:F4}u(−{StsConfig.QuayDeckAboveSeaMeters:F0}m) · " +
+                       $"{PortConfig.SeaWidthMeters:F0} × {PortConfig.SeaLengthMeters:F0}m · " +
+                       $"수심 {PortConfig.WaterDepthMeters:F0}m · 선회장 {PortConfig.TurningBasinMeters:F0}m · " +
+                       $"겹침 {PortConfig.SeaOverlapM:F0}m · scale {scale:F4}");
         }
 
         // ── 공용 ──
