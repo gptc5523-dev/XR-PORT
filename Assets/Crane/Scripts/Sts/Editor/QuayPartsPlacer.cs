@@ -96,8 +96,14 @@ namespace Container.Crane.Sts.EditorTools
         //     · 피봇은 '바닥'이 아니라 '중앙 높이'다(배치 y=0 일 때 바닥 −1.2955 = 높이/2).
         //       그래서 t 단은 y = 단높이 × (t + 0.5).
         const string YardContainerFbx = "Assets/Container/Models/Container_40ft.fbx";
-        /// <summary>블록 채움률 0~1. 셀(열×베이)마다 이 확률로 스택을 세운다.</summary>
-        const float  YardFillRatio    = 0.5f;
+        /// <summary>블록 채움률 0~1. 셀(열×베이)마다 이 확률로 스택을 세운다.
+        /// 오너 지시 2026-09-07 "컨테이너가 너무 많아 줄이자" → 0.5 → 0.3.</summary>
+        const float  YardFillRatio    = 0.3f;
+
+        /// <summary>화면에 실제로 쌓는 최대 단수. 오너 지시 2026-09-07 "높이는 최대 2개 이상 올리지마".
+        /// PortConfig.YardTiers(4)는 '설계 장치능력' 산정용이라 그대로 두고, 보이는 적재만 제한한다
+        /// — 둘을 같은 값으로 묶으면 능력 수치가 실제 적재량에 끌려간다.</summary>
+        const int    YardStackMaxTiers = 2;
         /// <summary>배치 시드 — 같은 값이면 같은 무늬. 0 이면 매번 다르다.</summary>
         const int    YardFillSeed     = 20260907;
 
@@ -279,7 +285,8 @@ namespace Container.Crane.Sts.EditorTools
                         {
                             cells++;
                             if (rng.NextDouble() > YardFillRatio) continue;
-                            int tiers = rng.Next(1, PortConfig.YardTiers + 1);   // 1~4단
+                            int maxT  = Mathf.Min(YardStackMaxTiers, PortConfig.YardTiers);
+                            int tiers = rng.Next(1, maxT + 1);
                             stacks++;
                             float x = bx - halfW + rowPitch * (r + 0.5f);
                             float z = bz - halfL + bayPitch * (b + 0.5f);
@@ -297,7 +304,8 @@ namespace Container.Crane.Sts.EditorTools
             float inv = StsConfig.InvModelScale;
             Done(root, $"컨테이너 {placed}개 · 스택 {stacks}/{cells}셀(채움 {YardFillRatio:P0}) · " +
                        $"40ft 실측 {cLen * inv:F2}L × {cWid * inv:F2}W × {tierH * inv:F2}H m · " +
-                       $"최대 {PortConfig.YardTiers}단 · 시드 {YardFillSeed}");
+                       $"최대 {Mathf.Min(YardStackMaxTiers, PortConfig.YardTiers)}단" +
+                       $"(설계 장치능력은 {PortConfig.YardTiers}단 기준 유지) · 시드 {YardFillSeed}");
         }
 
         /// <summary>에이프런 안전 차선 — 레일 양옆 ±LaneOffsetM 에 4줄.
