@@ -272,8 +272,28 @@ namespace Container.Crane.Sts.EditorTools
             for (int i = 0; i < PortConfig.YardLanes; i++)
                 for (int j = 0; j < PortConfig.YardBlocksPerLane; j++, n++)
                     Place(block, bRoot, "YardBlock_Zone",
-                          new Vector3(PortConfig.YardLaneCenterX(i) * StsConfig.ModelScale, 0f,
+                          new Vector3(PortConfig.YardBlockCenterX(i) * StsConfig.ModelScale, 0f,
                                       PortConfig.YardBlockCenterZ(j) * StsConfig.ModelScale), bScale);
+
+            // ③ 트럭 주행레인 — RTG 스팬 안 해측 6.57m. 차선 FBX(0.34m 스트라이프)를 양 가장자리에.
+            //    이름을 "Lane" 으로 두면 GantryRangeFit 이 STS 갠트리 한계로 오인하므로 "TruckLane".
+            var tRoot   = NewRoot("Yard_TruckLane");
+            var laneFbx = Load(LaneFbx, "트럭 차선");
+            int tn = 0;
+            if (laneFbx != null)
+            {
+                float lPitch = LanePitchM * StsConfig.ModelScale;
+                int   lUnits = Mathf.FloorToInt(BerthLenM / LanePitchM);
+                float lRun   = lPitch * lUnits;
+                float lScale = FbxScaleByHeight(laneFbx, LaneThickM);
+                float halfW  = PortConfig.YardTruckLaneWidthM * 0.5f;
+                for (int i = 0; i < PortConfig.YardLanes; i++)
+                    foreach (float sign in new[] { -1f, 1f })
+                        for (int k = 0; k < lUnits; k++, tn++)
+                            Place(laneFbx, tRoot, "TruckLane",
+                                  new Vector3((PortConfig.YardTruckLaneCenterX(i) + sign * halfW) * StsConfig.ModelScale,
+                                              0f, -lRun * 0.5f + lPitch * (k + 0.5f)), lScale);
+            }
 
             Selection.activeGameObject = bRoot.gameObject;
             SceneView.lastActiveSceneView?.FrameSelected();
@@ -282,6 +302,7 @@ namespace Container.Crane.Sts.EditorTools
                       $"각 {PortConfig.YardBlockWidthM:F2}m({PortConfig.YardRows}열) × " +
                       $"{PortConfig.YardBlockLengthM:F1}m({PortConfig.YardBays}베이) · " +
                       $"장치능력 {PortConfig.YardCapacityTeu:N0} TEU({PortConfig.YardTiers}단) · " +
+                      $"트럭레인 {PortConfig.YardTruckLaneWidthM:F2}m × {PortConfig.YardLanes}(스팬 해측, 표시 {tn}유닛) · " +
                       $"야드 x −{PortConfig.ApronWidthMeters:F0}~−{PortConfig.ApronWidthMeters + depth:F1}m");
         }
 

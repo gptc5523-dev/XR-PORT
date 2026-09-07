@@ -151,10 +151,28 @@ namespace Container.Crane.Sts
         public static int YardCapacityTeu =>
             YardRows * YardBays * YardTiers * YardLanes * YardBlocksPerLane * 2;
 
-        /// <summary>레인 i(0부터, 안벽에서 먼 순) 의 중심 X — 실척 m(음수, 육지쪽).
-        /// 에이프런 끝에서 통로 하나 지나고 스팬 반개.</summary>
-        public static float YardLaneCenterX(int i) =>
+        /// <summary>트럭 주행레인 폭 — 실척 m. RTG 스팬 − 블록 폭 = 23.6 − 17.03 = 6.57m.
+        /// RtgCraneCreator.SpanX 주석("컨테이너 6열 + 트럭레인")이 곧 이 산식이다.</summary>
+        public static float YardTruckLaneWidthM => RtgSpanM - YardBlockWidthM;
+
+        /// <summary>레인 i(0부터, 안벽에서 먼 순) 의 RTG 스팬 중심 X — 실척 m(음수, 육지쪽).
+        /// 에이프런 끝에서 통로 하나 지나고 스팬 반개. RTG 는 여기에 선다.</summary>
+        public static float YardSpanCenterX(int i) =>
             -(ApronWidthMeters + YardAisleXM + RtgSpanM * (i + 0.5f) + YardAisleXM * i);
+
+        /// <summary>블록 중심 X — 스팬 안에서 육지쪽(−X)으로 붙인다.
+        /// 스팬 중앙에 두면 양옆에 3.29m 씩 반쪽만 남아 트럭이 못 지나간다(오너 지시 2026-09-07
+        /// "RTG 크레인 사이에 트럭이 지나갈 한 차선"). 한쪽으로 몰아야 6.57m 한 차선이 나온다.</summary>
+        public static float YardBlockCenterX(int i) =>
+            YardSpanCenterX(i) - (RtgSpanM - YardBlockWidthM) * 0.5f;
+
+        /// <summary>트럭 주행레인 중심 X — 스팬 안에서 해측(+X). 안벽에서 오는 트럭이 먼저 만난다.</summary>
+        public static float YardTruckLaneCenterX(int i) =>
+            YardSpanCenterX(i) + (RtgSpanM - YardTruckLaneWidthM) * 0.5f;
+
+        /// <summary>블록 중심 → RTG 스팬 중심 오프셋 — 실척 m. RTG 배치가 블록 존을 읽은 뒤
+        /// 이만큼 해측으로 옮겨야 다리가 블록을 걸치고 트럭레인이 다리 안에 들어온다.</summary>
+        public static float YardRtgOffsetFromBlockM => (RtgSpanM - YardBlockWidthM) * 0.5f;
 
         /// <summary>블록 j(0부터) 의 중심 Z — 실척 m. 안벽 중앙 기준 대칭.</summary>
         public static float YardBlockCenterZ(int j)
