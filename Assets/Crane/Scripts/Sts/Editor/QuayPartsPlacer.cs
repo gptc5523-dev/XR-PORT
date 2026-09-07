@@ -1,4 +1,7 @@
 #if UNITY_EDITOR
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
 using Container.Ship;
 using UnityEditor;
 using UnityEngine;
@@ -42,6 +45,40 @@ namespace Container.Crane.Sts.EditorTools
         const float BollardGapM    = 20f;     // 계선주 간격 — 미정이면 오너 값으로 교체
         const float BollardInsetM  = 1.08f;   // 안벽 가장자리 → 육지쪽 계선주 중심 — 미정이면 교체
         const float RailPitchM     = 12.0f;   // 레일 정척 12m + 신축이음 10mm = FBX 규격
+        // ═══ 색 — URP/Lit 머티리얼 에셋을 만들어 FBX 에 리맵한다 ═══
+        //   FBX 내장 머티리얼은 Blender Principled 를 유니티가 자동 변환한 것이라 URP 에서
+        //   색·거칠기가 그대로 안 온다. RTG(RtgCraneFbxPlacer)가 쓰는 방식과 동일하게
+        //   .mat 에셋을 명시 생성하고 임포터에 리맵해 결정적으로 고정한다.
+        const string MatDir = "Assets/Crane/Materials/Port";
+
+        // 이름은 Blender 빌드 스크립트가 만든 머티리얼 이름과 정확히 일치해야 리맵이 걸린다.
+        //   smooth = 1 − roughness.
+        static readonly (string n, float r, float g, float b, float metal, float smooth)[] Mats =
+        {
+            ("Quay_Caisson",      0.56f, 0.55f, 0.52f, 0.00f, 0.10f),   // 해수 얼룩 콘크리트
+            ("Quay_DeckAsphalt",  0.16f, 0.16f, 0.17f, 0.00f, 0.06f),   // 에이프런 아스팔트(매트)
+            ("Curb_Concrete",     0.70f, 0.69f, 0.66f, 0.00f, 0.15f),   // 프리캐스트 연석(밝게 — 가장자리 인지)
+            ("Bollard_CastSteel", 0.13f, 0.14f, 0.15f, 0.60f, 0.35f),   // 계선주 주강(차콜)
+            ("Rail_Steel",        0.34f, 0.34f, 0.36f, 1.00f, 0.55f),   // 압연강 레일
+            ("Sea_Water",         0.045f,0.115f,0.145f,0.00f, 0.92f),   // 항내 해수 — 잔잔해 반사 높게
+            ("Sea_Bed",           0.05f, 0.07f, 0.08f, 0.00f, 0.05f),   // 해저·측면(거의 안 보임)
+            ("Yard_Asphalt",      0.19f, 0.19f, 0.20f, 0.00f, 0.08f),   // 야드 포장 — 에이프런보다 살짝 밝게 구분
+            ("Yard_Fill",         0.48f, 0.46f, 0.43f, 0.00f, 0.08f),   // 야드 성토 측면
+            ("Yard_Paint",        0.85f, 0.68f, 0.08f, 0.00f, 0.30f),   // 블록 도색(황색)
+        };
+
+        /// <summary>FBX 별로 리맵할 머티리얼 — 그 FBX 에 없는 이름을 리맵하면 .meta 만 지저분해진다.</summary>
+        static readonly Dictionary<string, string[]> FbxMats = new()
+        {
+            ["Assets/Crane/Models/Quay_Caisson.fbx"]  = new[] { "Quay_Caisson", "Quay_DeckAsphalt" },
+            ["Assets/Crane/Models/Quay_Curb.fbx"]     = new[] { "Curb_Concrete" },
+            ["Assets/Crane/Models/Quay_Bollard.fbx"]  = new[] { "Bollard_CastSteel" },
+            ["Assets/Crane/Models/Quay_Rail.fbx"]     = new[] { "Rail_Steel" },
+            ["Assets/Crane/Models/Sea.fbx"]           = new[] { "Sea_Bed", "Sea_Water" },
+            ["Assets/Crane/Models/Yard_Pavement.fbx"] = new[] { "Yard_Fill", "Yard_Asphalt" },
+            ["Assets/Crane/Models/Yard_Block.fbx"]    = new[] { "Yard_Paint" },
+        };
+
         const float YardMarkThickM = 0.015f;  // 블록 도색 두께 = FBX 규격. 실측 스케일 기준값
         const float CaissonPitchM  = 20.0f;   // 케이슨 1함 20m + 줄눈 30mm = FBX 규격. 340/20 = 17함
 
@@ -295,9 +332,51 @@ namespace Container.Crane.Sts.EditorTools
         {
             var fbx = AssetDatabase.LoadAssetAtPath<GameObject>(path);
             if (fbx == null)
+            {
                 EditorUtility.DisplayDialog(label + " 배치",
                     $"FBX를 찾을 수 없습니다:\n{path}\n\n유니티 창을 한 번 포커스해 임포트되게 하세요.", "확인");
+                return null;
+            }
+            if (EnsureMaterials(path))
+                fbx = AssetDatabase.LoadAssetAtPath<GameObject>(path);   // 리임포트 후 재로드
             return fbx;
+        }
+
+        /// <summary>FBX 의 Blender 머티리얼을 URP/Lit 에셋으로 리맵한다(idempotent).
+        /// 이미 전부 걸려 있으면 아무것도 안 하고 false 를 돌려 불필요한 리임포트를 피한다.</summary>
+        static bool EnsureMaterials(string fbxPath)
+        {
+            if (!FbxMats.TryGetValue(fbxPath, out var names)) return false;
+            if (AssetImporter.GetAtPath(fbxPath) is not ModelImporter mi) return false;
+
+            var already = mi.GetExternalObjectMap()
+                            .Where(kv => kv.Key.type == typeof(Material) && kv.Value != null)
+                            .Select(kv => kv.Key.name).ToHashSet();
+            if (names.All(already.Contains)) return false;
+
+            if (!Directory.Exists(MatDir)) { Directory.CreateDirectory(MatDir); AssetDatabase.Refresh(); }
+            mi.materialImportMode = ModelImporterMaterialImportMode.ImportStandard;
+            foreach (var n in names)
+                mi.AddRemap(new AssetImporter.SourceAssetIdentifier(typeof(Material), n), GetOrCreateMat(n));
+            mi.SaveAndReimport();
+            Debug.Log($"[항구] 머티리얼 리맵 — {Path.GetFileName(fbxPath)} ← {string.Join(", ", names)}");
+            return true;
+        }
+
+        static Material GetOrCreateMat(string name)
+        {
+            string path = $"{MatDir}/{name}.mat";
+            var existing = AssetDatabase.LoadAssetAtPath<Material>(path);
+            if (existing != null) return existing;
+
+            var d = Mats.FirstOrDefault(m => m.n == name);
+            var shader = Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Standard");
+            var mat = new Material(shader) { name = name };
+            mat.SetColor("_BaseColor", new Color(d.r, d.g, d.b, 1f));
+            mat.SetFloat("_Metallic", d.metal);
+            mat.SetFloat("_Smoothness", d.smooth);
+            AssetDatabase.CreateAsset(mat, path);
+            return mat;
         }
 
         /// <summary>부두 루트 — 없으면 만든다.

@@ -3,9 +3,14 @@ guid: f4ad3851a97964ee7a3c6e8cd1731f7e
 ModelImporter:
   serializedVersion: 24200
   internalIDToNameTable: []
-  externalObjects: {}
+  externalObjects:
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Bollard_CastSteel
+    second: {fileID: 2100000, guid: a237cedcdda2545eabd82ddba2c0621b, type: 2}
   materials:
-    materialImportMode: 2
+    materialImportMode: 1
     materialName: 0
     materialSearch: 1
     materialLocation: 1

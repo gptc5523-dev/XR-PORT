@@ -3,9 +3,19 @@ guid: 8dcea6996d7bd455aa29099ea98e9500
 ModelImporter:
   serializedVersion: 24200
   internalIDToNameTable: []
-  externalObjects: {}
+  externalObjects:
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Quay_Caisson
+    second: {fileID: 2100000, guid: 0c84b76078fd24335a5f72a3e021bb33, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Quay_DeckAsphalt
+    second: {fileID: 2100000, guid: 95bff56aa9d444d2bb35857d7434a386, type: 2}
   materials:
-    materialImportMode: 2
+    materialImportMode: 1
     materialName: 0
     materialSearch: 1
     materialLocation: 1

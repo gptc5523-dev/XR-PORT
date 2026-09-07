@@ -3,9 +3,19 @@ guid: a67c720c490f04579a86d00b2c16c26c
 ModelImporter:
   serializedVersion: 24200
   internalIDToNameTable: []
-  externalObjects: {}
+  externalObjects:
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Yard_Asphalt
+    second: {fileID: 2100000, guid: 5f46341b1cd254104bcaed66005ffcbb, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Yard_Fill
+    second: {fileID: 2100000, guid: 2c194fb0c2504405ab24e4bb57ec96ee, type: 2}
   materials:
-    materialImportMode: 2
+    materialImportMode: 1
     materialName: 0
     materialSearch: 1
     materialLocation: 1

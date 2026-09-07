@@ -3,9 +3,14 @@ guid: 44d783f87c8724c38b976b3ea849aad3
 ModelImporter:
   serializedVersion: 24200
   internalIDToNameTable: []
-  externalObjects: {}
+  externalObjects:
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Yard_Paint
+    second: {fileID: 2100000, guid: f75c4d96950e74b49b9f1de0d4c6b12d, type: 2}
   materials:
-    materialImportMode: 2
+    materialImportMode: 1
     materialName: 0
     materialSearch: 1
     materialLocation: 1
