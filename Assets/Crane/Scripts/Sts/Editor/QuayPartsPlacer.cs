@@ -19,10 +19,13 @@ namespace Container.Crane.Sts.EditorTools
     {
         const string CurbFbx    = "Assets/Crane/Models/Quay_Curb.fbx";
         const string BollardFbx = "Assets/Crane/Models/Quay_Bollard.fbx";
+        const string RailFbx    = "Assets/Crane/Models/Quay_Rail.fbx";
 
         // 부재 실척 높이 — 블렌더 빌드 스크립트와 쌍으로 유지한다(문서/스크립트/부두연석_유닛_빌드.py).
         const float CurbHeightM    = 0.528f;   // 단면 0.72W × 0.528H
         const float BollardHeightM = 1.368f;   // 기둥 1.08 + 갓 0.288
+        const float RailHeightM    = 0.192f;   // DIN 536 A120 170 + 소플레이트 22
+                                               //   = StsConfig.RailSectionH(0.008u) × 24. SSOT 일치
 
         // ═══ 항구 치수 SSOT — 오너가 새로 계산해 넣는다 (지시 2026-09-07 "기존 항구 사이즈가 있다면 삭제") ═══
         //   0 이면 배치를 거부한다. 여기 숫자만 채우면 연석·계선주가 한꺼번에 따라온다.
@@ -38,6 +41,7 @@ namespace Container.Crane.Sts.EditorTools
         const float CurbPitchM     = 4.0f;    // 프리캐스트 유닛 피치(유닛 3.985 + 줄눈 0.015) = FBX 규격
         const float BollardGapM    = 20f;     // 계선주 간격 — 미정이면 오너 값으로 교체
         const float BollardInsetM  = 1.08f;   // 안벽 가장자리 → 육지쪽 계선주 중심 — 미정이면 교체
+        const float RailPitchM     = 12.0f;   // 레일 정척 12m + 신축이음 10mm = FBX 규격
 
         [MenuItem("Model/FBX/항구/연석 배치 (Quay_Curb)", false, 1)]
         static void PlaceCurb()
@@ -80,6 +84,30 @@ namespace Container.Crane.Sts.EditorTools
 
             Done(root, $"계선주 {n + 1}개 · 간격 {len / n * StsConfig.InvModelScale:F1}m " +
                        $"(안벽 {BerthLenM:F0}m) · 안쪽 {BollardInsetM:F2}m · scale {scale:F4}");
+        }
+
+        /// <summary>주행 레일 2줄 — 게이지는 StsConfig.LegGaugeXMeters(18m, Post-Panamax 표준) SSOT 추종.
+        /// 원점 대칭으로 깐다. 안벽 위치가 정해지면 루트를 통째로 옮기면 된다(에이프런 오프셋은 항구 치수).</summary>
+        [MenuItem("Model/FBX/항구/레일 배치 (Quay_Rail)", false, 3)]
+        static void PlaceRail()
+        {
+            if (!BerthReady("레일")) return;
+            var fbx = Load(RailFbx, "레일"); if (fbx == null) return;
+
+            float pitch = RailPitchM * StsConfig.ModelScale;
+            int   units = Mathf.FloorToInt(BerthLenM / RailPitchM);   // 나눗셈은 실척 m 끼리
+            float run   = pitch * units;
+            float scale = FbxScaleByHeight(fbx, RailHeightM);
+            float halfGauge = StsConfig.LegGaugeXMeters * 0.5f * StsConfig.ModelScale;
+
+            var root = NewRoot(StsPartNames.QuayRail);
+            foreach (float x in new[] { -halfGauge, halfGauge })
+                for (int i = 0; i < units; i++)
+                    Place(fbx, root, StsPartNames.QuayRail,
+                          new Vector3(x, 0f, -run * 0.5f + pitch * (i + 0.5f)), scale);
+
+            Done(root, $"레일 2줄 × {units}유닛 · 게이지 {StsConfig.LegGaugeXMeters:F0}m · " +
+                       $"피치 {RailPitchM:F0}m · 총 {run * StsConfig.InvModelScale:F1}m · scale {scale:F4}");
         }
 
         // ── 공용 ──
