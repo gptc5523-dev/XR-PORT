@@ -57,14 +57,17 @@ namespace Container.Ship
         public const float BeamMeters =
             DeckRows * ContainerWidthM + (DeckRows - 1) * RowGapM + 2f * SideDeckM;   // = 39.53
 
-        /// <summary>갑판 적재 최대 단수. 오너 지시 2026-09-07 "배에 컨테이너 최대 2단으로".
-        /// 선미→선수 계단 램프의 가장 높은 단이다(선미 이 값 → 선수 1단).</summary>
-        public const int DeckMaxTiers = 2;
+        /// <summary>갑판 적재 최대 단수. 오너 지시 2026-09-07 "배에 컨테이너 최대 2단으로" →
+        /// 재차 "그냥 전부 한 줄로 깔자" → 1단(쌓지 않음).
+        /// 선미→선수 계단 램프의 가장 높은 단이다. 1 이면 램프가 평탄해져 전 구간 1단.</summary>
+        public const int DeckMaxTiers = 1;
 
-        /// <summary>갑판에 실제로 실을 컨테이너 수. 오너 방침 2026-09-07 "저폴리 사용 안 함" →
-        /// 정밀 FBX(1개 110,134 삼각형)를 쓰므로 대수가 곧 렌더 예산이다.
-        /// 슬롯 전체(약 295)를 채우면 3,250만 삼각형이라 제한한다. 갑판 전체에 고르게 분산된다.</summary>
-        public const int DeckCargoCount = 40;
+        /// <summary>갑판에 실을 컨테이너 수. <b>0 이면 슬롯 전부</b>.
+        /// 오너 지시 2026-09-07 "컨테이너선에 컨테이너 첫 줄 전부 채우라고" → 0(전부).
+        /// 1단(DeckMaxTiers=1)이라 슬롯 = 열 = 193개.
+        /// 정밀 FBX(1개 110,134 삼각형)를 쓰므로 대수가 곧 렌더 예산이다 — 193개 ≈ 2,130만 삼각형.
+        /// 줄이려면 여기에 원하는 개수를 넣으면 갑판 전체에 고르게 분산된다.</summary>
+        public const int DeckCargoCount = 0;
 
         /// <summary>형심 Depth(킬 바닥→주갑판) — 실척 m.</summary>
         public const float DepthMeters = 24f;

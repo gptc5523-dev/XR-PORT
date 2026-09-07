@@ -172,7 +172,10 @@ namespace Container.Ship.EditorTools
                 .ToList();
 
             // 갑판 전체에 고르게 — 앞에서부터 채우면 선미만 가득 차고 선수가 텅 빈다.
-            int want = Mathf.Clamp(ShipConfig.DeckCargoCount, 0, slots.Count);
+            // 0 이면 슬롯 전부 — 오너 지시 "첫 줄 전부 채우라고".
+            int want = ShipConfig.DeckCargoCount <= 0
+                     ? slots.Count
+                     : Mathf.Clamp(ShipConfig.DeckCargoCount, 0, slots.Count);
             var picked = new List<Vector4>();
             float cstep = columns.Count > 0 ? (float)columns.Count / Mathf.Max(1, columns.Count) : 1f;
             // 필요한 컨테이너 수를 채울 때까지 열을 균등 간격으로 고른다.
