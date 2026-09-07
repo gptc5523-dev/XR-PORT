@@ -118,8 +118,18 @@ namespace Container.Crane.Sts
         public const int YardRows = 6;
         /// <summary>적재 단수.</summary>
         public const int YardTiers = 4;
-        /// <summary>X(안벽 수직) 방향 레인 수 — 레인 1개 = RTG 주행로 1줄.</summary>
+        /// <summary>X(안벽 수직) 방향 레인 수 — 레인 1개 = RTG 주행로 1줄.
+        /// 이 값은 '야드 밴드 깊이'를 정한다(포장 크기). 실제로 블록을 까는 수는 YardActiveLanes.</summary>
         public const int YardLanes = 2;
+
+        /// <summary>실제로 블록·트럭레인을 까는 레인 수. 오너 지시 2026-09-07
+        /// "크레인 없는 쪽 야드 부분 지우고 크레인 있는 쪽을 안쪽으로 이동".
+        /// 깊이는 YardLanes 로 유지하고 사용만 줄인다 — 에이프런 뒤가 빈 공간으로 남아
+        /// 나중에 레인을 되살릴 자리가 보존된다. YardLanes 로 올리면 원상 복구.</summary>
+        public const int YardActiveLanes = 1;
+
+        /// <summary>블록을 깔기 시작할 레인 인덱스 — 육지쪽부터 채운다. 2 − 1 = 1.</summary>
+        public static int YardLaneStart => YardLanes - YardActiveLanes;
         /// <summary>레인당 블록 수 — Z(안벽 평행) 방향.</summary>
         public const int YardBlocksPerLane = 2;
 
@@ -147,9 +157,10 @@ namespace Container.Crane.Sts
         /// <summary>야드 밴드 깊이 — 실척 m. 레인 n개 + 통로 (n+1)개. 2×23.6 + 3×1.5 = 51.7m.</summary>
         public static float YardDepthM => YardLanes * RtgSpanM + (YardLanes + 1) * YardAisleXM;
 
-        /// <summary>야드 장치능력 — TEU. 40ft = 2 TEU. 6×12×4×4블록 = 1,152개 = 2,304 TEU.</summary>
+        /// <summary>야드 장치능력 — TEU. 40ft = 2 TEU. 사용 레인만 센다.
+        /// 6열 × 12베이 × 4단 × (1레인 × 2블록) = 576개 = 1,152 TEU.</summary>
         public static int YardCapacityTeu =>
-            YardRows * YardBays * YardTiers * YardLanes * YardBlocksPerLane * 2;
+            YardRows * YardBays * YardTiers * YardActiveLanes * YardBlocksPerLane * 2;
 
         /// <summary>트럭 주행레인 폭 — 실척 m. RTG 스팬 − 블록 폭 = 23.6 − 17.03 = 6.57m.
         /// RtgCraneCreator.SpanX 주석("컨테이너 6열 + 트럭레인")이 곧 이 산식이다.</summary>
