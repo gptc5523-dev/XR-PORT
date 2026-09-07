@@ -87,6 +87,14 @@ namespace Container.Crane.Sts
         /// 정확히 겹치면 Z-fighting 이 난다. 케이슨이 불투명하니 겹친 부분은 안 보인다.</summary>
         public const float SeaOverlapM = 1f;
 
+        // ═══════════ 에이프런 노면 표시 ═══════════
+        /// <summary>안전 차선 — 레일 중심에서 차선 중심까지(양옆) 실척 m. 갠트리 접근 금지선.</summary>
+        public const float LaneOffsetM = 1.08f;
+        /// <summary>안전 차선 폭 — 실척 m.</summary>
+        public const float LaneWidthM = 0.34f;
+        //   레일 사이(트럭 주행 구역)에는 차선을 넣지 않는다 — 오너 지시 2026-09-07
+        //   "레인 안쪽은 차선이 없어도 됨".
+
         // ═══════════ 야드 (오너 확정 2026-09-07: 2레인 × 2블록 = 4블록) ═══════════
         // ① 컨테이너 앵커 — ISO 1AA 40ft. 폭은 ProceduralContainerMesh.StdWidth SSOT 추종.
         /// <summary>40ft 컨테이너 길이 — 실척 m.</summary>

@@ -28,6 +28,7 @@ namespace Container.Crane.Sts.EditorTools
         const string SeaFbx     = "Assets/Crane/Models/Sea.fbx";
         const string YardPaveFbx  = "Assets/Crane/Models/Yard_Pavement.fbx";
         const string YardBlockFbx = "Assets/Crane/Models/Yard_Block.fbx";
+        const string LaneFbx      = "Assets/Crane/Models/Quay_Lane.fbx";
 
         // 부재 실척 높이 — 블렌더 빌드 스크립트와 쌍으로 유지한다(문서/스크립트/부두연석_유닛_빌드.py).
         const float CurbHeightM    = 0.528f;   // 단면 0.72W × 0.528H
@@ -65,6 +66,7 @@ namespace Container.Crane.Sts.EditorTools
             ("Yard_Asphalt",      0.19f, 0.19f, 0.20f, 0.00f, 0.08f),   // 야드 포장 — 에이프런보다 살짝 밝게 구분
             ("Yard_Fill",         0.48f, 0.46f, 0.43f, 0.00f, 0.08f),   // 야드 성토 측면
             ("Yard_Paint",        0.85f, 0.68f, 0.08f, 0.00f, 0.30f),   // 블록 도색(황색)
+            ("Lane_Paint",        0.88f, 0.74f, 0.10f, 0.00f, 0.25f),   // 안전 차선(안전 노랑 — 블록보다 밝게)
         };
 
         /// <summary>FBX 별로 리맵할 머티리얼 — 그 FBX 에 없는 이름을 리맵하면 .meta 만 지저분해진다.</summary>
@@ -77,9 +79,13 @@ namespace Container.Crane.Sts.EditorTools
             ["Assets/Crane/Models/Sea.fbx"]           = new[] { "Sea_Bed", "Sea_Water" },
             ["Assets/Crane/Models/Yard_Pavement.fbx"] = new[] { "Yard_Fill", "Yard_Asphalt" },
             ["Assets/Crane/Models/Yard_Block.fbx"]    = new[] { "Yard_Paint" },
+            ["Assets/Crane/Models/Quay_Lane.fbx"]     = new[] { "Lane_Paint" },
         };
 
-        const float YardMarkThickM = 0.015f;  // 블록 도색 두께 = FBX 규격. 실측 스케일 기준값
+        const float YardMarkThickM = 0.015f;
+        const float LaneThickM     = 0.015f;  // 차선 도색 두께 = FBX 규격
+        const float LanePitchM     = 12.0f;   // 차선 유닛 길이 = 레일 피치. 총길이가 레일과 정확히
+                                              //   같아야 갠트리 한계(Lane 기준)가 레일 밖으로 안 나간다  // 블록 도색 두께 = FBX 규격. 실측 스케일 기준값
         const float CaissonPitchM  = 20.0f;   // 케이슨 1함 20m + 줄눈 30mm = FBX 규격. 340/20 = 17함
 
         [MenuItem("Model/FBX/항구/연석 배치 (Quay_Curb)", false, 1)]
@@ -194,6 +200,40 @@ namespace Container.Crane.Sts.EditorTools
             Done(root, $"레일 2줄 × {units}유닛 · 게이지 {StsConfig.LegGaugeXMeters:F0}m · " +
                        $"해측 −{PortConfig.ApronSeawardM:F0}m/육측 −{PortConfig.ApronSeawardM + StsConfig.LegGaugeXMeters:F0}m · " +
                        $"피치 {RailPitchM:F0}m · 총 {run * StsConfig.InvModelScale:F1}m · scale {scale:F4}");
+        }
+
+        /// <summary>에이프런 안전 차선 — 레일 양옆 ±LaneOffsetM 에 4줄.
+        ///
+        /// ★ 오브젝트 이름을 "Lane" 으로 놓는 것이 핵심이다. GantryRangeFit 이 Quay_Ground 안에서
+        /// 이름이 "Lane" 으로 시작하는 렌더러의 Z 바운즈를 STS 갠트리 주행 한계로 쓴다
+        /// ("한계 기준 = 노란 차선 안쪽"). 못 찾으면 QuayRail 로 폴백한다 — 장식이 아니라 기능 SSOT.
+        ///
+        /// 레일 사이(트럭 주행 구역)에는 차선을 넣지 않는다 — 오너 지시 2026-09-07.</summary>
+        [MenuItem("Model/FBX/항구/차선 배치 (Lane)", false, 6)]
+        static void PlaceLane()
+        {
+            if (!BerthReady("차선")) return;
+            var fbx = Load(LaneFbx, "차선"); if (fbx == null) return;
+
+            float pitch = LanePitchM * StsConfig.ModelScale;
+            int   units = Mathf.FloorToInt(BerthLenM / LanePitchM);   // 레일과 같은 28
+            float run   = pitch * units;
+            float scale = FbxScaleByHeight(fbx, LaneThickM);
+            float off   = PortConfig.LaneOffsetM * StsConfig.ModelScale;
+            float water = -PortConfig.ApronSeawardM * StsConfig.ModelScale;
+            float land  = water - StsConfig.LegGaugeXMeters * StsConfig.ModelScale;
+
+            var root = NewRoot("Quay_Lane");
+            foreach (float railX in new[] { water, land })
+                foreach (float sign in new[] { -1f, 1f })
+                    for (int i = 0; i < units; i++)
+                        Place(fbx, root, "Lane",
+                              new Vector3(railX + sign * off, 0f,
+                                          -run * 0.5f + pitch * (i + 0.5f)), scale);
+
+            Done(root, $"안전 차선 4줄 × {units}유닛 · 폭 {PortConfig.LaneWidthM:F2}m · " +
+                       $"레일 중심 ±{PortConfig.LaneOffsetM:F2}m · 총 {run * StsConfig.InvModelScale:F1}m" +
+                       $"(레일과 동일) · 레일 사이는 비움 · scale {scale:F4}");
         }
 
         /// <summary>야드 — 포장 1장 + 블록 마킹 4개. 둘은 항상 같이 가므로 메뉴 하나로 묶는다.
