@@ -61,6 +61,11 @@ namespace Container.Ship
         /// 선미→선수 계단 램프의 가장 높은 단이다(선미 이 값 → 선수 1단).</summary>
         public const int DeckMaxTiers = 2;
 
+        /// <summary>갑판에 실제로 실을 컨테이너 수. 오너 방침 2026-09-07 "저폴리 사용 안 함" →
+        /// 정밀 FBX(1개 110,134 삼각형)를 쓰므로 대수가 곧 렌더 예산이다.
+        /// 슬롯 전체(약 295)를 채우면 3,250만 삼각형이라 제한한다. 갑판 전체에 고르게 분산된다.</summary>
+        public const int DeckCargoCount = 40;
+
         /// <summary>형심 Depth(킬 바닥→주갑판) — 실척 m.</summary>
         public const float DepthMeters = 24f;
 

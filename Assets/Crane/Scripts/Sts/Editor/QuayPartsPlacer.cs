@@ -69,10 +69,6 @@ namespace Container.Crane.Sts.EditorTools
             ("Yard_Fill",         0.48f, 0.46f, 0.43f, 0.00f, 0.08f, null),   // 야드 성토 측면
             ("Yard_Paint",        0.85f, 0.68f, 0.08f, 0.00f, 0.30f, null),   // 블록 도색(황색)
             ("Lane_Paint",        0.88f, 0.74f, 0.10f, 0.00f, 0.25f, null),   // 안전 차선(안전 노랑 — 블록보다 밝게)
-            // 저폴리 컨테이너 — 주름은 지오메트리 대신 기존 노멀맵으로. 규격마다 리브 간격이 달라 분리.
-            ("ContLow_Body_40ft", 0.62f, 0.28f, 0.20f, 0.30f, 0.35f, "Assets/Container/Textures/Container_40ft_Corrugation_Normal.png"),
-            ("ContLow_Body_20ft", 0.28f, 0.42f, 0.55f, 0.30f, 0.35f, "Assets/Container/Textures/Container_20ft_Corrugation_Normal.png"),
-            ("ContLow_Casting",   0.16f, 0.16f, 0.17f, 0.70f, 0.50f, null),   // 코너 캐스팅
         };
 
         /// <summary>FBX 별로 리맵할 머티리얼 — 그 FBX 에 없는 이름을 리맵하면 .meta 만 지저분해진다.</summary>
@@ -86,47 +82,9 @@ namespace Container.Crane.Sts.EditorTools
             ["Assets/Crane/Models/Yard_Pavement.fbx"] = new[] { "Yard_Fill", "Yard_Asphalt" },
             ["Assets/Crane/Models/Yard_Block.fbx"]    = new[] { "Yard_Paint" },
             ["Assets/Crane/Models/Quay_Lane.fbx"]     = new[] { "Lane_Paint" },
-            ["Assets/Container/Models/Container_40ft_Low.fbx"] = new[] { "ContLow_Body_40ft", "ContLow_Casting" },
-            ["Assets/Container/Models/Container_20ft_Low.fbx"] = new[] { "ContLow_Body_20ft", "ContLow_Casting" },
         };
 
         const float YardMarkThickM = 0.015f;
-        // ═══ 야드 적재 ═══
-        //   컨테이너 FBX 는 항구 부재와 규약이 다르다. ★ ContainerFinal4Builder 의 클래스 주석은
-        //   축·피봇 설명이 실제와 다르다 — 그 파일 자신의 배치 로그가 정답이다(2026-09-07 실측):
-        //     · 프리팹 루트가 자체 스케일(4.1667 = 100/24)을 갖는다 → localScale 을 건드리지 않는다.
-        //       FbxScaleByHeight 도 쓰지 않는다(항구 부재와 반대).
-        //     · 실측 X 2.438(폭) · Y 2.591(높이) · Z 12.190(길이).
-        //       주석은 "길이 → X" 라고 하지만 실제로는 길이가 Z 다. 야드 블록도 길이가 Z 라
-        //       회전이 필요 없다(90° 돌리면 옆으로 눕는다).
-        //     · 피봇은 '바닥'이 아니라 '중앙 높이'다(배치 y=0 일 때 바닥 −1.2955 = 높이/2).
-        //       그래서 t 단은 y = 단높이 × (t + 0.5).
-        //   ★ 정밀본(Container_40ft.fbx, 110,302 삼각형)이 아니라 저폴리(108 삼각형)를 쓴다.
-        //     야드·갑판 배경 화물은 대수가 많아 예산의 지배항이다. 정밀본은 근접용으로 남는다.
-        const string YardContainerFbx   = "Assets/Container/Models/Container_40ft_Low.fbx";
-        const string YardContainer20Fbx = "Assets/Container/Models/Container_20ft_Low.fbx";
-        /// <summary>ISO 1CC 20ft 길이 — 실척 m. 실측 대조용.</summary>
-        const float  Container20LenM    = 6.058f;
-        /// <summary>스택 중 20ft 쌍으로 채우는 비율 0~1. 오너 지시 2026-09-07
-        /// "40ft 몇 개 지우고 20ft도 몇 개 넣자". 실물처럼 40ft 베이 한 칸에 20ft 두 개를 넣는다.</summary>
-        const float  Yard20ftRatio      = 0.35f;
-        /// <summary>한 베이 안 20ft 두 개 사이 틈 — 실척 m.</summary>
-        const float  Yard20ftGapM       = 0.30f;
-        /// <summary>ISO 컨테이너 높이(표준) — 실척 m. 저폴리 FBX 실측 스케일 기준값.</summary>
-        const float  ContainerHeightM   = 2.591f;
-        /// <summary>블록 채움률 0~1. 셀(열×베이)마다 이 확률로 스택을 세운다.
-        /// 오너 지시 2026-09-07 "컨테이너가 너무 많아 줄이자" → 0.5 → 0.3,
-        /// 재차 "40ft 조금 더 지워 그리고 20ft도 조금 더 줄이자" → 0.3 → 0.2.
-        /// 채움률을 낮추면 40ft·20ft 가 비율 유지한 채 같이 줄어든다.</summary>
-        const float  YardFillRatio    = 0.2f;
-
-        /// <summary>화면에 실제로 쌓는 최대 단수. 오너 지시 2026-09-07 "높이는 최대 2개 이상 올리지마".
-        /// PortConfig.YardTiers(4)는 '설계 장치능력' 산정용이라 그대로 두고, 보이는 적재만 제한한다
-        /// — 둘을 같은 값으로 묶으면 능력 수치가 실제 적재량에 끌려간다.</summary>
-        const int    YardStackMaxTiers = 2;
-        /// <summary>배치 시드 — 같은 값이면 같은 무늬. 0 이면 매번 다르다.</summary>
-        const int    YardFillSeed     = 20260907;
-
         const float LaneThickM     = 0.015f;  // 차선 도색 두께 = FBX 규격
         const float LanePitchM     = 12.0f;   // 차선 유닛 길이 = 레일 피치. 총길이가 레일과 정확히
                                               //   같아야 갠트리 한계(Lane 기준)가 레일 밖으로 안 나간다  // 블록 도색 두께 = FBX 규격. 실측 스케일 기준값
@@ -248,8 +206,8 @@ namespace Container.Crane.Sts.EditorTools
 
         // ═══ 야드 적재 ═══
         //   ★ 정밀 FBX 를 쓴다(오너 지시 2026-09-07 "fbx 컨테이너 넣어줘 40ft 10개 20ft 10개").
-        //     저폴리(Container_*_Low.fbx)는 갑판 화물 295개용으로 남는다 — 야드는 20개뿐이라
-        //     정밀본을 써도 2.2M 삼각형이라 감당된다.
+        //     오너 방침 2026-09-07 "우리는 저폴리 사용 안 할 거야" — 정밀본만 쓴다.
+        //     그래서 대수가 예산을 직접 정한다(정밀본 1개 = 110,134 삼각형).
         //   ★ 정밀 FBX 규약(항구 부재와 반대) — 실측으로 확인한 것:
         //     · 프리팹 루트가 자체 스케일(4.1667 = 100/24)을 갖는다 → localScale 을 건드리지 않는다.
         //     · 길이가 Unity Z 축이다(클래스 주석의 "길이 → X" 는 틀렸다) → 회전 없음.
