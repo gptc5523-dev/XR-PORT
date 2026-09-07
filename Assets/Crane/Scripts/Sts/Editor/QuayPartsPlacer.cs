@@ -286,13 +286,19 @@ namespace Container.Crane.Sts.EditorTools
                 int   lUnits = Mathf.FloorToInt(BerthLenM / LanePitchM);
                 float lRun   = lPitch * lUnits;
                 float lScale = FbxScaleByHeight(laneFbx, LaneThickM);
-                float halfW  = PortConfig.YardTruckLaneWidthM * 0.5f;
+                // 스트라이프는 해측 1줄만. 육측 경계는 블록 외곽선이 이미 표시하고 있어
+                //   거기에 또 그으면 150mm 가 겹쳐 같은 높이에서 Z-fighting 이 난다.
+                // 다리 안쪽면 바로 안쪽에 긋는다 — 가장자리에 걸치면 다리가 도색을 덮는다.
                 for (int i = PortConfig.YardLaneStart; i < PortConfig.YardLanes; i++)
-                    foreach (float sign in new[] { -1f, 1f })
-                        for (int k = 0; k < lUnits; k++, tn++)
-                            Place(laneFbx, tRoot, "TruckLane",
-                                  new Vector3((PortConfig.YardTruckLaneCenterX(i) + sign * halfW) * StsConfig.ModelScale,
-                                              0f, -lRun * 0.5f + lPitch * (k + 0.5f)), lScale);
+                {
+                    float edgeX = PortConfig.YardTruckLaneCenterX(i)
+                          + PortConfig.YardTruckLaneWidthM * 0.5f
+                          - PortConfig.LaneWidthM * 0.5f;
+                    for (int k = 0; k < lUnits; k++, tn++)
+                        Place(laneFbx, tRoot, "TruckLane",
+                              new Vector3(edgeX * StsConfig.ModelScale,
+                                          0f, -lRun * 0.5f + lPitch * (k + 0.5f)), lScale);
+                }
             }
 
             Selection.activeGameObject = bRoot.gameObject;
