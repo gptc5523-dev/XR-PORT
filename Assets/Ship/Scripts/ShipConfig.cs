@@ -59,8 +59,18 @@ namespace Container.Ship
 
         /// <summary>갑판 적재 최대 단수. 오너 지시 2026-09-07 "배에 컨테이너 최대 2단으로" →
         /// 재차 "그냥 전부 한 줄로 깔자" → 1단(쌓지 않음).
-        /// 선미→선수 계단 램프의 가장 높은 단이다. 1 이면 램프가 평탄해져 전 구간 1단.</summary>
-        public const int DeckMaxTiers = 1;
+        /// 선미→선수 계단 램프의 가장 높은 단이다. 1 이면 램프가 평탄해져 전 구간 1단.
+        /// 재차 "2단은 전부 다 하지 말고 랜덤하게 배치" → 2단으로 두되 윗단은 확률로 얹는다
+        /// (DeckSecondTierRatio). 램프 자체는 SOLAS V/22 선교 시야 요건을 반영한 구조라
+        /// 선수쪽이 낮게 유지된다 — 실제 컨테이너선이 그렇게 싣는다.</summary>
+        public const int DeckMaxTiers = 2;
+
+        /// <summary>윗단(2단째)을 얹을 확률 0~1. 아래 단은 항상 전부 채운다.
+        /// 실제 배도 부분 적재 시 스택 높이가 들쭉날쭉하다. 1 이면 전부 2단, 0 이면 전부 1단.</summary>
+        public const float DeckSecondTierRatio = 0.5f;
+
+        /// <summary>윗단 무늬 시드 — 같은 값이면 같은 무늬가 재현된다. 0 이면 매번 다르다.</summary>
+        public const int DeckStackSeed = 20260907;
 
         /// <summary>갑판에 실을 컨테이너 수. <b>0 이면 슬롯 전부</b>.
         /// 오너 지시 2026-09-07 "컨테이너선에 컨테이너 첫 줄 전부 채우라고" → 0(전부).

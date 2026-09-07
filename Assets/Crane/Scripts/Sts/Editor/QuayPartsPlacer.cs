@@ -215,7 +215,11 @@ namespace Container.Crane.Sts.EditorTools
         const string YardFbx40 = "Assets/Container/Models/Container_40ft.fbx";
         const string YardFbx20 = "Assets/Container/Models/Container_20ft.fbx";
         const int    YardCount40 = 10;
-        const int    YardCount20 = 10;
+        const int    YardCount20 = 10;   // 20ft 는 40ft 베이 한 칸에 두 개 → 셀 5개 사용
+        /// <summary>배치 무늬 시드 — 같은 값이면 같은 무늬. 0 이면 매번 다르다.</summary>
+        const int    YardSeed    = 20260907;
+        /// <summary>한 베이 안 20ft 두 개 사이 틈 — 실척 m.</summary>
+        const float  Yard20ftGapM = 0.30f;
 
         /// <summary>야드 블록에 컨테이너를 놓는다 — 40ft·20ft 지정 개수만큼, 셀 순서대로 결정적으로.
         ///
@@ -256,7 +260,9 @@ namespace Container.Crane.Sts.EditorTools
             var stale = GameObject.Find("Container_40ft");   // 테스트로 꺼낸 낱개 정리
             if (stale != null) Undo.DestroyObjectImmediate(stale);
 
-            // 셀 목록 — 블록 → 열 → 베이 순. 앞에서부터 40ft, 이어서 20ft.
+            // 셀 목록 — 두 블록 전체. 아래에서 섞어 쓴다.
+            //   순서대로 쓰면 첫 블록 첫 열이 일자로 다 차버린다(오너 지적 2026-09-07
+            //   "한쪽만 배치되고 일자로 채워진다"). 실제 야드도 한 줄로 늘어놓지 않는다.
             var cells = new List<(float x, float z)>();
             for (int i2 = PortConfig.YardLaneStart; i2 < PortConfig.YardLanes; i2++)
                 for (int j2 = 0; j2 < PortConfig.YardBlocksPerLane; j2++)
@@ -269,24 +275,48 @@ namespace Container.Crane.Sts.EditorTools
                                        bz - halfL + bayPitch * (b + 0.5f)));
                 }
 
-            int need = YardCount40 + YardCount20;
-            if (cells.Count < need)
+            int pairs20  = Mathf.CeilToInt(YardCount20 / 2f);   // 20ft 는 한 셀에 두 개
+            int needCells = YardCount40 + pairs20;
+            if (cells.Count < needCells)
             {
-                Debug.LogError($"[항구] 셀 {cells.Count}개 < 요청 {need}개. 적재를 중단합니다.");
+                Debug.LogError($"[항구] 셀 {cells.Count}개 < 필요 {needCells}개. 적재를 중단합니다.");
                 return;
+            }
+
+            // 결정적 셔플(Fisher-Yates) — 두 블록·모든 열·모든 베이에 고르게 흩어진다.
+            var rng = YardSeed == 0 ? new System.Random() : new System.Random(YardSeed);
+            for (int k = cells.Count - 1; k > 0; k--)
+            {
+                int m2 = rng.Next(k + 1);
+                (cells[k], cells[m2]) = (cells[m2], cells[k]);
             }
 
             for (int k = 0; k < YardCount40; k++)
                 Put(f40, root, $"Cont40_{k:00}", cells[k].x, h40 * 0.5f, cells[k].z);
-            for (int k = 0; k < YardCount20; k++)
+
+            // 20ft 는 실물처럼 40ft 베이 한 칸에 두 개를 앞뒤로 넣는다.
+            float off20 = (len20 + Yard20ftGapM * StsConfig.ModelScale) * 0.5f;
+            int made20 = 0;
+            for (int k = 0; k < pairs20 && made20 < YardCount20; k++)
             {
                 var c = cells[YardCount40 + k];
-                Put(f20, root, $"Cont20_{k:00}", c.x, h20 * 0.5f, c.z);
+                foreach (float dz in new[] { -off20, off20 })
+                {
+                    if (made20 >= YardCount20) break;
+                    Put(f20, root, $"Cont20_{made20:00}", c.x, h20 * 0.5f, c.z + dz);
+                    made20++;
+                }
             }
 
-            Done(root, $"40ft {YardCount40}개 + 20ft {YardCount20}개 = {need}개 · " +
-                       $"40ft 실측 {len40*inv:F2}L × {wid40*inv:F2}W × {h40*inv:F2}H m · 20ft {len20*inv:F2}L m · " +
-                       $"셀 {need}/{cells.Count} 사용 · 1단");
+            // 두 블록에 실제로 흩어졌는지 — 한쪽만 차면 배치 로직이 잘못된 것이다.
+            int inBlock0 = 0;
+            foreach (Transform t in root)
+                if (t.localPosition.z < 0f) inBlock0++;
+
+            Done(root, $"40ft {YardCount40}개 + 20ft {made20}개(쌍 {pairs20}) = {YardCount40 + made20}개 · " +
+                       $"셀 {needCells}/{cells.Count} · 시드 {YardSeed} 셔플 · " +
+                       $"선미측 블록 {inBlock0} / 선수측 {YardCount40 + made20 - inBlock0} · " +
+                       $"40ft {len40*inv:F2}L × {wid40*inv:F2}W × {h40*inv:F2}H m · 20ft {len20*inv:F2}L m · 1단");
         }
 
         /// <summary>FBX 를 프리팹 그대로 꺼내 놓는다 — 스케일·회전을 건드리지 않는다.

@@ -182,15 +182,23 @@ namespace Container.Ship.EditorTools
             int needCols = Mathf.Clamp(Mathf.CeilToInt(want / Mathf.Max(1f, (float)slots.Count / Mathf.Max(1, columns.Count))),
                                        0, columns.Count);
             cstep = needCols > 0 ? (float)columns.Count / needCols : 1f;
+            // 윗단은 확률로 얹는다 — 오너 지시 2026-09-07 "2단은 전부 다 하지 말고 랜덤하게".
+            //   아래 단은 항상 넣는다(빠지면 윗단이 허공에 뜬다).
+            var rng = ShipConfig.DeckStackSeed == 0
+                    ? new System.Random() : new System.Random(ShipConfig.DeckStackSeed);
+            int upper = 0;
             var used = new HashSet<int>();
             for (int k = 0; k < needCols && picked.Count < want; k++)
             {
                 int ci = Mathf.Min(columns.Count - 1, Mathf.FloorToInt(k * cstep));
                 if (!used.Add(ci)) continue;
-                foreach (var v in columns[ci])
+                var col = columns[ci];
+                for (int t = 0; t < col.Count; t++)
                 {
                     if (picked.Count >= want) break;   // 잘려도 아래 단부터라 뜨지 않는다
-                    picked.Add(v);
+                    if (t > 0 && rng.NextDouble() > ShipConfig.DeckSecondTierRatio) break;  // 윗단 생략
+                    picked.Add(col[t]);
+                    if (t > 0) upper++;
                 }
             }
 
@@ -209,7 +217,8 @@ namespace Container.Ship.EditorTools
             }
             float inv = 1f / ms;
             Debug.Log($"[Ship] 갑판 컨테이너 적재 — 정밀 FBX {picked.Count}개 / 슬롯 {slots.Count}(열 {columns.Count}) " +
-                      $"(최대 {ShipConfig.DeckMaxTiers}단, 갑판 전체 분산) · 야드와 동일 머티리얼 · " +
+                      $"(최대 {ShipConfig.DeckMaxTiers}단 · 1단 {picked.Count - upper} + 2단 {upper}" +
+                      $"(확률 {ShipConfig.DeckSecondTierRatio:P0}, 시드 {ShipConfig.DeckStackSeed})) · 야드와 동일 머티리얼 · " +
                       $"실측 {pb.size.z * inv:F2}L × {pb.size.x * inv:F2}W × {pb.size.y * inv:F2}H m · " +
                       $"삼각형 약 {picked.Count * 110134L:N0}");
             Selection.activeGameObject = parent;
