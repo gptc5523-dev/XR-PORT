@@ -125,45 +125,76 @@ namespace Container.Ship.EditorTools
             Undo.RegisterCreatedObjectUndo(parent, "Load Ship Cargo");
             parent.transform.SetParent(ship.transform, false);
 
-            // ★ 갑판 화물을 절차 메시 → 저폴리 FBX 로 교체 (오너 지시 2026-09-07 "FBX 으로 변경작업").
-            //   Container_40ft_Low.fbx = 108 삼각형. 정밀본(110,302)은 근접용으로 남긴다.
-            //   저폴리라 LODGroup 이 필요 없다 — 종전 LOD0 5,940 / LOD1 2,284 를 대체한다.
-            const string LowFbx = "Assets/Container/Models/Container_40ft_Low.fbx";
-            if (Container.Crane.Sts.EditorTools.QuayPartsPlacer.EnsureMaterials(LowFbx))
-                AssetDatabase.ImportAsset(LowFbx, ImportAssetOptions.ForceUpdate);
-            var lowSrc = AssetDatabase.LoadAssetAtPath<GameObject>(LowFbx);
-            if (lowSrc == null) { Debug.LogError($"[Ship] 저폴리 컨테이너 FBX 없음: {LowFbx}"); return; }
+            // 40ft 단일 메시 1개를 공유(인스턴스) — 우리 절차 컨테이너
+            var cMesh = ProceduralContainerMesh.BuildSized(
+                ProceduralContainerMesh.Length40ft, ProceduralContainerMesh.StdWidth, ProceduralContainerMesh.HeightStd,
+                "ShipCargo_40ft", ProceduralContainerMesh.DefaultMiniatureScale, centerPivot: true, xIsLength: true);
 
-            // 저폴리는 실척 m 로 내보냈으므로 실측으로 스케일을 맞춘다(항구 부재와 동일 방식).
-            var probe = (GameObject)PrefabUtility.InstantiatePrefab(lowSrc);
-            float measured = Container.Crane.Sts.EditorTools.RtgCraneFbxPlacer.CombinedBounds(probe).size.y;
-            Object.DestroyImmediate(probe);
-            float target = ProceduralContainerMesh.HeightStd * ProceduralContainerMesh.DefaultMiniatureScale;
-            float lowScale = measured > 1e-6f ? target / measured : 1f;
+            // ★ 배경 화물용 저폴리(LOD1) — 갑판 화물은 대수가 많아 예산의 지배항이다.
+            //   근거: 문서/컨테이너_규격.md Part 5 §10.5·§11.9. 관측점 실측 거리 18~175 m 에서
+            //   대부분이 33 m 밖이고, 실측 GPU 처리율 기준 허용치가 대당 1,100~3,100 tris 다.
+            //   집을 수 있는 물체라 가까이 오는 경우가 있으므로 LOD0(원본)은 유지하고 LODGroup 으로 전환한다.
+            var cMeshLod1 = ProceduralContainerMesh.BuildSizedLod(
+                ProceduralContainerMesh.Length40ft, ProceduralContainerMesh.StdWidth, ProceduralContainerMesh.HeightStd,
+                lodLevel: 1,
+                meshName: "ShipCargo_40ft_LOD1", scale: ProceduralContainerMesh.DefaultMiniatureScale,
+                centerPivot: true, xIsLength: true);
+            Debug.Log($"[Ship] 화물 메시 — LOD0 {cMesh.triangles.Length / 3:N0} tris · LOD1 {cMeshLod1.triangles.Length / 3:N0} tris "
+                    + $"({1f - (float)cMeshLod1.triangles.Length / cMesh.triangles.Length:P1} 감축)");
+
+            // 머티리얼 변주(0 Body·1 Door·2 Frame·3 Castings·4 Marking) — 프레임/캐스팅/마킹 공유
+            var frame   = Mat(new Color(0.20f, 0.20f, 0.21f), 0.4f, 0.30f);
+            var casting = Mat(new Color(0.10f, 0.10f, 0.11f), 0.4f, 0.25f);
+            var marking = Mat(new Color(0.85f, 0.85f, 0.82f), 0.0f, 0.20f);
+            var variants = new Material[CCargo.Length][];
+            for (int i = 0; i < CCargo.Length; i++)
+                variants[i] = new[] { Mat(CCargo[i], 0.1f, 0.32f), Mat(CCargo[i] * 0.85f, 0.1f, 0.32f), frame, casting, marking };
 
             float ms = ShipConfig.ModelScale;
-            var colSize = new Vector3(ProceduralContainerMesh.StdWidth, ProceduralContainerMesh.HeightStd,
-                                      ProceduralContainerMesh.Length40ft) * ms;   // 저폴리는 길이축이 Z
+            var colSize = new Vector3(ProceduralContainerMesh.Length40ft, ProceduralContainerMesh.HeightStd, ProceduralContainerMesh.StdWidth) * ms;
+            var rot = Quaternion.Euler(0f, 90f, 0f);   // 컨테이너 길이축 X → 선체 전후(Z)
+
+            // 갑판/해치커버 받침 콜라이더 보장(기존 씬에 이미 구워진 선체엔 콜라이더가 없을 수 있어 멱등 보강) —
+            //   동적 화물이 갑판을 뚫고 떨어지지 않게. 새로 생성한 배는 CreateShip에서 이미 부여돼 멱등.
+            EnsureRestingColliders(ship);
 
             var slots = ProceduralShipStructures.CargoSlots();
             foreach (var sl in slots)
             {
-                // 이름에 'Container' 포함 → ContainerPhysicsStabilizer·바닥가드 대상에 포함.
-                var g = (GameObject)PrefabUtility.InstantiatePrefab(lowSrc);
-                g.name = "ShipContainer";
+                // 이름에 'Container' 포함 → ContainerPhysicsStabilizer(연속충돌·접촉오프셋 튜닝)·바닥가드 대상에 포함.
+                var g = new GameObject("ShipContainer");
                 g.transform.SetParent(parent.transform, false);
                 g.transform.localPosition = new Vector3(sl.x, sl.y, sl.z) * ms;
-                g.transform.localScale    = Vector3.one * lowScale;
-                // 회전 없음 — 저폴리는 길이축이 이미 Z(선체 전후)다. 절차 메시는 X 라 90° 를 줬었다.
+                g.transform.localRotation = rot;
+                var mats = variants[Mathf.RoundToInt(sl.w) % CCargo.Length];
+                g.AddComponent<MeshFilter>().sharedMesh = cMesh;
+                var r0 = g.AddComponent<MeshRenderer>(); r0.sharedMaterials = mats;
 
-                var box = g.AddComponent<BoxCollider>(); box.center = Vector3.zero; box.size = colSize / lowScale;
+                // LOD1 은 자식 렌더러로 둔다 — 부모(g)에 그랩·강체·콜라이더가 붙어 있어 그대로 유지된다.
+                var lodGo = new GameObject("LOD1");
+                lodGo.transform.SetParent(g.transform, false);
+                lodGo.AddComponent<MeshFilter>().sharedMesh = cMeshLod1;
+                var r1 = lodGo.AddComponent<MeshRenderer>(); r1.sharedMaterials = mats;
+
+                // 화면 상대 높이 임계값 — 문서 §10.7 산식. 씬은 1 유닛 = 24 m(StsConfig.ModelScale=1/24)라
+                //   거리 상수를 직접 넣으면 안 된다. 여기 값은 이미 상대 높이라 단위 무관하다.
+                var lg = g.AddComponent<LODGroup>();
+                lg.SetLODs(new[] {
+                    new LOD(CargoLod0Height, new Renderer[] { r0 }),   // 근거리: 원본(집어 든 경우)
+                    new LOD(CargoLod1Height, new Renderer[] { r1 }),   // 그 밖: 저폴리
+                });
+                lg.RecalculateBounds();
+
+                var box = g.AddComponent<BoxCollider>(); box.center = Vector3.zero; box.size = colSize;
+                // 부두 컨테이너와 동일한 '동적 강체'. kinematic으로 두면 스프레더 물리충돌(SpreaderPusher,
+                //   kinematic 콜라이더)이 못 민다 — PhysX는 kinematic↔kinematic 접촉을 해소하지 않아 그냥 통과한다.
+                //   동적이라야 밀림/토플(사용자가 택한 물리충돌 기능)이 배 위에서도 동일하게 작동한다.
                 var rb = g.AddComponent<Rigidbody>(); rb.useGravity = true;
-                ContainerPhysics.Apply(rb, box);
-                var grab = g.AddComponent<XRGrabInteractable>(); grab.useDynamicAttach = true;
+                ContainerPhysics.Apply(rb, box);   // 미니어처 접촉오프셋·솔버·연속충돌·마찰(부두 적층 안정화와 동일)
+                var grab = g.AddComponent<XRGrabInteractable>(); grab.useDynamicAttach = true;   // 손 직접잡기(필요 기능)
             }
             Selection.activeGameObject = parent;
-            Debug.Log($"[Ship] 갑판 컨테이너 적재 — {slots.Count}개(저폴리 FBX 108 tris/개, 그랩 가능, 동적 강체). " +
-                      $"최대 {ShipConfig.DeckMaxTiers}단 · 스케일 {lowScale:F4}(실측 {measured:F4} → 목표 {target:F4}).");
+            Debug.Log($"[Ship] 갑판 컨테이너 적재 — {slots.Count}개(그랩 가능, 동적 강체). 스프레더 통과방지·물리충돌이 부두와 동일하게 적용.");
         }
 
         static void AddPart(GameObject root, string name, Mesh mesh, Material[] mats, bool collider = false)
