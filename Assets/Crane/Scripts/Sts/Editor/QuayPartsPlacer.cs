@@ -105,8 +105,10 @@ namespace Container.Crane.Sts.EditorTools
         /// <summary>한 베이 안 20ft 두 개 사이 틈 — 실척 m.</summary>
         const float  Yard20ftGapM       = 0.30f;
         /// <summary>블록 채움률 0~1. 셀(열×베이)마다 이 확률로 스택을 세운다.
-        /// 오너 지시 2026-09-07 "컨테이너가 너무 많아 줄이자" → 0.5 → 0.3.</summary>
-        const float  YardFillRatio    = 0.3f;
+        /// 오너 지시 2026-09-07 "컨테이너가 너무 많아 줄이자" → 0.5 → 0.3,
+        /// 재차 "40ft 조금 더 지워 그리고 20ft도 조금 더 줄이자" → 0.3 → 0.2.
+        /// 채움률을 낮추면 40ft·20ft 가 비율 유지한 채 같이 줄어든다.</summary>
+        const float  YardFillRatio    = 0.2f;
 
         /// <summary>화면에 실제로 쌓는 최대 단수. 오너 지시 2026-09-07 "높이는 최대 2개 이상 올리지마".
         /// PortConfig.YardTiers(4)는 '설계 장치능력' 산정용이라 그대로 두고, 보이는 적재만 제한한다
