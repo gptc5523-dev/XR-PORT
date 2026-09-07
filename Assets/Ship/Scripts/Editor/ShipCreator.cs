@@ -133,22 +133,25 @@ namespace Container.Ship.EditorTools
             //   (ContainerModelPostprocessor 가 머티리얼 이름으로 Final4/*.mat 을 붙인다).
             //   ※ 정밀본은 1개 110,134 삼각형이라 대수가 곧 예산이다. 슬롯 전체(295)를 채우면
             //     3,250만 삼각형이 되므로 DeckCargoCount 로 제한하고 갑판 전체에 고르게 분산한다.
-            const string CargoFbx = "Assets/Container/Models/Container_40ft.fbx";
+            // ★ 원저자가 blend 안에 만들어 둔 LOD1(11,092 삼각형)을 쓴다 — 정밀본은 110,302 라
+            //   갑판 238개면 2,840만, 서버 5 인스턴스 1억 4천만이 되어 버벅였다.
+            //   머티리얼 이름이 정밀본과 같아 색이 그대로고, 문(DoorL/DoorR)이 따로 있어
+            //   크레인이 집어 눈앞에 와도 컨테이너로 읽힌다.
+            const string CargoFbx = "Assets/Container/Models/Container_40ft_LOD1.fbx";
             ContainerFinal4Builder.EnsureMaterials();
             var src = AssetDatabase.LoadAssetAtPath<GameObject>(CargoFbx);
             if (src == null) { Debug.LogError($"[Ship] 컨테이너 FBX 없음: {CargoFbx}"); return; }
-            // ★ 크레인이 집어 옮기면 눈앞에서 보게 되므로 저폴리로 '대체'하면 안 된다
-            //   (오너 지시 2026-09-07 "디자인이 깨지면 안 된다"). 둘 다 넣고 LODGroup 이 전환한다.
-            //   저폴리 머티리얼 이름이 정밀본과 같아(Body·Steel_HDG) 전환 시 색이 튀지 않는다.
-            const string CargoLowFbx = "Assets/Container/Models/Container_40ft_Low.fbx";
-            var low = AssetDatabase.LoadAssetAtPath<GameObject>(CargoLowFbx);   // 없으면 정밀본만
 
             // 정밀 FBX 규약(실측 확인) — 스케일·회전을 건드리지 않는다.
             //   프리팹 루트가 자체 스케일을 갖고, 길이축이 이미 Z(선체 전후)이며, 피봇이 중앙 높이다.
             //   CargoSlots 의 y 도 '단 중앙' 이라 그대로 맞는다.
+            // 프로브도 실제 배치와 '같은 보정'을 걸어 재야 한다 — 안 그러면 로그가 24배로 나와
+            //   나중에 크기 오진을 부른다(2026-09-08 실측: 292.56m 로 찍혔다).
             var probe = (GameObject)PrefabUtility.InstantiatePrefab(src);
+            float pm = Container.Crane.Sts.EditorTools.RtgCraneFbxPlacer.CombinedBounds(probe).size.y;
+            float pt = ProceduralContainerMesh.HeightStd * ShipConfig.ModelScale;
+            if (pm > 1e-6f) probe.transform.localScale *= pt / pm;
             var pb = Container.Crane.Sts.EditorTools.RtgCraneFbxPlacer.CombinedBounds(probe);
-            float rootScale = probe.transform.localScale.x;
             Object.DestroyImmediate(probe);
 
             float ms = ShipConfig.ModelScale;
@@ -213,27 +216,14 @@ namespace Container.Ship.EditorTools
                 g.transform.localPosition = new Vector3(sl.x, sl.y, sl.z) * ms;
 
                 var g0 = (GameObject)PrefabUtility.InstantiatePrefab(src);
-                g0.name = "LOD0"; g0.transform.SetParent(g.transform, false);
-                var r0 = g0.GetComponentsInChildren<Renderer>();
+                g0.name = "Mesh"; g0.transform.SetParent(g.transform, false);
+                // ★ localScale 을 1 로 리셋하지 말고 '곱한다' — LOD1 은 실척 m 이고 정밀본은
+                //   프리팹 루트가 자체 스케일을 갖는다. 리셋하면 24배/1/24배로 튄다.
+                float measured = Container.Crane.Sts.EditorTools.RtgCraneFbxPlacer.CombinedBounds(g0).size.y;
+                float targetH  = ProceduralContainerMesh.HeightStd * ms;
+                if (measured > 1e-6f) g0.transform.localScale *= targetH / measured;
 
-                Renderer[] r1 = System.Array.Empty<Renderer>();
-                if (low != null)
-                {
-                    var g1 = (GameObject)PrefabUtility.InstantiatePrefab(low);
-                    g1.name = "LOD1"; g1.transform.SetParent(g.transform, false);
-                    // 저폴리는 실척 m 라 정밀본 크기에 맞춘다.
-                    float hiH = Container.Crane.Sts.EditorTools.RtgCraneFbxPlacer.CombinedBounds(g0).size.y;
-                    float loH = Container.Crane.Sts.EditorTools.RtgCraneFbxPlacer.CombinedBounds(g1).size.y;
-                    if (loH > 1e-6f) g1.transform.localScale = Vector3.one * (hiH / loH);
-                    r1 = g1.GetComponentsInChildren<Renderer>();
-                }
-                var lg = g.AddComponent<LODGroup>();
-                lg.SetLODs(r1.Length > 0
-                    ? new[] { new LOD(CargoLod0Height, r0), new LOD(CargoLod1Height, r1) }
-                    : new[] { new LOD(CargoLod1Height, r0) });
-                lg.RecalculateBounds();
-
-                // 콜라이더는 이제 회전 없는 빈 루트에 붙으므로 축 보정이 필요 없다.
+                // 콜라이더는 회전 없는 빈 루트에 붙으므로 축 보정이 필요 없다.
                 var box = g.AddComponent<BoxCollider>(); box.center = Vector3.zero;
                 box.size = new Vector3(ProceduralContainerMesh.StdWidth, ProceduralContainerMesh.HeightStd,
                                        ProceduralContainerMesh.Length40ft) * ms;
@@ -246,7 +236,7 @@ namespace Container.Ship.EditorTools
                       $"(최대 {ShipConfig.DeckMaxTiers}단 · 1단 {picked.Count - upper} + 2단 {upper}" +
                       $"(확률 {ShipConfig.DeckSecondTierRatio:P0}, 시드 {ShipConfig.DeckStackSeed})) · 야드와 동일 머티리얼 · " +
                       $"실측 {pb.size.z * inv:F2}L × {pb.size.x * inv:F2}W × {pb.size.y * inv:F2}H m · " +
-                      $"삼각형 약 {picked.Count * 110134L:N0}");
+                      $"삼각형 약 {picked.Count * 11092L:N0}(LOD1)");
             Selection.activeGameObject = parent;
         }
 

@@ -212,14 +212,18 @@ namespace Container.Crane.Sts.EditorTools
         //     · 프리팹 루트가 자체 스케일(4.1667 = 100/24)을 갖는다 → localScale 을 건드리지 않는다.
         //     · 길이가 Unity Z 축이다(클래스 주석의 "길이 → X" 는 틀렸다) → 회전 없음.
         //     · 피봇이 '중앙 높이'다 → y = 높이/2.
-        const string YardFbx40 = "Assets/Container/Models/Container_40ft.fbx";
-        const string YardFbx20 = "Assets/Container/Models/Container_20ft.fbx";
-        const string YardLow40 = "Assets/Container/Models/Container_40ft_Low.fbx";
-        const string YardLow20 = "Assets/Container/Models/Container_20ft_Low.fbx";
+        //   ★ 원저자가 blend 안에 만들어 둔 LOD1 을 쓴다(2026-09-08). FBX 로 안 내보내져
+        //     있었을 뿐이다. 정밀본(LOD0) 110,302 → LOD1 11,092 삼각형.
+        //     머티리얼 이름이 정밀본과 같아(Body·Door·Frame·Steel_HDG…) 색이 그대로다.
+        //     문(DoorL/DoorR)이 따로 있어 크레인이 집어 눈앞에 와도 컨테이너로 읽힌다.
+        const string YardFbx40 = "Assets/Container/Models/Container_40ft_LOD1.fbx";
+        const string YardFbx20 = "Assets/Container/Models/Container_20ft_LOD1.fbx";
         const int    YardCount40 = 10;
         const int    YardCount20 = 10;   // 20ft 는 40ft 베이 한 칸에 두 개 → 셀 5개 사용
         /// <summary>배치 무늬 시드 — 같은 값이면 같은 무늬. 0 이면 매번 다르다.</summary>
         const int    YardSeed    = 20260907;
+        /// <summary>ISO 컨테이너 표준 높이 — 실척 m. 실측 스케일 기준값.</summary>
+        const float  ContainerHeightM = 2.591f;
         /// <summary>한 베이 안 20ft 두 개 사이 틈 — 실척 m.</summary>
         const float  Yard20ftGapM = 0.30f;
 
@@ -234,8 +238,6 @@ namespace Container.Crane.Sts.EditorTools
             ContainerFinal4Builder.EnsureMaterials();
             var f40 = AssetDatabase.LoadAssetAtPath<GameObject>(YardFbx40);
             var f20 = AssetDatabase.LoadAssetAtPath<GameObject>(YardFbx20);
-            var l40 = AssetDatabase.LoadAssetAtPath<GameObject>(YardLow40);   // 없으면 LOD 없이 정밀본만
-            var l20 = AssetDatabase.LoadAssetAtPath<GameObject>(YardLow20);
             if (f40 == null || f20 == null)
             {
                 EditorUtility.DisplayDialog("야드 적재", $"컨테이너 FBX 없음:\n{YardFbx40}\n{YardFbx20}", "확인");
@@ -296,7 +298,7 @@ namespace Container.Crane.Sts.EditorTools
             }
 
             for (int k = 0; k < YardCount40; k++)
-                PutLod(f40, l40, root, $"Cont40_{k:00}", cells[k].x, h40 * 0.5f, cells[k].z);
+                Put(f40, root, $"Cont40_{k:00}", cells[k].x, h40 * 0.5f, cells[k].z);
 
             // 20ft 는 실물처럼 40ft 베이 한 칸에 두 개를 앞뒤로 넣는다.
             float off20 = (len20 + Yard20ftGapM * StsConfig.ModelScale) * 0.5f;
@@ -307,7 +309,7 @@ namespace Container.Crane.Sts.EditorTools
                 foreach (float dz in new[] { -off20, off20 })
                 {
                     if (made20 >= YardCount20) break;
-                    PutLod(f20, l20, root, $"Cont20_{made20:00}", c.x, h20 * 0.5f, c.z + dz);
+                    Put(f20, root, $"Cont20_{made20:00}", c.x, h20 * 0.5f, c.z + dz);
                     made20++;
                 }
             }
@@ -323,54 +325,35 @@ namespace Container.Crane.Sts.EditorTools
                        $"40ft {len40*inv:F2}L × {wid40*inv:F2}W × {h40*inv:F2}H m · 20ft {len20*inv:F2}L m · 1단");
         }
 
-        // ── LOD 임계값 — 화면 상대 높이. ShipCreator 가 쓰던 값과 동일(문서/컨테이너_규격.md §10.7 산식).
-        //   씬은 1유닛 = 24m 라 거리 상수를 직접 쓰면 안 된다. 상대 높이라 단위 무관.
-        const float ContLod0Height = 0.3787f;   // 이보다 크게 보이면 정밀본 (크레인이 집어 눈앞에 온 경우)
-        const float ContLod1Height = 0.0229f;   // 이보다 작으면 컬링
-
-        /// <summary>컨테이너 하나를 LOD 로 놓는다 — 가까우면 정밀본, 멀면 저폴리.
+        /// <summary>컨테이너 하나를 놓는다 — 실측해서 ISO 높이에 맞춘다.
         ///
-        /// ★ 크레인이 집어 옮기면 눈앞에서 보게 되므로 저폴리로 '대체'하면 안 된다
-        /// (오너 지시 2026-09-07 "크레인으로 컨테이너를 옮겨야 되는데 디자인이 깨지면 안 된다").
-        /// 정밀본 110,134 삼각형 × 수백 개는 예산을 넘으므로 둘 다 넣고 유니티가 전환하게 한다.
-        /// 저폴리 머티리얼 이름이 정밀본과 같아(Body·Steel_HDG) 전환 시 색이 튀지 않는다.
-        ///
-        /// 스케일·회전은 건드리지 않는다 — 프리팹 루트가 자체 스케일을 갖고 길이축이 이미 Z 다.</summary>
-        static GameObject PutLod(GameObject hi, GameObject lo, Transform parent, string name,
-                                 float x, float y, float z)
+        /// ★ localScale 을 '1 로 리셋'하면 안 된다. 정밀본 프리팹은 루트가 자체 스케일을 갖고
+        /// LOD1 은 실척 m 라, 어느 쪽이든 맞게 하려면 '곱해야' 한다(reset 하면 24배/1/24배로 튄다).
+        /// 스케일이 이미 맞으면 배율이 1 이라 아무 변화가 없다.</summary>
+        static void Put(GameObject src, Transform parent, string name, float x, float y, float z)
         {
-            var root = new GameObject(name);
-            root.transform.SetParent(parent, worldPositionStays: false);
-            root.transform.localPosition = new Vector3(x, y, z);   // 피봇 = 중앙 높이
+            var go = (GameObject)PrefabUtility.InstantiatePrefab(src);
+            go.name = name;
+            go.transform.SetParent(parent, worldPositionStays: false);
+            go.transform.localPosition = new Vector3(x, y, z);   // 피봇 = 중앙 높이
 
-            var g0 = (GameObject)PrefabUtility.InstantiatePrefab(hi);
-            g0.name = "LOD0"; g0.transform.SetParent(root.transform, worldPositionStays: false);
-            var r0 = g0.GetComponentsInChildren<Renderer>();
-
-            Renderer[] r1 = System.Array.Empty<Renderer>();
-            if (lo != null)
-            {
-                var g1 = (GameObject)PrefabUtility.InstantiatePrefab(lo);
-                g1.name = "LOD1"; g1.transform.SetParent(root.transform, worldPositionStays: false);
-                // 저폴리는 실척 m 라 정밀본 크기에 맞춘다(정밀본은 프리팹 루트 스케일을 갖는다).
-                float hiH = RtgCraneFbxPlacer.CombinedBounds(g0).size.y;
-                float loH = RtgCraneFbxPlacer.CombinedBounds(g1).size.y;
-                if (loH > 1e-6f) g1.transform.localScale = Vector3.one * (hiH / loH);
-                r1 = g1.GetComponentsInChildren<Renderer>();
-            }
-
-            var lg = root.AddComponent<LODGroup>();
-            lg.SetLODs(r1.Length > 0
-                ? new[] { new LOD(ContLod0Height, r0), new LOD(ContLod1Height, r1) }
-                : new[] { new LOD(ContLod1Height, r0) });
-            lg.RecalculateBounds();
-            return root;
+            float measured = RtgCraneFbxPlacer.CombinedBounds(go).size.y;
+            float target   = ContainerHeightM * StsConfig.ModelScale;
+            if (measured > 1e-6f)
+                go.transform.localScale *= target / measured;
         }
 
-        /// <summary>프리팹 그대로의 실측 크기(높이 반환, 길이·폭은 out).</summary>
+        /// <summary>배치 후 크기를 실측한다 — Put 과 '같은 스케일 보정'을 걸고 잰다.
+        ///
+        /// 보정 전에 재면 LOD1(실척 m)이 24배로 나와 규격 가드가 오작동한다
+        /// (2026-09-08 실측: 40ft 가 292.560L 로 찍혀 적재가 중단됐다).
+        /// 측정과 배치가 같은 값을 보게 해야 가드가 진짜 문제만 잡는다.</summary>
         static float Probe(GameObject src, out float len, out float wid)
         {
             var p = (GameObject)PrefabUtility.InstantiatePrefab(src);
+            float m = RtgCraneFbxPlacer.CombinedBounds(p).size.y;
+            float t = ContainerHeightM * StsConfig.ModelScale;
+            if (m > 1e-6f) p.transform.localScale *= t / m;
             var b = RtgCraneFbxPlacer.CombinedBounds(p);
             len = b.size.z; wid = b.size.x;
             float h = b.size.y;
