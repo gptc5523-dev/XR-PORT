@@ -1,4 +1,6 @@
 #if UNITY_EDITOR
+using System.Collections.Generic;
+using System.Linq;
 using ContainerProject.EditorTools;
 using UnityEditor;
 using UnityEngine;
@@ -145,20 +147,52 @@ namespace Container.Ship.EditorTools
             Object.DestroyImmediate(probe);
 
             float ms = ShipConfig.ModelScale;
-            // 콜라이더는 루트 로컬 공간 — 루트 스케일이 곱해지므로 나눠준다.
-            var colSize = new Vector3(ProceduralContainerMesh.StdWidth, ProceduralContainerMesh.HeightStd,
-                                      ProceduralContainerMesh.Length40ft) * ms / Mathf.Max(1e-6f, rootScale);
+            // 콜라이더는 루트 '로컬' 공간이다 — 두 가지를 보정해야 한다.
+            //   ① 루트 스케일(4.1667)이 곱해지므로 나눠준다.
+            //   ② FBX 루트에 −90° X 회전이 있다(Blender Z-up → Unity Y-up 변환). 그래서 로컬 Y·Z 가
+            //      월드에서 뒤바뀐다. 보정 전에는 콜라이더가 월드 (2.44, 12.19, 2.59)m —
+            //      높이 12m 짜리 기둥이 되어 스택이 서로를 못 받치고 물리가 어긋났다
+            //      (2026-09-07 실측). 로컬에 (폭, 길이, 높이) 순으로 넣어야 월드가 (폭, 높이, 길이)가 된다.
+            var colSize = new Vector3(ProceduralContainerMesh.StdWidth,
+                                      ProceduralContainerMesh.Length40ft,
+                                      ProceduralContainerMesh.HeightStd) * ms / Mathf.Max(1e-6f, rootScale);
 
             // 갑판/해치커버 받침 콜라이더 보장 — 동적 화물이 갑판을 뚫고 떨어지지 않게(멱등).
             EnsureRestingColliders(ship);
 
             var slots = ProceduralShipStructures.CargoSlots();
-            // 고르게 분산 — 앞에서부터 N개를 쓰면 선미만 가득 차고 선수가 텅 빈다.
+
+            // ★ 슬롯을 낱개로 샘플링하면 안 된다. 슬롯 목록은 '베이 → 열 → 단' 순서라
+            //   일정 간격으로 뽑으면 아래 단을 건너뛰고 윗단만 집어 컨테이너가 공중에 뜬다
+            //   (2026-09-07 실측: 해치커버에서 정확히 2.591m = 한 단 높이만큼 떠 있었다).
+            //   → '열(같은 x·z)' 단위로 뽑아 그 열의 스택을 통째로 세운다.
+            var columns = slots
+                .GroupBy(v => (Mathf.RoundToInt(v.x * 1000f), Mathf.RoundToInt(v.z * 1000f)))
+                .Select(g => g.OrderBy(v => v.y).ToList())   // 아래 단부터
+                .ToList();
+
+            // 갑판 전체에 고르게 — 앞에서부터 채우면 선미만 가득 차고 선수가 텅 빈다.
             int want = Mathf.Clamp(ShipConfig.DeckCargoCount, 0, slots.Count);
-            float step = want > 0 ? (float)slots.Count / want : 1f;
-            for (int k = 0; k < want; k++)
+            var picked = new List<Vector4>();
+            float cstep = columns.Count > 0 ? (float)columns.Count / Mathf.Max(1, columns.Count) : 1f;
+            // 필요한 컨테이너 수를 채울 때까지 열을 균등 간격으로 고른다.
+            int needCols = Mathf.Clamp(Mathf.CeilToInt(want / Mathf.Max(1f, (float)slots.Count / Mathf.Max(1, columns.Count))),
+                                       0, columns.Count);
+            cstep = needCols > 0 ? (float)columns.Count / needCols : 1f;
+            var used = new HashSet<int>();
+            for (int k = 0; k < needCols && picked.Count < want; k++)
             {
-                var sl = slots[Mathf.Min(slots.Count - 1, Mathf.FloorToInt(k * step))];
+                int ci = Mathf.Min(columns.Count - 1, Mathf.FloorToInt(k * cstep));
+                if (!used.Add(ci)) continue;
+                foreach (var v in columns[ci])
+                {
+                    if (picked.Count >= want) break;   // 잘려도 아래 단부터라 뜨지 않는다
+                    picked.Add(v);
+                }
+            }
+
+            foreach (var sl in picked)
+            {
                 // 이름에 'Container' 포함 → ContainerPhysicsStabilizer·바닥가드 대상에 포함.
                 var g = (GameObject)PrefabUtility.InstantiatePrefab(src);
                 g.name = "ShipContainer";
@@ -171,10 +205,10 @@ namespace Container.Ship.EditorTools
                 var grab = g.AddComponent<XRGrabInteractable>(); grab.useDynamicAttach = true;
             }
             float inv = 1f / ms;
-            Debug.Log($"[Ship] 갑판 컨테이너 적재 — 정밀 FBX {want}개 / 슬롯 {slots.Count} " +
+            Debug.Log($"[Ship] 갑판 컨테이너 적재 — 정밀 FBX {picked.Count}개 / 슬롯 {slots.Count}(열 {columns.Count}) " +
                       $"(최대 {ShipConfig.DeckMaxTiers}단, 갑판 전체 분산) · 야드와 동일 머티리얼 · " +
                       $"실측 {pb.size.z * inv:F2}L × {pb.size.x * inv:F2}W × {pb.size.y * inv:F2}H m · " +
-                      $"삼각형 약 {want * 110134L:N0}");
+                      $"삼각형 약 {picked.Count * 110134L:N0}");
             Selection.activeGameObject = parent;
         }
 
