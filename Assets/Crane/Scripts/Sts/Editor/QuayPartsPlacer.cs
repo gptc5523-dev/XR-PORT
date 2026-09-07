@@ -288,6 +288,7 @@ namespace Container.Crane.Sts.EditorTools
                       $"{PortConfig.YardBlockLengthM:F1}m({PortConfig.YardBays}베이) · " +
                       $"장치능력 {PortConfig.YardCapacityTeu:N0} TEU({PortConfig.YardTiers}단) · " +
                       $"블록↔다리 여유 {PortConfig.YardBlockLegClearanceM:F2}m(편측) · " +
+                      $"바다쪽 이동 {PortConfig.YardShiftAppliedM:F1}m(한계 {PortConfig.YardShiftMaxM:F1}m) · " +
                       $"야드 x −{PortConfig.ApronWidthMeters:F0}~−{PortConfig.ApronWidthMeters + depth:F1}m");
         }
 

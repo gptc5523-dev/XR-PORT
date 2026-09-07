@@ -208,10 +208,24 @@ namespace Container.Crane.Sts
         public static float YardSpanCenterX(int i) =>
             -(ApronWidthMeters + YardEndMarginM + RtgSpanM * (i + 0.5f) + YardAisleXM * i);
 
-        /// <summary>블록 중심 X = RTG 스팬 중심. 오너 선택 2026-09-07 —
-        /// RTG 가 블록을 대칭으로 감싸는 쪽을 택했다(트럭레인은 포기).
-        /// 양옆에 YardBlockLegClearanceM(2.84m) 씩 남는다.</summary>
-        public static float YardBlockCenterX(int i) => YardSpanCenterX(i);
+        /// <summary>야드(블록·RTG)를 바다쪽으로 미는 양 — 실척 m. 오너 지시 2026-09-07
+        /// "RTG 크레인이랑 야드 바다 쪽으로 조금만 이동".
+        /// 야드 포장은 그대로 두고 블록만 민다 — RTG 는 블록 존을 읽으므로 자동으로 따라온다.
+        /// 0 이면 레인 슬롯 그대로. 이 숫자만 바꾸면 이동량이 조절된다.</summary>
+        public const float YardShiftSeawardM = 12f;
+
+        /// <summary>바다쪽 이동 한계 — 실척 m. RTG 해측 끝(스팬반 + 오버행)이
+        /// 에이프런 경계(x = −에이프런폭)를 넘지 않는 값. 현 설정에서 25.10m.
+        /// 넘겨 밀면 크레인이 에이프런으로 튀어나온다.</summary>
+        public static float YardShiftMaxM =>
+            -ApronWidthMeters - (YardSpanCenterX(YardLaneStart) + RtgSpanM * 0.5f + RtgOverhangM);
+
+        /// <summary>실제 적용되는 이동량 — 한계로 클램프. 설정값이 과하면 조용히 넘어가지 않고 잘린다.</summary>
+        public static float YardShiftAppliedM => Mathf.Clamp(YardShiftSeawardM, 0f, YardShiftMaxM);
+
+        /// <summary>블록 중심 X = RTG 스팬 중심 + 바다쪽 이동. 오너 선택 2026-09-07 —
+        /// RTG 가 블록을 대칭으로 감싼다(트럭레인은 포기). 양옆에 2.84m 씩 남는다.</summary>
+        public static float YardBlockCenterX(int i) => YardSpanCenterX(i) + YardShiftAppliedM;
 
         /// <summary>블록 j(0부터) 의 중심 Z — 실척 m. 안벽 중앙 기준 대칭.</summary>
         public static float YardBlockCenterZ(int j)
