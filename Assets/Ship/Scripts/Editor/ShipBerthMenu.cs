@@ -22,8 +22,14 @@ namespace Container.Ship.EditorTools
     {
         const string CraneName = "STS_Crane";
 
-        /// <summary>바다측 레일 ↔ 배 현측 접안 틈(실척 m). 레일-코핑 ~3.5m + 펜더 ~1.5m.</summary>
-        const float BerthGapMeters = 5f;
+        /// <summary>배 현측 ↔ 안벽 전면 틈(실척 m) — 방충재(펜더) 압축 여유.</summary>
+        const float FenderClearanceM = 1.5f;
+
+        /// <summary>바다측 레일 ↔ 배 현측 접안 틈(실척 m) = 레일→안벽 가장자리 + 펜더 틈.
+        /// 종전엔 5f 고정이었고 주석이 "레일-코핑 ~3.5m + 펜더 ~1.5m" 였다. 현 부두는
+        /// PortConfig.ApronSeawardM 이 4m 라, 5f 를 두면 펜더 틈이 조용히 1.0m 로 줄어든다.
+        /// 에이프런을 바꾸면 접안 위치도 따라오도록 유도값으로 바꾼다. 4 + 1.5 = 5.5m.</summary>
+        static float BerthGapMeters => PortConfig.ApronSeawardM + FenderClearanceM;
 
         /// <summary>
         /// 컨테이너선을 크레인 안벽에 접안 정렬한다. 성공 시 true.
@@ -46,9 +52,7 @@ namespace Container.Ship.EditorTools
             //     "컨테이너선 생성하면 육지로 출력된다"가 됐다(오너 지적 2026-08-10). 부두 기준으로 바꿔 해소.
             float waterRailX; float quayCenterZ = 0f; bool haveQuay;
             string anchor;
-            // 부두 절차 생성기 삭제(오너 지시 2026-09-07) — 안벽 앵커 SSOT 가 사라졌다.
-            //   부두 FBX가 QuayRail 을 갖고 오면 여기서 다시 읽는다. 그때까지는 크레인 Rail_Water 폴백.
-            waterRailX = 0f; haveQuay = false;
+            haveQuay = TryQuayBerthAnchor(out waterRailX, out quayCenterZ);
             if (haveQuay) anchor = $"부두 '{StsPartNames.QuayGround}'의 바다측 {StsPartNames.QuayRail}";
             else if (crane != null && TryFindWorldX(crane.transform, StsPartNames.RailPrefix + "Water", out float railX))
             { waterRailX = railX; anchor = "크레인 Rail_Water"; }
@@ -96,13 +100,45 @@ namespace Container.Ship.EditorTools
             msg =
                 $"[ShipBerth] 컨테이너선 접안 완료 — 배 중심선 X={targetX:F3}u({targetX*inv:F1}m), Z={targetZ:F3}u, " +
                 $"Y={targetY:F3}u(흘수선=수면, 안벽 데크 아래 {StsConfig.QuayDeckAboveSeaMeters:F1}m).\n" +
-                $"  앵커={anchor} · 바다측 레일 X={waterRailX:F3}u({waterRailX*inv:F1}m) + 접안틈 {BerthGapMeters:F0}m + 선폭/2 {ShipConfig.BeamMeters*0.5f:F1}m.\n" +
+                $"  앵커={anchor} · 바다측 레일 X={waterRailX:F3}u({waterRailX*inv:F1}m) + 접안틈 {BerthGapMeters:F1}m" +
+                $"(에이프런 해측 {PortConfig.ApronSeawardM:F1} + 펜더 {FenderClearanceM:F1}) + 선폭/2 {ShipConfig.BeamMeters*0.5f:F1}m.\n" +
                 (crane == null
                     ? $"  크레인 없음 → 아웃리치 커버 검증 생략(안벽 중앙 Z에 접안). 크레인을 만들면 부두 재생성 시 자동 재접안."
                     : $"  아웃리치 도달 X={outreachReachX:F3}u({outreachReachX*inv:F1}m) vs 반대현측 X={shipFarSideX:F3}u({shipFarSideX*inv:F1}m) → " +
                       (coverMargin >= 0f ? $"전폭 커버 ✓ 여유 {coverMargin*inv:F1}m." : $"⚠ 커버 부족 {(-coverMargin*inv):F1}m — 접안틈을 줄이거나 크레인 아웃리치 확인."));
             if (crane == null || coverMargin >= 0f) Debug.Log(msg);
             else                                    Debug.LogWarning(msg);
+            return true;
+        }
+
+        /// <summary>부두의 바다측 주행레일 중심 X 와 안벽 중심 Z — 접안 앵커.
+        /// 삭제된 StsQuayGroundCreator.TryQuayBerthAnchor 를 대신한다(부두가 FBX 로 돌아왔으므로 복구).
+        ///
+        /// 좌표를 산식으로 계산하지 않고 씬의 QuayRail 렌더러를 '실측'한다 — 부두를 통째로 옮기거나
+        /// 에이프런 치수를 바꿔도 배가 따라오게 하기 위해서다. 바다는 +X 규약이라 두 레일 중
+        /// 중심 X 가 큰 쪽이 해측이다.
+        ///
+        /// 렌더러 바운즈의 max.x(레일 바깥면)가 아니라 각 유닛의 center.x 를 쓴다 — 접안틈이
+        /// '레일 중심' 기준으로 정의돼 있어 바깥면을 쓰면 레일 반폭(0.24m)만큼 배가 밀린다.</summary>
+        static bool TryQuayBerthAnchor(out float waterRailX, out float centerZ)
+        {
+            waterRailX = 0f; centerZ = 0f;
+            var quay = GameObject.Find(StsPartNames.QuayGround);
+            if (quay == null) return false;
+
+            bool found = false;
+            float minZ = float.MaxValue, maxZ = float.MinValue;
+            foreach (var r in quay.GetComponentsInChildren<Renderer>())
+            {
+                if (r.gameObject.name != StsPartNames.QuayRail) continue;
+                var b = r.bounds;
+                if (!found || b.center.x > waterRailX) waterRailX = b.center.x;
+                minZ = Mathf.Min(minZ, b.min.z);
+                maxZ = Mathf.Max(maxZ, b.max.z);
+                found = true;
+            }
+            if (!found) return false;
+            centerZ = (minZ + maxZ) * 0.5f;
             return true;
         }
 
