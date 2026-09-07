@@ -67,7 +67,7 @@ namespace Container.Crane.Sts.EditorTools
 
         // 붐 거더 X 끝점 — 거더/레일/격자/스테이가 공유(한 군데서 길이 관리)
         const float BoomBackExtra = 0.12f;             // 트롤리 백트래블 + 거더 백리치를 함께 뒤로 빼는 양(기계실은 고정)
-        const float GantryRange   = 2.2f;              // 갠트리 주행 범위(±, 모델 단위) ≈ 실척 ±53m, 총 106m. 원래 ±36m(72m)에서 확대해 레일 끝까지 주행. 부두 바닥 Z 길이는 StsQuayGroundCreator.QuaySlabZ(선석 344m + 양끝 여유 = 384m)로 분리돼 있어 이 값을 키워도 바닥은 안 커짐(원래 바닥 안에서 더 멀리 감)
+        const float GantryRange   = 2.2f;              // 갠트리 주행 범위(±, 모델 단위) ≈ 실척 ±53m, 총 106m. 원래 ±36m(72m)에서 확대해 레일 끝까지 주행. 부두 바닥 Z 길이는 부두 FBX(선석 344m + 양끝 여유 = 384m)로 분리돼 있어 이 값을 키워도 바닥은 안 커짐(원래 바닥 안에서 더 멀리 감)
         const float BoomBackX = TrolleyMinX - 0.27f;   // 백리치(육지쪽) 끝 — 트롤리 뒤 0.27 여유(TrolleyMinX가 이미 BoomBackExtra만큼 뒤로 감)
         const float BoomTipX  = TrolleyMaxX + 0.1f;    // 아웃리치 끝 — 트롤리 끝 + 팁 구조 여유(트롤리가 거의 끝까지)
 
@@ -165,9 +165,15 @@ namespace Container.Crane.Sts.EditorTools
             var groundGo = GameObject.Find(StsPartNames.QuayGround);
             if (groundGo != null)
             {
-                // 걷는 면(Asphalt) 기준 — '가장 넓은 렌더러'로 고르면 바다가 뽑힌다(공용 헬퍼가 차단).
-                var slab = StsQuayGroundCreator.FindQuayDeckRenderer(groundGo);
-                if (slab != null) centerZ = slab.bounds.center.z;
+                // 부두 절차 생성기 삭제(오너 지시 2026-09-07)로 걷는 면 조회 헬퍼가 없어졌다.
+                //   부두 FBX가 들어오면 그 루트 바운즈 중심 Z 를 쓴다.
+                var rs = groundGo.GetComponentsInChildren<Renderer>();
+                if (rs.Length > 0)
+                {
+                    var b = rs[0].bounds;
+                    for (int i = 1; i < rs.Length; i++) b.Encapsulate(rs[i].bounds);
+                    centerZ = b.center.z;
+                }
             }
 
             // 기존 STS 전부 제거(2대 새로 배치)

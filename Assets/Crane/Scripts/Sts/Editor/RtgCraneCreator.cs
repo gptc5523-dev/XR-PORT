@@ -1,4 +1,5 @@
 #if UNITY_EDITOR
+using System.Linq;
 using System.Collections.Generic;
 using UnityEditor;
 using UnityEngine;
@@ -150,16 +151,18 @@ namespace Container.Crane.Sts.EditorTools
         public static void PlaceRtgsInYard()
         {
             var groundGo = GameObject.Find(StsPartNames.QuayGround);
-            if (groundGo == null) { Debug.LogWarning("[RTG] Quay_Ground 없음 — 'Ground/부두 바닥 생성' 먼저."); return; }
+            if (groundGo == null) { Debug.LogWarning("[RTG] Quay_Ground 없음 — 부두 FBX를 씬에 먼저 배치하세요."); return; }
 
-            var deck = StsQuayGroundCreator.FindQuayDeckRenderer(groundGo);
-            float groundY = deck != null ? deck.bounds.max.y : 0f;   // 걷는 면 윗면(=데크 y0). 바다 오선택은 헬퍼가 차단.
+            float groundY = 0f;   // 데크 윗면 = y0 (프로젝트 SSOT 규약)
 
-            // 블록 존 수집 — 부두 생성기가 그린 렌더러가 SSOT(안벽 가까운 순 정렬은 헬퍼가 담당).
-            var zones = StsQuayGroundCreator.FindYardBlockZones(groundGo);
+            // 블록 존 — 종전엔 부두 절차 생성기가 그린 YardBlock_Zone 렌더러가 SSOT였다. 생성기 삭제
+            //   (오너 지시 2026-09-07 "코드를 전부 지워")로 그 SSOT가 없어졌다. 부두 FBX가 존을 갖고 오면 읽는다.
+            var zones = groundGo.GetComponentsInChildren<Renderer>()
+                                .Where(r => r.gameObject.name.StartsWith("YardBlock_Zone"))
+                                .OrderBy(r => Mathf.Abs(r.bounds.center.x)).ToList();
             if (zones.Count == 0)
             {
-                Debug.LogWarning("[RTG] YardBlock_Zone이 없습니다 — 'Ground/도로'를 켠 뒤 '부두 바닥 생성'을 먼저 실행하세요.");
+                Debug.LogWarning("[RTG] YardBlock_Zone이 없습니다 — 부두 FBX에 야드 블록 존이 아직 없습니다.");
                 return;
             }
 
@@ -960,10 +963,6 @@ namespace Container.Crane.Sts.EditorTools
         // 걷는 면(Quay_Ground) 우선, 없으면 가장 넓은 수평 렌더러를 지면으로.
         static Renderer FindGroundRenderer()
         {
-            // 부두가 있으면 그 걷는 면(Asphalt) — 바다 오선택 방지는 공용 헬퍼가 담당.
-            var deck = StsQuayGroundCreator.FindQuayDeckRenderer();
-            if (deck != null) return deck;
-
             // 부두가 아예 없는 씬 → 평평한 것 중 면적 최대(바다 계열은 제외).
             Renderer best = null; float bestArea = 0f;
             foreach (var r in Object.FindObjectsByType<Renderer>(FindObjectsInactive.Exclude, FindObjectsSortMode.None))

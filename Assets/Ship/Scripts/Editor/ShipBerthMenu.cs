@@ -1,7 +1,6 @@
 using UnityEngine;
 using UnityEditor;
 using Container.Crane.Sts;              // StsConfig, StsPartNames, TrolleyMover
-using Container.Crane.Sts.EditorTools;  // StsQuayGroundCreator.TryQuayBerthAnchor (안벽 위치 SSOT)
 
 namespace Container.Ship.EditorTools
 {
@@ -47,7 +46,9 @@ namespace Container.Ship.EditorTools
             //     "컨테이너선 생성하면 육지로 출력된다"가 됐다(오너 지적 2026-08-10). 부두 기준으로 바꿔 해소.
             float waterRailX; float quayCenterZ = 0f; bool haveQuay;
             string anchor;
-            haveQuay = StsQuayGroundCreator.TryQuayBerthAnchor(out waterRailX, out quayCenterZ);
+            // 부두 절차 생성기 삭제(오너 지시 2026-09-07) — 안벽 앵커 SSOT 가 사라졌다.
+            //   부두 FBX가 QuayRail 을 갖고 오면 여기서 다시 읽는다. 그때까지는 크레인 Rail_Water 폴백.
+            waterRailX = 0f; haveQuay = false;
             if (haveQuay) anchor = $"부두 '{StsPartNames.QuayGround}'의 바다측 {StsPartNames.QuayRail}";
             else if (crane != null && TryFindWorldX(crane.transform, StsPartNames.RailPrefix + "Water", out float railX))
             { waterRailX = railX; anchor = "크레인 Rail_Water"; }

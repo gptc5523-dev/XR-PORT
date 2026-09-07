@@ -65,16 +65,21 @@ namespace Container.Crane.Sts
         /// <summary>데크(안벽 윗면 y=0) ↔ 수면 높이차 = 건현/코핑고 — 실척 m.</summary>
         public const float QuayDeckAboveSeaMeters = 4f;
 
-        /// <summary>선석 계획수심(수면 → 해저) — 실척 m. 배 흘수 13 m + 여유수심 4 m.</summary>
-        public const float BerthWaterDepthMeters = 17f;
-
-        /// <summary>안벽 전면 높이(데크 → 해저) = 코핑고 + 계획수심 — 실척 m. 슬래브 두께 SSOT.</summary>
-        public const float QuayWallHeightMeters = QuayDeckAboveSeaMeters + BerthWaterDepthMeters;
+        // ── 비활성 2026-09-07 (오너 지시: 항구 사이즈 새로 계산, 일단 주석처리) ──────────────
+        //   새 값이 정해지면 아래 주석을 풀고 숫자만 교체한다. 소비처는 원래 0곳이었다.
+        //
+        // /// <summary>선석 계획수심(수면 → 해저) — 실척 m. 배 흘수 13 m + 여유수심 4 m.</summary>
+        // public const float BerthWaterDepthMeters = 17f;
+        //
+        // /// <summary>안벽 전면 높이(데크 → 해저) = 코핑고 + 계획수심 — 실척 m. 슬래브 두께 SSOT.</summary>
+        // public const float QuayWallHeightMeters = QuayDeckAboveSeaMeters + BerthWaterDepthMeters;
+        //
+        // /// <summary>안벽 슬래브 두께(데크 윗면 y=0 → 해저) — 모델 단위.</summary>
+        // public const float QuayWallThickness = QuayWallHeightMeters * ModelScale;
+        // ────────────────────────────────────────────────────────────────────────────
 
         /// <summary>수면 월드 Y — 모델 단위(데크 y=0 기준 아래). 바다 메시·배 흘수선의 공통 기준.</summary>
         public const float SeaLevelY = -QuayDeckAboveSeaMeters * ModelScale;
 
-        /// <summary>안벽 슬래브 두께(데크 윗면 y=0 → 해저) — 모델 단위.</summary>
-        public const float QuayWallThickness = QuayWallHeightMeters * ModelScale;
     }
 }

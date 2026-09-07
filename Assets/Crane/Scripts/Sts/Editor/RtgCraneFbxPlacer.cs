@@ -1,4 +1,5 @@
 #if UNITY_EDITOR
+using System.Linq;
 using System.IO;
 using UnityEditor;
 using UnityEngine;
@@ -115,8 +116,11 @@ namespace Container.Crane.Sts.EditorTools
         // 안벽에 가장 가까운 야드 블록 존(없으면 null) — 좌표 산식 복사 금지, 부두가 그린 실측을 쓴다.
         static Renderer FirstYardZone()
         {
-            var zones = StsQuayGroundCreator.FindYardBlockZones();
-            return zones.Count > 0 ? zones[0] : null;
+            var ground = GameObject.Find(StsPartNames.QuayGround);
+            if (ground == null) return null;
+            return ground.GetComponentsInChildren<Renderer>()
+                         .Where(r => r.gameObject.name.StartsWith("YardBlock_Zone"))
+                         .OrderBy(r => Mathf.Abs(r.bounds.center.x)).FirstOrDefault();
         }
 
         // 하위 모든 렌더러를 감싸는 월드 바운즈(현재 스케일 반영).
@@ -135,7 +139,7 @@ namespace Container.Crane.Sts.EditorTools
             // ★ 부두가 있으면 걷는 면(Asphalt)을 공용 헬퍼로 지목한다. '평평한 것 중 면적 최대' 휴리스틱만 쓰면
             //   바다(6u×16u)가 아스팔트(3.9u×16u)보다 넓어 Sea가 뽑히고, RTG가 바다 한가운데 수면 위에 놓인다
             //   (오너 지적 2026-08-10 "RTG 크레인이 바다에 출력된다"). 수면은 데크 아래 StsConfig.SeaLevelY 라 Y까지 어긋난다.
-            var best = StsQuayGroundCreator.FindQuayDeckRenderer();
+            Renderer best = null;   // 부두 걷는 면 조회 헬퍼 삭제됨 — 아래 면적 최대 휴리스틱으로 폴백
             if (best == null)
             {
                 float bestArea = 0f;
