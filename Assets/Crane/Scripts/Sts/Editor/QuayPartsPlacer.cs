@@ -175,8 +175,47 @@ namespace Container.Crane.Sts.EditorTools
 
             Done(root, $"수면 y={StsConfig.SeaLevelY:F4}u(−{StsConfig.QuayDeckAboveSeaMeters:F0}m) · " +
                        $"{PortConfig.SeaWidthMeters:F0} × {PortConfig.SeaLengthMeters:F0}m · " +
-                       $"수심 {PortConfig.WaterDepthMeters:F0}m · 선회장 {PortConfig.TurningBasinMeters:F0}m · " +
+                       $"수심 {PortConfig.WaterDepthMeters:F0}m · 여유 선폭×{PortConfig.SeaMarginRatio:F0} · " +
                        $"겹침 {PortConfig.SeaOverlapM:F0}m · scale {scale:F4}");
+        }
+
+        /// <summary>항구 전체를 씬 뷰에 담고, 부재별 실측을 찍는다.
+        /// 부재마다 배치 직후 FrameSelected 를 하는데 마지막이 바다(1,516m)라
+        /// 부두(30m 폭)가 실 한 가닥으로 보인다. 안 보이는 렌더러도 같이 잡아낸다.</summary>
+        [MenuItem("Model/FBX/항구/전체 보기 + 실측", false, 20)]
+        static void FrameAll()
+        {
+            var quay = GameObject.Find(StsPartNames.QuayGround);
+            if (quay == null) { Debug.LogWarning("[항구] Quay_Ground 없음 — 부재를 먼저 배치하세요."); return; }
+
+            var sb = new System.Text.StringBuilder($"[항구] 전체 실측 — {StsPartNames.QuayGround} 자식 {quay.transform.childCount}\n");
+            float M = StsConfig.InvModelScale;
+            Bounds? all = null;
+            foreach (Transform c in quay.transform)
+            {
+                var rs = c.GetComponentsInChildren<Renderer>();
+                int off = 0; Bounds? b = null;
+                foreach (var r in rs)
+                {
+                    if (!r.enabled || !r.gameObject.activeInHierarchy) { off++; continue; }
+                    if (b == null) b = r.bounds; else { var t = b.Value; t.Encapsulate(r.bounds); b = t; }
+                }
+                if (b == null) { sb.AppendLine($"  {c.name,-14} 렌더러 {rs.Length} · 보이는 것 0  ← 안 보임"); continue; }
+                if (all == null) all = b; else { var t = all.Value; t.Encapsulate(b.Value); all = t; }
+                var v = b.Value;
+                sb.AppendLine($"  {c.name,-14} 렌더러 {rs.Length,4}{(off > 0 ? $" (꺼짐 {off})" : "")}" +
+                              $"  x {v.min.x * M,8:F1}~{v.max.x * M,7:F1}" +
+                              $"  y {v.min.y * M,7:F1}~{v.max.y * M,6:F1}" +
+                              $"  z {v.min.z * M,8:F1}~{v.max.z * M,7:F1} m");
+            }
+            if (all == null) { Debug.LogWarning(sb.ToString() + "  보이는 렌더러가 하나도 없습니다."); return; }
+            var A = all.Value;
+            sb.AppendLine($"  {"── 합계",-14} {A.size.x * M,25:F1} × {A.size.y * M,13:F1} × {A.size.z * M,17:F1} m");
+
+            Selection.activeGameObject = quay;
+            var sv = SceneView.lastActiveSceneView;
+            if (sv != null) { sv.orthographic = false; sv.Frame(A, false); sv.Repaint(); }
+            Debug.Log(sb.ToString());
         }
 
         // ── 공용 ──

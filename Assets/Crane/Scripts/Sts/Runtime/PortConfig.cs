@@ -45,15 +45,25 @@ namespace Container.Crane.Sts
         public static float WaterDepthMeters =>
             Mathf.Ceil(ShipConfig.DraftMeters * DepthAllowanceRatio);
 
-        /// <summary>선회장 직경 — 실척 m. 자력 선회 기준 2 × 설계선 LOA (항만설계기준). 294×2 = 588m.
-        /// 바다 범위의 앵커로 쓴다 — 배가 돌 수 있는 수역이 최소한 보여야 한다.</summary>
-        public static float TurningBasinMeters => 2f * ShipConfig.LoaMeters;
+        /// <summary>바다 여유 배수 — 바다 폭 = 설계선 선폭 × 이 값. 오너 선택 2026-09-07.
+        /// 접안한 배 바깥으로 선폭 2척분의 물이 더 보이는 정도.</summary>
+        public const float SeaMarginRatio = 3f;
 
-        /// <summary>바다 폭(안벽 전면 → 바다쪽) — 실척 m. 선회장 직경만큼. 588m.</summary>
-        public static float SeaWidthMeters => TurningBasinMeters;
+        /// <summary>바다 폭(안벽 전면 → 바다쪽) — 실척 m. Ceil(39.53 × 3 / 10) × 10 = 120m.</summary>
+        public static float SeaWidthMeters =>
+            Mathf.Ceil(ShipConfig.BeamMeters * SeaMarginRatio / 10f) * 10f;
 
-        /// <summary>바다 길이(안벽 방향) — 실척 m. 선석 + 양끝 선회장. 340 + 588×2 = 1,516m.</summary>
-        public static float SeaLengthMeters => BerthLengthMeters + 2f * TurningBasinMeters;
+        /// <summary>바다 길이(안벽 방향) — 실척 m. 선석 + 양끝 바다폭. 340 + 120×2 = 580m.</summary>
+        public static float SeaLengthMeters => BerthLengthMeters + 2f * SeaWidthMeters;
+
+        // ── 비활성 2026-09-07 (오너 선택 B: 바다 축소) ────────────────────────────
+        //   선회장 직경을 바다 앵커로 쓰면 588 × 1,516m 가 나와 부두(30 × 340m)가
+        //   전체 폭의 4.9% 짜리 실선이 된다. 실척으로는 맞지만 확인이 안 된다.
+        //   선회장 자체가 필요해지면(선회 시뮬레이션 등) 주석을 푼다.
+        //
+        // /// <summary>선회장 직경 — 자력 선회 기준 2 × LOA (항만설계기준). 294×2 = 588m.</summary>
+        // public static float TurningBasinMeters => 2f * ShipConfig.LoaMeters;
+        // ──────────────────────────────────────────────────────────────────────
 
         /// <summary>바다가 안벽 안쪽으로 파고드는 깊이 — 실척 m. 수면 끝면과 안벽 전면이 x=0 에서
         /// 정확히 겹치면 Z-fighting 이 난다. 케이슨이 불투명하니 겹친 부분은 안 보인다.</summary>
