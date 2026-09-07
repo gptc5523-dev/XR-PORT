@@ -275,31 +275,10 @@ namespace Container.Crane.Sts.EditorTools
                           new Vector3(PortConfig.YardBlockCenterX(i) * StsConfig.ModelScale, 0f,
                                       PortConfig.YardBlockCenterZ(j) * StsConfig.ModelScale), bScale);
 
-            // ③ 트럭 주행레인 — RTG 스팬 안 해측 6.57m. 차선 FBX(0.34m 스트라이프)를 양 가장자리에.
-            //    이름을 "Lane" 으로 두면 GantryRangeFit 이 STS 갠트리 한계로 오인하므로 "TruckLane".
-            var tRoot   = NewRoot("Yard_TruckLane");
-            var laneFbx = Load(LaneFbx, "트럭 차선");
-            int tn = 0;
-            if (laneFbx != null)
-            {
-                float lPitch = LanePitchM * StsConfig.ModelScale;
-                int   lUnits = Mathf.FloorToInt(BerthLenM / LanePitchM);
-                float lRun   = lPitch * lUnits;
-                float lScale = FbxScaleByHeight(laneFbx, LaneThickM);
-                // 스트라이프는 해측 1줄만. 육측 경계는 블록 외곽선이 이미 표시하고 있어
-                //   거기에 또 그으면 150mm 가 겹쳐 같은 높이에서 Z-fighting 이 난다.
-                // 다리 안쪽면 바로 안쪽에 긋는다 — 가장자리에 걸치면 다리가 도색을 덮는다.
-                for (int i = PortConfig.YardLaneStart; i < PortConfig.YardLanes; i++)
-                {
-                    float edgeX = PortConfig.YardTruckLaneCenterX(i)
-                          + PortConfig.YardTruckLaneWidthM * 0.5f
-                          - PortConfig.LaneWidthM * 0.5f;
-                    for (int k = 0; k < lUnits; k++, tn++)
-                        Place(laneFbx, tRoot, "TruckLane",
-                              new Vector3(edgeX * StsConfig.ModelScale,
-                                          0f, -lRun * 0.5f + lPitch * (k + 0.5f)), lScale);
-                }
-            }
+            // 트럭 주행레인 도색은 제거했다 — 오너 선택 2026-09-07 (RTG 를 블록 중앙으로).
+            //   전에 깔았던 그룹이 씬에 남아 있으면 지운다.
+            var stale = GameObject.Find("Yard_TruckLane");
+            if (stale != null) Undo.DestroyObjectImmediate(stale);
 
             Selection.activeGameObject = bRoot.gameObject;
             SceneView.lastActiveSceneView?.FrameSelected();
@@ -308,7 +287,7 @@ namespace Container.Crane.Sts.EditorTools
                       $"각 {PortConfig.YardBlockWidthM:F2}m({PortConfig.YardRows}열) × " +
                       $"{PortConfig.YardBlockLengthM:F1}m({PortConfig.YardBays}베이) · " +
                       $"장치능력 {PortConfig.YardCapacityTeu:N0} TEU({PortConfig.YardTiers}단) · " +
-                      $"트럭레인 {PortConfig.YardTruckLaneWidthM:F2}m × {PortConfig.YardActiveLanes}(스팬 해측, 표시 {tn}유닛) · " +
+                      $"블록↔다리 여유 {PortConfig.YardBlockLegClearanceM:F2}m(편측) · " +
                       $"야드 x −{PortConfig.ApronWidthMeters:F0}~−{PortConfig.ApronWidthMeters + depth:F1}m");
         }
 

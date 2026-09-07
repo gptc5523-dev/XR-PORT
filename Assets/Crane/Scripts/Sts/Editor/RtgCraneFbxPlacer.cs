@@ -129,12 +129,9 @@ namespace Container.Crane.Sts.EditorTools
             // 배치 = 야드 블록(YardBlock_Zone) 중심에 접지. 블록이 없으면 종전대로 지면 중앙.
             //   ★ FBX RTG의 주행축은 로컬 Z(= RtgBogieSteering.Mode.Travel 의 정의)이고, 야드 블록도
             //     장축이 Z(안벽 평행)라 회전 없이 그대로 정합한다. 별도 yaw를 주면 오히려 어긋난다.
-            //   ★ 블록 존 중심이 아니라 'RTG 스팬 중심'에 세운다. 블록은 스팬 안에서 육지쪽으로
-            //     붙어 있고(해측 6.57m 는 트럭 주행레인), 존 중심에 세우면 다리가 트럭레인 쪽으로
-            //     3.29m 치우쳐 블록을 제대로 안 걸친다.
-            float rtgOffX = PortConfig.YardRtgOffsetFromBlockM * StsConfig.ModelScale;
+            //   블록 존 중심 = RTG 스팬 중심(오너 선택 2026-09-07 — 대칭 배치). 오프셋 없음.
             go.transform.position = zone != null
-                ? new Vector3(zone.bounds.center.x + rtgOffX, GroundPosition().y, zone.bounds.center.z)
+                ? new Vector3(zone.bounds.center.x, GroundPosition().y, zone.bounds.center.z)
                 : GroundPosition();   // Quay_Ground 지면 윗면에 접지
 
             // ── 후속 배선 자동 실행 (수동 메뉴 없음 — 생성 한 번으로 구동 가능 상태까지) ──
@@ -176,7 +173,7 @@ namespace Container.Crane.Sts.EditorTools
             Selection.activeGameObject = go;   // 신축 배선이 스프레더로 옮긴 선택을 크레인으로 복귀
             SceneView.lastActiveSceneView?.FrameSelected();
             Debug.Log($"[RTG] '{go.name}' 생성 완료 — 크기 결정적 정합(실척×1/24) · URP 머티리얼 {Mats.Length}종 · 로프·무버·신축 배선 자동 완료.\n" +
-                      $"  배치: {(zone != null ? $"스팬 중심 ({go.transform.position.x:F3}, {go.transform.position.z:F3})u = 실척 ({go.transform.position.x * StsConfig.InvModelScale:F1}, {go.transform.position.z * StsConfig.InvModelScale:F1})m · 블록 중심에서 해측 +{PortConfig.YardRtgOffsetFromBlockM:F2}m" : "지면 중앙(블록 없음)")} · {gantryMsg}\n" +
+                      $"  배치: {(zone != null ? $"블록·스팬 중심 ({go.transform.position.x:F3}, {go.transform.position.z:F3})u = 실척 ({go.transform.position.x * StsConfig.InvModelScale:F1}, {go.transform.position.z * StsConfig.InvModelScale:F1})m" : "지면 중앙(블록 없음)")} · {gantryMsg}\n" +
                       $"  ※ 신축·트위스트락·스티어링 확인은 RtgSpreaderTelescopeSetup / RtgCraneFbxMoverWiring 의 public 메서드를 직접 호출하십시오(메뉴는 생성 하나만 둔다).");
         }
 
