@@ -467,6 +467,47 @@ namespace Container.Crane.Sts.EditorTools
             Debug.Log(sb.ToString());
         }
 
+        /// <summary>씬의 모든 머티리얼에 GPU 인스턴싱을 켠다 — 같은 메시+머티리얼 조합이
+        /// 한 드로우콜로 묶인다. 연석 85·차선 112·레일 56·컨테이너 부재 60벌이 전부 해당.
+        /// 형상·색이 바뀌지 않는 무손실 최적화라 되돌릴 이유가 없다.
+        ///
+        /// 서버 배포 구성상(빌드_인프라.md: Windows 빌드 → 5070 Ti Proton 렌더 → WiVRn → Quest)
+        /// 5명 = 5 인스턴스가 각자 씬을 렌더하므로 드로우콜이 5배로 곱해진다. CPU 병목은 여기다.</summary>
+        [MenuItem("Model/FBX/항구/GPU 인스턴싱 켜기 (전체)", false, 21)]
+        static void EnableInstancingAll()
+        {
+            var mats = new HashSet<Material>();
+            foreach (var r in Object.FindObjectsByType<MeshRenderer>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+                foreach (var m in r.sharedMaterials)
+                    if (m != null) mats.Add(m);
+
+            int on = 0;
+            foreach (var m in mats)
+            {
+                if (m.enableInstancing) continue;
+                m.enableInstancing = true;
+                EditorUtility.SetDirty(m);
+                on++;
+            }
+            AssetDatabase.SaveAssets();
+
+            // 드로우콜 근사 = (메시, 머티리얼) 고유 조합 수. 인스턴싱이 이 단위로 묶는다.
+            var combos = new HashSet<(Mesh, Material)>();
+            int renderers = 0;
+            foreach (var r in Object.FindObjectsByType<MeshRenderer>(FindObjectsInactive.Exclude, FindObjectsSortMode.None))
+            {
+                var mf = r.GetComponent<MeshFilter>();
+                if (mf == null || mf.sharedMesh == null) continue;
+                renderers++;
+                foreach (var m in r.sharedMaterials)
+                    if (m != null) combos.Add((mf.sharedMesh, m));
+            }
+            Debug.Log($"[항구] GPU 인스턴싱 — 머티리얼 {mats.Count}종 중 {on}종 신규 활성.\n" +
+                      $"  렌더러 {renderers:N0} → 인스턴싱 후 드로우콜 근사 {combos.Count:N0}" +
+                      $" (감소 {(1f - (float)combos.Count / Mathf.Max(1, renderers)):P1})\n" +
+                      $"  서버 5인스턴스 환산 {renderers * 5:N0} → {combos.Count * 5:N0}");
+        }
+
         // ── 공용 ──
 
         /// <summary>안벽 길이가 아직 안 정해졌으면 배치를 막는다. 옛 값을 되살려 조용히 쓰는 것보다,
@@ -528,6 +569,7 @@ namespace Container.Crane.Sts.EditorTools
             mat.SetColor("_BaseColor", new Color(d.r, d.g, d.b, 1f));
             mat.SetFloat("_Metallic", d.metal);
             mat.SetFloat("_Smoothness", d.smooth);
+            mat.enableInstancing = true;   // 같은 메시+머티리얼 반복이라 인스턴싱이 그대로 먹는다
             AssetDatabase.CreateAsset(mat, path);
             return mat;
         }
