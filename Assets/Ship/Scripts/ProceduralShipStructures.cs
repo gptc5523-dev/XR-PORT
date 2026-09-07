@@ -143,10 +143,13 @@ namespace Container.Ship
                 float halfW = rows * Wc * 0.5f;
                 float baseY = ProceduralShipHull.DeckY(zc) + coamH + coverH;   // 커버 윗면=적재 기준
 
-                // 스택 높이 = 길이방향 램프: 선미(뒷부분) 3단 → 선수(앞부분) 1단 계단 하강(랜덤 아님).
+                // 스택 높이 = 길이방향 램프: 선미(뒷부분) 최대단 → 선수(앞부분) 1단 계단 하강(랜덤 아님).
                 //   i=0=선미(CargoAftZ), i 증가 → 선수(CargoFwdZ). 폭 방향은 균일.
+                //   최대단은 ShipConfig.DeckMaxTiers — 종전엔 3 고정이었다(오너 지시 2026-09-07 로 2).
                 float v = (bays > 1) ? (float)i / (bays - 1) : 0f;     // 0(선미)~1(선수)
-                int tiers = v < 0.34f ? 3 : (v < 0.67f ? 2 : 1);      // 선미 3단 → 중앙 2단 → 선수 1단
+                int maxT  = Mathf.Max(1, ShipConfig.DeckMaxTiers);
+                //   램프를 최대단 수에 맞춰 균등 분할 — 3단이면 3구간, 2단이면 2구간.
+                int tiers = maxT - Mathf.Min(maxT - 1, Mathf.FloorToInt(v * maxT));
 
                 for (int r = 0; r < rows; r++)
                 {

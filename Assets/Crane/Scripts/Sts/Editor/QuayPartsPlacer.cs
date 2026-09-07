@@ -56,19 +56,23 @@ namespace Container.Crane.Sts.EditorTools
 
         // 이름은 Blender 빌드 스크립트가 만든 머티리얼 이름과 정확히 일치해야 리맵이 걸린다.
         //   smooth = 1 − roughness.
-        static readonly (string n, float r, float g, float b, float metal, float smooth)[] Mats =
+        static readonly (string n, float r, float g, float b, float metal, float smooth, string normal)[] Mats =
         {
-            ("Quay_Caisson",      0.56f, 0.55f, 0.52f, 0.00f, 0.10f),   // 해수 얼룩 콘크리트
-            ("Quay_DeckAsphalt",  0.16f, 0.16f, 0.17f, 0.00f, 0.06f),   // 에이프런 아스팔트(매트)
-            ("Curb_Concrete",     0.70f, 0.69f, 0.66f, 0.00f, 0.15f),   // 프리캐스트 연석(밝게 — 가장자리 인지)
-            ("Bollard_CastSteel", 0.13f, 0.14f, 0.15f, 0.60f, 0.35f),   // 계선주 주강(차콜)
-            ("Rail_Steel",        0.34f, 0.34f, 0.36f, 1.00f, 0.55f),   // 압연강 레일
-            ("Sea_Water",         0.045f,0.115f,0.145f,0.00f, 0.92f),   // 항내 해수 — 잔잔해 반사 높게
-            ("Sea_Bed",           0.05f, 0.07f, 0.08f, 0.00f, 0.05f),   // 해저·측면(거의 안 보임)
-            ("Yard_Asphalt",      0.19f, 0.19f, 0.20f, 0.00f, 0.08f),   // 야드 포장 — 에이프런보다 살짝 밝게 구분
-            ("Yard_Fill",         0.48f, 0.46f, 0.43f, 0.00f, 0.08f),   // 야드 성토 측면
-            ("Yard_Paint",        0.85f, 0.68f, 0.08f, 0.00f, 0.30f),   // 블록 도색(황색)
-            ("Lane_Paint",        0.88f, 0.74f, 0.10f, 0.00f, 0.25f),   // 안전 차선(안전 노랑 — 블록보다 밝게)
+            ("Quay_Caisson",      0.56f, 0.55f, 0.52f, 0.00f, 0.10f, null),   // 해수 얼룩 콘크리트
+            ("Quay_DeckAsphalt",  0.16f, 0.16f, 0.17f, 0.00f, 0.06f, null),   // 에이프런 아스팔트(매트)
+            ("Curb_Concrete",     0.70f, 0.69f, 0.66f, 0.00f, 0.15f, null),   // 프리캐스트 연석(밝게 — 가장자리 인지)
+            ("Bollard_CastSteel", 0.13f, 0.14f, 0.15f, 0.60f, 0.35f, null),   // 계선주 주강(차콜)
+            ("Rail_Steel",        0.34f, 0.34f, 0.36f, 1.00f, 0.55f, null),   // 압연강 레일
+            ("Sea_Water",         0.045f,0.115f,0.145f,0.00f, 0.92f, null),   // 항내 해수 — 잔잔해 반사 높게
+            ("Sea_Bed",           0.05f, 0.07f, 0.08f, 0.00f, 0.05f, null),   // 해저·측면(거의 안 보임)
+            ("Yard_Asphalt",      0.19f, 0.19f, 0.20f, 0.00f, 0.08f, null),   // 야드 포장 — 에이프런보다 살짝 밝게 구분
+            ("Yard_Fill",         0.48f, 0.46f, 0.43f, 0.00f, 0.08f, null),   // 야드 성토 측면
+            ("Yard_Paint",        0.85f, 0.68f, 0.08f, 0.00f, 0.30f, null),   // 블록 도색(황색)
+            ("Lane_Paint",        0.88f, 0.74f, 0.10f, 0.00f, 0.25f, null),   // 안전 차선(안전 노랑 — 블록보다 밝게)
+            // 저폴리 컨테이너 — 주름은 지오메트리 대신 기존 노멀맵으로. 규격마다 리브 간격이 달라 분리.
+            ("ContLow_Body_40ft", 0.62f, 0.28f, 0.20f, 0.30f, 0.35f, "Assets/Container/Textures/Container_40ft_Corrugation_Normal.png"),
+            ("ContLow_Body_20ft", 0.28f, 0.42f, 0.55f, 0.30f, 0.35f, "Assets/Container/Textures/Container_20ft_Corrugation_Normal.png"),
+            ("ContLow_Casting",   0.16f, 0.16f, 0.17f, 0.70f, 0.50f, null),   // 코너 캐스팅
         };
 
         /// <summary>FBX 별로 리맵할 머티리얼 — 그 FBX 에 없는 이름을 리맵하면 .meta 만 지저분해진다.</summary>
@@ -82,6 +86,8 @@ namespace Container.Crane.Sts.EditorTools
             ["Assets/Crane/Models/Yard_Pavement.fbx"] = new[] { "Yard_Fill", "Yard_Asphalt" },
             ["Assets/Crane/Models/Yard_Block.fbx"]    = new[] { "Yard_Paint" },
             ["Assets/Crane/Models/Quay_Lane.fbx"]     = new[] { "Lane_Paint" },
+            ["Assets/Container/Models/Container_40ft_Low.fbx"] = new[] { "ContLow_Body_40ft", "ContLow_Casting" },
+            ["Assets/Container/Models/Container_20ft_Low.fbx"] = new[] { "ContLow_Body_20ft", "ContLow_Casting" },
         };
 
         const float YardMarkThickM = 0.015f;
@@ -95,8 +101,10 @@ namespace Container.Crane.Sts.EditorTools
         //       회전이 필요 없다(90° 돌리면 옆으로 눕는다).
         //     · 피봇은 '바닥'이 아니라 '중앙 높이'다(배치 y=0 일 때 바닥 −1.2955 = 높이/2).
         //       그래서 t 단은 y = 단높이 × (t + 0.5).
-        const string YardContainerFbx   = "Assets/Container/Models/Container_40ft.fbx";
-        const string YardContainer20Fbx = "Assets/Container/Models/Container_20ft.fbx";
+        //   ★ 정밀본(Container_40ft.fbx, 110,302 삼각형)이 아니라 저폴리(108 삼각형)를 쓴다.
+        //     야드·갑판 배경 화물은 대수가 많아 예산의 지배항이다. 정밀본은 근접용으로 남는다.
+        const string YardContainerFbx   = "Assets/Container/Models/Container_40ft_Low.fbx";
+        const string YardContainer20Fbx = "Assets/Container/Models/Container_20ft_Low.fbx";
         /// <summary>ISO 1CC 20ft 길이 — 실척 m. 실측 대조용.</summary>
         const float  Container20LenM    = 6.058f;
         /// <summary>스택 중 20ft 쌍으로 채우는 비율 0~1. 오너 지시 2026-09-07
@@ -104,6 +112,8 @@ namespace Container.Crane.Sts.EditorTools
         const float  Yard20ftRatio      = 0.35f;
         /// <summary>한 베이 안 20ft 두 개 사이 틈 — 실척 m.</summary>
         const float  Yard20ftGapM       = 0.30f;
+        /// <summary>ISO 컨테이너 높이(표준) — 실척 m. 저폴리 FBX 실측 스케일 기준값.</summary>
+        const float  ContainerHeightM   = 2.591f;
         /// <summary>블록 채움률 0~1. 셀(열×베이)마다 이 확률로 스택을 세운다.
         /// 오너 지시 2026-09-07 "컨테이너가 너무 많아 줄이자" → 0.5 → 0.3,
         /// 재차 "40ft 조금 더 지워 그리고 20ft도 조금 더 줄이자" → 0.3 → 0.2.
@@ -249,8 +259,10 @@ namespace Container.Crane.Sts.EditorTools
             //   실측 치수가 엉뚱하게 나온다(2026-09-07: 0.59×2.93×0.62m 로 측정됐다).
             if (ContainerFinal4Builder.EnsureMaterials())
                 AssetDatabase.ImportAsset(YardContainerFbx, ImportAssetOptions.ForceUpdate);
-            var fbx   = AssetDatabase.LoadAssetAtPath<GameObject>(YardContainerFbx);
-            var fbx20 = AssetDatabase.LoadAssetAtPath<GameObject>(YardContainer20Fbx);
+            // ★ Load() 를 거치지 않으면 EnsureMaterials 가 안 돌아 FBX 내장 머티리얼이 그대로 나온다
+            //   (2026-09-07 실측: ContLow_Body_40ft 가 "FBX내장" 으로 잡혔다).
+            var fbx   = Load(YardContainerFbx,   "40ft 저폴리");
+            var fbx20 = Load(YardContainer20Fbx, "20ft 저폴리");
             if (fbx == null || fbx20 == null)
             {
                 EditorUtility.DisplayDialog("야드 적재",
@@ -262,12 +274,18 @@ namespace Container.Crane.Sts.EditorTools
             //   ★ localScale 을 건드리지 말 것. 컨테이너 프리팹 루트는 자체 스케일 4.1667(=100/24)
             //     을 갖는다(cm 임포트 → 1/24 보정). 항구 부재처럼 1 로 리셋하면 0.24배로 재게 된다
             //     (2026-09-07 실측: 2.926L × 0.585W 로 나왔다).
+            // 저폴리는 실척 m 로 내보냈으므로 항구 부재와 같이 실측 스케일을 준다.
+            float scale40 = FbxScaleByHeight(fbx,   ContainerHeightM);
+            float scale20 = FbxScaleByHeight(fbx20, ContainerHeightM);
+
             var probe = (GameObject)PrefabUtility.InstantiatePrefab(fbx);
+            probe.transform.localScale = Vector3.one * scale40;
             var pb = RtgCraneFbxPlacer.CombinedBounds(probe);
             float tierH = pb.size.y, cWid = pb.size.x, cLen = pb.size.z;   // 길이 = Z
             Object.DestroyImmediate(probe);
 
             var probe20 = (GameObject)PrefabUtility.InstantiatePrefab(fbx20);
+            probe20.transform.localScale = Vector3.one * scale20;
             var pb20 = RtgCraneFbxPlacer.CombinedBounds(probe20);
             float cLen20 = pb20.size.z, tierH20 = pb20.size.y;
             Object.DestroyImmediate(probe20);
@@ -333,6 +351,7 @@ namespace Container.Crane.Sts.EditorTools
                                     var go = (GameObject)PrefabUtility.InstantiatePrefab(src);
                                     go.name = $"Cont{(use20 ? "20" : "40")}_{i}{j}_{r:00}{b:00}_{t}";
                                     go.transform.SetParent(root, worldPositionStays: false);
+                                    go.transform.localScale = Vector3.one * (use20 ? scale20 : scale40);
                                     // 피봇이 중앙 높이라 +0.5 단. 회전 없음 — 길이가 이미 Z 다.
                                     go.transform.localPosition = new Vector3(x, h * (t + 0.5f), cz);
                                 }
@@ -578,7 +597,7 @@ namespace Container.Crane.Sts.EditorTools
 
         /// <summary>FBX 의 Blender 머티리얼을 URP/Lit 에셋으로 리맵한다(idempotent).
         /// 이미 전부 걸려 있으면 아무것도 안 하고 false 를 돌려 불필요한 리임포트를 피한다.</summary>
-        static bool EnsureMaterials(string fbxPath)
+        internal static bool EnsureMaterials(string fbxPath)
         {
             if (!FbxMats.TryGetValue(fbxPath, out var names)) return false;
             if (AssetImporter.GetAtPath(fbxPath) is not ModelImporter mi) return false;
@@ -609,6 +628,24 @@ namespace Container.Crane.Sts.EditorTools
             mat.SetColor("_BaseColor", new Color(d.r, d.g, d.b, 1f));
             mat.SetFloat("_Metallic", d.metal);
             mat.SetFloat("_Smoothness", d.smooth);
+            if (!string.IsNullOrEmpty(d.normal))
+            {
+                var nrm = AssetDatabase.LoadAssetAtPath<Texture2D>(d.normal);
+                if (nrm != null)
+                {
+                    // 노멀맵으로 임포트돼 있어야 정상 반영된다(멱등).
+                    if (AssetImporter.GetAtPath(d.normal) is TextureImporter ti &&
+                        ti.textureType != TextureImporterType.NormalMap)
+                    {
+                        ti.textureType = TextureImporterType.NormalMap;
+                        ti.SaveAndReimport();
+                        nrm = AssetDatabase.LoadAssetAtPath<Texture2D>(d.normal);
+                    }
+                    mat.SetTexture("_BumpMap", nrm);
+                    mat.EnableKeyword("_NORMALMAP");
+                }
+                else Debug.LogWarning($"[항구] 노멀맵 없음: {d.normal}");
+            }
             mat.enableInstancing = true;   // 같은 메시+머티리얼 반복이라 인스턴싱이 그대로 먹는다
             AssetDatabase.CreateAsset(mat, path);
             return mat;

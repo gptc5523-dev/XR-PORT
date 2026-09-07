@@ -57,6 +57,10 @@ namespace Container.Ship
         public const float BeamMeters =
             DeckRows * ContainerWidthM + (DeckRows - 1) * RowGapM + 2f * SideDeckM;   // = 39.53
 
+        /// <summary>갑판 적재 최대 단수. 오너 지시 2026-09-07 "배에 컨테이너 최대 2단으로".
+        /// 선미→선수 계단 램프의 가장 높은 단이다(선미 이 값 → 선수 1단).</summary>
+        public const int DeckMaxTiers = 2;
+
         /// <summary>형심 Depth(킬 바닥→주갑판) — 실척 m.</summary>
         public const float DepthMeters = 24f;
 
