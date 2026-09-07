@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using Container.Ship;
+using ContainerProject;
+using ContainerProject.EditorTools;
 using UnityEditor;
 using UnityEngine;
 
@@ -83,6 +85,22 @@ namespace Container.Crane.Sts.EditorTools
         };
 
         const float YardMarkThickM = 0.015f;
+        // ═══ 야드 적재 ═══
+        //   컨테이너 FBX 는 항구 부재와 규약이 다르다. ★ ContainerFinal4Builder 의 클래스 주석은
+        //   축·피봇 설명이 실제와 다르다 — 그 파일 자신의 배치 로그가 정답이다(2026-09-07 실측):
+        //     · 프리팹 루트가 자체 스케일(4.1667 = 100/24)을 갖는다 → localScale 을 건드리지 않는다.
+        //       FbxScaleByHeight 도 쓰지 않는다(항구 부재와 반대).
+        //     · 실측 X 2.438(폭) · Y 2.591(높이) · Z 12.190(길이).
+        //       주석은 "길이 → X" 라고 하지만 실제로는 길이가 Z 다. 야드 블록도 길이가 Z 라
+        //       회전이 필요 없다(90° 돌리면 옆으로 눕는다).
+        //     · 피봇은 '바닥'이 아니라 '중앙 높이'다(배치 y=0 일 때 바닥 −1.2955 = 높이/2).
+        //       그래서 t 단은 y = 단높이 × (t + 0.5).
+        const string YardContainerFbx = "Assets/Container/Models/Container_40ft.fbx";
+        /// <summary>블록 채움률 0~1. 셀(열×베이)마다 이 확률로 스택을 세운다.</summary>
+        const float  YardFillRatio    = 0.5f;
+        /// <summary>배치 시드 — 같은 값이면 같은 무늬. 0 이면 매번 다르다.</summary>
+        const int    YardFillSeed     = 20260907;
+
         const float LaneThickM     = 0.015f;  // 차선 도색 두께 = FBX 규격
         const float LanePitchM     = 12.0f;   // 차선 유닛 길이 = 레일 피치. 총길이가 레일과 정확히
                                               //   같아야 갠트리 한계(Lane 기준)가 레일 밖으로 안 나간다  // 블록 도색 두께 = FBX 규격. 실측 스케일 기준값
@@ -200,6 +218,86 @@ namespace Container.Crane.Sts.EditorTools
             Done(root, $"레일 2줄 × {units}유닛 · 게이지 {StsConfig.LegGaugeXMeters:F0}m · " +
                        $"해측 −{PortConfig.ApronSeawardM:F0}m/육측 −{PortConfig.ApronSeawardM + StsConfig.LegGaugeXMeters:F0}m · " +
                        $"피치 {RailPitchM:F0}m · 총 {run * StsConfig.InvModelScale:F1}m · scale {scale:F4}");
+        }
+
+        /// <summary>야드 블록에 컨테이너를 쌓는다 — 40ft 기준, 채움률·시드로 무늬 결정.
+        ///
+        /// 좌표는 전부 PortConfig 유도값에서 나온다. 열 피치·베이 피치·단수·블록 중심이
+        /// 이미 SSOT 라 여기서 다시 계산하지 않는다 — 블록이 움직이면 컨테이너도 따라온다.
+        /// 컨테이너가 블록 안에 정확히 들어가는지가 곧 블록 좌표의 검산이다.</summary>
+        [MenuItem("Model/FBX/항구/컨테이너 적재 (야드)", false, 7)]
+        static void StackYardContainers()
+        {
+            if (!BerthReady("야드 적재")) return;
+            // 머티리얼을 새로 만들었으면 반드시 리임포트 후 로드 — 안 하면 stale 에셋을 잡아
+            //   실측 치수가 엉뚱하게 나온다(2026-09-07: 0.59×2.93×0.62m 로 측정됐다).
+            if (ContainerFinal4Builder.EnsureMaterials())
+                AssetDatabase.ImportAsset(YardContainerFbx, ImportAssetOptions.ForceUpdate);
+            var fbx = AssetDatabase.LoadAssetAtPath<GameObject>(YardContainerFbx);
+            if (fbx == null)
+            {
+                EditorUtility.DisplayDialog("야드 적재",
+                    $"컨테이너 FBX 를 찾을 수 없습니다:\n{YardContainerFbx}", "확인");
+                return;
+            }
+
+            // 단 높이 = FBX 실측. 규격을 박아두면 40ftHC 로 바꿀 때 조용히 어긋난다.
+            //   ★ localScale 을 건드리지 말 것. 컨테이너 프리팹 루트는 자체 스케일 4.1667(=100/24)
+            //     을 갖는다(cm 임포트 → 1/24 보정). 항구 부재처럼 1 로 리셋하면 0.24배로 재게 된다
+            //     (2026-09-07 실측: 2.926L × 0.585W 로 나왔다).
+            var probe = (GameObject)PrefabUtility.InstantiatePrefab(fbx);
+            var pb = RtgCraneFbxPlacer.CombinedBounds(probe);
+            float tierH = pb.size.y, cWid = pb.size.x, cLen = pb.size.z;   // 길이 = Z
+            Object.DestroyImmediate(probe);
+
+            float inv0 = StsConfig.InvModelScale;
+            if (Mathf.Abs(cLen * inv0 - PortConfig.ContainerLenM) > 0.05f ||
+                Mathf.Abs(cWid * inv0 - ProceduralContainerMesh.StdWidth) > 0.05f)
+            {
+                Debug.LogError($"[항구] 컨테이너 FBX 실측이 규격과 다릅니다 — " +
+                               $"측정 {cLen * inv0:F3}L × {cWid * inv0:F3}W m vs 규격 " +
+                               $"{PortConfig.ContainerLenM:F3} × {ProceduralContainerMesh.StdWidth:F3}. 적재를 중단합니다.");
+                return;
+            }
+
+            float rowPitch = PortConfig.RowPitchM * StsConfig.ModelScale;
+            float bayPitch = PortConfig.BayPitchM * StsConfig.ModelScale;
+            float halfW    = PortConfig.YardBlockWidthM  * 0.5f * StsConfig.ModelScale;
+            float halfL    = PortConfig.YardBlockLengthM * 0.5f * StsConfig.ModelScale;
+
+            var root = NewRoot("Yard_Containers");
+            var rng  = YardFillSeed == 0 ? new System.Random() : new System.Random(YardFillSeed);
+            int placed = 0, stacks = 0, cells = 0;
+
+            for (int i = PortConfig.YardLaneStart; i < PortConfig.YardLanes; i++)
+                for (int j = 0; j < PortConfig.YardBlocksPerLane; j++)
+                {
+                    float bx = PortConfig.YardBlockCenterX(i) * StsConfig.ModelScale;
+                    float bz = PortConfig.YardBlockCenterZ(j) * StsConfig.ModelScale;
+                    for (int r = 0; r < PortConfig.YardRows; r++)
+                        for (int b = 0; b < PortConfig.YardBays; b++)
+                        {
+                            cells++;
+                            if (rng.NextDouble() > YardFillRatio) continue;
+                            int tiers = rng.Next(1, PortConfig.YardTiers + 1);   // 1~4단
+                            stacks++;
+                            float x = bx - halfW + rowPitch * (r + 0.5f);
+                            float z = bz - halfL + bayPitch * (b + 0.5f);
+                            for (int t = 0; t < tiers; t++, placed++)
+                            {
+                                var go = (GameObject)PrefabUtility.InstantiatePrefab(fbx);
+                                go.name = $"Cont_{i}{j}_{r:00}{b:00}_{t}";
+                                go.transform.SetParent(root, worldPositionStays: false);
+                                // 피봇이 중앙 높이라 +0.5 단. 회전 없음 — 길이가 이미 Z 다.
+                                go.transform.localPosition = new Vector3(x, tierH * (t + 0.5f), z);
+                            }
+                        }
+                }
+
+            float inv = StsConfig.InvModelScale;
+            Done(root, $"컨테이너 {placed}개 · 스택 {stacks}/{cells}셀(채움 {YardFillRatio:P0}) · " +
+                       $"40ft 실측 {cLen * inv:F2}L × {cWid * inv:F2}W × {tierH * inv:F2}H m · " +
+                       $"최대 {PortConfig.YardTiers}단 · 시드 {YardFillSeed}");
         }
 
         /// <summary>에이프런 안전 차선 — 레일 양옆 ±LaneOffsetM 에 4줄.
