@@ -20,6 +20,7 @@ namespace Container.Crane.Sts.EditorTools
         const string CurbFbx    = "Assets/Crane/Models/Quay_Curb.fbx";
         const string BollardFbx = "Assets/Crane/Models/Quay_Bollard.fbx";
         const string RailFbx    = "Assets/Crane/Models/Quay_Rail.fbx";
+        const string CaissonFbx = "Assets/Crane/Models/Quay_Caisson.fbx";
 
         // 부재 실척 높이 — 블렌더 빌드 스크립트와 쌍으로 유지한다(문서/스크립트/부두연석_유닛_빌드.py).
         const float CurbHeightM    = 0.528f;   // 단면 0.72W × 0.528H
@@ -28,20 +29,16 @@ namespace Container.Crane.Sts.EditorTools
                                                //   = StsConfig.RailSectionH(0.008u) × 24. SSOT 일치
 
         // ═══ 항구 치수 SSOT — 오너가 새로 계산해 넣는다 (지시 2026-09-07 "기존 항구 사이즈가 있다면 삭제") ═══
-        //   0 이면 배치를 거부한다. 여기 숫자만 채우면 연석·계선주가 한꺼번에 따라온다.
-        //   다른 곳에 안벽 길이를 박지 말 것.
-        const float BerthLenM = 0f;           // ← 안벽(선석) 길이, 실척 m. 미정.
-        //
-        // 종전 산식 — 비활성. 새 값이 정해지면 지우거나, 같은 방식이면 주석을 풀어 쓴다.
-        //   (using Container.Ship; 도 같이 되살려야 함)
-        // const float BerthClearanceM = 25f;                                     // 선수·선미 각 여유
-        // static float BerthLenM => ShipConfig.LoaMeters + BerthClearanceM * 2f; // 294 + 50 = 344m
+        //   PortConfig 가 설계선 LOA 에서 유도한다. 여기에 숫자를 박지 말 것.
+        static float BerthLenM => PortConfig.BerthLengthMeters;   // 294 × 1.15 → 340m
 
         // 부재 배치 간격 — 부재 자체 규격에서 나온 값이라 항구 사이즈와 무관하게 유지.
         const float CurbPitchM     = 4.0f;    // 프리캐스트 유닛 피치(유닛 3.985 + 줄눈 0.015) = FBX 규격
+        const float CurbWidthM     = 0.72f;   // 연석 단면 폭 = FBX 규격. 해측면을 안벽 가장자리에 맞추는 데 쓴다
         const float BollardGapM    = 20f;     // 계선주 간격 — 미정이면 오너 값으로 교체
         const float BollardInsetM  = 1.08f;   // 안벽 가장자리 → 육지쪽 계선주 중심 — 미정이면 교체
         const float RailPitchM     = 12.0f;   // 레일 정척 12m + 신축이음 10mm = FBX 규격
+        const float CaissonPitchM  = 20.0f;   // 케이슨 1함 20m + 줄눈 30mm = FBX 규격. 340/20 = 17함
 
         [MenuItem("Model/FBX/항구/연석 배치 (Quay_Curb)", false, 1)]
         static void PlaceCurb()
@@ -57,10 +54,13 @@ namespace Container.Crane.Sts.EditorTools
             float run   = pitch * units;
             float scale = FbxScaleByHeight(fbx, CurbHeightM);
 
+            // X0 = 안벽 가장자리. 중심을 X0 에 두면 폭의 절반이 바다로 튀어나오므로 반폭만큼 육지쪽(−X).
+            float x = -CurbWidthM * 0.5f * StsConfig.ModelScale;
+
             var root = NewRoot("Quay_Curb");
             for (int i = 0; i < units; i++)
                 Place(fbx, root, "Quay_CurbUnit",
-                      new Vector3(0f, 0f, -run * 0.5f + pitch * (i + 0.5f)), scale);
+                      new Vector3(x, 0f, -run * 0.5f + pitch * (i + 0.5f)), scale);
 
             Done(root, $"연석 {units}유닛 · 피치 {CurbPitchM:F1}m · 총 {run * StsConfig.InvModelScale:F1}m " +
                        $"(안벽 {BerthLenM:F0}m) · scale {scale:F4}");
@@ -86,8 +86,36 @@ namespace Container.Crane.Sts.EditorTools
                        $"(안벽 {BerthLenM:F0}m) · 안쪽 {BollardInsetM:F2}m · scale {scale:F4}");
         }
 
-        /// <summary>주행 레일 2줄 — 게이지는 StsConfig.LegGaugeXMeters(18m, Post-Panamax 표준) SSOT 추종.
-        /// 원점 대칭으로 깐다. 안벽 위치가 정해지면 루트를 통째로 옮기면 된다(에이프런 오프셋은 항구 치수).</summary>
+        /// <summary>안벽 케이슨 — 항구의 본체. 데크 윗면이 y=0(크레인 접지·컨테이너 착지면)에 오도록
+        /// 안벽고만큼 내려 놓는다. 바다 +X · 육지 −X · 안벽 가장자리 X0 규약이라 케이슨은 가장자리에서
+        /// 육지쪽으로 에이프런 폭만큼 뻗는다.</summary>
+        [MenuItem("Model/FBX/항구/안벽 배치 (Quay_Caisson)", false, 0)]
+        static void PlaceCaisson()
+        {
+            if (!BerthReady("안벽")) return;
+            var fbx = Load(CaissonFbx, "안벽"); if (fbx == null) return;
+
+            float pitch = CaissonPitchM * StsConfig.ModelScale;
+            int   units = Mathf.FloorToInt(BerthLenM / CaissonPitchM);   // 나눗셈은 실척 m 끼리
+            float run   = pitch * units;
+            float wallH = PortConfig.QuayWallHeightMeters;
+            float scale = FbxScaleByHeight(fbx, wallH);
+            float x     = -PortConfig.ApronWidthMeters * 0.5f * StsConfig.ModelScale;  // 가장자리 X0 → 육지쪽
+            float y     = -wallH * StsConfig.ModelScale;                               // 데크 윗면을 y=0 으로
+
+            var root = NewRoot("Quay_Caisson");
+            for (int i = 0; i < units; i++)
+                Place(fbx, root, "Quay_CaissonUnit",
+                      new Vector3(x, y, -run * 0.5f + pitch * (i + 0.5f)), scale);
+
+            Done(root, $"케이슨 {units}함 · 피치 {CaissonPitchM:F0}m · 총 {run * StsConfig.InvModelScale:F1}m · " +
+                       $"에이프런 {PortConfig.ApronWidthMeters:F0}m · 안벽고 {wallH:F0}m" +
+                       $"(코핑 {StsConfig.QuayDeckAboveSeaMeters:F0} + 수심 {PortConfig.WaterDepthMeters:F0}) · scale {scale:F4}");
+        }
+
+        /// <summary>주행 레일 2줄 — 게이지는 StsConfig.LegGaugeXMeters(18m, Post-Panamax 표준) SSOT,
+        /// 안벽 가장자리로부터의 거리는 PortConfig.ApronSeawardM SSOT 를 따른다.
+        /// 원점 대칭으로 깔면 바다 +X 규약 때문에 해측 레일이 물 위로 나간다.</summary>
         [MenuItem("Model/FBX/항구/레일 배치 (Quay_Rail)", false, 3)]
         static void PlaceRail()
         {
@@ -98,15 +126,19 @@ namespace Container.Crane.Sts.EditorTools
             int   units = Mathf.FloorToInt(BerthLenM / RailPitchM);   // 나눗셈은 실척 m 끼리
             float run   = pitch * units;
             float scale = FbxScaleByHeight(fbx, RailHeightM);
-            float halfGauge = StsConfig.LegGaugeXMeters * 0.5f * StsConfig.ModelScale;
+            // X0 = 안벽 가장자리, 바다 +X. 해측 레일은 가장자리에서 육지쪽으로 ApronSeawardM,
+            //   육측 레일은 거기서 게이지만큼 더 육지쪽. 둘 다 −X 다.
+            float water = -PortConfig.ApronSeawardM * StsConfig.ModelScale;
+            float land  = water - StsConfig.LegGaugeXMeters * StsConfig.ModelScale;
 
             var root = NewRoot(StsPartNames.QuayRail);
-            foreach (float x in new[] { -halfGauge, halfGauge })
+            foreach (float x in new[] { water, land })
                 for (int i = 0; i < units; i++)
                     Place(fbx, root, StsPartNames.QuayRail,
                           new Vector3(x, 0f, -run * 0.5f + pitch * (i + 0.5f)), scale);
 
             Done(root, $"레일 2줄 × {units}유닛 · 게이지 {StsConfig.LegGaugeXMeters:F0}m · " +
+                       $"해측 −{PortConfig.ApronSeawardM:F0}m/육측 −{PortConfig.ApronSeawardM + StsConfig.LegGaugeXMeters:F0}m · " +
                        $"피치 {RailPitchM:F0}m · 총 {run * StsConfig.InvModelScale:F1}m · scale {scale:F4}");
         }
 
