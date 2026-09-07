@@ -1,5 +1,6 @@
 using UnityEngine;
 using Container.Ship;
+using ContainerProject;
 
 namespace Container.Crane.Sts
 {
@@ -85,6 +86,76 @@ namespace Container.Crane.Sts
         /// <summary>바다가 안벽 안쪽으로 파고드는 깊이 — 실척 m. 수면 끝면과 안벽 전면이 x=0 에서
         /// 정확히 겹치면 Z-fighting 이 난다. 케이슨이 불투명하니 겹친 부분은 안 보인다.</summary>
         public const float SeaOverlapM = 1f;
+
+        // ═══════════ 야드 (오너 확정 2026-09-07: 2레인 × 2블록 = 4블록) ═══════════
+        // ① 컨테이너 앵커 — ISO 1AA 40ft. 폭은 ProceduralContainerMesh.StdWidth SSOT 추종.
+        /// <summary>40ft 컨테이너 길이 — 실척 m.</summary>
+        public const float ContainerLenM = 12.192f;
+        /// <summary>열 간 간격 — 실척 m. RTG 야드 표준.</summary>
+        public const float RowGapM = 0.4f;
+        /// <summary>베이 간 간격 — 실척 m.</summary>
+        public const float BayGapM = 0.6f;
+        /// <summary>열 피치 = 컨테이너 폭 + 열간격. 2.438 + 0.4 = 2.838m.</summary>
+        public static float RowPitchM => ProceduralContainerMesh.StdWidth + RowGapM;
+        /// <summary>베이 피치 = 컨테이너 길이 + 베이간격. 12.192 + 0.6 = 12.792m.</summary>
+        public static float BayPitchM => ContainerLenM + BayGapM;
+
+        // ② RTG 앵커 — RtgCraneCreator.SpanX 미러. RtgCraneCreator 는 Editor 라 Runtime 에서
+        //    참조할 수 없어 값을 복사한다. 바꿀 땐 양쪽을 같이 고칠 것.
+        /// <summary>RTG 다리 중심 간격 — 실척 m. 컨테이너 6열(17.03) + 트럭레인(6.57).</summary>
+        public const float RtgSpanM = 23.6f;
+
+        // ③ 블록 구성
+        /// <summary>블록 1개의 컨테이너 열수 — RTG 스팬 방향.</summary>
+        public const int YardRows = 6;
+        /// <summary>적재 단수.</summary>
+        public const int YardTiers = 4;
+        /// <summary>X(안벽 수직) 방향 레인 수 — 레인 1개 = RTG 주행로 1줄.</summary>
+        public const int YardLanes = 2;
+        /// <summary>레인당 블록 수 — Z(안벽 평행) 방향.</summary>
+        public const int YardBlocksPerLane = 2;
+
+        // ④ 통로
+        /// <summary>레인 간 X 통로 — 실척 m. 인접 RTG 스팬 간섭 방지.</summary>
+        public const float YardAisleXM = 1.5f;
+        /// <summary>블록 간 Z 횡단로 — 실척 m. 소방·정비 통로.</summary>
+        public const float YardCrossAisleM = 16f;
+        /// <summary>선석 끝 ↔ 블록 끝 최소 여유 — 실척 m.</summary>
+        public const float YardEndM = 8f;
+
+        // ⑤ 유도값 — 손대지 말 것
+        /// <summary>블록 폭(열 방향) — 실척 m. 6 × 2.838 = 17.03m.</summary>
+        public static float YardBlockWidthM => YardRows * RowPitchM;
+
+        /// <summary>블록 1개의 베이 수 — 안벽 길이에서 양끝 여유와 횡단로를 빼고 베이 피치로 나눈 내림.
+        /// (340 − 8×2 − 16) / 2 / 12.792 = 12베이.</summary>
+        public static int YardBays => Mathf.FloorToInt(
+            (BerthLengthMeters - 2f * YardEndM - (YardBlocksPerLane - 1) * YardCrossAisleM)
+            / YardBlocksPerLane / BayPitchM);
+
+        /// <summary>블록 길이(베이 방향) — 실척 m. 12 × 12.792 = 153.5m.</summary>
+        public static float YardBlockLengthM => YardBays * BayPitchM;
+
+        /// <summary>야드 밴드 깊이 — 실척 m. 레인 n개 + 통로 (n+1)개. 2×23.6 + 3×1.5 = 51.7m.</summary>
+        public static float YardDepthM => YardLanes * RtgSpanM + (YardLanes + 1) * YardAisleXM;
+
+        /// <summary>야드 장치능력 — TEU. 40ft = 2 TEU. 6×12×4×4블록 = 1,152개 = 2,304 TEU.</summary>
+        public static int YardCapacityTeu =>
+            YardRows * YardBays * YardTiers * YardLanes * YardBlocksPerLane * 2;
+
+        /// <summary>레인 i(0부터, 안벽에서 먼 순) 의 중심 X — 실척 m(음수, 육지쪽).
+        /// 에이프런 끝에서 통로 하나 지나고 스팬 반개.</summary>
+        public static float YardLaneCenterX(int i) =>
+            -(ApronWidthMeters + YardAisleXM + RtgSpanM * (i + 0.5f) + YardAisleXM * i);
+
+        /// <summary>블록 j(0부터) 의 중심 Z — 실척 m. 안벽 중앙 기준 대칭.</summary>
+        public static float YardBlockCenterZ(int j)
+        {
+            float run = YardBlocksPerLane * YardBlockLengthM
+                      + (YardBlocksPerLane - 1) * YardCrossAisleM;
+            return -run * 0.5f + YardBlockLengthM * 0.5f
+                   + j * (YardBlockLengthM + YardCrossAisleM);
+        }
 
         /// <summary>안벽 전면고(데크 → 해저) = 코핑고 + 계획수심 — 실척 m. 4 + 15 = 19m.
         /// 코핑고는 StsConfig.QuayDeckAboveSeaMeters SSOT 를 추종한다(수면 Y 와 같은 출처).</summary>

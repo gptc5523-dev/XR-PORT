@@ -23,6 +23,8 @@ namespace Container.Crane.Sts.EditorTools
         const string RailFbx    = "Assets/Crane/Models/Quay_Rail.fbx";
         const string CaissonFbx = "Assets/Crane/Models/Quay_Caisson.fbx";
         const string SeaFbx     = "Assets/Crane/Models/Sea.fbx";
+        const string YardPaveFbx  = "Assets/Crane/Models/Yard_Pavement.fbx";
+        const string YardBlockFbx = "Assets/Crane/Models/Yard_Block.fbx";
 
         // 부재 실척 높이 — 블렌더 빌드 스크립트와 쌍으로 유지한다(문서/스크립트/부두연석_유닛_빌드.py).
         const float CurbHeightM    = 0.528f;   // 단면 0.72W × 0.528H
@@ -40,6 +42,7 @@ namespace Container.Crane.Sts.EditorTools
         const float BollardGapM    = 20f;     // 계선주 간격 — 미정이면 오너 값으로 교체
         const float BollardInsetM  = 1.08f;   // 안벽 가장자리 → 육지쪽 계선주 중심 — 미정이면 교체
         const float RailPitchM     = 12.0f;   // 레일 정척 12m + 신축이음 10mm = FBX 규격
+        const float YardMarkThickM = 0.015f;  // 블록 도색 두께 = FBX 규격. 실측 스케일 기준값
         const float CaissonPitchM  = 20.0f;   // 케이슨 1함 20m + 줄눈 30mm = FBX 규격. 340/20 = 17함
 
         [MenuItem("Model/FBX/항구/연석 배치 (Quay_Curb)", false, 1)]
@@ -154,6 +157,55 @@ namespace Container.Crane.Sts.EditorTools
             Done(root, $"레일 2줄 × {units}유닛 · 게이지 {StsConfig.LegGaugeXMeters:F0}m · " +
                        $"해측 −{PortConfig.ApronSeawardM:F0}m/육측 −{PortConfig.ApronSeawardM + StsConfig.LegGaugeXMeters:F0}m · " +
                        $"피치 {RailPitchM:F0}m · 총 {run * StsConfig.InvModelScale:F1}m · scale {scale:F4}");
+        }
+
+        /// <summary>야드 — 포장 1장 + 블록 마킹 4개. 둘은 항상 같이 가므로 메뉴 하나로 묶는다.
+        ///
+        /// 포장은 에이프런 끝(x=−30)에서 케이슨과 '정확히 맞댄다'. 겹치면 두 데크 윗면이 y=0 에서
+        /// 겹쳐 밟는 면에 Z-fighting 이 난다. 옆면끼리는 서로 반대를 보므로 백페이스 컬링이 처리한다.
+        ///
+        /// 블록 마킹 이름은 반드시 YardBlock_Zone — RtgCraneCreator 가 이 렌더러의 bounds 로
+        /// RTG 위치(center)와 갠트리 주행범위(size.z)를 잡는다. 이름과 바운즈가 곧 SSOT 다.</summary>
+        [MenuItem("Model/FBX/항구/야드 배치 (Yard)", false, 5)]
+        static void PlaceYard()
+        {
+            if (!BerthReady("야드")) return;
+            var pave  = Load(YardPaveFbx,  "야드 포장");  if (pave  == null) return;
+            var block = Load(YardBlockFbx, "야드 블록");  if (block == null) return;
+
+            float wallH = PortConfig.QuayWallHeightMeters;
+            float depth = PortConfig.YardDepthM;
+            float px    = -(PortConfig.ApronWidthMeters + depth * 0.5f) * StsConfig.ModelScale;
+            float py    = -wallH * StsConfig.ModelScale;
+
+            // ① 포장 — 케이슨과 같은 두께라 항구가 하나의 land mass 로 읽힌다.
+            var pRoot = NewRoot("Yard_Pavement");
+            Place(pave, pRoot, "Yard_Pavement", new Vector3(px, py, 0f),
+                  FbxScaleByHeight(pave, wallH));
+
+            // 걷는 면 — FBX 는 addColliders:0 이라 여기서 달아야 한다(케이슨과 같은 이유).
+            var col = Undo.AddComponent<BoxCollider>(pRoot.gameObject);
+            col.size   = new Vector3(depth, wallH, BerthLenM) * StsConfig.ModelScale;
+            col.center = new Vector3(px, py * 0.5f, 0f);
+
+            // ② 블록 마킹 — 레인 × 블록. 도색이라 콜라이더 없음.
+            var bRoot = NewRoot("Yard_Blocks");
+            float bScale = FbxScaleByHeight(block, YardMarkThickM);
+            int n = 0;
+            for (int i = 0; i < PortConfig.YardLanes; i++)
+                for (int j = 0; j < PortConfig.YardBlocksPerLane; j++, n++)
+                    Place(block, bRoot, "YardBlock_Zone",
+                          new Vector3(PortConfig.YardLaneCenterX(i) * StsConfig.ModelScale, 0f,
+                                      PortConfig.YardBlockCenterZ(j) * StsConfig.ModelScale), bScale);
+
+            Selection.activeGameObject = bRoot.gameObject;
+            SceneView.lastActiveSceneView?.FrameSelected();
+            Debug.Log($"[항구] 야드 — 포장 {depth:F1} × {BerthLenM:F0}m · 블록 {n}개" +
+                      $"({PortConfig.YardLanes}레인 × {PortConfig.YardBlocksPerLane}) " +
+                      $"각 {PortConfig.YardBlockWidthM:F2}m({PortConfig.YardRows}열) × " +
+                      $"{PortConfig.YardBlockLengthM:F1}m({PortConfig.YardBays}베이) · " +
+                      $"장치능력 {PortConfig.YardCapacityTeu:N0} TEU({PortConfig.YardTiers}단) · " +
+                      $"야드 x −{PortConfig.ApronWidthMeters:F0}~−{PortConfig.ApronWidthMeters + depth:F1}m");
         }
 
         /// <summary>바다 — 수면이 StsConfig.SeaLevelY 에 정확히 오도록 해저 깊이만큼 내려 놓는다.
