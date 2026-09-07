@@ -137,6 +137,11 @@ namespace Container.Ship.EditorTools
             ContainerFinal4Builder.EnsureMaterials();
             var src = AssetDatabase.LoadAssetAtPath<GameObject>(CargoFbx);
             if (src == null) { Debug.LogError($"[Ship] 컨테이너 FBX 없음: {CargoFbx}"); return; }
+            // ★ 크레인이 집어 옮기면 눈앞에서 보게 되므로 저폴리로 '대체'하면 안 된다
+            //   (오너 지시 2026-09-07 "디자인이 깨지면 안 된다"). 둘 다 넣고 LODGroup 이 전환한다.
+            //   저폴리 머티리얼 이름이 정밀본과 같아(Body·Steel_HDG) 전환 시 색이 튀지 않는다.
+            const string CargoLowFbx = "Assets/Container/Models/Container_40ft_Low.fbx";
+            var low = AssetDatabase.LoadAssetAtPath<GameObject>(CargoLowFbx);   // 없으면 정밀본만
 
             // 정밀 FBX 규약(실측 확인) — 스케일·회전을 건드리지 않는다.
             //   프리팹 루트가 자체 스케일을 갖고, 길이축이 이미 Z(선체 전후)이며, 피봇이 중앙 높이다.
@@ -153,9 +158,7 @@ namespace Container.Ship.EditorTools
             //      월드에서 뒤바뀐다. 보정 전에는 콜라이더가 월드 (2.44, 12.19, 2.59)m —
             //      높이 12m 짜리 기둥이 되어 스택이 서로를 못 받치고 물리가 어긋났다
             //      (2026-09-07 실측). 로컬에 (폭, 길이, 높이) 순으로 넣어야 월드가 (폭, 높이, 길이)가 된다.
-            var colSize = new Vector3(ProceduralContainerMesh.StdWidth,
-                                      ProceduralContainerMesh.Length40ft,
-                                      ProceduralContainerMesh.HeightStd) * ms / Mathf.Max(1e-6f, rootScale);
+            //   (콜라이더는 회전 없는 빈 루트에 붙이므로 축 보정 불필요 — 아래 루프에서 직접 만든다.)
 
             // 갑판/해치커버 받침 콜라이더 보장 — 동적 화물이 갑판을 뚫고 떨어지지 않게(멱등).
             EnsureRestingColliders(ship);
@@ -205,12 +208,35 @@ namespace Container.Ship.EditorTools
             foreach (var sl in picked)
             {
                 // 이름에 'Container' 포함 → ContainerPhysicsStabilizer·바닥가드 대상에 포함.
-                var g = (GameObject)PrefabUtility.InstantiatePrefab(src);
-                g.name = "ShipContainer";
+                var g = new GameObject("ShipContainer");
                 g.transform.SetParent(parent.transform, false);
                 g.transform.localPosition = new Vector3(sl.x, sl.y, sl.z) * ms;
 
-                var box = g.AddComponent<BoxCollider>(); box.center = Vector3.zero; box.size = colSize;
+                var g0 = (GameObject)PrefabUtility.InstantiatePrefab(src);
+                g0.name = "LOD0"; g0.transform.SetParent(g.transform, false);
+                var r0 = g0.GetComponentsInChildren<Renderer>();
+
+                Renderer[] r1 = System.Array.Empty<Renderer>();
+                if (low != null)
+                {
+                    var g1 = (GameObject)PrefabUtility.InstantiatePrefab(low);
+                    g1.name = "LOD1"; g1.transform.SetParent(g.transform, false);
+                    // 저폴리는 실척 m 라 정밀본 크기에 맞춘다.
+                    float hiH = Container.Crane.Sts.EditorTools.RtgCraneFbxPlacer.CombinedBounds(g0).size.y;
+                    float loH = Container.Crane.Sts.EditorTools.RtgCraneFbxPlacer.CombinedBounds(g1).size.y;
+                    if (loH > 1e-6f) g1.transform.localScale = Vector3.one * (hiH / loH);
+                    r1 = g1.GetComponentsInChildren<Renderer>();
+                }
+                var lg = g.AddComponent<LODGroup>();
+                lg.SetLODs(r1.Length > 0
+                    ? new[] { new LOD(CargoLod0Height, r0), new LOD(CargoLod1Height, r1) }
+                    : new[] { new LOD(CargoLod1Height, r0) });
+                lg.RecalculateBounds();
+
+                // 콜라이더는 이제 회전 없는 빈 루트에 붙으므로 축 보정이 필요 없다.
+                var box = g.AddComponent<BoxCollider>(); box.center = Vector3.zero;
+                box.size = new Vector3(ProceduralContainerMesh.StdWidth, ProceduralContainerMesh.HeightStd,
+                                       ProceduralContainerMesh.Length40ft) * ms;
                 var rb = g.AddComponent<Rigidbody>(); rb.useGravity = true;
                 ContainerPhysics.Apply(rb, box);
                 var grab = g.AddComponent<XRGrabInteractable>(); grab.useDynamicAttach = true;

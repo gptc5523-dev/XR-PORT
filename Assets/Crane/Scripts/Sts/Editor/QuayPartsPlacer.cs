@@ -214,6 +214,8 @@ namespace Container.Crane.Sts.EditorTools
         //     · 피봇이 '중앙 높이'다 → y = 높이/2.
         const string YardFbx40 = "Assets/Container/Models/Container_40ft.fbx";
         const string YardFbx20 = "Assets/Container/Models/Container_20ft.fbx";
+        const string YardLow40 = "Assets/Container/Models/Container_40ft_Low.fbx";
+        const string YardLow20 = "Assets/Container/Models/Container_20ft_Low.fbx";
         const int    YardCount40 = 10;
         const int    YardCount20 = 10;   // 20ft 는 40ft 베이 한 칸에 두 개 → 셀 5개 사용
         /// <summary>배치 무늬 시드 — 같은 값이면 같은 무늬. 0 이면 매번 다르다.</summary>
@@ -232,6 +234,8 @@ namespace Container.Crane.Sts.EditorTools
             ContainerFinal4Builder.EnsureMaterials();
             var f40 = AssetDatabase.LoadAssetAtPath<GameObject>(YardFbx40);
             var f20 = AssetDatabase.LoadAssetAtPath<GameObject>(YardFbx20);
+            var l40 = AssetDatabase.LoadAssetAtPath<GameObject>(YardLow40);   // 없으면 LOD 없이 정밀본만
+            var l20 = AssetDatabase.LoadAssetAtPath<GameObject>(YardLow20);
             if (f40 == null || f20 == null)
             {
                 EditorUtility.DisplayDialog("야드 적재", $"컨테이너 FBX 없음:\n{YardFbx40}\n{YardFbx20}", "확인");
@@ -292,7 +296,7 @@ namespace Container.Crane.Sts.EditorTools
             }
 
             for (int k = 0; k < YardCount40; k++)
-                Put(f40, root, $"Cont40_{k:00}", cells[k].x, h40 * 0.5f, cells[k].z);
+                PutLod(f40, l40, root, $"Cont40_{k:00}", cells[k].x, h40 * 0.5f, cells[k].z);
 
             // 20ft 는 실물처럼 40ft 베이 한 칸에 두 개를 앞뒤로 넣는다.
             float off20 = (len20 + Yard20ftGapM * StsConfig.ModelScale) * 0.5f;
@@ -303,7 +307,7 @@ namespace Container.Crane.Sts.EditorTools
                 foreach (float dz in new[] { -off20, off20 })
                 {
                     if (made20 >= YardCount20) break;
-                    Put(f20, root, $"Cont20_{made20:00}", c.x, h20 * 0.5f, c.z + dz);
+                    PutLod(f20, l20, root, $"Cont20_{made20:00}", c.x, h20 * 0.5f, c.z + dz);
                     made20++;
                 }
             }
@@ -319,14 +323,48 @@ namespace Container.Crane.Sts.EditorTools
                        $"40ft {len40*inv:F2}L × {wid40*inv:F2}W × {h40*inv:F2}H m · 20ft {len20*inv:F2}L m · 1단");
         }
 
-        /// <summary>FBX 를 프리팹 그대로 꺼내 놓는다 — 스케일·회전을 건드리지 않는다.
-        /// 정밀 컨테이너는 프리팹 루트가 자체 스케일을 갖고 길이축이 이미 Z 다.</summary>
-        static void Put(GameObject src, Transform parent, string name, float x, float y, float z)
+        // ── LOD 임계값 — 화면 상대 높이. ShipCreator 가 쓰던 값과 동일(문서/컨테이너_규격.md §10.7 산식).
+        //   씬은 1유닛 = 24m 라 거리 상수를 직접 쓰면 안 된다. 상대 높이라 단위 무관.
+        const float ContLod0Height = 0.3787f;   // 이보다 크게 보이면 정밀본 (크레인이 집어 눈앞에 온 경우)
+        const float ContLod1Height = 0.0229f;   // 이보다 작으면 컬링
+
+        /// <summary>컨테이너 하나를 LOD 로 놓는다 — 가까우면 정밀본, 멀면 저폴리.
+        ///
+        /// ★ 크레인이 집어 옮기면 눈앞에서 보게 되므로 저폴리로 '대체'하면 안 된다
+        /// (오너 지시 2026-09-07 "크레인으로 컨테이너를 옮겨야 되는데 디자인이 깨지면 안 된다").
+        /// 정밀본 110,134 삼각형 × 수백 개는 예산을 넘으므로 둘 다 넣고 유니티가 전환하게 한다.
+        /// 저폴리 머티리얼 이름이 정밀본과 같아(Body·Steel_HDG) 전환 시 색이 튀지 않는다.
+        ///
+        /// 스케일·회전은 건드리지 않는다 — 프리팹 루트가 자체 스케일을 갖고 길이축이 이미 Z 다.</summary>
+        static GameObject PutLod(GameObject hi, GameObject lo, Transform parent, string name,
+                                 float x, float y, float z)
         {
-            var go = (GameObject)PrefabUtility.InstantiatePrefab(src);
-            go.name = name;
-            go.transform.SetParent(parent, worldPositionStays: false);
-            go.transform.localPosition = new Vector3(x, y, z);   // 피봇 = 중앙 높이
+            var root = new GameObject(name);
+            root.transform.SetParent(parent, worldPositionStays: false);
+            root.transform.localPosition = new Vector3(x, y, z);   // 피봇 = 중앙 높이
+
+            var g0 = (GameObject)PrefabUtility.InstantiatePrefab(hi);
+            g0.name = "LOD0"; g0.transform.SetParent(root.transform, worldPositionStays: false);
+            var r0 = g0.GetComponentsInChildren<Renderer>();
+
+            Renderer[] r1 = System.Array.Empty<Renderer>();
+            if (lo != null)
+            {
+                var g1 = (GameObject)PrefabUtility.InstantiatePrefab(lo);
+                g1.name = "LOD1"; g1.transform.SetParent(root.transform, worldPositionStays: false);
+                // 저폴리는 실척 m 라 정밀본 크기에 맞춘다(정밀본은 프리팹 루트 스케일을 갖는다).
+                float hiH = RtgCraneFbxPlacer.CombinedBounds(g0).size.y;
+                float loH = RtgCraneFbxPlacer.CombinedBounds(g1).size.y;
+                if (loH > 1e-6f) g1.transform.localScale = Vector3.one * (hiH / loH);
+                r1 = g1.GetComponentsInChildren<Renderer>();
+            }
+
+            var lg = root.AddComponent<LODGroup>();
+            lg.SetLODs(r1.Length > 0
+                ? new[] { new LOD(ContLod0Height, r0), new LOD(ContLod1Height, r1) }
+                : new[] { new LOD(ContLod1Height, r0) });
+            lg.RecalculateBounds();
+            return root;
         }
 
         /// <summary>프리팹 그대로의 실측 크기(높이 반환, 길이·폭은 out).</summary>
