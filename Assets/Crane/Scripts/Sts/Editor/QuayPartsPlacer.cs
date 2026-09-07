@@ -72,17 +72,21 @@ namespace Container.Crane.Sts.EditorTools
             if (!BerthReady("계선주")) return;
             var fbx = Load(BollardFbx, "계선주"); if (fbx == null) return;
 
-            float len = BerthLenM * StsConfig.ModelScale;
-            int   n   = Mathf.Max(1, Mathf.FloorToInt(BerthLenM / BollardGapM));   // 구간 수 → 계선주 n+1개
+            // 구간 '중앙'에 놓는다. 끝점 배치(z = ±안벽/2)는 계선주 반지름만큼 안벽 밖 허공으로 나간다.
+            //   중앙 배치는 양끝에 반피치(10m) 여유가 생겨 원기둥이 통째로 데크 위에 올라온다.
+            //   연석·레일·케이슨이 쓰는 식과 동일하다.
+            float pitch = BollardGapM * StsConfig.ModelScale;
+            int   n     = Mathf.FloorToInt(BerthLenM / BollardGapM);
+            float run   = pitch * n;
             float scale = FbxScaleByHeight(fbx, BollardHeightM);
-            float x   = -BollardInsetM * StsConfig.ModelScale;       // 육지쪽(−X)
+            float x     = -BollardInsetM * StsConfig.ModelScale;       // 육지쪽(−X)
 
             var root = NewRoot("Quay_Bollard");
-            for (int i = 0; i <= n; i++)
+            for (int i = 0; i < n; i++)
                 Place(fbx, root, "Quay_Bollard",
-                      new Vector3(x, 0f, -len * 0.5f + len * i / n), scale);
+                      new Vector3(x, 0f, -run * 0.5f + pitch * (i + 0.5f)), scale);
 
-            Done(root, $"계선주 {n + 1}개 · 간격 {len / n * StsConfig.InvModelScale:F1}m " +
+            Done(root, $"계선주 {n}개 · 간격 {BollardGapM:F0}m · 끝여유 {BollardGapM * 0.5f:F0}m " +
                        $"(안벽 {BerthLenM:F0}m) · 안쪽 {BollardInsetM:F2}m · scale {scale:F4}");
         }
 
@@ -107,6 +111,14 @@ namespace Container.Crane.Sts.EditorTools
             for (int i = 0; i < units; i++)
                 Place(fbx, root, "Quay_CaissonUnit",
                       new Vector3(x, y, -run * 0.5f + pitch * (i + 0.5f)), scale);
+
+            // 걷는 면·컨테이너 착지면 — 부두 전체를 감싸는 BoxCollider 1개.
+            //   FBX 는 addColliders:0 로 임포트되므로 콜라이더가 하나도 안 생긴다. 없으면 플레이어가
+            //   부두를 뚫고 떨어지고 컨테이너도 안 얹힌다. 유닛마다 MeshCollider 를 다는 대신
+            //   직육면체 하나로 덮는다 — 케이슨이 실제로 직육면체라 형상 오차가 0이다.
+            var col = Undo.AddComponent<BoxCollider>(root.gameObject);
+            col.size   = new Vector3(PortConfig.ApronWidthMeters, wallH, BerthLenM) * StsConfig.ModelScale;
+            col.center = new Vector3(x, y * 0.5f, 0f);
 
             Done(root, $"케이슨 {units}함 · 피치 {CaissonPitchM:F0}m · 총 {run * StsConfig.InvModelScale:F1}m · " +
                        $"에이프런 {PortConfig.ApronWidthMeters:F0}m · 안벽고 {wallH:F0}m" +
@@ -165,12 +177,30 @@ namespace Container.Crane.Sts.EditorTools
             return fbx;
         }
 
-        /// <summary>같은 이름의 기존 루트를 지우고 새로 만든다 — 두 번 눌러도 겹쳐 쌓이지 않게.</summary>
+        /// <summary>부두 루트 — 없으면 만든다.
+        /// StsCraneCreator(레일 정렬)·RtgCraneCreator(야드 배치)·RtgCraneFbxPlacer(지면)·
+        /// GantryRangeFit(주행범위)·ShipBerthMenu(접안 앵커) 5곳이 전부
+        /// GameObject.Find(StsPartNames.QuayGround) 로 부두를 찾는다. 부재를 씬 루트에
+        /// 흩어놓으면 부두가 실제로 있어도 아무도 못 찾는다.</summary>
+        static Transform QuayRoot()
+        {
+            var go = GameObject.Find(StsPartNames.QuayGround);
+            if (go == null)
+            {
+                go = new GameObject(StsPartNames.QuayGround);
+                Undo.RegisterCreatedObjectUndo(go, "Create " + StsPartNames.QuayGround);
+            }
+            return go.transform;
+        }
+
+        /// <summary>같은 이름의 기존 그룹을 지우고 Quay_Ground 아래에 새로 만든다
+        /// — 두 번 눌러도 겹쳐 쌓이지 않게.</summary>
         static Transform NewRoot(string name)
         {
             var prev = GameObject.Find(name);
             if (prev != null) Undo.DestroyObjectImmediate(prev);
             var root = new GameObject(name).transform;
+            root.SetParent(QuayRoot(), worldPositionStays: false);
             Undo.RegisterCreatedObjectUndo(root.gameObject, "Place " + name);
             return root;
         }
