@@ -54,8 +54,15 @@ namespace Container.Crane.Sts
         public static float SeaWidthMeters =>
             Mathf.Ceil(ApronWidthMeters * SeaApronRatio / 10f) * 10f;
 
-        /// <summary>바다 길이(안벽 방향) — 실척 m. 선석 + 양끝 바다폭. 340 + 60×2 = 460m.</summary>
-        public static float SeaLengthMeters => BerthLengthMeters + 2f * SeaWidthMeters;
+        /// <summary>바다 길이(안벽 방향) — 실척 m. 선석 길이와 같다. 340m.
+        /// 오너 지시 2026-09-07 "바다 길이를 부두랑 똑같이".
+        /// 케이슨 실제 끝은 줄눈 때문에 ±169.985m 라, 바다 끝(±170)이 15mm 앞서 나가
+        /// 두 끝면이 겹치지 않는다 → Z-fighting 없음.</summary>
+        public static float SeaLengthMeters => BerthLengthMeters;
+
+        // ── 비활성 2026-09-07 (길이를 선석과 동일하게) ──
+        //   선석 양끝으로도 바다폭만큼 더 뻗던 산식. 340 + 60×2 = 460m.
+        // public static float SeaLengthMeters => BerthLengthMeters + 2f * SeaWidthMeters;
 
         /// <summary>접안한 배가 수면 안에 들어오나 — 바다 폭 &gt; 선폭, 바다 길이 &gt; 설계선 LOA.
         /// 바다를 줄이다 보면 배가 물 밖으로 삐져나간다. 줄이기 전에 이걸 본다.</summary>
