@@ -45,16 +45,26 @@ namespace Container.Crane.Sts
         public static float WaterDepthMeters =>
             Mathf.Ceil(ShipConfig.DraftMeters * DepthAllowanceRatio);
 
-        /// <summary>바다 여유 배수 — 바다 폭 = 설계선 선폭 × 이 값. 오너 선택 2026-09-07.
-        /// 접안한 배 바깥으로 선폭 2척분의 물이 더 보이는 정도.</summary>
-        public const float SeaMarginRatio = 3f;
+        /// <summary>바다 폭 배수 — 바다 폭 = 에이프런 폭 × 이 값. 오너 지시 2026-09-07
+        /// "부두 기준으로 바다 넓이를 줄여줘". 부두를 앵커로 쓰므로 에이프런이 넓어지면 바다도 넓어진다.</summary>
+        public const float SeaApronRatio = 2f;
 
-        /// <summary>바다 폭(안벽 전면 → 바다쪽) — 실척 m. Ceil(39.53 × 3 / 10) × 10 = 120m.</summary>
+        /// <summary>바다 폭(안벽 전면 → 바다쪽) — 실척 m. Ceil(30 × 2 / 10) × 10 = 60m.
+        /// ★ 하한 — 접안한 배(선폭 39.53m)가 물 밖으로 나가면 안 된다. SeaFitsShip 이 검사한다.</summary>
         public static float SeaWidthMeters =>
-            Mathf.Ceil(ShipConfig.BeamMeters * SeaMarginRatio / 10f) * 10f;
+            Mathf.Ceil(ApronWidthMeters * SeaApronRatio / 10f) * 10f;
 
-        /// <summary>바다 길이(안벽 방향) — 실척 m. 선석 + 양끝 바다폭. 340 + 120×2 = 580m.</summary>
+        /// <summary>바다 길이(안벽 방향) — 실척 m. 선석 + 양끝 바다폭. 340 + 60×2 = 460m.</summary>
         public static float SeaLengthMeters => BerthLengthMeters + 2f * SeaWidthMeters;
+
+        /// <summary>접안한 배가 수면 안에 들어오나 — 바다 폭 &gt; 선폭, 바다 길이 &gt; 설계선 LOA.
+        /// 바다를 줄이다 보면 배가 물 밖으로 삐져나간다. 줄이기 전에 이걸 본다.</summary>
+        public static bool SeaFitsShip =>
+            SeaWidthMeters > ShipConfig.BeamMeters && SeaLengthMeters > ShipConfig.LoaMeters;
+
+        // ── 비활성 2026-09-07 (앵커를 선폭 → 부두로 교체) ──
+        // /// <summary>바다 폭 = 설계선 선폭 × 이 값. 39.53×3 → 120m.</summary>
+        // public const float SeaMarginRatio = 3f;
 
         // ── 비활성 2026-09-07 (오너 선택 B: 바다 축소) ────────────────────────────
         //   선회장 직경을 바다 앵커로 쓰면 588 × 1,516m 가 나와 부두(30 × 340m)가

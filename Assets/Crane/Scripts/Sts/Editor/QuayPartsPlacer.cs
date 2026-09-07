@@ -1,4 +1,5 @@
 #if UNITY_EDITOR
+using Container.Ship;
 using UnityEditor;
 using UnityEngine;
 
@@ -165,6 +166,12 @@ namespace Container.Crane.Sts.EditorTools
             if (!BerthReady("바다")) return;
             var fbx = Load(SeaFbx, "바다"); if (fbx == null) return;
 
+            // 바다를 줄이다 보면 접안한 배가 물 밖으로 나간다. 조용히 넘어가지 않게 여기서 잡는다.
+            if (!PortConfig.SeaFitsShip)
+                Debug.LogWarning($"[항구] 바다가 설계선보다 작습니다 — 바다 {PortConfig.SeaWidthMeters:F0}×" +
+                                 $"{PortConfig.SeaLengthMeters:F0}m vs 선박 {ShipConfig.BeamMeters:F1}×" +
+                                 $"{ShipConfig.LoaMeters:F0}m. PortConfig.SeaApronRatio 를 키우세요.");
+
             float scale = FbxScaleByHeight(fbx, PortConfig.WaterDepthMeters);
             // 겹침 1m 만큼 안벽 안으로 파고들게 — x=0 에서 면이 딱 만나면 Z-fighting.
             float x = (PortConfig.SeaWidthMeters - PortConfig.SeaOverlapM) * 0.5f * StsConfig.ModelScale;
@@ -175,7 +182,7 @@ namespace Container.Crane.Sts.EditorTools
 
             Done(root, $"수면 y={StsConfig.SeaLevelY:F4}u(−{StsConfig.QuayDeckAboveSeaMeters:F0}m) · " +
                        $"{PortConfig.SeaWidthMeters:F0} × {PortConfig.SeaLengthMeters:F0}m · " +
-                       $"수심 {PortConfig.WaterDepthMeters:F0}m · 여유 선폭×{PortConfig.SeaMarginRatio:F0} · " +
+                       $"수심 {PortConfig.WaterDepthMeters:F0}m · 폭=에이프런×{PortConfig.SeaApronRatio:F0} · " +
                        $"겹침 {PortConfig.SeaOverlapM:F0}m · scale {scale:F4}");
         }
 
