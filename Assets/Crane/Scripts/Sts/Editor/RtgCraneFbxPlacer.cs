@@ -44,8 +44,62 @@ namespace Container.Crane.Sts.EditorTools
             ("MH_Body_Grey",        0.47f, 0.49f, 0.52f,  0.85f, 0.50f, 1f,    0f),
         };
 
+        /// <summary>야드에 놓을 RTG 대수. 블록이 더 적으면 블록 수만큼만 놓는다.</summary>
+        const int YardRtgCount = 2;
+
+        [MenuItem("Model/FBX/크레인/RTG 야드 배치 (블록마다)", false, 2)]
+        public static void PlaceInYard()
+        {
+            var zones = YardZones();
+            if (zones.Count == 0)
+            {
+                Debug.LogWarning("[RTG] YardBlock_Zone 이 없습니다 — 'Model ▸ FBX ▸ 항구 ▸ 야드 배치' 를 먼저 실행하세요.");
+                return;
+            }
+            ClearExistingRtgs();
+            int n = Mathf.Min(YardRtgCount, zones.Count);
+            for (int i = 0; i < n; i++) CreateOnZone(zones[i], i + 1);
+            Debug.Log($"[RTG] FBX 크레인 {n}대 배치 완료(블록 {zones.Count}개 중 안벽 가까운 순).");
+        }
+
+        /// <summary>기존 RTG 를 모두 지운다 — FBX 든 절차생성이든.
+        /// 안 지우면 같은 야드 블록 위에 크레인이 겹쳐 쌓인다(종전 Create 의 실제 동작).
+        /// 절차생성 이름(RTG_Crane*)까지 지우는 이유는 오너 방침상 절차 크레인을 쓰지 않기 때문.</summary>
+        static void ClearExistingRtgs()
+        {
+            int killed = 0;
+            foreach (var t in Object.FindObjectsByType<Transform>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+            {
+                if (t == null || t.parent != null) continue;                 // 루트만
+                string n = t.gameObject.name;
+                if (!n.StartsWith(CraneName) && !n.StartsWith("RTG_Crane")) continue;
+                Undo.DestroyObjectImmediate(t.gameObject); killed++;
+            }
+            if (killed > 0) Debug.Log($"[RTG] 기존 크레인 {killed}개 제거(FBX·절차생성 모두).");
+        }
+
+        /// <summary>야드 블록 존 — 안벽 가까운 순.</summary>
+        static System.Collections.Generic.List<Renderer> YardZones()
+        {
+            var ground = GameObject.Find(StsPartNames.QuayGround);
+            if (ground == null) return new System.Collections.Generic.List<Renderer>();
+            return ground.GetComponentsInChildren<Renderer>()
+                         .Where(r => r.gameObject.name.StartsWith("YardBlock_Zone"))
+                         .OrderBy(r => Mathf.Abs(r.bounds.center.x))
+                         .ThenBy(r => r.bounds.center.z)
+                         .ToList();
+        }
+
         [MenuItem("Model/FBX/크레인/RTG 크레인 생성", false, 1)]
         public static void Create()
+        {
+            ClearExistingRtgs();
+            CreateOnZone(FirstYardZone(), 0);
+        }
+
+        /// <summary>RTG 1대를 지정 블록 위에 생성하고 로프·무버·신축까지 배선한다.
+        /// index 0 = 단독 생성(이름 그대로), 1 이상 = 야드 배치(이름에 번호).</summary>
+        static void CreateOnZone(Renderer zone, int index)
         {
             var fbx = AssetDatabase.LoadAssetAtPath<GameObject>(Fbx);
             if (fbx == null)
@@ -59,7 +113,7 @@ namespace Container.Crane.Sts.EditorTools
             fbx = AssetDatabase.LoadAssetAtPath<GameObject>(Fbx); // 리임포트 후 재로드
 
             var go = (GameObject)PrefabUtility.InstantiatePrefab(fbx);
-            go.name = CraneName;
+            go.name = index > 0 ? $"{CraneName}_{index}" : CraneName;
             Undo.RegisterCreatedObjectUndo(go, "Create " + CraneName);
 
             // 스케일: 결정적 목표 = 실척 높이 × ModelScale(1/24) → 절차생성 RTG_Crane과 항상 동일 크기.
@@ -75,24 +129,33 @@ namespace Container.Crane.Sts.EditorTools
             // 배치 = 야드 블록(YardBlock_Zone) 중심에 접지. 블록이 없으면 종전대로 지면 중앙.
             //   ★ FBX RTG의 주행축은 로컬 Z(= RtgBogieSteering.Mode.Travel 의 정의)이고, 야드 블록도
             //     장축이 Z(안벽 평행)라 회전 없이 그대로 정합한다. 별도 yaw를 주면 오히려 어긋난다.
-            var zone = FirstYardZone();
             go.transform.position = zone != null
                 ? new Vector3(zone.bounds.center.x, GroundPosition().y, zone.bounds.center.z)
                 : GroundPosition();   // Quay_Ground 지면 윗면에 접지
 
-            Selection.activeGameObject = go;   // 후속 배선 3종이 이 선택으로 대상 크레인을 찾는다.
-
             // ── 후속 배선 자동 실행 (수동 메뉴 없음 — 생성 한 번으로 구동 가능 상태까지) ──
+            //   ★ 배선 3종은 대상을 Selection.activeGameObject 로 찾고, 못 찾으면
+            //     GameObject.Find("RTG 크레인") 고정 이름으로 폴백한다. 그런데
+            //     RtgCraneFbxRopeSetup 은 끝에서 선택을 '로프 그룹'으로 옮기고
+            //     RtgCraneFbxMoverWiring 도 선택을 옮긴다. 그래서 한 번만 선택해 두면
+            //     두 번째 배선부터는 폴백 경로를 타는데, 야드 배치처럼 이름이
+            //     "RTG 크레인_1" 이면 폴백이 못 찾아 배선이 통째로 건너뛰어진다
+            //     (2026-09-07 실측: [RTG] 무버 배선 완료 가 로그에 안 찍힘 → 주행범위 미설정).
+            //   → 호출 직전마다 선택을 다시 세워 폴백을 아예 안 타게 한다.
             // Blender Hoist_Rope 구조(코너당 드럼출구·앵커→시브 2-fall)를 동적 재현 — 권상 시 신축.
+            Selection.activeGameObject = go;
             RtgCraneFbxRopeSetup.Setup();
             // 주행·횡행·권상 무버 + 그랩/트위스트락. 범위는 임포트 지오메트리에서 자동 산출.
+            Selection.activeGameObject = go;
             RtgCraneFbxMoverWiring.Wire();
             // 신축 드라이버. 현재 임포트 포즈를 40ft 기준자세로 캡처하므로 빔이 움직이기 전에 마지막으로.
+            Selection.activeGameObject = go;
             RtgSpreaderTelescopeSetup.Setup();
 
             // 주행(Z) 범위를 '야드 블록'에서 재유도 — 배선 기본값은 크레인 치수 ±2배라 야드와 무관한 임시값이다
             //   (RtgCraneFbxMoverWiring 주석: "범위는 야드 레이아웃이 정하는 몫"). 블록 밖으로 안 나가게 클램프.
-            string gantryMsg = "야드 블록 없음 → 배선 기본 주행범위 유지";
+            string gantryMsg = zone == null ? "야드 블록 없음 → 배선 기본 주행범위 유지"
+                                            : "GantryMover 없음(무버 배선 실패) → 주행범위 미설정";
             if (zone != null)
             {
                 var gm = go.GetComponent<GantryMover>();
@@ -108,7 +171,7 @@ namespace Container.Crane.Sts.EditorTools
 
             Selection.activeGameObject = go;   // 신축 배선이 스프레더로 옮긴 선택을 크레인으로 복귀
             SceneView.lastActiveSceneView?.FrameSelected();
-            Debug.Log($"[RTG] '{CraneName}' 생성 완료 — 크기 결정적 정합(실척×1/24) · URP 머티리얼 {Mats.Length}종 · 로프·무버·신축 배선 자동 완료.\n" +
+            Debug.Log($"[RTG] '{go.name}' 생성 완료 — 크기 결정적 정합(실척×1/24) · URP 머티리얼 {Mats.Length}종 · 로프·무버·신축 배선 자동 완료.\n" +
                       $"  배치: {(zone != null ? $"야드 블록 중심 ({zone.bounds.center.x:F3}, {zone.bounds.center.z:F3})u" : "지면 중앙(블록 없음)")} · {gantryMsg}\n" +
                       $"  ※ 신축·트위스트락·스티어링 확인은 RtgSpreaderTelescopeSetup / RtgCraneFbxMoverWiring 의 public 메서드를 직접 호출하십시오(메뉴는 생성 하나만 둔다).");
         }
