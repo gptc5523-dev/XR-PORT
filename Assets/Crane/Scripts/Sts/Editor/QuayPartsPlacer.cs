@@ -95,7 +95,15 @@ namespace Container.Crane.Sts.EditorTools
         //       회전이 필요 없다(90° 돌리면 옆으로 눕는다).
         //     · 피봇은 '바닥'이 아니라 '중앙 높이'다(배치 y=0 일 때 바닥 −1.2955 = 높이/2).
         //       그래서 t 단은 y = 단높이 × (t + 0.5).
-        const string YardContainerFbx = "Assets/Container/Models/Container_40ft.fbx";
+        const string YardContainerFbx   = "Assets/Container/Models/Container_40ft.fbx";
+        const string YardContainer20Fbx = "Assets/Container/Models/Container_20ft.fbx";
+        /// <summary>ISO 1CC 20ft 길이 — 실척 m. 실측 대조용.</summary>
+        const float  Container20LenM    = 6.058f;
+        /// <summary>스택 중 20ft 쌍으로 채우는 비율 0~1. 오너 지시 2026-09-07
+        /// "40ft 몇 개 지우고 20ft도 몇 개 넣자". 실물처럼 40ft 베이 한 칸에 20ft 두 개를 넣는다.</summary>
+        const float  Yard20ftRatio      = 0.35f;
+        /// <summary>한 베이 안 20ft 두 개 사이 틈 — 실척 m.</summary>
+        const float  Yard20ftGapM       = 0.30f;
         /// <summary>블록 채움률 0~1. 셀(열×베이)마다 이 확률로 스택을 세운다.
         /// 오너 지시 2026-09-07 "컨테이너가 너무 많아 줄이자" → 0.5 → 0.3.</summary>
         const float  YardFillRatio    = 0.3f;
@@ -239,11 +247,12 @@ namespace Container.Crane.Sts.EditorTools
             //   실측 치수가 엉뚱하게 나온다(2026-09-07: 0.59×2.93×0.62m 로 측정됐다).
             if (ContainerFinal4Builder.EnsureMaterials())
                 AssetDatabase.ImportAsset(YardContainerFbx, ImportAssetOptions.ForceUpdate);
-            var fbx = AssetDatabase.LoadAssetAtPath<GameObject>(YardContainerFbx);
-            if (fbx == null)
+            var fbx   = AssetDatabase.LoadAssetAtPath<GameObject>(YardContainerFbx);
+            var fbx20 = AssetDatabase.LoadAssetAtPath<GameObject>(YardContainer20Fbx);
+            if (fbx == null || fbx20 == null)
             {
                 EditorUtility.DisplayDialog("야드 적재",
-                    $"컨테이너 FBX 를 찾을 수 없습니다:\n{YardContainerFbx}", "확인");
+                    $"컨테이너 FBX 를 찾을 수 없습니다:\n{YardContainerFbx}\n{YardContainer20Fbx}", "확인");
                 return;
             }
 
@@ -256,6 +265,11 @@ namespace Container.Crane.Sts.EditorTools
             float tierH = pb.size.y, cWid = pb.size.x, cLen = pb.size.z;   // 길이 = Z
             Object.DestroyImmediate(probe);
 
+            var probe20 = (GameObject)PrefabUtility.InstantiatePrefab(fbx20);
+            var pb20 = RtgCraneFbxPlacer.CombinedBounds(probe20);
+            float cLen20 = pb20.size.z, tierH20 = pb20.size.y;
+            Object.DestroyImmediate(probe20);
+
             float inv0 = StsConfig.InvModelScale;
             if (Mathf.Abs(cLen * inv0 - PortConfig.ContainerLenM) > 0.05f ||
                 Mathf.Abs(cWid * inv0 - ProceduralContainerMesh.StdWidth) > 0.05f)
@@ -263,6 +277,18 @@ namespace Container.Crane.Sts.EditorTools
                 Debug.LogError($"[항구] 컨테이너 FBX 실측이 규격과 다릅니다 — " +
                                $"측정 {cLen * inv0:F3}L × {cWid * inv0:F3}W m vs 규격 " +
                                $"{PortConfig.ContainerLenM:F3} × {ProceduralContainerMesh.StdWidth:F3}. 적재를 중단합니다.");
+                return;
+            }
+            if (Mathf.Abs(cLen20 * inv0 - Container20LenM) > 0.05f)
+            {
+                Debug.LogError($"[항구] 20ft FBX 실측 {cLen20 * inv0:F3}m vs 규격 {Container20LenM:F3}m. 적재를 중단합니다.");
+                return;
+            }
+            // 20ft 두 개가 40ft 베이 한 칸에 들어가는지 — 안 들어가면 옆 베이를 침범한다.
+            float pair20 = cLen20 * 2f * inv0 + Yard20ftGapM;
+            if (pair20 > PortConfig.BayPitchM)
+            {
+                Debug.LogError($"[항구] 20ft 두 개({pair20:F2}m)가 베이 피치({PortConfig.BayPitchM:F2}m)를 넘습니다. 적재를 중단합니다.");
                 return;
             }
 
@@ -273,7 +299,7 @@ namespace Container.Crane.Sts.EditorTools
 
             var root = NewRoot("Yard_Containers");
             var rng  = YardFillSeed == 0 ? new System.Random() : new System.Random(YardFillSeed);
-            int placed = 0, stacks = 0, cells = 0;
+            int placed = 0, stacks = 0, stacks20 = 0, cells = 0;
 
             for (int i = PortConfig.YardLaneStart; i < PortConfig.YardLanes; i++)
                 for (int j = 0; j < PortConfig.YardBlocksPerLane; j++)
@@ -288,22 +314,34 @@ namespace Container.Crane.Sts.EditorTools
                             int maxT  = Mathf.Min(YardStackMaxTiers, PortConfig.YardTiers);
                             int tiers = rng.Next(1, maxT + 1);
                             stacks++;
+                            // 스택 하나는 한 규격으로 통일한다 — 실물도 40ft 위에 20ft 를 얹지 않는다.
+                            bool use20 = rng.NextDouble() < Yard20ftRatio;
+                            if (use20) stacks20++;
                             float x = bx - halfW + rowPitch * (r + 0.5f);
                             float z = bz - halfL + bayPitch * (b + 0.5f);
-                            for (int t = 0; t < tiers; t++, placed++)
-                            {
-                                var go = (GameObject)PrefabUtility.InstantiatePrefab(fbx);
-                                go.name = $"Cont_{i}{j}_{r:00}{b:00}_{t}";
-                                go.transform.SetParent(root, worldPositionStays: false);
-                                // 피봇이 중앙 높이라 +0.5 단. 회전 없음 — 길이가 이미 Z 다.
-                                go.transform.localPosition = new Vector3(x, tierH * (t + 0.5f), z);
-                            }
+                            // 20ft 두 개를 베이 중앙 기준 앞뒤로. 40ft 는 가운데 하나.
+                            float off20 = (cLen20 + Yard20ftGapM * StsConfig.ModelScale) * 0.5f;
+                            float[] zs = use20 ? new[] { z - off20, z + off20 } : new[] { z };
+                            var src = use20 ? fbx20 : fbx;
+                            float h  = use20 ? tierH20 : tierH;
+                            for (int t = 0; t < tiers; t++)
+                                foreach (float cz in zs)
+                                {
+                                    placed++;
+                                    var go = (GameObject)PrefabUtility.InstantiatePrefab(src);
+                                    go.name = $"Cont{(use20 ? "20" : "40")}_{i}{j}_{r:00}{b:00}_{t}";
+                                    go.transform.SetParent(root, worldPositionStays: false);
+                                    // 피봇이 중앙 높이라 +0.5 단. 회전 없음 — 길이가 이미 Z 다.
+                                    go.transform.localPosition = new Vector3(x, h * (t + 0.5f), cz);
+                                }
                         }
                 }
 
             float inv = StsConfig.InvModelScale;
             Done(root, $"컨테이너 {placed}개 · 스택 {stacks}/{cells}셀(채움 {YardFillRatio:P0}) · " +
+                       $"20ft 스택 {stacks20}/{stacks}(비율 {Yard20ftRatio:P0}, 베이당 2개) · " +
                        $"40ft 실측 {cLen * inv:F2}L × {cWid * inv:F2}W × {tierH * inv:F2}H m · " +
+                       $"20ft {cLen20 * inv:F2}L · " +
                        $"최대 {Mathf.Min(YardStackMaxTiers, PortConfig.YardTiers)}단" +
                        $"(설계 장치능력은 {PortConfig.YardTiers}단 기준 유지) · 시드 {YardFillSeed}");
         }
