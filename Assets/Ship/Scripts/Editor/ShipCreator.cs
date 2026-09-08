@@ -259,6 +259,15 @@ namespace Container.Ship.EditorTools
             float m = Container.Crane.Sts.EditorTools.RtgCraneFbxPlacer.CombinedBounds(go).size.y;
             float t = ProceduralContainerMesh.HeightStd * ms;
             if (m > 1e-6f) go.transform.localScale *= t / m;
+
+            // ★ 원점 규약이 FBX 마다 다르다 — 정밀본은 '바닥', LOD1 은 '중앙'(2026-09-08 Blender 실측).
+            //     Container_40ft.fbx        Z[-0.000 +0.108]  ← 바닥
+            //     Container_40ft_LOD1.fbx   Z[-1.296 +1.296]  ← 중앙
+            //   래퍼는 y 를 '중앙 높이'로 놓으므로(콜라이더 center 도 0), 바닥 원점 FBX 는
+            //   반 통(2.591/2 = 1.296m) 만큼 떠오른다. LOD 가 바뀌는 순간 컨테이너가 튀어오른다.
+            //   피봇을 바운즈 중앙으로 통일하면 어느 규약이든 같은 자리에 앉는다.
+            go.transform.position += parent.position
+                - Container.Crane.Sts.EditorTools.RtgCraneFbxPlacer.CombinedBounds(go).center;
             return go;
         }
 
