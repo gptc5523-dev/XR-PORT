@@ -3,7 +3,62 @@ guid: 908f54db58cf5456e906e68b67f396ed
 ModelImporter:
   serializedVersion: 24200
   internalIDToNameTable: []
-  externalObjects: {}
+  externalObjects:
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: ABS
+    second: {fileID: 2100000, guid: 485d4016a7081430792fb1e51678f311, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Body
+    second: {fileID: 2100000, guid: f9104b76f5ba74fde965678037415603, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Door
+    second: {fileID: 2100000, guid: 44276036fd1ea40218cefe71f950a2e2, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: DoorHardware_Gray
+    second: {fileID: 2100000, guid: 0cd0683e303b74982ac598f848d58796, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: EPDM_Gasket
+    second: {fileID: 2100000, guid: 3184cf75214c74bf9847c817c30afa4d, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Etch_Fill
+    second: {fileID: 2100000, guid: eb5d1d7258005410e9b304c7f309c75c, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Frame
+    second: {fileID: 2100000, guid: 780ae64fd7ca24de4a73081d56775a76, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Plywood_19ply
+    second: {fileID: 2100000, guid: a5834092bbfe449aeb6b9deaea706c72, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Sealant
+    second: {fileID: 2100000, guid: 1540b40c94388455ead5fcb7adf39a5c, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Stainless
+    second: {fileID: 2100000, guid: d6477b202fa6a4e2da2ed8bac58ee2ad, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Steel_HDG
+    second: {fileID: 2100000, guid: fc1b9bb50e63b453d90d1aeb0e31eb8d, type: 2}
   materials:
     materialImportMode: 1
     materialName: 0
