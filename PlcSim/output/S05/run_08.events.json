@@ -2,11 +2,11 @@
   "scenario": "S05",
   "name": "작업 종료 및 셧다운",
   "label": "정상",
-  "duration_s": 4.7,
-  "rows": 47,
+  "duration_s": 25.7,
+  "rows": 257,
   "events": [
     {
-      "t_ms": 1400,
+      "t_ms": 22400,
       "kind": "event",
       "code": 5015,
       "severity": 0,
@@ -14,7 +14,7 @@
       "description": "운전 모드 변경"
     },
     {
-      "t_ms": 2500,
+      "t_ms": 23300,
       "kind": "event",
       "code": 5017,
       "severity": 0,

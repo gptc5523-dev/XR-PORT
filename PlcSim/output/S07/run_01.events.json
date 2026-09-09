@@ -2,11 +2,11 @@
   "scenario": "S07",
   "name": "스내그 알람",
   "label": "주의",
-  "duration_s": 103.9,
-  "rows": 1039,
+  "duration_s": 47.9,
+  "rows": 479,
   "events": [
     {
-      "t_ms": 66100,
+      "t_ms": 32500,
       "kind": "alarm",
       "code": 3013,
       "severity": 2,

@@ -2,11 +2,11 @@
   "scenario": "S09",
   "name": "비상정지",
   "label": "이상",
-  "duration_s": 40.2,
-  "rows": 402,
+  "duration_s": 33.3,
+  "rows": 333,
   "events": [
     {
-      "t_ms": 33500,
+      "t_ms": 25800,
       "kind": "alarm",
       "code": 5001,
       "severity": 3,

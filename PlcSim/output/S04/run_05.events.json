@@ -2,7 +2,7 @@
   "scenario": "S04",
   "name": "트윈 리프트",
   "label": "정상",
-  "duration_s": 190.6,
-  "rows": 1906,
+  "duration_s": 79.2,
+  "rows": 792,
   "events": []
 }

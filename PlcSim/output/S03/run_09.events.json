@@ -2,7 +2,7 @@
   "scenario": "S03",
   "name": "컨테이너 선적",
   "label": "정상",
-  "duration_s": 169.7,
-  "rows": 1697,
+  "duration_s": 81.8,
+  "rows": 818,
   "events": []
 }

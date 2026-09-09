@@ -15,7 +15,9 @@
                          설계된 동작이라 제외한다 — 라벨이 아니라 '그 런에 실제로 급정지
                          이벤트가 있었는가'로 판정한다(주의 라벨에도 스내그가 들어있다).
   3) 런별 상이         : 같은 시나리오 N 회가 같은 파일이면 100회 반복시험이 1회와 같다.
-  4) 헤더 계약         : CsvReplaySource.ParseCsv 가 이름으로 찾는 컬럼이 전부 있어야 한다.
+  4) 적하·양하 방향     : S13(육지→배)·S14(배→육지)가 뒤집히면 데이터가 통째로 거짓이다.
+                         양하의 단 순서(위→아래)도 본다 — 아래부터 내리면 실물은 무너진다.
+  5) 헤더 계약         : CsvReplaySource.ParseCsv 가 이름으로 찾는 컬럼이 전부 있어야 한다.
 """
 import csv, glob, json, os, sys, collections
 
@@ -88,14 +90,44 @@ for L in sorted(acc):
           + ("   ← 오경보 " + ",".join(ex) if ex else "   OK"))
     if ex: fails.append(f"[오경보] {L}: {ex}")
 
-print("\n=== 3) 같은 시나리오의 런이 서로 다른가 ===")
+print("\n=== 3) 적하·양하 방향과 단 순서 ===")
+# S13 적하(육지→배) · S14 양하(배→육지)가 뒤집히면 데이터가 통째로 거짓이 된다.
+#   특히 양하의 '단 순서' — 아래 단부터 내리면 실물에선 위 컨테이너가 무너진다.
+for sid, pick_ship in (("S13", False), ("S14", True)):
+    f = os.path.join(OUT, sid, "run_01.csv")
+    if not os.path.exists(f):
+        print(f"  {sid} 없음 — 건너뜀"); continue
+    rows = list(csv.DictReader(open(f, encoding="utf-8")))
+    picks, places, prev = [], [], None
+    for r in rows:
+        lk = r["SP_TwistLock_Locked"]
+        if prev is not None and lk != prev:
+            (picks if lk == "1" else places).append(
+                (float(r["TR_Position"]), float(r["HO_Position"])))
+        prev = lk
+    if not picks or not places:
+        fails.append(f"[방향] {sid}: 잠금/해제 전이 없음"); continue
+    # 배쪽 = 안벽(TR_QUAY 33.9)보다 바다쪽, 육지쪽 = 육지쪽 다리(15.9)보다 안쪽
+    pick_side  = all(tr > 33.9 for tr, _ in picks)  if pick_ship else all(tr < 15.9 for tr, _ in picks)
+    place_side = all(tr < 15.9 for tr, _ in places) if pick_ship else all(tr > 33.9 for tr, _ in places)
+    tiers = [ho for _, ho in picks] if pick_ship else [ho for _, ho in places]
+    tier_ok = tiers[0] >= tiers[-1] if pick_ship else tiers[0] <= tiers[-1]   # 양하 위→아래 / 적하 아래→위
+    d = "배→육지" if pick_ship else "육지→배"
+    print(f"  {sid} {d}  집는곳 {'배' if pick_ship else '육지'}={'OK' if pick_side else 'NG'}"
+          f"  놓는곳 {'육지' if pick_ship else '배'}={'OK' if place_side else 'NG'}"
+          f"  단 {tiers[0]:.1f}→{tiers[-1]:.1f}m {'OK' if tier_ok else 'NG'}  ({len(picks)}개)")
+    if not pick_side:  fails.append(f"[방향] {sid}: 집는 위치가 반대")
+    if not place_side: fails.append(f"[방향] {sid}: 놓는 위치가 반대")
+    if not tier_ok:    fails.append(f"[단순서] {sid}: {'양하는 위 단부터' if pick_ship else '적하는 아래 단부터'}")
+
+print("\n=== 4) 같은 시나리오의 런이 서로 다른가 ===")
 dup = [s for s, d in digests.items() if len(d) == 1 and
        sum(1 for r in man["runs"] if r["scenario"] == s) > 1]
 print(f"  시나리오 {len(digests)}종 · 총 {man['total_runs']}런 · " +
       ("전부 상이 OK" if not dup else f"중복 {dup}"))
 if dup: fails.append(f"[중복] {dup}")
 
-print("\n=== 4) 요약 ===")
+print("\n=== 5) 요약 ===")
 print(f"  {man['total_rows']:,} 행 · {man['total_rows']*dt/60:.1f} 분 · 라벨 {man['label_distribution']}")
 print(f"  range_m={man['range_m']}  vmax={man['vmax_ms']}  amax={man['amax_ms2']}")
 

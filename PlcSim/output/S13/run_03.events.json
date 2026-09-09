@@ -1,8 +1,8 @@
 {
   "scenario": "S13",
-  "name": "20개 적하 (육지→배)",
+  "name": "20개 적하 (육지 섀시→배 갑판)",
   "label": "정상",
-  "duration_s": 1709.5,
-  "rows": 17095,
+  "duration_s": 1521.1,
+  "rows": 15211,
   "events": []
 }

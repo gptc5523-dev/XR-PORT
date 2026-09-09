@@ -6,7 +6,7 @@
 ㈜엠비이 PLCSIM Advanced / 시뮬레이션 데이터(운영시나리오 부록C, 도착 대기) 전까지,
 동일 형식의 가상 데이터를 생성한다. 근거 문서:
   - 태그/주소/단위 : MBE-DOC-2026-XR-002 (PLC 데이터 포인트 리스트, DB100/DB101)
-  - 시나리오 시퀀스 : MBE-DOC-2026-XR-004 (운영 시나리오 12선)
+  - 시나리오 시퀀스 : MBE-DOC-2026-XR-004 (운영 시나리오 12선) + S13/S14 (연속 적하·양하)
   - 알람 코드/심각도 : MBE-DOC-2026-XR-003 (알람 코드북)
   - 푸시 주기 100ms : MBE-DOC-2026-XR-001/005
 
@@ -276,11 +276,39 @@ class Sim:
         }
 
 
+# ─────────────────── 씬 기하에서 유도한 작업 좌표 (실척 m) ───────────────────
+# ★ 여기 숫자는 지어낸 값이 아니라 전부 Unity SSOT 에서 유도한 값이다.
+#   StsConfig      : LegGaugeXMeters 18 · QuayDeckAboveSeaMeters 4 · ModelScale 1/24
+#   StsCraneCreator: TrolleyMinX −15.9 · TrolleyMaxX 63 · LandLegX 0 · WaterLegX 18 · RailH 44
+#   ShipConfig     : FreeboardMeters 11 · BeamMeters 39.53 · DeckRows 15 · ContainerWidthM 2.438
+#   ShipBerthMenu  : 접안틈 = ApronSeawardM 4 + FenderClearance 1.5 = 5.5
+#
+# ── 트롤리: PLC 좌표 = 붐로컬 X + 15.9 (0 = 백리치 끝) ──
+TR_LANDLEG   = 15.9                     # 육지쪽 다리      (X = 0)
+TR_QUAY      = 33.9                     # 바다쪽 다리·안벽 (X = 18)
+TR_SHIP_NEAR = 39.4                     # 배 현측          (X = 18 + 5.5 = 23.5)
+TR_SHIP_FAR  = 78.9                     # 배 원측          (X = 23.5 + 39.53 = 63.03) — 아웃리치가 전폭을 덮는다
+ROW_PITCH    = 2.478                    # 갑판 열간 피치 = 컨테이너폭 2.438 + 라싱 0.04
+TR_CHASSIS   = 8.0                      # 육지 섀시(트럭) — 백리치 안(< TR_LANDLEG 15.9)
+TR_SHIP_WORK = TR_SHIP_NEAR + 2 * ROW_PITCH   # 배 위 기본 작업 열(현측에서 3번째)
+
+# ── 권상: PLC 좌표 = 스프레더 하단의 안벽 상면 기준 높이 − 0.8 ──
+#   HO=0 은 SpreaderMinY = −(RailH − 0.8) 이라 안벽 상면 +0.8m 에 해당한다.
+QUAY_TO_DECK = 11.0 - 4.0               # 주갑판 − 안벽 = 건현 − 안벽고 = 7.0
+CONT_H       = 2.591                    # ISO 1AA 높이
+HO_DECK_T1   = QUAY_TO_DECK + CONT_H - 0.8         #  8.79  갑판 1단 상면
+HO_DECK_T2   = QUAY_TO_DECK + 2 * CONT_H - 0.8     # 11.38  갑판 2단 상면(오너 지시 갑판 최대 2단)
+HO_CHASSIS   = 1.51 - 0.8                          #  0.71  섀시 데크 상면(40ft 샤시 1.51m)
+HO_CLEAR     = HO_DECK_T2 + 3.0                    # 14.38  이송 클리어고
+
 # ─────────────────────── 시나리오 ───────────────────────
-HI = RANGE["ho"]      # 권상 최상단
-LO = 2.0              # 안착 높이
-SEA = RANGE["tr"]     # 트롤리 선박측
-LAND = 0.0            # 트롤리 안벽측
+# ※ 옛 값(HI = RANGE["ho"] = 39.2 최상단 / LO = 2.0 / SEA = range 끝)은 씬이 생기기 전
+#   추상 좌표였다. 매 사이클 최상단까지 올리는 운전은 실물에 없다 — 클리어고까지만 올린다.
+HI   = HO_CLEAR       # 이송 클리어고
+LO   = HO_DECK_T2     # 배쪽 작업고(갑판 2단 상면)
+LO_L = HO_CHASSIS     # 육지쪽 작업고(섀시 데크)
+SEA  = TR_SHIP_WORK   # 트롤리 선박측
+LAND = TR_CHASSIS     # 트롤리 육지측
 
 def discharge_cycle(s, with_pick=True):
     """S02 양하 1사이클 (선박→안벽)."""
@@ -292,8 +320,8 @@ def discharge_cycle(s, with_pick=True):
         s.locked = True; s.carry = True; s.run_for(1.5)     # 트위스트락 잠금
         s.landed = False
     s.goto(ho=HI); s.run_until_settled()                    # 권상 상승(적재)
-    s.goto(tr=LAND); s.run_until_settled()                  # 트롤리 안벽측
-    s.goto(ho=LO); s.run_until_settled()                    # 권상 하강(안착)
+    s.goto(tr=LAND); s.run_until_settled()                  # 트롤리 육지측(섀시)
+    s.goto(ho=LO_L); s.run_until_settled()                  # 권상 하강(섀시 안착)
     s.landed = True; s.run_for(1.0)
     s.locked = False; s.carry = False; s.run_for(1.5)       # 트위스트락 해제
     s.landed = False; s.detected = False
@@ -310,9 +338,9 @@ def gen_S01(s):  # 기동 및 자체 진단 (정상)
 def gen_S02(s):  # 양하 (정상)
     discharge_cycle(s)
 
-def gen_S03(s):  # 선적 (정상) — 양하의 역순 근사
+def gen_S03(s):  # 선적 (정상) — 양하의 역순: 육지 섀시에서 집어 배 갑판에 놓는다
     s.op_mode = AUTO
-    s.goto(tr=LAND, ho=LO); s.run_until_settled()
+    s.goto(tr=LAND, ho=LO_L); s.run_until_settled()
     s.detected = True; s.landed = True; s.run_for(1.0)
     s.locked = True; s.carry = True; s.run_for(1.5); s.landed = False
     s.goto(ho=HI); s.run_until_settled()
@@ -353,7 +381,7 @@ def gen_S07(s):  # 스내그 (주의) — 권상 중 걸림
     s.goto(ho=HI); s.run_until_settled(); s.cycle += 1
 
 def gen_S08(s):  # 안착 실패/재시도 (주의)
-    s.goto(tr=SEA, ho=LO); s.run_until_settled()
+    s.goto(tr=SEA, ho=LO); s.run_until_settled()   # 배 갑판 위 안착 시도
     s.detected = True; s.landed = True; s.run_for(5.0)        # 5초 내 미잠금
     s.mismatch = True; s.event(4003); s.run_for(1.0)
     s.goto(ho=LO + 0.4); s.run_until_settled()                # 5~10cm 들어 재정렬
@@ -390,33 +418,71 @@ def gen_S12(s):  # 정비 모드 (정비 — 라벨 제외)
     s.locked_out = False; s.clear_alarm(); s.op_mode = MANUAL; s.run_for(2.0)
 
 
-def gen_S13(s):  # 20개 적하 (육지 야드 → 배), 20ft/40ft 혼합 — 배 없이 바다쪽 TR/GT 좌표로 적재
+BAY_PITCH = 12.192 + 0.6   # 선박 베이 피치 = 40ft 12.192 + 라싱 간격
+
+
+def gen_S13(s):  # 20개 적하 (육지 섀시 → 배 갑판), 20ft/40ft 혼합
     s.op_mode = AUTO
-    TR_LAND, TR_SEA = 8.0, 50.0        # 트롤리: 육지(backreach) ↔ 바다(배 위) — 픽업/적치를 트롤리로만 전환
-    PICK_LO, SHIP_DECK = 2.0, 12.0     # 권상: 야드 픽업고 ↔ 배 갑판 적치고
-    HI_CLEAR = 18.0                    # 이송 클리어고(맨 위까지 안 올림 — 현실 작업고)
     GT0 = RANGE["gt"] * 0.35           # 첫 작업 베이 — 절대 m 이 아니라 가동범위 비율(클램프 방지)
-    # 크레인이 이미 작업 베이에 위치 — 0에서 120m 장거리 주행/타임아웃 카스케이드 제거.
+    # 크레인이 이미 작업 베이에 위치 — 0에서 장거리 주행/타임아웃 카스케이드 제거.
     s.gt.pos = GT0; s.gt.target = GT0
-    for i in range(20):
-        is40 = (i % 2 == 1)            # 20ft/40ft 교대 혼합
-        s.sp_mode = SP40 if is40 else SP20
-        gt_bay = GT0 + i * 1.0         # 배 베이 — 안벽(갠트리축) 1m 간격 소폭 스텝(현실: 베이마다 약간 이동)
-        s.goto(gt=gt_bay)              # 베이로 소폭 이동(다음 settle 중 완료)
-        # ── 픽업(육지) — 같은 갠트리에서 트롤리만 육지쪽 ──
-        s.goto(tr=TR_LAND, ho=HI_CLEAR); s.run_until_settled()
-        s.goto(ho=PICK_LO); s.run_until_settled()
-        s.detected = True; s.landed = True; s.run_for(1.0)
-        s.locked = True; s.carry = True; s.run_for(1.5); s.landed = False
-        s.goto(ho=HI_CLEAR); s.run_until_settled()
-        # ── 적치(배) — 트롤리 바다쪽, 같은 갠트리 ──
-        s.goto(tr=TR_SEA); s.run_until_settled()
-        s.goto(ho=SHIP_DECK); s.run_until_settled()
-        s.landed = True; s.run_for(1.0)
-        s.locked = False; s.carry = False; s.run_for(1.5)
-        s.landed = False; s.detected = False
-        s.goto(ho=HI_CLEAR); s.run_until_settled()
-        s.cycle += 1
+    n = 0
+    for bay in range(2):                       # 베이 2개
+        s.goto(gt=GT0 + bay * BAY_PITCH)
+        for tier in (1, 2):                    # 적하는 아래 단부터 쌓는다
+            ho_place = HO_DECK_T1 if tier == 1 else HO_DECK_T2
+            for row in range(5):               # 현측에서 5열
+                if n >= 20: break
+                s.sp_mode = SP40 if n % 2 else SP20
+                # ── 픽업(육지 섀시) ──
+                s.goto(tr=LAND, ho=HI); s.run_until_settled()
+                s.goto(ho=LO_L); s.run_until_settled()
+                s.detected = True; s.landed = True; s.run_for(1.0)
+                s.locked = True; s.carry = True; s.run_for(1.5); s.landed = False
+                s.goto(ho=HI); s.run_until_settled()
+                # ── 적치(배 갑판) — 열은 트롤리, 단은 권상 ──
+                s.goto(tr=TR_SHIP_NEAR + row * ROW_PITCH); s.run_until_settled()
+                s.goto(ho=ho_place); s.run_until_settled()
+                s.landed = True; s.run_for(1.0)
+                s.locked = False; s.carry = False; s.run_for(1.5)
+                s.landed = False; s.detected = False
+                s.goto(ho=HI); s.run_until_settled()
+                s.cycle += 1; n += 1
+
+
+def gen_S14(s):  # 20개 양하 (배 갑판 → 육지 섀시), 20ft/40ft 혼합
+    """오너 요청 2026-09-09 "배에서 컨테이너를 내리는 PLC".
+
+    S02 는 양하 1사이클, S13 은 20개 적하(육지→배)라 '연속 양하'가 비어 있었다.
+    실물 양하 순서를 그대로 따른다 — 한 베이 안에서 <b>위 단부터</b> 열을 훑고, 다 비우면
+    갠트리로 다음 베이. 단을 아래부터 내리면 위 컨테이너가 무너지므로 순서가 뒤집히면 안 된다.
+      갠트리 = 베이(선박 길이방향) · 트롤리 = 열(선폭방향) · 권상 = 단
+    """
+    s.op_mode = AUTO
+    GT0 = RANGE["gt"] * 0.35
+    s.gt.pos = GT0; s.gt.target = GT0
+    n = 0
+    for bay in range(2):
+        s.goto(gt=GT0 + bay * BAY_PITCH)
+        for tier in (2, 1):                    # ★ 양하는 위 단부터
+            ho_pick = HO_DECK_T2 if tier == 2 else HO_DECK_T1
+            for row in range(5):
+                if n >= 20: break
+                s.sp_mode = SP40 if n % 2 else SP20
+                # ── 픽업(배 갑판) ──
+                s.goto(tr=TR_SHIP_NEAR + row * ROW_PITCH, ho=HI); s.run_until_settled()
+                s.goto(ho=ho_pick); s.run_until_settled()
+                s.detected = True; s.landed = True; s.run_for(1.0)
+                s.locked = True; s.carry = True; s.run_for(1.5); s.landed = False
+                s.goto(ho=HI); s.run_until_settled()
+                # ── 안착(육지 섀시) ──
+                s.goto(tr=LAND); s.run_until_settled()
+                s.goto(ho=LO_L); s.run_until_settled()
+                s.landed = True; s.run_for(1.0)
+                s.locked = False; s.carry = False; s.run_for(1.5)
+                s.landed = False; s.detected = False
+                s.goto(ho=HI); s.run_until_settled()
+                s.cycle += 1; n += 1
 
 
 SCENARIOS = [
@@ -432,7 +498,8 @@ SCENARIOS = [
     ("S10", "풍속 한계 초과(중단)", "이상", gen_S10),
     ("S11", "설비 고장", "이상", gen_S11),
     ("S12", "정비 모드", "정비(제외)", gen_S12),
-    ("S13", "20개 적하 (육지→배)", "정상", gen_S13),
+    ("S13", "20개 적하 (육지 섀시→배 갑판)", "정상", gen_S13),
+    ("S14", "20개 양하 (배 갑판→육지 섀시)", "정상", gen_S14),
 ]
 
 # 벤더 부록C 회차 — 정상 각10/주의 각5/이상 각5/정비 3 = 83. 기본은 샘플(축소), --full로 전체.
