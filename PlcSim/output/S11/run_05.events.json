@@ -1,0 +1,17 @@
+{
+  "scenario": "S11",
+  "name": "설비 고장",
+  "label": "이상",
+  "duration_s": 41.5,
+  "rows": 415,
+  "events": [
+    {
+      "t_ms": 35300,
+      "kind": "alarm",
+      "code": 3002,
+      "severity": 2,
+      "source": 3,
+      "description": "HO 모터 권선 온도 한계 초과"
+    }
+  ]
+}

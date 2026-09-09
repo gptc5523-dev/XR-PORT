@@ -1,0 +1,17 @@
+{
+  "scenario": "S06",
+  "name": "풍속 한계 접근(감속)",
+  "label": "주의",
+  "duration_s": 144.5,
+  "rows": 1445,
+  "events": [
+    {
+      "t_ms": 28000,
+      "kind": "alarm",
+      "code": 6001,
+      "severity": 1,
+      "source": 6,
+      "description": "풍속 주의 (≥18 m/s)"
+    }
+  ]
+}

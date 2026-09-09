@@ -2,8 +2,8 @@
   "scenario": "S12",
   "name": "정비 모드",
   "label": "정비(제외)",
-  "duration_s": 10.0,
-  "rows": 100,
+  "duration_s": 12.4,
+  "rows": 124,
   "events": [
     {
       "t_ms": 0,

@@ -1,0 +1,17 @@
+{
+  "scenario": "S01",
+  "name": "시스템 기동 및 자체 진단",
+  "label": "정상",
+  "duration_s": 5.4,
+  "rows": 54,
+  "events": [
+    {
+      "t_ms": 3400,
+      "kind": "event",
+      "code": 5016,
+      "severity": 0,
+      "source": 5,
+      "description": "시스템 정상 기동 완료"
+    }
+  ]
+}

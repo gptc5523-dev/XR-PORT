@@ -18,14 +18,28 @@
 ※ 가설 데이터 — 실 PLCSIM 도착 시 이 생성기는 폐기/검증대조용으로만 남긴다.
    속도/가속 기본값은 통상 STS 보수값(벤더 확정·튜닝 대상).
 """
-import csv, json, os, math, argparse
+import csv, json, os, math, argparse, random
 
 DT = 0.1  # 100ms 폴링 (사양서 §3.2)
 
-# ── 실척 가동 범위(사양서 §2) · 정격 속도(m/s)/가속(m/s²) ──
-RANGE = {"gt": 450.0, "tr": 60.0, "ho": 45.0}
-VMAX  = {"gt": 0.7,  "tr": 4.0, "ho": 1.3}    # 통상 STS 보수값(가설)
-AMAX  = {"gt": 0.15, "tr": 0.6, "ho": 0.6}    # CraneOpMode 정격 근거
+# ── 실척 가동 범위 · 정격 속도(m/s)/가속(m/s²) ──
+# ★ SSOT 는 Unity 크레인 기하다. PlcBridge 는 무버 Min/Max 에서 rangeM 을 자동 산출해
+#   realPos / rangeM 으로 정규화한다 → 여기 값이 실제 가동범위와 다르면 그 비율만큼
+#   위치가 통째로 어긋나고, 초과분은 클램프돼 축이 끝에 붙어버린다.
+#   유도 (StsCraneCreator.cs, Scale = 1/24):
+#     tr = (TrolleyMaxX − TrolleyMinX) × 24 = (63/24 − (−13/24 − 0.12)) × 24 = 78.9 m
+#     ho = (SpreaderMaxY − SpreaderMinY) × 24 = (44 − 4.8)               = 39.2 m
+#   gt 는 씬의 부두 레일에서 런타임 산출(GantryRangeFit)이라 정적으로 못 박는다.
+#     기본값 = 설계 상수 GantryRange(±2.2 모델) × 2 × 24 = 105.6 m.
+#     ponytail: Play 로그 "[PlcBridge] range 자동산출 ... GT=__m" 의 실측값을
+#               --gt-range 로 주면 정확해진다. 시나리오는 range 비율로 쓰므로 클램프는 안 난다.
+RANGE = {"gt": 105.6, "tr": 78.9, "ho": 39.2}
+# 정격 — SSOT = CraneAxisProfile.cs (VirtualPlcSource 와 같은 출처를 쓴다)
+VMAX  = {"gt": 0.7,  "tr": 3.5, "ho": 1.25}   # CraneAxisProfile.*MaxSpeed
+AMAX  = {"gt": 0.15, "tr": 0.6, "ho": 0.50}   # CraneAxisProfile.*RatedAccel
+# 비상제동 배수 — E-Stop 은 정격을 훨씬 넘겨 세운다. 트립 임계(정격×1.667)를 넘는 건
+#   의도된 것: E-Stop 에서는 가속알람이 떠야 맞다. 다만 '순간 0'은 아니다(무한 감속).
+EMG_BRAKE = 3.0
 
 # ── 알람 코드북 발췌(코드→심각도/소스/한글) — 시나리오가 쓰는 것만 ──
 ALM = {
@@ -68,13 +82,21 @@ CSV_FIELDS = [
 
 
 class Axis:
-    """가속도 한계 트라페조이드 프로파일(점프 없음) — VirtualPlcSource.cs와 동일 로직."""
-    def __init__(self, pos):
+    """가속도 한계 트라페조이드 프로파일(점프 없음) — VirtualPlcSource.cs 와 같은 의도.
+
+    ※ C# 과 한 곳이 다르다: C# 은 정착 시 Pos = Target 으로 '위치를' 스냅하지만 여기선
+      위치를 절대 건드리지 않고 Target 을 현재 위치로 당긴다. CSV 는 100ms 격자라
+      5cm 위치 텔레포트가 겉보기 가속 Δd/dt² = 5 m/s² 로 보이고, Unity 의 CraneOpMode 가
+      위치를 2차 미분하므로 정상 운전에서 가속알람(1021/2021/3021)이 오발한다
+      (패치 전 실측: 정상 시나리오 GT 5.10 · TR 5.60 · HO 10.30 m/s², 트립 0.25/1.00/0.833).
+      속도만 죽이면 Δv ≤ amax·dt → 겉보기 가속 ≤ amax < 트립 이라 구조적으로 안전하다."""
+    def __init__(self, pos, lim=None):
         self.pos = pos; self.vel = 0.0; self.target = pos; self.accel = 0.0
+        self.lim = lim   # 실척 가동 상한(엔드스톱). None 이면 무제한.
 
     def step(self, dt, vmax, amax):
         d = self.target - self.pos
-        dist = abs(d); vabs = abs(self.vel)
+        dist = abs(d); vabs = abs(self.vel); v0 = self.vel
         stop = (vabs * vabs) / (2 * amax) if amax > 0 else 0.0
         if dist <= stop + 1e-4:
             a = (-1.0 if self.vel > 0 else (1.0 if self.vel < 0 else 0.0)) * amax
@@ -82,21 +104,44 @@ class Axis:
             a = (1.0 if d > 0 else -1.0) * amax
         self.vel += a * dt
         self.vel = max(-vmax, min(vmax, self.vel))
+        # 감속 한계 — '남은 거리 안에서 반드시 멈출 수 있는 속도'로 제한한다.
+        #   100ms 이산 틱이라 감속 시작 판정만으로는 목표를 v·dt 만큼 지나친다(TR 실측 0.50 m).
+        #   지나치면 엔드스톱이 속도를 한 틱에 죽여 겉보기 가속 5~7 m/s² → 가속알람 오발.
+        #   vcap 은 dist 에 대해 매끄러워서(Δv/틱 ≈ amax·dt) 이 제한 자체는 스파이크를 안 만든다.
+        #   바닥(amax*dt) — vcap 은 dist→0 에서 기울기가 발산해 마지막 한 틱에 속도를
+        #   정격의 2배로 깎는다(실측 TR 1.30 / 정격 0.6). 정격 한 틱치 속도를 바닥으로 깔면
+        #   그 속도에서 아래 '도착 정착'(임계 amax*dt+1e-3)이 바로 걸려 Δv ≤ amax*dt,
+        #   즉 겉보기 가속 ≤ amax < 트립이 된다.
+        vcap = max(math.sqrt(2.0 * amax * dist), amax * dt) if dist > 0.0 else 0.0
+        self.vel = max(-vcap, min(vcap, self.vel))
+        # ※ 여기에 '틱당 속도변화 ≤ amax' 상한을 두면 안 된다 — vcap 을 무력화해서
+        #   감속이 늦어지고 축이 엔드스톱을 때린다(실측: TR 이 0 을 지나쳐 −0.45 m/s 에서
+        #   급정지 → 겉보기 가속 4.3). 급정지는 상한이 아니라 Sim.arrest() 로 분리한다.
         self.pos += self.vel * dt
         self.accel = a
-        # 도착 스냅 — vel 임계는 틱 양자화(amax*dt)보다 커야 한다(안 그러면 목표 근처서 진동만 하고 영영 안 멈춤).
+        # 엔드스톱(리밋 스위치) — 트라페조이드 오버슈트가 가동범위를 넘지 않게 한다.
+        #   넘긴 채로 내보내면 Unity 가 realPos/rangeM > 1 을 클램프해 축이 끝에 붙는다.
+        if self.lim is not None and not (0.0 <= self.pos <= self.lim):
+            self.pos = min(max(self.pos, 0.0), self.lim); self.vel = 0.0; self.accel = 0.0
+        # 도착 정착 — 위치가 아니라 목표를 당긴다(위 클래스 주석: 위치 텔레포트 금지).
+        #   vel 임계는 틱 양자화(amax*dt)보다 커야 한다(안 그러면 목표 근처서 진동만 하고 영영 안 멈춤).
         if abs(self.target - self.pos) < 0.05 and abs(self.vel) <= amax * dt + 1e-3:
-            self.pos = self.target; self.vel = 0.0; self.accel = 0.0
+            self.target = self.pos; self.vel = 0.0; self.accel = 0.0
 
     def settled(self):
         return abs(self.target - self.pos) < 0.05 and abs(self.vel) < 0.05
 
 
 class Sim:
-    def __init__(self, sp_mode=SP40, wind=8.0):
+    def __init__(self, sp_mode=SP40, wind=8.0, rng=None):
+        # 런별 편차의 단일 출처. 시드 고정 = 재현 가능(반복시험 요건).
+        self.rng = rng or random.Random(0)
         self.t = 0.0
-        self.gt = Axis(0.0); self.tr = Axis(0.0); self.ho = Axis(RANGE["ho"])
+        self.gt = Axis(0.0, RANGE["gt"]); self.tr = Axis(0.0, RANGE["tr"]); self.ho = Axis(RANGE["ho"], RANGE["ho"])
         self.vmul = 1.0  # 풍속 감속 등 속도 스케일
+        # 설비 편차 — 인버터 튜닝·로프 마모·운전자 습관으로 런마다 정격이 미세하게 다르다.
+        self.vdev = {k: self.rng.gauss(1.0, 0.03) for k in ("gt", "tr", "ho")}
+        self.adev = {k: self.rng.gauss(1.0, 0.04) for k in ("gt", "tr", "ho")}
         self.sp_mode = sp_mode
         self.carry = False; self.load = 0.0
         self.locked = False; self.landed = False; self.detected = False
@@ -105,6 +150,7 @@ class Sim:
         self.estop = False; self.locked_out = False; self.antisway = True
         self.cycle = 0
         self.wind = wind; self.wind_dir = 270.0; self.wind_alarm = False
+        self.wind_inst = wind; self.wind_dir_inst = 270.0   # 계측 순시값(_step_env가 갱신)
         self.ho_overload = False; self.ho_snag = False; self.ho_motor_alarm = False
         self.comm = True
         # 현재 활성 알람(스티키) : code/sev/src
@@ -126,21 +172,60 @@ class Sim:
 
     # ── 시간 진행 ──
     def _tick(self):
-        self.gt.step(DT, VMAX["gt"] * self.vmul, AMAX["gt"])
-        self.tr.step(DT, VMAX["tr"] * self.vmul, AMAX["tr"])
-        self.ho.step(DT, VMAX["ho"] * self.vmul, AMAX["ho"])
+        self.gt.step(DT, VMAX["gt"] * self.vmul * self.vdev["gt"], AMAX["gt"] * self.adev["gt"])
+        self.tr.step(DT, VMAX["tr"] * self.vmul * self.vdev["tr"], AMAX["tr"] * self.adev["tr"])
+        self.ho.step(DT, VMAX["ho"] * self.vmul * self.vdev["ho"], AMAX["ho"] * self.adev["ho"])
         self.load = (32.0 if self.sp_mode != SPTWIN else 40.0) if self.carry else 0.0
+        self._step_env()
         self.rows.append(self._row())
         self.t += DT
 
-    def run_for(self, secs):
-        for _ in range(int(round(secs / DT))):
+    # 풍속은 상수가 아니라 돌풍(랜덤워크+저주파) — 시나리오가 정한 self.wind 를 평균으로 흔든다.
+    #   위치와 달리 미분되지 않는 채널이라 노이즈를 넣어도 가속알람(1021/2021/3021)에 영향이 없다.
+    def _step_env(self):
+        self.wind_inst = max(0.0, self.wind + self.rng.gauss(0.0, 0.45) + 0.6 * math.sin(self.t * 0.7))
+        self.wind_dir_inst = (self.wind_dir + self.rng.gauss(0.0, 2.5)) % 360.0
+
+    # 대기시간(트위스트락 잠금·안착 확인 등)도 런마다 다르다 — 사람·유압이 개입하는 구간.
+    def run_for(self, secs, jitter=True):
+        if jitter: secs *= self.rng.uniform(0.85, 1.30)
+        for _ in range(max(1, int(round(secs / DT)))):
             self._tick()
 
+    # 목표 위치에 런별 산포를 섞는다 — 실제 운전은 같은 베이도 매번 몇 cm 씩 다르게 선다.
+    #   가동범위 밖으로 새지 않게 클램프한다(넘기면 Unity 축이 끝에 붙어 추종이 끊긴다).
     def goto(self, gt=None, tr=None, ho=None):
-        if gt is not None: self.gt.target = gt
-        if tr is not None: self.tr.target = tr
-        if ho is not None: self.ho.target = ho
+        if gt is not None: self.gt.target = self._aim(gt, "gt", 0.25)
+        if tr is not None: self.tr.target = self._aim(tr, "tr", 0.20)
+        if ho is not None: self.ho.target = self._aim(ho, "ho", 0.08)
+
+    # 목표는 리밋에 붙이지 않는다 — 한 틱치 여유(vmax·dt)를 남긴다.
+    #   붙이면 마지막 접근이 엔드스톱을 때려 속도가 한 틱에 죽고(실측 TR −0.14 → −0.01)
+    #   겉보기 가속이 1.3 m/s² 로 튄다. 실제 크레인도 리밋 스위치 위에 주차하지 않는다.
+    def _aim(self, v, axis, sigma):
+        m = VMAX[axis] * DT
+        return max(m, min(RANGE[axis] - m, v + self.rng.gauss(0.0, sigma)))
+
+    # 급정지 — E-Stop·스내그·모터고장처럼 정격을 넘겨 세우는 구간.
+    #   브레이크가 물리는 데 시간이 걸린다: '속도를 한 틱에 0' 으로 두면 미분 시 무한 감속이라
+    #   실 데이터로 안 보이고, 반대로 정격 감속으로 세우면 급정지처럼 안 보인다.
+    #   mul = 정격 대비 감속 배수. 트립 임계(정격×1.667)를 넘는 건 의도된 것 — 알람이 떠야 맞다.
+    def arrest(self, mul=EMG_BRAKE, estop=False, safety_ticks=200):
+        self.estop = estop
+        for _ in range(safety_ticks):
+            moving = False
+            for ax, k in ((self.gt, "gt"), (self.tr, "tr"), (self.ho, "ho")):
+                dv = AMAX[k] * mul * DT
+                v0 = ax.vel
+                ax.vel = 0.0 if abs(v0) <= dv else (v0 - dv if v0 > 0 else v0 + dv)
+                ax.accel = (ax.vel - v0) / DT
+                ax.pos += ax.vel * DT
+                if ax.lim is not None: ax.pos = min(max(ax.pos, 0.0), ax.lim)
+                ax.target = ax.pos          # 추종 중단 — 재가동까지 그 자리
+                if abs(ax.vel) > 1e-3: moving = True
+            self.load = (32.0 if self.sp_mode != SPTWIN else 40.0) if self.carry else 0.0
+            self._step_env(); self.rows.append(self._row()); self.t += DT
+            if not moving: return
 
     def run_until_settled(self, timeout=90.0):
         n = int(timeout / DT)
@@ -151,6 +236,13 @@ class Sim:
     # ── 스냅샷 행 ──
     @staticmethod
     def _b(x): return 1 if x else 0
+
+    # 로드셀 실측값 — 정지 하중에 계측 노이즈 + 권상 가감속 관성분(F=ma)을 얹는다.
+    #   무부하는 0 고정(스프레더 자중은 태그상 tare 보정됨).
+    def _load_cell(self):
+        if self.load <= 0.0: return 0.0
+        inertia = self.load * (self.ho.accel / 9.81) if abs(self.ho.vel) > 1e-3 else 0.0
+        return max(0.0, self.load + inertia + self.rng.gauss(0.0, 0.12))
 
     def _row(self):
         moving = (abs(self.gt.vel) > 1e-3) or (abs(self.tr.vel) > 1e-3) or (abs(self.ho.vel) > 1e-3)
@@ -164,7 +256,7 @@ class Sim:
             "TR_Direction": self._b(self.tr.vel > 0), "TR_Running": self._b(abs(self.tr.vel) > 1e-3 and not self.estop),
             "TR_Brake_Released": self._b(running), "TR_Motor_Alarm": 0,
             "HO_Position": round(self.ho.pos, 3), "HO_Velocity": round(self.ho.vel, 3),
-            "HO_Direction": self._b(self.ho.vel > 0), "HO_Load": round(self.load, 2),
+            "HO_Direction": self._b(self.ho.vel > 0), "HO_Load": round(self._load_cell(), 2),
             "HO_Overload_Alarm": self._b(self.ho_overload), "HO_Snag_Alarm": self._b(self.ho_snag),
             "HO_Running": self._b(abs(self.ho.vel) > 1e-3 and not self.estop),
             "HO_Brake_Released": self._b(running), "HO_Motor_Alarm": self._b(self.ho_motor_alarm),
@@ -176,7 +268,7 @@ class Sim:
             "OP_Running": self._b(running), "OP_Standby": self._b(not running and not self.estop),
             "OP_Emergency_Stop": self._b(self.estop), "OP_AntiSway_Active": self._b(self.antisway),
             "OP_Cycle_Count_Today": self.cycle,
-            "ENV_Wind_Speed": round(self.wind, 1), "ENV_Wind_Direction": round(self.wind_dir, 1),
+            "ENV_Wind_Speed": round(self.wind_inst, 1), "ENV_Wind_Direction": round(self.wind_dir_inst, 1),
             "ENV_Wind_Alarm": self._b(self.wind_alarm),
             "ALM_Active": self._b(self.alm_code != 0), "ALM_Latest_Code": self.alm_code,
             "ALM_Latest_Severity": self.alm_sev, "ALM_Latest_Source": self.alm_src,
@@ -255,7 +347,7 @@ def gen_S07(s):  # 스내그 (주의) — 권상 중 걸림
     s.detected = True; s.landed = True; s.locked = True; s.carry = True; s.run_for(1.5); s.landed = False
     s.goto(ho=HI / 2)  # 권상 상승 시작
     s.run_for(3.0)
-    s.ho_snag = True; s.event(3013); s.goto(ho=s.ho.pos); s.run_for(2.0)   # 권상 자동 정지
+    s.ho_snag = True; s.event(3013); s.arrest(2.0); s.run_for(2.0)         # 스내그 → 권상 보호정지
     s.goto(ho=s.ho.pos - 1.0); s.run_until_settled()                       # 약간 하강(걸림 해제)
     s.ho_snag = False; s.clear_alarm(); s.run_for(1.0)
     s.goto(ho=HI); s.run_until_settled(); s.cycle += 1
@@ -274,9 +366,7 @@ def gen_S09(s):  # 비상정지 (이상)
     s.goto(tr=SEA, ho=LO); s.run_until_settled()
     s.detected = True; s.locked = True; s.carry = True
     s.goto(ho=HI); s.run_for(2.0)
-    s.estop = True; s.event(5001)                              # E-Stop — 모든 축 즉시 정지
-    s.gt.vel = s.tr.vel = s.ho.vel = 0.0
-    s.goto(gt=s.gt.pos, tr=s.tr.pos, ho=s.ho.pos)
+    s.event(5001); s.arrest(estop=True)                        # E-Stop — 비상제동으로 감속 정지
     s.run_for(5.0)
     s.estop = False; s.clear_alarm(); s.ready = True; s.run_for(1.0)
 
@@ -291,7 +381,7 @@ def gen_S11(s):  # 설비 고장 (이상) — 권상 모터 과열
     s.detected = True; s.locked = True; s.carry = True
     s.goto(ho=HI); s.run_for(2.5)
     s.ho_motor_alarm = True; s.event(3002)                     # 권선 온도 초과 → 권상 정지
-    s.goto(ho=s.ho.pos); s.run_for(4.0)
+    s.arrest(2.0); s.run_for(4.0)
     s.ho_motor_alarm = False; s.clear_alarm(); s.run_for(1.0)
 
 def gen_S12(s):  # 정비 모드 (정비 — 라벨 제외)
@@ -305,7 +395,7 @@ def gen_S13(s):  # 20개 적하 (육지 야드 → 배), 20ft/40ft 혼합 — �
     TR_LAND, TR_SEA = 8.0, 50.0        # 트롤리: 육지(backreach) ↔ 바다(배 위) — 픽업/적치를 트롤리로만 전환
     PICK_LO, SHIP_DECK = 2.0, 12.0     # 권상: 야드 픽업고 ↔ 배 갑판 적치고
     HI_CLEAR = 18.0                    # 이송 클리어고(맨 위까지 안 올림 — 현실 작업고)
-    GT0 = 112.0                        # 첫 작업 베이(갠트리)
+    GT0 = RANGE["gt"] * 0.35           # 첫 작업 베이 — 절대 m 이 아니라 가동범위 비율(클램프 방지)
     # 크레인이 이미 작업 베이에 위치 — 0에서 120m 장거리 주행/타임아웃 카스케이드 제거.
     s.gt.pos = GT0; s.gt.target = GT0
     for i in range(20):
@@ -369,23 +459,32 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--full", action="store_true", help="벤더 부록C 전체 회차(83런) 생성")
     ap.add_argument("--out", default=os.path.join(os.path.dirname(__file__), "output"))
+    ap.add_argument("--gt-range", type=float, default=None,
+                    help="갠트리 실척 주행범위(m). Play 로그 '[PlcBridge] range 자동산출 ... GT=' 실측값.")
     args = ap.parse_args()
+    if args.gt_range: RANGE["gt"] = args.gt_range
     runs_per = FULL_RUNS if args.full else SAMPLE_RUNS
 
     manifest = {"generated_by": "PlcSim/generate.py (stopgap)", "dt_ms": int(DT * 1000),
-                "mode": "full" if args.full else "sample", "runs": []}
+                "mode": "full" if args.full else "sample",
+                "range_m": dict(RANGE), "vmax_ms": dict(VMAX), "amax_ms2": dict(AMAX),
+                "runs": []}
     total_rows = 0; label_count = {}
     for sid, name, label, fn in SCENARIOS:
         n = runs_per[label]
         for i in range(1, n + 1):
-            sim = Sim(sp_mode=SPTWIN if sid == "S04" else SP40)
+            # 런마다 다른 시드 — 같은 시나리오 N회가 서로 다른 데이터가 된다(반복시험 요건).
+            #   시드는 (시나리오번호, 회차)로 결정 → 재생성해도 같은 값(재현성). hash()는
+            #   프로세스마다 달라지므로(PYTHONHASHSEED) 쓰지 않는다.
+            seed = int(sid[1:]) * 1000 + i
+            sim = Sim(sp_mode=SPTWIN if sid == "S04" else SP40, rng=random.Random(seed))
             fn(sim)
             out_dir = os.path.join(args.out, sid)
             csv_path, ev_path, rows = write_run(out_dir, sid, name, label, i, sim)
             total_rows += rows
             label_count[label] = label_count.get(label, 0) + 1
             manifest["runs"].append({
-                "scenario": sid, "name": name, "label": label, "run": i,
+                "scenario": sid, "name": name, "label": label, "run": i, "seed": seed,
                 "rows": rows, "duration_s": round(rows * DT, 1),
                 "events": len(sim.events),
                 "csv": os.path.relpath(csv_path, args.out),

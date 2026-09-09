@@ -1,0 +1,17 @@
+{
+  "scenario": "S08",
+  "name": "안착 실패/재시도",
+  "label": "주의",
+  "duration_s": 74.3,
+  "rows": 743,
+  "events": [
+    {
+      "t_ms": 37600,
+      "kind": "alarm",
+      "code": 4003,
+      "severity": 2,
+      "source": 4,
+      "description": "SP 4 코너 중 부분 잠금"
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "scenario": "S07",
+  "name": "스내그 알람",
+  "label": "주의",
+  "duration_s": 102.8,
+  "rows": 1028,
+  "events": [
+    {
+      "t_ms": 65300,
+      "kind": "alarm",
+      "code": 3013,
+      "severity": 2,
+      "source": 3,
+      "description": "HO Snag 발생(걸림 감지)"
+    }
+  ]
+}

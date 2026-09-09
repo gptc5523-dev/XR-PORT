@@ -1,0 +1,25 @@
+{
+  "scenario": "S12",
+  "name": "정비 모드",
+  "label": "정비(제외)",
+  "duration_s": 11.8,
+  "rows": 118,
+  "events": [
+    {
+      "t_ms": 0,
+      "kind": "event",
+      "code": 5015,
+      "severity": 0,
+      "source": 5,
+      "description": "운전 모드 변경"
+    },
+    {
+      "t_ms": 0,
+      "kind": "alarm",
+      "code": 5005,
+      "severity": 2,
+      "source": 5,
+      "description": "LOTO 잠금 상태 활성"
+    }
+  ]
+}
