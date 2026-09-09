@@ -71,6 +71,31 @@ namespace Container.Crane.Sts.EditorTools
                       "▶Play 진입 → 기록된 시나리오대로 크레인이 재현됩니다. 원복은 Inspector에서 PlcBridge 제거.");
         }
 
+        [MenuItem("PLC/지표2 정확도 측정 부착 (100회)", false, 5)]
+        public static void AttachKpi2()
+        {
+            var crane = Object.FindFirstObjectByType<StsCrane>();
+            if (crane == null)
+            {
+                Debug.LogWarning("[PlcBridgeMenu] 씬에 StsCrane이 없습니다.");
+                return;
+            }
+            if (crane.GetComponent<PlcBridge>() == null)
+            {
+                Debug.LogWarning("[PlcBridgeMenu] PlcBridge가 먼저 필요합니다 — 위의 '가상 PLC 부착·구동' 또는 '(CSV 재생)'을 먼저 실행하세요. " +
+                                 "지령이 없으면 잴 대상이 없습니다.");
+                return;
+            }
+
+            var kpi = crane.GetComponent<Kpi2PositionAccuracy>();
+            if (kpi == null) kpi = Undo.AddComponent<Kpi2PositionAccuracy>(crane.gameObject);
+
+            Selection.activeGameObject = crane.gameObject;
+            Debug.Log("[PlcBridgeMenu] 지표2 하니스 부착. ▶Play → 0.5초마다 1시행, 100시행에서 자동 종료하고 " +
+                      "콘솔 요약 + <프로젝트>/KPI/kpi2_*.csv 를 남깁니다. " +
+                      "허용오차·시행수·목표율은 Inspector에서 조정.");
+        }
+
         // 분리는 Inspector에서 PlcBridge 컴포넌트를 떼면 된다 — PlcBridge.OnDisable이 PlcDriven=false를
         // 자동 복원하므로 가속 오경보 잔류 없이 안전(과거 이 메뉴가 하던 정리를 컴포넌트에 내재화).
     }
