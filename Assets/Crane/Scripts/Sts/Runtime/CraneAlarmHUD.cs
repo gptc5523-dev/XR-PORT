@@ -105,6 +105,8 @@ namespace Container.Crane.Sts
         // 알람 코드 출처는 공용 단일 출처(CraneNetSync.ActiveAlarmCode)를 따른다 — 부품 말풍선과 동일 값.
         int CurrentAlarmCode()
         {
+            var active = StsCraneVRController.Active;   // 크레인이 여러 대면 조종기를 받는 크레인의 알람
+            if (active != null) crane = active.GetComponent<StsCrane>();
             if (crane == null) crane = FindAnyObjectByType<StsCrane>();
             return CraneNetSync.ActiveAlarmCode(crane);
         }

@@ -58,17 +58,26 @@ namespace Container.Crane.Sts
 
         void Start()
         {
-            if (crane == null) crane = FindAnyObjectByType<StsCrane>();
+            Bind(crane != null ? crane : FindAnyObjectByType<StsCrane>());
+            BuildCanvas();
+            TryAttachToCamera();
+        }
+
+        // 표시할 크레인 배선 — 크레인이 여러 대면(PortDemoDirector) 조종기를 받는 크레인이 바뀔 때 LateUpdate 가 다시 부른다.
+        void Bind(StsCrane c)
+        {
+            crane = c;
+            lockAnim = null; grabber = null;
             if (crane != null)
             {
                 var spreaderT = (crane.Spreader as Component)?.transform;
                 if (spreaderT != null) lockAnim = spreaderT.GetComponent<SpreaderLockAnimator>();
+                if (lockAnim == null) lockAnim = crane.GetComponentInChildren<SpreaderLockAnimator>(true);
+                grabber = crane.GetComponent<SpreaderGrabber>();
             }
             if (lockAnim == null) lockAnim = FindAnyObjectByType<SpreaderLockAnimator>();
-            if (crane != null) grabber = crane.GetComponent<SpreaderGrabber>();
             if (grabber == null) grabber = FindAnyObjectByType<SpreaderGrabber>();
-            BuildCanvas();
-            TryAttachToCamera();
+            speedPrimed = false;
         }
 
         void LateUpdate()

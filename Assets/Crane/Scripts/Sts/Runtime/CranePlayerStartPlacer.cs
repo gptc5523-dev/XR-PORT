@@ -43,7 +43,6 @@ namespace Container.Crane.Sts
 
         // 이탈 차단(LateUpdate) 캐시 — 매 프레임 GameObject.Find/FindAnyObjectByType 을 돌지 않게 보관.
         Bounds landCache; bool haveLand;   // 땅은 런타임에 안 움직인다 — 한 번 구하면 끝
-        StsCraneVRController vrCache;
         Container.Crane.Flat.FlatPlayerRig flatCache;
         float nextRefind;           // 캐시가 비었을 때만 이 시각 이후 재탐색.
         bool clampActive;           // 이탈 차단 중 — 엣지에서만 로그(매 프레임 스팸 방지).
@@ -94,17 +93,17 @@ namespace Container.Crane.Sts
         }
 
         // 운전실 시점(평면·VR)인가 — 그동안은 시점이 트롤리를 따라 바다 위로 나가므로 클램프를 쉰다.
+        //   VR 은 켜진 컨트롤러(Active)를 본다 — 크레인이 여러 대면 조종기를 받는 한 대만 켜져 있다.
         bool InCabView()
-            => (vrCache != null && vrCache.CabView) || (flatCache != null && flatCache.MovementLocked);
+            => (StsCraneVRController.Active != null && StsCraneVRController.Active.CabView) || (flatCache != null && flatCache.MovementLocked);
 
         // 비어 있는 캐시만 1초에 한 번 다시 찾는다(리그·크레인·부두가 늦게 떠도 붙는다).
         void RefreshCaches()
         {
-            if (haveLand && vrCache != null && flatCache != null) return;
+            if (haveLand && flatCache != null) return;
             if (Time.unscaledTime < nextRefind) return;
             nextRefind = Time.unscaledTime + 1f;
             if (!haveLand) haveLand = TryGetLand(out landCache);
-            if (vrCache   == null) vrCache   = FindAnyObjectByType<StsCraneVRController>();
             if (flatCache == null) flatCache = FindAnyObjectByType<Container.Crane.Flat.FlatPlayerRig>();
         }
 

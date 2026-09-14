@@ -153,7 +153,7 @@ namespace Container.Crane.Sts
         // 관전자에서만 높이조절 중 XR 로코모션을 끈다(호스트는 StsCraneVRController가 관리하므로 손대지 않음).
         void UpdateLocomotionSuppression(bool wantSuppress)
         {
-            var ctrl = FindAnyObjectByType<StsCraneVRController>();
+            var ctrl = StsCraneVRController.Active;   // 켜진 컨트롤러 — 크레인이 여러 대면 꺼져 있는 것도 있다
             bool hostManages = ctrl != null && ctrl.enabled;     // 호스트 → 그쪽이 로코모션 관리
             if (hostManages) { if (locoSuppressed) RestoreLocomotion(); return; }
 

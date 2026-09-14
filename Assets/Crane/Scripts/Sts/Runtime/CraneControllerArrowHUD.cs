@@ -63,7 +63,7 @@ namespace Container.Crane.Sts
             //   - 접속 전(시작 메뉴가 떠 있는 동안)엔 숨김 → 처음엔 'STS 크레인 멀티플레이' 메뉴만 보이게.
             //   - 관전자(순수 클라이언트)도 숨김 — 조종을 못 하니 화살표가 무의미.
             // 조종 HUD라 '조종 활성'(스틱클릭 진입)일 때만 — 관찰(기본)이면 화살표 숨김.
-            if (controller == null) controller = CraneHud.FindVrController();
+            if (controller == null || !controller.isActiveAndEnabled) controller = CraneHud.FindVrController();
             var nm = Unity.Netcode.NetworkManager.Singleton;
             bool show = (nm == null || nm.IsServer) && controller != null && controller.ControlActive;
             if (!show)

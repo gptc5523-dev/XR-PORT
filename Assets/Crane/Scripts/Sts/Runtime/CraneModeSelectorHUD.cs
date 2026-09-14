@@ -60,7 +60,7 @@ namespace Container.Crane.Sts
 
             // 표시 조건: (호스트/싱글) 그리고 '조종 활성'일 때만. 관찰(기본)이면 호스트·관전자 모두 숨김 → 처음엔 동일 화면.
             //   조종 진입은 오른쪽 스틱 클릭. 그래야 관찰/조종이 분리된다.
-            if (controller == null) controller = CraneHud.FindVrController();
+            if (controller == null || !controller.isActiveAndEnabled) controller = CraneHud.FindVrController();
             var nm = Unity.Netcode.NetworkManager.Singleton;
             bool show = (nm == null || nm.IsServer) && controller != null && controller.ControlActive;
             if (canvas.gameObject.activeSelf != show) canvas.gameObject.SetActive(show);

@@ -310,6 +310,7 @@ namespace Container.Crane.Sts
         ///   각자 매 프레임 FindAnyObjectByType 풀 씬 스캔하던 비용을 한 곳으로 모은다(찾으면 즉시 캐시 반환).</summary>
         public static StsCraneVRController FindVrController()
         {
+            if (StsCraneVRController.Active != null) return StsCraneVRController.Active;   // 크레인이 여러 대면 조종기를 받는 한 대
             if (_vrController != null) return _vrController;
             if (Time.unscaledTime < _nextVrFind) return null;
             _nextVrFind = Time.unscaledTime + 0.5f;

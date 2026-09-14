@@ -149,8 +149,13 @@ namespace Container.Crane.Sts
             grabber = GetComponent<SpreaderGrabber>();
         }
 
+        /// <summary>지금 조종기를 받는 컨트롤러. 크레인이 여러 대면 PortDemoDirector 가 가까운 한 대만 켠다 —
+        ///   HUD·시점 보조는 이걸 따라간다(FindAnyObjectByType 은 꺼져 있는 다른 크레인 컨트롤러를 집을 수 있다).</summary>
+        public static StsCraneVRController Active { get; private set; }
+
         void OnEnable()
         {
+            Active = this;
             mode = startInCraneMode ? Mode.Crane : Mode.Move;
             selectedIndex = (int)mode;
             ApplyMode();   // 로코모션 + 자동/수동(이동모드=자동, 운전/갠트리=수동) 연동
@@ -163,6 +168,7 @@ namespace Container.Crane.Sts
             if (cabView) ExitCabView();   // 운전실 시점이면 시점 원위치 복귀
             mode = Mode.Move;   // 컨트롤러 끄면 로코모션 복구
             ApplyMode();
+            if (Active == this) Active = null;
         }
 
         void Update()

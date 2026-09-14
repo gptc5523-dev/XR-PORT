@@ -51,7 +51,7 @@ namespace Container.Crane.Sts
             if (canvas == null || text == null) return;
 
             // 조종 HUD라 '조종 활성'(스틱클릭 진입)일 때만 표시 — 관찰(기본)이면 숨김(호스트·관전자 동일 화면).
-            if (controller == null) controller = CraneHud.FindVrController();
+            if (controller == null || !controller.isActiveAndEnabled) controller = CraneHud.FindVrController();
             var nm = Unity.Netcode.NetworkManager.Singleton;
             bool show = (nm == null || nm.IsServer) && controller != null && controller.ControlActive;
             if (canvas.gameObject.activeSelf != show) canvas.gameObject.SetActive(show);
