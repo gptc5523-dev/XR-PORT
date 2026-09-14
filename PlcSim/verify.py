@@ -18,13 +18,19 @@
   4) 적하·양하 방향     : S13(육지→배)·S14(배→육지)가 뒤집히면 데이터가 통째로 거짓이다.
                          양하의 단 순서(위→아래)도 본다 — 아래부터 내리면 실물은 무너진다.
   5) 헤더 계약         : CsvReplaySource.ParseCsv 가 이름으로 찾는 컬럼이 전부 있어야 한다.
+  6) 작업 이력         : 이력 한 줄이 PLC 시계열에서 실제로 그 자리였는가(집기/놓기 시각의 축 위치),
+                         그리고 적치 규칙 — 위에 얹힌 걸 빼거나 허공에 놓는 이력은 실물에서 불가능하다.
+                         run_until_settled 타임아웃은 조용히 넘어가서, 가는 도중에 집은 이력이 남을 수 있다.
 """
 import csv, glob, json, os, sys, collections
 
 D = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(D, "output")
 sys.path.insert(0, D)
-from generate import RANGE, AMAX                                  # noqa: E402
+from generate import (RANGE, AMAX, RANGES, BAY_PITCH, TR_SHIP_NEAR, ROW_PITCH, TR_CHASSIS,   # noqa: E402
+                      HO_CHASSIS, HO_DECK_T1, HO_DECK_T2, CONT_H, rtg_gt, rtg_tr, iso6346)
+
+assert iso6346("CSQU", 305438) == "CSQU3054383"   # ISO 6346 표준 예시 번호
 
 TRIP = {k: AMAX[k] * 1.667 for k in AMAX}      # CraneAxisProfile.TripMargin
 SET_N = 3                                      # CraneAxisProfile.AccelTripSetN
@@ -43,6 +49,7 @@ NEEDED = ["t_ms", "GT_Position", "GT_Velocity", "GT_Running", "GT_Direction",
 
 man = json.load(open(os.path.join(OUT, "manifest.json"), encoding="utf-8"))
 label = {r["scenario"]: r["label"] for r in man["runs"]}
+crane = {r["scenario"]: r.get("crane", "STS") for r in man["runs"]}
 fails, exempt, dt = [], [], man["dt_ms"] / 1000.0
 
 acc = collections.defaultdict(lambda: {k: 0.0 for k in COL})     # 최대 겉보기 가속(참고용)
@@ -51,6 +58,7 @@ pos = collections.defaultdict(lambda: {k: 0.0 for k in COL})
 digests = collections.defaultdict(set)
 
 for f in sorted(glob.glob(os.path.join(OUT, "*", "*.csv"))):
+    if f.endswith(".history.csv"): continue                     # 작업 이력은 PLC 시계열이 아니다(6번에서 본다)
     sid = os.path.basename(os.path.dirname(f)); L = label[sid]
     rows = list(csv.DictReader(open(f, encoding="utf-8")))
     miss = [c for c in NEEDED if c not in rows[0]]
@@ -64,7 +72,7 @@ for f in sorted(glob.glob(os.path.join(OUT, "*", "*.csv"))):
     prev = {k: None for k in COL}; pv = {k: None for k in COL}; streak = {k: 0 for k in COL}
     for r in rows:
         for k, c in COL.items():
-            v = float(r[c]); pos[L][k] = max(pos[L][k], v)
+            v = float(r[c]); pos[L, crane[sid]][k] = max(pos[L, crane[sid]][k], v)
             if prev[k] is not None:
                 vel = (v - prev[k]) / dt
                 if pv[k] is not None and not arrested:
@@ -76,11 +84,12 @@ for f in sorted(glob.glob(os.path.join(OUT, "*", "*.csv"))):
             prev[k] = v
 
 print("=== 1) 위치 최대 vs 가동범위 (초과 = Unity 클램프) ===")
-for L in sorted(pos):
-    over = [k.upper() for k in COL if pos[L][k] > RANGE[k] + 1e-6]
-    print(f"  {L:9s}" + "  ".join(f"{k.upper()} {pos[L][k]:7.2f}/{RANGE[k]:6.1f}" for k in COL)
+for L, c in sorted(pos):
+    R, P = RANGES[c], pos[L, c]
+    over = [k.upper() for k in COL if P[k] > R[k] + 1e-6]
+    print(f"  {L:9s}{c}  " + "  ".join(f"{k.upper()} {P[k]:7.2f}/{R[k]:6.1f}" for k in COL)
           + ("   ← 초과 " + ",".join(over) if over else "   OK"))
-    if over: fails.append(f"[클램프] {L}: {over}")
+    if over: fails.append(f"[클램프] {L} {c}: {over}")
 
 print(f"\n=== 2) 가속 트립 (초과 연속 {SET_N}틱 이상이면 알람 · 급정지 런 {len(exempt)}개 제외) ===")
 print(f"  {'라벨':9s}" + "  ".join(f"{k.upper()} 최대/한계 연속" for k in COL))
@@ -93,7 +102,7 @@ for L in sorted(acc):
 print("\n=== 3) 적하·양하 방향과 단 순서 ===")
 # S13 적하(육지→배) · S14 양하(배→육지)가 뒤집히면 데이터가 통째로 거짓이 된다.
 #   특히 양하의 '단 순서' — 아래 단부터 내리면 실물에선 위 컨테이너가 무너진다.
-for sid, pick_ship in (("S13", False), ("S14", True)):
+for sid, pick_ship in (("S13", False), ("S14", True), ("S15", True)):
     f = os.path.join(OUT, sid, "run_01.csv")
     if not os.path.exists(f):
         print(f"  {sid} 없음 — 건너뜀"); continue
@@ -120,14 +129,56 @@ for sid, pick_ship in (("S13", False), ("S14", True)):
     if not place_side: fails.append(f"[방향] {sid}: 놓는 위치가 반대")
     if not tier_ok:    fails.append(f"[단순서] {sid}: {'양하는 위 단부터' if pick_ship else '적하는 아래 단부터'}")
 
-print("\n=== 4) 같은 시나리오의 런이 서로 다른가 ===")
+print("\n=== 4) 작업 이력 ↔ PLC 시계열 · 적치 규칙 ===")
+TOL = {"GT_Position": 1.0, "TR_Position": 0.8, "HO_Position": 0.35}   # 목표 산포 σ(0.25/0.20/0.08)의 4배
+COUNT = {"S14": 20, "S15": 5, "S16": 5}
+GT0 = man["range_m"]["gt"] * 0.35                                     # gen_S14 첫 베이
+
+def expect(loc):
+    """이력 위치 → 그 자리에서 PLC 축이 있어야 할 값."""
+    if loc == "CHASSIS": return {"TR_Position": TR_CHASSIS, "HO_Position": HO_CHASSIS}
+    area, b, r, t = loc.split("/"); b, r, t = int(b[1:]) - 1, int(r[1:]) - 1, int(t[1:])
+    if area == "SHIP":
+        return {"GT_Position": GT0 + b * BAY_PITCH, "TR_Position": TR_SHIP_NEAR + r * ROW_PITCH,
+                "HO_Position": HO_DECK_T2 if t == 2 else HO_DECK_T1}
+    return {"GT_Position": rtg_gt(b), "TR_Position": rtg_tr(r), "HO_Position": t * CONT_H}
+
+def tier(loc, d):
+    base, t = loc.rsplit("/T", 1); return f"{base}/T{int(t) + d}"
+
+for f in sorted(glob.glob(os.path.join(OUT, "*", "*.history.csv"))):
+    sid, run_name = os.path.basename(os.path.dirname(f)), os.path.basename(f)[:6]
+    mv = list(csv.DictReader(open(f, encoding="utf-8")))
+    rows = {r["t_ms"]: r for r in csv.DictReader(open(f.replace(".history.csv", ".csv"), encoding="utf-8"))}
+    bad = []
+    if sid in COUNT and len(mv) != COUNT[sid]: bad.append(f"{len(mv)}개 ≠ {COUNT[sid]}")
+    for m in mv:
+        for loc, t in ((m["from"], m["pick_t_ms"]), (m["to"], m["place_t_ms"])):
+            for col, v in expect(loc).items():
+                if abs(float(rows[t][col]) - v) > TOL[col]:
+                    bad.append(f"#{m['seq']} {loc} {col} {float(rows[t][col]):.2f}≠{v:.2f}")
+        if int(m["place_t_ms"]) <= int(m["pick_t_ms"]): bad.append(f"#{m['seq']} 놓기가 집기보다 먼저")
+    # 적치 — 처음부터 있던 슬롯(출발지 중 한 번도 도착지가 아닌 곳)에서 시작해 순서대로 옮겨 본다.
+    slot = lambda loc: "/T" in loc
+    occ = {m["from"] for m in mv if slot(m["from"])} - {m["to"] for m in mv}
+    for m in mv:
+        a, b = m["from"], m["to"]
+        if slot(a) and (a not in occ or tier(a, +1) in occ): bad.append(f"#{m['seq']} {a} 위가 막힘/없음")
+        occ.discard(a)
+        if slot(b) and (b in occ or not (b.endswith("/T1") or tier(b, -1) in occ)): bad.append(f"#{m['seq']} {b} 허공/중복")
+        occ.add(b)
+    if run_name == "run_01" or bad:
+        print(f"  {sid}/{run_name} {crane[sid]} {len(mv)}개  " + ("OK" if not bad else "NG " + "; ".join(bad[:3])))
+    if bad: fails.append(f"[이력] {sid}/{run_name}: {bad[:3]}")
+
+print("\n=== 5) 같은 시나리오의 런이 서로 다른가 ===")
 dup = [s for s, d in digests.items() if len(d) == 1 and
        sum(1 for r in man["runs"] if r["scenario"] == s) > 1]
 print(f"  시나리오 {len(digests)}종 · 총 {man['total_runs']}런 · " +
       ("전부 상이 OK" if not dup else f"중복 {dup}"))
 if dup: fails.append(f"[중복] {dup}")
 
-print("\n=== 5) 요약 ===")
+print("\n=== 6) 요약 ===")
 print(f"  {man['total_rows']:,} 행 · {man['total_rows']*dt/60:.1f} 분 · 라벨 {man['label_distribution']}")
 print(f"  range_m={man['range_m']}  vmax={man['vmax_ms']}  amax={man['amax_ms2']}")
 

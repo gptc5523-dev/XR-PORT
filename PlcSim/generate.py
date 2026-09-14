@@ -7,12 +7,14 @@
 동일 형식의 가상 데이터를 생성한다. 근거 문서:
   - 태그/주소/단위 : MBE-DOC-2026-XR-002 (PLC 데이터 포인트 리스트, DB100/DB101)
   - 시나리오 시퀀스 : MBE-DOC-2026-XR-004 (운영 시나리오 12선) + S13/S14 (연속 적하·양하)
+                     + S15 (STS 5개 양하) · S16 (RTG 5개 야드 정리)
   - 알람 코드/심각도 : MBE-DOC-2026-XR-003 (알람 코드북)
   - 푸시 주기 100ms : MBE-DOC-2026-XR-001/005
 
 출력(벤더 부록C 형식):
   output/<Sxx>/run_NN.csv          : DB100 운영 태그 시계열(100ms)
   output/<Sxx>/run_NN.events.json  : DB101 알람/이벤트 로그
+  output/<Sxx>/run_NN.history.csv  : 작업 이력 — 컨테이너 1개 = 1줄(번호·출발·도착·집기/놓기 시각). 옮긴 게 있는 런만
   output/manifest.json             : 전체 런 목록 + AI 라벨 분포(정상/주의/이상)
 
 ※ 가설 데이터 — 실 PLCSIM 도착 시 이 생성기는 폐기/검증대조용으로만 남긴다.
@@ -132,12 +134,25 @@ class Axis:
         return abs(self.target - self.pos) < 0.05 and abs(self.vel) < 0.05
 
 
+def iso6346(owner, serial):
+    """ISO 6346 컨테이너 번호 = 소유자코드 4자 + 일련번호 6자리 + 검사숫자.
+    문자값은 A=10 부터 11의 배수(11·22·33)를 건너뛴다. 소유자코드 XRPU 는 가상(XR PORT)."""
+    code = f"{owner}{serial:06d}"
+    letters = [v for v in range(10, 39) if v % 11]
+    s = sum((int(c) if c.isdigit() else letters[ord(c) - 65]) << i for i, c in enumerate(code))
+    return code + str(s % 11 % 10)
+
+
 class Sim:
-    def __init__(self, sp_mode=SP40, wind=8.0, rng=None):
+    def __init__(self, sp_mode=SP40, wind=8.0, rng=None, range_m=None, id_base=0):
         # 런별 편차의 단일 출처. 시드 고정 = 재현 가능(반복시험 요건).
         self.rng = rng or random.Random(0)
         self.t = 0.0
-        self.gt = Axis(0.0, RANGE["gt"]); self.tr = Axis(0.0, RANGE["tr"]); self.ho = Axis(RANGE["ho"], RANGE["ho"])
+        # 크레인마다 가동범위가 다르다(STS RANGE / RTG RTG_RANGE). 정격 속도·가속은 같은 CraneAxisProfile.
+        self.range = range_m or RANGE
+        self.gt = Axis(0.0, self.range["gt"]); self.tr = Axis(0.0, self.range["tr"])
+        self.ho = Axis(self.range["ho"], self.range["ho"])
+        self.moves = []; self.id_base = id_base   # 작업 이력 · 컨테이너 번호 = id_base + 순번
         self.vmul = 1.0  # 풍속 감속 등 속도 스케일
         # 설비 편차 — 인버터 튜닝·로프 마모·운전자 습관으로 런마다 정격이 미세하게 다르다.
         self.vdev = {k: self.rng.gauss(1.0, 0.03) for k in ("gt", "tr", "ho")}
@@ -169,6 +184,15 @@ class Sim:
 
     def clear_alarm(self):
         self.alm_code = self.alm_sev = self.alm_src = 0
+
+    # ── 작업 이력 — 잠금·해제 직전에 부른다. 시각이 CSV 에서 잠금/해제가 처음 찍힌 행의 t_ms 와 같다 ──
+    def picked(self, frm):
+        self.moves.append({"container": iso6346("XRPU", self.id_base + len(self.moves) + 1),
+                           "size_ft": 20 if self.sp_mode == SP20 else 40,
+                           "from": frm, "pick_t_ms": int(round(self.t * 1000))})
+
+    def placed(self, to):
+        self.moves[-1].update({"to": to, "place_t_ms": int(round(self.t * 1000))})
 
     # ── 시간 진행 ──
     def _tick(self):
@@ -204,7 +228,7 @@ class Sim:
     #   겉보기 가속이 1.3 m/s² 로 튄다. 실제 크레인도 리밋 스위치 위에 주차하지 않는다.
     def _aim(self, v, axis, sigma):
         m = VMAX[axis] * DT
-        return max(m, min(RANGE[axis] - m, v + self.rng.gauss(0.0, sigma)))
+        return max(m, min(self.range[axis] - m, v + self.rng.gauss(0.0, sigma)))
 
     # 급정지 — E-Stop·스내그·모터고장처럼 정격을 넘겨 세우는 구간.
     #   브레이크가 물리는 데 시간이 걸린다: '속도를 한 틱에 0' 으로 두면 미분 시 무한 감속이라
@@ -450,13 +474,14 @@ def gen_S13(s):  # 20개 적하 (육지 섀시 → 배 갑판), 20ft/40ft 혼합
                 s.cycle += 1; n += 1
 
 
-def gen_S14(s):  # 20개 양하 (배 갑판 → 육지 섀시), 20ft/40ft 혼합
+def gen_S14(s, count=20, rows=5):  # count개 양하 (배 갑판 → 육지 섀시), 20ft/40ft 혼합
     """오너 요청 2026-09-09 "배에서 컨테이너를 내리는 PLC".
 
     S02 는 양하 1사이클, S13 은 20개 적하(육지→배)라 '연속 양하'가 비어 있었다.
     실물 양하 순서를 그대로 따른다 — 한 베이 안에서 <b>위 단부터</b> 열을 훑고, 다 비우면
     갠트리로 다음 베이. 단을 아래부터 내리면 위 컨테이너가 무너지므로 순서가 뒤집히면 안 된다.
       갠트리 = 베이(선박 길이방향) · 트롤리 = 열(선폭방향) · 권상 = 단
+    S15(5개)가 같은 루프를 쓴다 — rows=3 이면 2단 3열을 비운 뒤 그 아래 1단으로 내려간다.
     """
     s.op_mode = AUTO
     GT0 = RANGE["gt"] * 0.35
@@ -466,23 +491,76 @@ def gen_S14(s):  # 20개 양하 (배 갑판 → 육지 섀시), 20ft/40ft 혼합
         s.goto(gt=GT0 + bay * BAY_PITCH)
         for tier in (2, 1):                    # ★ 양하는 위 단부터
             ho_pick = HO_DECK_T2 if tier == 2 else HO_DECK_T1
-            for row in range(5):
-                if n >= 20: break
+            for row in range(rows):
+                if n >= count: return
                 s.sp_mode = SP40 if n % 2 else SP20
                 # ── 픽업(배 갑판) ──
                 s.goto(tr=TR_SHIP_NEAR + row * ROW_PITCH, ho=HI); s.run_until_settled()
                 s.goto(ho=ho_pick); s.run_until_settled()
                 s.detected = True; s.landed = True; s.run_for(1.0)
+                s.picked(f"SHIP/B{bay + 1:02d}/R{row + 1:02d}/T{tier}")
                 s.locked = True; s.carry = True; s.run_for(1.5); s.landed = False
                 s.goto(ho=HI); s.run_until_settled()
                 # ── 안착(육지 섀시) ──
                 s.goto(tr=LAND); s.run_until_settled()
                 s.goto(ho=LO_L); s.run_until_settled()
                 s.landed = True; s.run_for(1.0)
+                s.placed("CHASSIS")
                 s.locked = False; s.carry = False; s.run_for(1.5)
                 s.landed = False; s.detected = False
                 s.goto(ho=HI); s.run_until_settled()
                 s.cycle += 1; n += 1
+
+
+# ─────────────── RTG (야드 정리) — 씬 기하에서 유도 (실척 m) ───────────────
+#   RtgCraneFbxMoverWiring : 트롤리 ±10.095 (레일 끝 − 휠 외측면) · 권상 행정 19.566
+#   RtgCraneFbxPlacer      : 주행 = 블록 존 길이 − 크레인 길이 → 씬 실측 (6.466479 − 0.596189)u × 24 = 140.887
+#   PortConfig             : 블록 6열 × 12베이 × 4단 · 열 피치 2.838 · 베이 피치 12.792 · 블록이 스팬·주행 중앙
+#   ★ PLC 0 = 각 무버 Min. 권상 Min 은 그랩 평면이 지면에 닿는 높이라 HO = 그랩 평면의 지면 기준 높이.
+#   ★ 속도·가속은 STS 와 같다 — RTG 도 같은 StsCrane·CraneOpMode 로 가속알람을 판정한다(RTG 동적데이터 §11).
+#   YARD1 = 'RTG 크레인_1' 이 선 블록(선미측, z<0).
+RTG_RANGE     = {"gt": 140.887, "tr": 20.19, "ho": 19.566}
+RTG_ROW_PITCH = 2.438 + 0.4                                     # 2.838 = 컨테이너폭 + 열간격
+RTG_TR_ROW0   = RTG_RANGE["tr"] / 2 - 2.5 * RTG_ROW_PITCH       # 3.000 — 6열이 스팬 중앙 대칭
+RTG_GT_BAY0   = RTG_RANGE["gt"] / 2 - 5.5 * BAY_PITCH           # 0.087 — 12베이가 주행 중앙 대칭
+RTG_HO_CLEAR  = 4 * CONT_H + 3.0                                # 13.36 — 4단 최상단 + 3m (STS HO_CLEAR 와 같은 규칙)
+
+def rtg_gt(bay): return RTG_GT_BAY0 + bay * BAY_PITCH
+def rtg_tr(row): return RTG_TR_ROW0 + row * RTG_ROW_PITCH
+
+# (베이, 열, 단) 0부터 — 단은 1부터. 흩어진 1단 5개를 6번 베이 1·2열로 모아 3단·2단으로 쌓는다.
+#   씬 야드가 1단 랜덤 산포라(QuayPartsPlacer 셔플) '정리' = 모아 쌓기. 갠트리는 한 번에 2베이 이내 —
+#   더 멀면 주행이 run_until_settled 타임아웃(90s)을 넘는다.
+RTG_JOBS = [
+    ((3, 1, 1), (5, 0, 1)),
+    ((4, 4, 1), (5, 0, 2)),
+    ((6, 2, 1), (5, 1, 1)),
+    ((7, 5, 1), (5, 1, 2)),
+    ((5, 3, 1), (5, 0, 3)),
+]
+
+
+def gen_S16(s):  # RTG 야드 정리 5개 — 흩어진 1단 40ft 를 한 베이로 모아 쌓는다
+    s.op_mode = AUTO
+    s.gt.pos = s.gt.target = rtg_gt(RTG_JOBS[0][0][0])   # 첫 작업 베이에서 시작(S13/S14 와 같은 이유)
+    loc = lambda b, r, t: f"YARD1/B{b + 1:02d}/R{r + 1:02d}/T{t}"
+    for (pb, pr, pt), (qb, qr, qt) in RTG_JOBS:
+        # ── 집기 ──
+        s.goto(gt=rtg_gt(pb), tr=rtg_tr(pr), ho=RTG_HO_CLEAR); s.run_until_settled()
+        s.goto(ho=pt * CONT_H); s.run_until_settled()
+        s.detected = True; s.landed = True; s.run_for(1.0)
+        s.picked(loc(pb, pr, pt))
+        s.locked = True; s.carry = True; s.run_for(1.5); s.landed = False
+        s.goto(ho=RTG_HO_CLEAR); s.run_until_settled()
+        # ── 놓기 — 단 t 에 놓으면 그랩 평면 = t × 높이 ──
+        s.goto(gt=rtg_gt(qb), tr=rtg_tr(qr)); s.run_until_settled()
+        s.goto(ho=qt * CONT_H); s.run_until_settled()
+        s.landed = True; s.run_for(1.0)
+        s.placed(loc(qb, qr, qt))
+        s.locked = False; s.carry = False; s.run_for(1.5)
+        s.landed = False; s.detected = False
+        s.goto(ho=RTG_HO_CLEAR); s.run_until_settled()
+        s.cycle += 1
 
 
 SCENARIOS = [
@@ -500,15 +578,30 @@ SCENARIOS = [
     ("S12", "정비 모드", "정비(제외)", gen_S12),
     ("S13", "20개 적하 (육지 섀시→배 갑판)", "정상", gen_S13),
     ("S14", "20개 양하 (배 갑판→육지 섀시)", "정상", gen_S14),
+    ("S15", "STS 5개 양하 (배 갑판→육지 섀시)", "정상", lambda s: gen_S14(s, count=5, rows=3)),
+    ("S16", "RTG 5개 야드 정리 (흩어진 1단→한 베이 적층)", "정상", gen_S16),
 ]
+# 시나리오를 도는 크레인 — 없으면 STS. CSV 형식은 같고 가동범위만 다르다(manifest 에 기록).
+CRANE = {"S16": "RTG"}
+RANGES = {"STS": RANGE, "RTG": RTG_RANGE}
 
 # 벤더 부록C 회차 — 정상 각10/주의 각5/이상 각5/정비 3 = 83. 기본은 샘플(축소), --full로 전체.
 FULL_RUNS = {"정상": 10, "주의": 5, "이상": 5, "정비(제외)": 3}
 SAMPLE_RUNS = {"정상": 2, "주의": 2, "이상": 2, "정비(제외)": 1}
 
 
-def write_run(out_dir, sid, name, label, idx, sim):
+HIST_FIELDS = ["seq", "crane", "container", "size_ft", "from", "to", "pick_t_ms", "place_t_ms"]
+
+
+def write_run(out_dir, sid, name, label, idx, sim, crane):
     os.makedirs(out_dir, exist_ok=True)
+    hist_path = None
+    if sim.moves:
+        hist_path = os.path.join(out_dir, f"run_{idx:02d}.history.csv")
+        with open(hist_path, "w", newline="", encoding="utf-8") as f:
+            w = csv.DictWriter(f, fieldnames=HIST_FIELDS)
+            w.writeheader()
+            w.writerows({"seq": i + 1, "crane": crane, **m} for i, m in enumerate(sim.moves))
     csv_path = os.path.join(out_dir, f"run_{idx:02d}.csv")
     with open(csv_path, "w", newline="", encoding="utf-8") as f:
         w = csv.DictWriter(f, fieldnames=CSV_FIELDS)
@@ -519,7 +612,7 @@ def write_run(out_dir, sid, name, label, idx, sim):
                    "duration_s": round(len(sim.rows) * DT, 1),
                    "rows": len(sim.rows), "events": sim.events},
                   f, ensure_ascii=False, indent=2)
-    return csv_path, ev_path, len(sim.rows)
+    return csv_path, ev_path, hist_path, len(sim.rows)
 
 
 def main():
@@ -534,7 +627,8 @@ def main():
 
     manifest = {"generated_by": "PlcSim/generate.py (stopgap)", "dt_ms": int(DT * 1000),
                 "mode": "full" if args.full else "sample",
-                "range_m": dict(RANGE), "vmax_ms": dict(VMAX), "amax_ms2": dict(AMAX),
+                "range_m": dict(RANGE), "range_m_rtg": dict(RTG_RANGE),
+                "vmax_ms": dict(VMAX), "amax_ms2": dict(AMAX),
                 "runs": []}
     total_rows = 0; label_count = {}
     for sid, name, label, fn in SCENARIOS:
@@ -544,18 +638,21 @@ def main():
             #   시드는 (시나리오번호, 회차)로 결정 → 재생성해도 같은 값(재현성). hash()는
             #   프로세스마다 달라지므로(PYTHONHASHSEED) 쓰지 않는다.
             seed = int(sid[1:]) * 1000 + i
-            sim = Sim(sp_mode=SPTWIN if sid == "S04" else SP40, rng=random.Random(seed))
+            crane = CRANE.get(sid, "STS")
+            sim = Sim(sp_mode=SPTWIN if sid == "S04" else SP40, rng=random.Random(seed),
+                      range_m=RANGES[crane], id_base=int(sid[1:]) * 1000)
             fn(sim)
             out_dir = os.path.join(args.out, sid)
-            csv_path, ev_path, rows = write_run(out_dir, sid, name, label, i, sim)
+            csv_path, ev_path, hist_path, rows = write_run(out_dir, sid, name, label, i, sim, crane)
             total_rows += rows
             label_count[label] = label_count.get(label, 0) + 1
             manifest["runs"].append({
-                "scenario": sid, "name": name, "label": label, "run": i, "seed": seed,
+                "scenario": sid, "name": name, "label": label, "crane": crane, "run": i, "seed": seed,
                 "rows": rows, "duration_s": round(rows * DT, 1),
-                "events": len(sim.events),
+                "events": len(sim.events), "moves": len(sim.moves),
                 "csv": os.path.relpath(csv_path, args.out),
                 "events_json": os.path.relpath(ev_path, args.out),
+                **({"history_csv": os.path.relpath(hist_path, args.out)} if hist_path else {}),
             })
     manifest["label_distribution"] = label_count
     manifest["total_runs"] = len(manifest["runs"])
