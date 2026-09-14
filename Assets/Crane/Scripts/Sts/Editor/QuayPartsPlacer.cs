@@ -642,7 +642,7 @@ namespace Container.Crane.Sts.EditorTools
             UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(marker.gameObject.scene);
 
             Vector3 p = marker.position * StsConfig.InvModelScale;
-            Done(pawn, $"시작점 실척 ({p.x:F1}, {p.z:F1})m · 데크 윗면 · 높이 {PawnHeightM}m · scale {scale:F4} · EditorOnly(빌드 제외)");
+            Done(marker, $"시작점 실척 ({p.x:F1}, {p.z:F1})m · 데크 윗면 · 높이 {PawnHeightM}m · scale {scale:F4} · EditorOnly(빌드 제외)");
         }
 
         /// <summary>PlayerStartPoint 를 지웠을 때 — 디스크에 저장된 씬 파일에서 위치·방향을 읽어 다시 만든다.

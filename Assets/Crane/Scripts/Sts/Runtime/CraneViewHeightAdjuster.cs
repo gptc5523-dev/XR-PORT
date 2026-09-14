@@ -137,37 +137,17 @@ namespace Container.Crane.Sts
                       $"※ euler x/z≠0(기울기) 또는 스케일 비균일이면 그게 뒤로밀림 원인.");
         }
 
-        // 바닥 월드Y를 부두 걷는면 윗면에서 동적 산출 — CranePlayerStartPlacer와 '동일 방식'으로 정합.
-        //   (StartPlacer: 부두 자식 렌더러 중 수평면적 최대=아스팔트 슬래브를 골라 bounds.max.y. 레일/구조물 꼭대기 제외.)
+        // 바닥 월드Y를 부두 걷는 땅 윗면에서 동적 산출 — CranePlayerStartPlacer.TryGetLand 한 곳을 같이 쓴다
+        //   (예전엔 같은 휴리스틱을 복사해 두었다 — 한쪽만 고치면 시작 높이와 눈높이 기준이 갈라진다).
         //   한 번 부두에서 확정하면 캐시. 못 찾으면(부두 미생성/단독 씬) SerializeField floorWorldY를 폴백으로 두고 다음 프레임 재시도.
         float ResolveFloorY()
         {
             if (floorYResolved) return resolvedFloorY;
-            Renderer surf = GetQuaySurface();
-            if (surf == null) return floorWorldY;       // 부두 못 찾음 — 폴백(재시도).
-            resolvedFloorY = surf.bounds.max.y;
+            if (!CranePlayerStartPlacer.TryGetLand(out Bounds land)) return floorWorldY;   // 부두 못 찾음 — 폴백(재시도).
+            resolvedFloorY = land.max.y;
             floorYResolved = true;
             Debug.Log($"[ViewHeight] 바닥 월드Y 동적 산출 — 부두 '{QuayName}' 걷는면 윗면 y={resolvedFloorY:0.####} (floorWorldY 폴백={floorWorldY}).");
             return resolvedFloorY;
-        }
-
-        // 부두에서 '걷는 면'(수평 면적이 가장 큰 렌더러=아스팔트 슬래브)을 고른다 — CranePlayerStartPlacer.GetQuaySurface와 동일 로직.
-        static Renderer GetQuaySurface()
-        {
-            var quay = GameObject.Find(QuayName);
-            if (quay == null) return null;
-            // ★ 1순위 = 'Asphalt' 이름 직접 지목, 면적 폴백에서도 바다(Sea/Sea_Foam)는 제외.
-            //   수면은 데크 아래(StsConfig.SeaLevelY)라, 면적만 보면 바다를 골라 눈높이가 4m 가라앉는다.
-            Renderer ground = null; float bestArea = 0f;
-            foreach (var r in quay.GetComponentsInChildren<Renderer>())
-            {
-                if (r.gameObject.name == StsPartNames.QuayAsphalt) return r;
-                if (StsPartNames.IsSeaName(r.gameObject.name)) continue;
-                Vector3 e = r.bounds.size;
-                float area = e.x * e.z;                  // 수평 면적 — 아스팔트 슬래브가 압도적으로 큼.
-                if (area > bestArea) { bestArea = area; ground = r; }
-            }
-            return ground;
         }
 
         // 관전자에서만 높이조절 중 XR 로코모션을 끈다(호스트는 StsCraneVRController가 관리하므로 손대지 않음).

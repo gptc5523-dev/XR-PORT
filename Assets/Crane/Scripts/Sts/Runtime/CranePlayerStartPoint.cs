@@ -11,6 +11,7 @@ namespace Container.Crane.Sts
     /// </summary>
     [AddComponentMenu("Container/STS Crane/Crane Player Start Point")]
     [DisallowMultipleComponent]
+    [SelectionBase]   // 자식(시작점 체스말)을 클릭해도 마커가 잡힌다 — 끌면 시작점이 같이 움직인다
     public sealed class CranePlayerStartPoint : MonoBehaviour
     {
 #if UNITY_EDITOR

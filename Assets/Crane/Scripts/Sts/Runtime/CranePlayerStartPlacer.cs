@@ -42,7 +42,7 @@ namespace Container.Crane.Sts
         bool warned;
 
         // 이탈 차단(LateUpdate) 캐시 — 매 프레임 GameObject.Find/FindAnyObjectByType 을 돌지 않게 보관.
-        Renderer quayCache;
+        Bounds landCache; bool haveLand;   // 땅은 런타임에 안 움직인다 — 한 번 구하면 끝
         StsCraneVRController vrCache;
         Container.Crane.Flat.FlatPlayerRig flatCache;
         float nextRefind;           // 캐시가 비었을 때만 이 시각 이후 재탐색.
@@ -77,9 +77,9 @@ namespace Container.Crane.Sts
 
             RefreshCaches();
             if (InCabView()) { clampActive = false; return; }
-            if (quayCache == null) return;
+            if (!haveLand) return;
 
-            Bounds b = quayCache.bounds;
+            Bounds b = landCache;
             Vector3 p = rig.position;
             Vector3 c = ClampToBounds(p, b, quayEdgeInset);
             // 데크 아래(안벽 속·물속)로도 못 내려간다. 위로는 자유 — 운전실·점검 시점 상승을 막지 않는다.
@@ -100,10 +100,10 @@ namespace Container.Crane.Sts
         // 비어 있는 캐시만 1초에 한 번 다시 찾는다(리그·크레인·부두가 늦게 떠도 붙는다).
         void RefreshCaches()
         {
-            if (quayCache != null && vrCache != null && flatCache != null) return;
+            if (haveLand && vrCache != null && flatCache != null) return;
             if (Time.unscaledTime < nextRefind) return;
             nextRefind = Time.unscaledTime + 1f;
-            if (quayCache == null) quayCache = GetQuaySurface();
+            if (!haveLand) haveLand = TryGetLand(out landCache);
             if (vrCache   == null) vrCache   = FindAnyObjectByType<StsCraneVRController>();
             if (flatCache == null) flatCache = FindAnyObjectByType<Container.Crane.Flat.FlatPlayerRig>();
         }
@@ -166,7 +166,7 @@ namespace Container.Crane.Sts
 
             float rigYBefore = rig.position.y;            // QA: 재배치 전 높이(접속 후 원점 방치 복구 확인용)
             var marker = FindMarker();
-            Renderer quay = GetQuaySurface();
+            bool hasLand = TryGetLand(out Bounds land);
 
             // 시작 XZ·바라보는 방향 결정.
             Vector3 xz; Vector3 faceDir;
@@ -177,9 +177,9 @@ namespace Container.Crane.Sts
                 Vector3 f = marker.transform.forward; f.y = 0f;
                 faceDir = f.sqrMagnitude > 1e-4f ? f.normalized : rig.forward;
             }
-            else if (quay != null)
+            else if (hasLand)
             {
-                Vector3 c = quay.bounds.center;           // 마커 없음 → 부두 중앙.
+                Vector3 c = land.center;                  // 마커 없음 → 땅 중앙.
                 xz = new Vector3(c.x, 0f, c.z);
                 faceDir = FaceTowardCrane(xz, rig.forward);
             }
@@ -191,9 +191,9 @@ namespace Container.Crane.Sts
             // 항상 부두 '안'으로 — 마커가 없거나 부두 밖이어도 걷는 면 XZ 범위로 클램프.
             Vector3 xzBeforeClamp = xz;
             bool clampApplied = false;
-            if (forceInsideQuay && quay != null)
+            if (forceInsideQuay && hasLand)
             {
-                xz = ClampToBounds(xz, quay.bounds, quayEdgeInset);
+                xz = ClampToBounds(xz, land, quayEdgeInset);
                 clampApplied = (xz - xzBeforeClamp).sqrMagnitude > 1e-8f;
                 if (clampApplied)   // S-START-4: 부두 밖 → 안으로 끌어들였을 때만
                     QaLog.Info("START", "clamp",
@@ -201,22 +201,22 @@ namespace Container.Crane.Sts
             }
 
             // Y(높이): 마커 값 무시하고 항상 걷는 면 윗면에 발이 닿게. 부두를 못 찾으면 레이캐스트→0 폴백.
-            float floorY = quay != null ? quay.bounds.max.y : ResolveFloorYRaycast(xz);
+            float floorY = hasLand ? land.max.y : ResolveFloorYRaycast(xz);
             Vector3 pos = new Vector3(xz.x, floorY + floorClearance, xz.z);
 
             rig.SetPositionAndRotation(pos, Quaternion.LookRotation(faceDir, Vector3.up));
             if (debugLog)
                 Debug.Log($"[PlayerStartPlacer] 시작 배치 — pos {pos}, facing {faceDir}, " +
-                          $"기준={(marker != null ? "마커" : "부두중앙")}, 부두클램프={(forceInsideQuay && quay != null)}.");
+                          $"기준={(marker != null ? "마커" : "부두중앙")}, 부두클램프={(forceInsideQuay && hasLand)}.");
 
             // QA 콘솔 판정(문서/QA_테스트시나리오.md 그룹 A)
             //   S-START-2: 걷는 면(최대 수평면적 렌더러) 선택 — 부두 '구조물 꼭대기'(레일 등)와 대비해 보고.
             //   S-START-1: 발 높이(rigY)가 걷는 면 윗면(floorY)에 닿고, 거대증상 기준(구조물 꼭대기) 위가 아님.
             float structureTop = QuayStructureTopY();
             bool flatQuay = (structureTop - floorY) < 0.1f;        // 레일/구조물이 없거나 낮은 평탄 부두 — 거대 가드 완화
-            if (quay != null)
+            if (hasLand)
                 QaLog.Info("START", "surface",
-                    $"chosen={quay.name} chosenMaxY={QaLog.F(floorY)} structureTopY={QaLog.F(structureTop)} giantGap={QaLog.F(structureTop - floorY)}");
+                    $"chosen=land x({land.min.x:F2}..{land.max.x:F2}) z({land.min.z:F2}..{land.max.z:F2}) chosenMaxY={QaLog.F(floorY)} structureTopY={QaLog.F(structureTop)} giantGap={QaLog.F(structureTop - floorY)}");
             bool onFloor = Mathf.Abs(pos.y - floorY) <= floorClearance + 1e-3f;
             bool notGiant = flatQuay || pos.y < structureTop - 0.1f;   // 구조물 꼭대기(≈0.22)에 서면 거대증상 재발 → FAIL
             QaLog.Check("START", "place", onFloor && notGiant,
@@ -245,31 +245,41 @@ namespace Container.Crane.Sts
             return marker;
         }
 
-        // 부두에서 '걷는 면'(수평 면적이 가장 큰 렌더러 = 아스팔트 슬래브)을 고른다. 레일/차선 같은 가는 것은 제외.
-        //   ★ 부두 '전체' bounds.max.y는 레일/구조물 꼭대기(≈0.22m)라, 거기에 세우면 컨테이너를 5m 위에서 내려다보는
-        //     '거대' 증상이 났다. 걷는 면 렌더러만 골라 그 윗면(아스팔트 ≈0)을 쓴다.
-        static Renderer GetQuaySurface()
+        // 걷는 땅 = 부두 아래 '두껍고 넓은 판'(케이슨 함 17개 + 야드 포장)의 합집합. 윗면은 둘 다 y=0.
+        //   ★ 종전엔 '수평 면적이 가장 큰 렌더러 하나'를 골랐다. 야드 포장(53.7×340m)이 케이슨 함 하나(30×20m)보다
+        //     커서 야드가 뽑혔고, 에이프런(x −30~0)에 있는 시작 마커가 야드 끝(−32.4m)으로 끌려갔다.
+        //     이탈 차단도 같은 판을 써서 에이프런·안벽에 발을 들일 수 없었다.
+        //   땅 덩어리 = '데크 아래(해저 쪽)로 1m 넘게 뻗고 짧은 변 ≥ 2m'. 케이슨·포장은 해저(−19m)까지 내려간다.
+        //   데크 '위에 얹힌' 것 — 야드 컨테이너(2.59m 높이·2.44m 폭이라 두께·폭 조건만으론 통과한다)·레일·연석·
+        //   계선주·차선·블록 도색 — 은 아래로 안 뻗어 탈락한다. 컨테이너가 끼면 바닥이 컨테이너 윗면(2.6m 공중)이 된다.
+        //   ★ 부두 '전체' bounds.max.y는 구조물 꼭대기라 '거대' 증상이 났다 — 땅 덩어리만 모으면 윗면이 데크(0)다.
+        //   바다(수심 15m·폭 60m)도 아래로 뻗고 넓어 조건을 통과하므로 조상 이름으로 뺀다(물 위 걷기 방지).
+        internal static bool TryGetLand(out Bounds land)
         {
+            land = default;
             var quay = GameObject.Find(QuayName);
-            if (quay == null) return null;
-            // ★ 1순위 = 이름('Asphalt') 직접 지목. '수평 면적 최대' 휴리스틱은 바다(Sea)가 아스팔트보다 넓어
-            //   바다를 걷는 면으로 고를 수 있다(수면은 데크 아래 StsConfig.SeaLevelY ⇒ 물속 스폰).
-            //   면적 폴백에서도 바다는 이름으로 제외한다.
-            Renderer ground = null; float bestArea = 0f;
+            if (quay == null) return false;
+            float belowDeck = quay.transform.position.y - 1f * StsConfig.ModelScale, minWide = 2f * StsConfig.ModelScale;
+            bool any = false;
             foreach (var r in quay.GetComponentsInChildren<Renderer>())
             {
-                if (r.gameObject.name == StsPartNames.QuayAsphalt) return r;
-                if (StsPartNames.IsSeaName(r.gameObject.name)) continue;
-                Vector3 e = r.bounds.size;
-                float area = e.x * e.z;                    // 수평 면적 — 아스팔트 슬래브가 압도적으로 큼.
-                if (area > bestArea) { bestArea = area; ground = r; }
+                Bounds rb = r.bounds;
+                if (rb.min.y > belowDeck || Mathf.Min(rb.size.x, rb.size.z) < minWide || UnderSea(r.transform, quay.transform)) continue;
+                if (any) land.Encapsulate(r.bounds); else { land = r.bounds; any = true; }
             }
-            return ground;
+            return any;
+        }
+
+        static bool UnderSea(Transform t, Transform stop)
+        {
+            for (; t != null && t != stop; t = t.parent)
+                if (StsPartNames.IsSeaName(t.name)) return true;
+            return false;
         }
 
         // 부두 '구조물 전체'의 최고 윗면 y(레일·차선 등 포함) — 걷는 면(아스팔트 ≈0)과 대비.
         //   QA 전용: 시작 높이가 이 구조물 꼭대기(≈0.22)에 서면 '거대증상' 재발이므로 가드 기준으로 쓴다.
-        //   (배치 로직 자체는 GetQuaySurface의 '걷는 면'만 사용 — 이 값은 판정에만 쓰고 배치엔 안 쓴다.)
+        //   (배치 로직 자체는 TryGetLand의 '걷는 땅'만 사용 — 이 값은 판정에만 쓰고 배치엔 안 쓴다.)
         static float QuayStructureTopY()
         {
             var quay = GameObject.Find(QuayName);
