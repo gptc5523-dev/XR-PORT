@@ -150,19 +150,23 @@ namespace Container.Crane.Sts
             float g = crane.Gantry  != null ? crane.Gantry.Current  : 0f;
             float t = crane.Trolley != null ? crane.Trolley.Current : 0f;
             float h = crane.Spreader != null ? crane.Spreader.Current : 0f;
+            // 축마다 월드/축 배율이 다르다(FBX RTG 트롤리 4.17) — 하나로 쓰면 RTG 트롤리 가속이 4.17배 작게 잡혀 알람이 침묵한다.
+            float rG = toReal * (crane.Gantry   != null ? crane.Gantry.WorldPerUnit   : 1f);
+            float rT = toReal * (crane.Trolley  != null ? crane.Trolley.WorldPerUnit  : 1f);
+            float rH = toReal * (crane.Spreader != null ? crane.Spreader.WorldPerUnit : 1f);
 
             if (fPrimed && accelWarmup == 0)
             {
-                StepAccel(g, fpG, ref vG, ref aG, ref tripG, ref overG, ref underG, gantryAccelLimit,  dt, toReal);
-                StepAccel(t, fpT, ref vT, ref aT, ref tripT, ref overT, ref underT, trolleyAccelLimit, dt, toReal);
-                StepAccel(h, fpH, ref vH, ref aH, ref tripH, ref overH, ref underH, hoistAccelLimit,   dt, toReal);
+                StepAccel(g, fpG, ref vG, ref aG, ref tripG, ref overG, ref underG, gantryAccelLimit,  dt, rG);
+                StepAccel(t, fpT, ref vT, ref aT, ref tripT, ref overT, ref underT, trolleyAccelLimit, dt, rT);
+                StepAccel(h, fpH, ref vH, ref aH, ref tripH, ref overH, ref underH, hoistAccelLimit,   dt, rH);
             }
             else if (fPrimed)
             {
                 // 워밍업: 위치 불연속 직후 — 속도 baseline만 재구축하고 가속/트립 판정은 건너뜀(H5 인공 스파이크 차단).
-                vG = (g - fpG) * toReal / dt;
-                vT = (t - fpT) * toReal / dt;
-                vH = (h - fpH) * toReal / dt;
+                vG = (g - fpG) * rG / dt;
+                vT = (t - fpT) * rT / dt;
+                vH = (h - fpH) * rH / dt;
                 accelWarmup--;
             }
             // 위치(직전 틱) 갱신은 여기 한 곳이 단독 소유 — StepAccel은 prev를 읽기만 한다(H3 이중 갱신 제거).

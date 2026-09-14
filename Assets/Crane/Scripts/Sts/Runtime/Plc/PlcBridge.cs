@@ -85,9 +85,9 @@ namespace Container.Crane.Sts.Plc
 #if UNITY_EDITOR
             // 도메인 리로드로 인스펙터 설정이 기본값(Virtual·비활성)으로 되돌아가도,
             // 마지막 메뉴 선택(EditorPrefs)에서 복원 — 씬 저장 없이도 Play마다 유지된다.
-            if (UnityEditor.EditorPrefs.GetBool("PlcBridge.forceReplay", false))
+            if (UnityEditor.EditorPrefs.GetBool(PrefKey("forceReplay"), false))
             {
-                string p = UnityEditor.EditorPrefs.GetString("PlcBridge.csvPath", "");
+                string p = UnityEditor.EditorPrefs.GetString(PrefKey("csvPath"), "");
                 if (!string.IsNullOrEmpty(p)) { sourceMode = SourceMode.CsvReplay; csvPath = p; csvAsset = null; active = true; }
             }
 #endif
@@ -127,6 +127,9 @@ namespace Container.Crane.Sts.Plc
         {
             sourceMode = SourceMode.Virtual; injectAggressive = aggressive; active = true;
         }
+        /// <summary>메뉴 선택 복원 키 — 크레인별. 전역 키 하나면 STS·RTG 브리지가 같은 CSV 를 복원해
+        /// 서로의 데이터를 재생한다(가동범위가 달라 축이 끝에 붙는다).</summary>
+        public string PrefKey(string k) => $"PlcBridge.{k}.{gameObject.name}";
 #endif
 
         IPlcSource BuildSource()
@@ -219,7 +222,8 @@ namespace Container.Crane.Sts.Plc
         }
 
         // 정규화 분모(실척 range)를 모델 기하에서 자동 산출 — 하드코딩 제거(SSOT=무버 Min/Max).
-        //   rangeM = (Max − Min) × (1 / ModelScale).  ModelScale=1/24 → ×24.
+        //   rangeM = (Max − Min) × WorldPerUnit ÷ ModelScale.  ModelScale=1/24 → ×24.
+        //   WorldPerUnit — STS 1 · FBX RTG 트롤리 4.17(루트 스케일) · 월드수직 권상 1.
         // 빌더(StsCraneCreator)가 무버 min/max를 셋업한 뒤 첫 가용 틱에 1회 산출한다.
         // 인스펙터/프리팹에 0이 아닌 값이 박혀 있으면(수동 오버라이드) 그 값을 보존하고 산출은 스킵.
         // 산출한 실척 range는 VirtualPlcSource(가상 위치 생성)에도 주입해 두 정의를 한 출처로 묶는다.
@@ -253,8 +257,8 @@ namespace Container.Crane.Sts.Plc
         static float AxisSpanM(IAxisMover axis, float invScale)
         {
             if (axis == null) return 0f;
-            float span = axis.Max - axis.Min;        // 모델 가동범위(span)
-            return span > 0f ? span * invScale : 0f; // 실척 range = span ÷ ModelScale
+            float span = axis.Max - axis.Min;        // 모델 가동범위(span, 축 단위)
+            return span > 0f ? span * axis.WorldPerUnit * invScale : 0f; // 실척 range = span × 월드/축 ÷ ModelScale
         }
 
         // 실척 위치(0..rangeM) → 정규화 → 축의 모델 좌표(Min..Max). 방향 규약(0=어느 끝)은 벤더 확인 대상(질의서).

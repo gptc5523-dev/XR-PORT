@@ -234,7 +234,7 @@ namespace Container.Crane.Sts
             float cur = L.mover.Current;
             if (!L.primed) { L.prevPos = cur; L.primed = true; return; }
             float vModel = Mathf.Abs(cur - L.prevPos) / dt;     // 모델 units/s
-            float vRealMpm = vModel / crane.ModelScale * 60f;   // 실척 m/min
+            float vRealMpm = vModel * L.mover.WorldPerUnit / crane.ModelScale * 60f;   // 실척 m/min (×월드/축)
             L.speedMpm = Mathf.Lerp(L.speedMpm, vRealMpm, 1f - Mathf.Exp(-dt / 0.15f));
             L.prevPos = cur;
         }

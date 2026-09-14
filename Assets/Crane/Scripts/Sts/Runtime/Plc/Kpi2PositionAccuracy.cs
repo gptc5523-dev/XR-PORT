@@ -14,8 +14,8 @@ namespace Container.Crane.Sts.Plc
     ///
     /// <para><b>역변환 근거</b> — PlcBridge 는 <c>MoveToNormalized(realPos / rangeM)</c> 로 축을 몬다.
     /// 무버는 <c>Current = Lerp(Min, Max, clamp01(t))</c> 이므로 되돌리면
-    ///   <c>렌더 실척 = (Current − Min) / ModelScale</c>
-    /// 이다 — <c>rangeM = (Max − Min) / ModelScale</c> 이 약분돼 range 를 몰라도 된다.
+    ///   <c>렌더 실척 = (Current − Min) × WorldPerUnit / ModelScale</c>
+    /// 이다 — <c>rangeM = (Max − Min) × WorldPerUnit / ModelScale</c> 이 약분돼 range 를 몰라도 된다.
     /// 클램프가 걸리지 않는 한 이 역변환은 오차 0 이므로, 남는 오차는 아래 셋뿐이다.</para>
     ///
     /// <para><b>오차가 나오는 곳(=이 하니스가 잡아내는 것)</b>
@@ -96,11 +96,11 @@ namespace Container.Crane.Sts.Plc
                 float commanded = i == 0 ? s.GtPosition : i == 1 ? s.TrPosition : s.HoPosition;
 
                 // 렌더 실척 — PlcBridge 정규화의 정확한 역변환(위 주석의 유도).
-                float rendered = (axis.Current - axis.Min) / crane.ModelScale;
+                float rendered = (axis.Current - axis.Min) * axis.WorldPerUnit / crane.ModelScale;
                 float err = Mathf.Abs(commanded - rendered);
 
                 bool blocked = (axis as AxisMoverBase)?.IsBlocked ?? false;
-                float rangeM = (axis.Max - axis.Min) / crane.ModelScale;
+                float rangeM = (axis.Max - axis.Min) * axis.WorldPerUnit / crane.ModelScale;
                 bool clamped = commanded < 0f || commanded > rangeM;
 
                 bool ok = err <= toleranceM;
@@ -142,7 +142,7 @@ namespace Container.Crane.Sts.Plc
             for (int i = 0; i < 3; i++)
             {
                 var axis = i == 0 ? crane.Gantry : i == 1 ? crane.Trolley : crane.Spreader;
-                float rangeM = (axis.Max - axis.Min) / crane.ModelScale;
+                float rangeM = (axis.Max - axis.Min) * axis.WorldPerUnit / crane.ModelScale;
                 if (rangeM > 0f && maxErr[i] > rangeM * 0.5f)
                     Debug.LogWarning($"[Kpi2] {AxisName[i]} 최대오차 {maxErr[i]:F1}m 가 가동범위 {rangeM:F1}m 의 절반을 넘습니다 " +
                                      "— 값 오차가 아니라 방향 규약(0이 어느 끝인가) 불일치일 가능성이 큽니다. " +

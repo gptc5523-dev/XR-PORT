@@ -146,14 +146,14 @@ namespace Container.Crane.Flat
             return sb.ToString();
         }
 
-        // 축 1줄: 이름 + 가동범위 내 위치(%) + 실척 좌표(m). 모델 단위 × InvModelScale = 실척 m.
+        // 축 1줄: 이름 + 가동범위 내 위치(%) + 실척 좌표(m). 축 단위 × 월드/축 × InvModelScale = 실척 m.
         static string AxisLine(string label, IAxisMover axis)
         {
             if (axis == null)
                 return $"{label}   <color=#{CraneHud.Hex(CraneHud.HudColor.IdleDim)}>없음</color>\n";
             float span = axis.Max - axis.Min;
             float pct = span > 1e-6f ? Mathf.Clamp01((axis.Current - axis.Min) / span) * 100f : 0f;
-            float meters = axis.Current * StsConfig.InvModelScale;
+            float meters = axis.Current * axis.WorldPerUnit * StsConfig.InvModelScale;
             return $"{label}   {pct,5:0.0}%   ({meters,7:0.00} m)\n";
         }
 

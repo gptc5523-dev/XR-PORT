@@ -17,7 +17,7 @@ namespace Container.Crane.Sts.EditorTools
         [MenuItem("PLC/가상 PLC 부착·구동", false, 2)]
         public static void AttachAndDrive()
         {
-            var crane = Object.FindFirstObjectByType<StsCrane>();
+            var crane = Target();
             if (crane == null)
             {
                 Debug.LogWarning("[PlcBridgeMenu] 씬에 StsCrane이 없습니다 — 먼저 'Model ▸ PG ▸ 크레인 ▸ STS 크레인 생성' 실행.");
@@ -31,7 +31,7 @@ namespace Container.Crane.Sts.EditorTools
             Undo.RecordObject(bridge, "Configure PLC Bridge");
             bridge.EditorConfigureVirtual(false);
             EditorUtility.SetDirty(bridge);
-            EditorPrefs.SetBool("PlcBridge.forceReplay", false);   // Virtual 모드 — 복원 비활성
+            EditorPrefs.SetBool(bridge.PrefKey("forceReplay"), false);   // Virtual 모드 — 복원 비활성
 
             Selection.activeGameObject = crane.gameObject;
             Debug.Log("[PlcBridgeMenu] PlcBridge 부착·Active ON. ▶Play 진입 → 3축이 가상 PLC로 양하 사이클 자동 운전. " +
@@ -42,7 +42,7 @@ namespace Container.Crane.Sts.EditorTools
         [MenuItem("PLC/가상 PLC 부착·구동 (CSV 재생)", false, 3)]
         public static void AttachAndReplayCsv()
         {
-            var crane = Object.FindFirstObjectByType<StsCrane>();
+            var crane = Target();
             if (crane == null)
             {
                 Debug.LogWarning("[PlcBridgeMenu] 씬에 StsCrane이 없습니다 — 먼저 'Model ▸ PG ▸ 크레인 ▸ STS 크레인 생성' 실행.");
@@ -51,7 +51,8 @@ namespace Container.Crane.Sts.EditorTools
 
             // PlcSim/output 기본 폴더에서 재생할 CSV 선택
             string projectRoot = Directory.GetParent(Application.dataPath).FullName;
-            string defaultDir = Path.Combine(projectRoot, "PlcSim", "output", "S02");
+            string defaultDir = Path.Combine(projectRoot, "PlcSim", "output",
+                crane.GetComponent<RtgBogieSteering>() != null ? "S16" : "S02");   // RTG 는 야드 정리 데이터
             if (!Directory.Exists(defaultDir)) defaultDir = Path.Combine(projectRoot, "PlcSim");
             string csv = EditorUtility.OpenFilePanel("재생할 PLC CSV 선택 (PlcSim/output)", defaultDir, "csv");
             if (string.IsNullOrEmpty(csv)) return;   // 취소
@@ -63,18 +64,18 @@ namespace Container.Crane.Sts.EditorTools
             bridge.EditorConfigureReplay(csv);
             EditorUtility.SetDirty(bridge);
             // 도메인 리로드로 인스펙터가 리셋돼도 Awake가 복원하도록 EditorPrefs에 기록.
-            EditorPrefs.SetBool("PlcBridge.forceReplay", true);
-            EditorPrefs.SetString("PlcBridge.csvPath", csv);
+            EditorPrefs.SetBool(bridge.PrefKey("forceReplay"), true);
+            EditorPrefs.SetString(bridge.PrefKey("csvPath"), csv);
 
             Selection.activeGameObject = crane.gameObject;
-            Debug.Log($"[PlcBridgeMenu] PlcBridge 부착·CsvReplay ON → {Path.GetFileName(csv)}. " +
+            Debug.Log($"[PlcBridgeMenu] {crane.name} 에 PlcBridge 부착·CsvReplay ON → {Path.GetFileName(csv)}. " +
                       "▶Play 진입 → 기록된 시나리오대로 크레인이 재현됩니다. 원복은 Inspector에서 PlcBridge 제거.");
         }
 
         [MenuItem("PLC/지표2 정확도 측정 부착 (100회)", false, 5)]
         public static void AttachKpi2()
         {
-            var crane = Object.FindFirstObjectByType<StsCrane>();
+            var crane = Target();
             if (crane == null)
             {
                 Debug.LogWarning("[PlcBridgeMenu] 씬에 StsCrane이 없습니다.");
@@ -94,6 +95,17 @@ namespace Container.Crane.Sts.EditorTools
             Debug.Log("[PlcBridgeMenu] 지표2 하니스 부착. ▶Play → 0.5초마다 1시행, 100시행에서 자동 종료하고 " +
                       "콘솔 요약 + <프로젝트>/KPI/kpi2_*.csv 를 남깁니다. " +
                       "허용오차·시행수·목표율은 Inspector에서 조정.");
+        }
+
+        // 대상 크레인 — 선택한 크레인이 우선(RTG 재생은 'RTG 크레인_1' 을 선택하고 실행). 선택이 없으면 STS.
+        //   종전 FindFirstObjectByType 은 순서 보장이 없어 씬에 RTG 가 2대 있으면 RTG 에 붙기도 했다.
+        static StsCrane Target()
+        {
+            var sel = Selection.activeGameObject != null ? Selection.activeGameObject.GetComponentInParent<StsCrane>() : null;
+            if (sel != null) return sel;
+            foreach (var c in Object.FindObjectsByType<StsCrane>())
+                if (c.GetComponent<RtgBogieSteering>() == null) return c;   // RTG 는 스티어링이 붙어 있다
+            return null;
         }
 
         // 분리는 Inspector에서 PlcBridge 컴포넌트를 떼면 된다 — PlcBridge.OnDisable이 PlcDriven=false를

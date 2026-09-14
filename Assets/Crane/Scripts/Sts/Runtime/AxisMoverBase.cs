@@ -14,6 +14,11 @@ namespace Container.Crane.Sts
         public abstract float Max { get; }
         public float Current => ReadAxis();
 
+        // 부모 없으면(갠트리 루트) 로컬 = 월드.
+        // ponytail: 균일 스케일 가정(lossyScale.x) — 크레인 루트는 Vector3.one × s 로만 스케일한다.
+        //   비균일 스케일이 생기면 축 방향 parent.TransformVector(축).magnitude 로 바꿀 것.
+        public virtual float WorldPerUnit => transform.parent != null ? transform.parent.lossyScale.x : 1f;
+
         /// <summary>이동 가능한 하한 — 기본은 Min. SpreaderHoist가 floorOffset 반영 위해 override.</summary>
         protected virtual float LowerLimit => Min;
 

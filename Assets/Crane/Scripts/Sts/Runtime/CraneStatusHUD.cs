@@ -134,7 +134,7 @@ namespace Container.Crane.Sts
             if (m == null) { spd = 0f; return; }
             float cur = m.Current;
             float vModel = Mathf.Abs(cur - prev) / dt;     // 모델 units/s
-            float vRealMpm = vModel / crane.ModelScale * 60f;   // 실척 m/min (÷Scale=×24, ×60=분당)
+            float vRealMpm = vModel * m.WorldPerUnit / crane.ModelScale * 60f;   // 실척 m/min (×월드/축 ÷Scale=×24, ×60=분당)
             // 지수 평활(약 0.15s 시상수) — 프레임 노이즈로 숫자가 튀지 않게
             spd = Mathf.Lerp(spd, vRealMpm, 1f - Mathf.Exp(-dt / 0.15f));
             prev = cur;

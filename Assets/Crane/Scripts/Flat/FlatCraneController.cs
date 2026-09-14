@@ -86,19 +86,19 @@ namespace Container.Crane.Flat
         {
             if (crane == null) return;
             float dt = Time.fixedDeltaTime;
-            float s = crane.ModelScale;   // 실척 m/s → 모델 단위 m/s
+            float s = crane.ModelScale;   // 실척 m/s → 월드 m/s. 축 단위는 ÷WorldPerUnit(FBX RTG 트롤리 4.17)
 
             IAxisMover trolley = crane.Trolley;
             if (trolley != null && Mathf.Abs(trolleyIn) > 1e-4f)
-                trolley.MoveTo(trolley.Current + trolleyIn * trolleySpeedMps * s * dt);
+                trolley.MoveTo(trolley.Current + trolleyIn * trolleySpeedMps * s / trolley.WorldPerUnit * dt);
 
             IAxisMover gantry = crane.Gantry;
             if (gantry != null && Mathf.Abs(gantryIn) > 1e-4f)
-                gantry.MoveTo(gantry.Current + gantryIn * gantrySpeedMps * s * dt);
+                gantry.MoveTo(gantry.Current + gantryIn * gantrySpeedMps * s / gantry.WorldPerUnit * dt);
 
             IAxisMover hoist = crane.Spreader;
             if (hoist != null && Mathf.Abs(hoistIn) > 1e-4f)
-                hoist.MoveTo(hoist.Current + hoistIn * HoistMps() * s * dt);
+                hoist.MoveTo(hoist.Current + hoistIn * HoistMps() * s / hoist.WorldPerUnit * dt);
         }
 
         // 운전실 시점 추종 — 트롤리/갠트리 이동(FixedUpdate)이 끝난 뒤 정렬해 시점 저더를 막는다.

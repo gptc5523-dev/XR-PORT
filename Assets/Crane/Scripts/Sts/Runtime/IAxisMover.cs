@@ -11,6 +11,11 @@ namespace Container.Crane.Sts
         float Max { get; }
         float Current { get; }
 
+        /// <summary>축 값 1 이 월드 몇 유닛인가. 실척 m = 축 값 × 이것 ÷ ModelScale.
+        /// 축은 부모 로컬에 쓰므로 부모 스케일을 탄다 — FBX RTG 트롤리는 루트 스케일 4.17 아래라
+        /// ÷ModelScale 만 하면 4.17배 짧게 잰다(트롤리 20.19m 가 4.85m 로).</summary>
+        float WorldPerUnit { get; }
+
         /// <summary>로컬 좌표(미터). 범위 밖이면 클램프하여 적용.</summary>
         void MoveTo(float value);
 
