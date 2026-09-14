@@ -31,8 +31,9 @@ namespace Container.Crane.Sts.EditorTools
         const string YardPaveFbx  = "Assets/Crane/Models/Yard_Pavement.fbx";
         const string YardBlockFbx = "Assets/Crane/Models/Yard_Block.fbx";
         const string LaneFbx      = "Assets/Crane/Models/Quay_Lane.fbx";
-        const string PawnFbx      = "Assets/Crane/Models/StartMarker_Pawn.fbx";   // 임시 — 시작점 표시
-        const float  PawnHeightM  = 2.0f;   // 문서/스크립트/시작점_체스말_빌드.py H 와 쌍
+        // ── 비활성 2026-09-14 (임시 시작점 체스말 제거 — 좌표는 PortConfig.PlayerStart* 로 저장) ──
+        // const string PawnFbx      = "Assets/Crane/Models/StartMarker_Pawn.fbx";
+        // const float  PawnHeightM  = 2.0f;   // 폰 높이 2m · 받침 Ø1.0m · 머리 Ø0.68m · 목 r 0.12m
 
         // 부재 실척 높이 — 블렌더 빌드 스크립트와 쌍으로 유지한다(문서/스크립트/부두연석_유닛_빌드.py).
         const float CurbHeightM    = 0.528f;   // 단면 0.72W × 0.528H
@@ -71,7 +72,7 @@ namespace Container.Crane.Sts.EditorTools
             ("Yard_Fill",         0.48f, 0.46f, 0.43f, 0.00f, 0.08f, null),   // 야드 성토 측면
             ("Yard_Paint",        0.85f, 0.68f, 0.08f, 0.00f, 0.30f, null),   // 블록 도색(황색)
             ("Lane_Paint",        0.88f, 0.74f, 0.10f, 0.00f, 0.25f, null),   // 안전 차선(안전 노랑 — 블록보다 밝게)
-            ("StartMarker_Red",   0.80f, 0.12f, 0.10f, 0.00f, 0.65f, null),   // 시작점 체스말(임시) — 회색 부두에서 튀게
+            // ("StartMarker_Red",   0.80f, 0.12f, 0.10f, 0.00f, 0.65f, null),   // 비활성 2026-09-14 — 시작점 체스말(임시) 제거
         };
 
         /// <summary>FBX 별로 리맵할 머티리얼 — 그 FBX 에 없는 이름을 리맵하면 .meta 만 지저분해진다.</summary>
@@ -85,7 +86,6 @@ namespace Container.Crane.Sts.EditorTools
             ["Assets/Crane/Models/Yard_Pavement.fbx"] = new[] { "Yard_Fill", "Yard_Asphalt" },
             ["Assets/Crane/Models/Yard_Block.fbx"]    = new[] { "Yard_Paint" },
             ["Assets/Crane/Models/Quay_Lane.fbx"]     = new[] { "Lane_Paint" },
-            [PawnFbx]                                 = new[] { "StartMarker_Red" },
         };
 
         const float YardMarkThickM = 0.015f;
@@ -604,97 +604,6 @@ namespace Container.Crane.Sts.EditorTools
                       $"  렌더러 {renderers:N0} → 인스턴싱 후 드로우콜 근사 {combos.Count:N0}" +
                       $" (감소 {(1f - (float)combos.Count / Mathf.Max(1, renderers)):P1})\n" +
                       $"  서버 5인스턴스 환산 {renderers * 5:N0} → {combos.Count * 5:N0}");
-        }
-
-        /// <summary>플레이어 시작 지점을 빨간 체스말(폰, 2m)로 표시 — 임시. 오너 요청 2026-09-14.
-        /// PlayerStartPoint 마커의 자식이라 마커를 옮기면 따라간다. EditorOnly 태그라 빌드엔 안 들어간다.
-        /// 다시 누르면 교체. 치우려면 PlayerStartPoint 아래 StartMarker_Pawn 을 지우고 이 메뉴도 지운다.</summary>
-        [MenuItem("Model/FBX/항구/시작점 체스말 (임시)", false, 8)]
-        static void PlaceStartPawn()
-        {
-            var sp = Object.FindAnyObjectByType<CranePlayerStartPoint>(FindObjectsInactive.Include);
-            Transform marker = sp != null ? sp.transform : null;
-            if (marker == null)
-            {
-                var go = GameObject.Find(StsPartNames.PlayerStartPoint);
-                if (go != null) marker = go.transform;
-            }
-            if (marker == null) marker = RestoreStartMarker();   // 실수로 지웠으면 저장된 씬 파일 값으로 되살린다
-            if (marker == null)
-            {
-                Debug.LogWarning("[항구] 시작점 체스말 — PlayerStartPoint 마커가 씬에도, 저장된 씬 파일에도 없습니다.");
-                EditorUtility.DisplayDialog("시작점 체스말", "PlayerStartPoint 마커가 씬에도, 저장된 씬 파일에도 없습니다.", "확인");
-                return;
-            }
-            var fbx = Load(PawnFbx, "시작점 체스말"); if (fbx == null) return;
-
-            var prev = marker.Find("StartMarker_Pawn");
-            if (prev != null) Undo.DestroyObjectImmediate(prev.gameObject);
-
-            float scale = FbxScaleByHeight(fbx, PawnHeightM);
-            Place(fbx, marker, "StartMarker_Pawn", Vector3.zero, scale);
-            var pawn = marker.Find("StartMarker_Pawn");
-            // 발은 데크 윗면 y=0 — PlaceCaisson 규약. 마커 Y 는 CranePlayerStartPlacer 도 무시한다.
-            //   ('Asphalt' 이름 렌더러를 찾던 첫 버전은 케이슨 FBX 에 그 이름이 없어 늘 '못 찾음'으로 찍혔다.)
-            pawn.position = new Vector3(pawn.position.x, 0f, pawn.position.z);
-            pawn.gameObject.tag = "EditorOnly";
-            Undo.RegisterCreatedObjectUndo(pawn.gameObject, "Place StartMarker_Pawn");
-            UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(marker.gameObject.scene);
-
-            Vector3 p = marker.position * StsConfig.InvModelScale;
-            Done(marker, $"시작점 실척 ({p.x:F1}, {p.z:F1})m · 데크 윗면 · 높이 {PawnHeightM}m · scale {scale:F4} · EditorOnly(빌드 제외)");
-        }
-
-        /// <summary>PlayerStartPoint 를 지웠을 때 — 디스크에 저장된 씬 파일에서 위치·방향을 읽어 다시 만든다.
-        /// 좌표를 코드에 박지 않는다(마커는 씬에서 끌어다 맞추는 WYSIWYG 규약). 저장 안 한 이동은 복원되지 않는다.</summary>
-        static Transform RestoreStartMarker()
-        {
-            string path = UnityEditor.SceneManagement.EditorSceneManager.GetActiveScene().path;
-            if (!SavedRootPose(path, StsPartNames.PlayerStartPoint, out var pos, out var rot)) return null;
-            var go = new GameObject(StsPartNames.PlayerStartPoint);
-            go.AddComponent<CranePlayerStartPoint>();
-            go.transform.SetPositionAndRotation(pos, rot);
-            Undo.RegisterCreatedObjectUndo(go, "Restore PlayerStartPoint");
-            Debug.Log($"[항구] PlayerStartPoint 복원 — 저장된 씬({path}) 값 · 실척 ({pos.x * StsConfig.InvModelScale:F1}, " +
-                      $"{pos.z * StsConfig.InvModelScale:F1})m · 방향 {rot.eulerAngles.y:F0}°");
-            return go.transform;
-        }
-
-        /// <summary>씬 YAML 에서 이름이 name 인 루트 GameObject 의 Transform 위치·회전(루트라 로컬 = 월드).</summary>
-        static bool SavedRootPose(string scenePath, string name, out Vector3 pos, out Quaternion rot)
-        {
-            pos = default; rot = Quaternion.identity;
-            if (string.IsNullOrEmpty(scenePath) || !File.Exists(scenePath)) return false;
-            string s = File.ReadAllText(scenePath);
-            const System.StringComparison O = System.StringComparison.Ordinal;
-            int at = s.IndexOf("\n  m_Name: " + name + "\n", O);
-            int head = at < 0 ? -1 : s.LastIndexOf("--- !u!1 &", at, O);
-            if (head < 0) return false;
-            string id = s.Substring(head + 10, s.IndexOf('\n', head) - head - 10).Split(' ')[0];
-            // 그 GameObject 를 가리키는 블록 중 Transform(!u!4)만 — 컴포넌트(!u!114)도 같은 줄을 갖는다.
-            string key = "m_GameObject: {fileID: " + id + "}";
-            for (int k = s.IndexOf(key, O); k >= 0; k = s.IndexOf(key, k + 1, O))
-            {
-                int blk = s.LastIndexOf("\n--- !u!", k, O);
-                if (string.CompareOrdinal(s, blk + 1, "--- !u!4 ", 0, 9) != 0) continue;
-                var r = YamlVec(s, "m_LocalRotation: {", k);
-                var p = YamlVec(s, "m_LocalPosition: {", k);
-                if (r == null || r.Length < 4 || p == null || p.Length < 3) return false;
-                rot = new Quaternion(r[0], r[1], r[2], r[3]);
-                pos = new Vector3(p[0], p[1], p[2]);
-                return true;
-            }
-            return false;
-        }
-
-        // "key{x: 1, y: 2, z: 3, w: 4}" → [1, 2, 3, 4]
-        static float[] YamlVec(string s, string key, int from)
-        {
-            int a = s.IndexOf(key, from, System.StringComparison.Ordinal);
-            if (a < 0) return null;
-            int b = s.IndexOf('}', a);
-            return s.Substring(a + key.Length, b - a - key.Length).Split(',')
-                    .Select(kv => float.Parse(kv.Split(':')[1], System.Globalization.CultureInfo.InvariantCulture)).ToArray();
         }
 
         // ── 공용 ──

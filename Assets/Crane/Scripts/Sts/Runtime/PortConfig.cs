@@ -240,5 +240,14 @@ namespace Container.Crane.Sts
         /// 코핑고는 StsConfig.QuayDeckAboveSeaMeters SSOT 를 추종한다(수면 Y 와 같은 출처).</summary>
         public static float QuayWallHeightMeters =>
             StsConfig.QuayDeckAboveSeaMeters + WaterDepthMeters;
+
+        // ═══ 플레이어 시작점 — 오너 지시 2026-09-14 "좌표만 저장해" ═══
+        //   임시 체스말로 눈으로 확인한 자리 = 씬 PlayerStartPoint 마커 월드 (−0.5417, 0, 0) · yaw 90°.
+        //   숫자로 박지 않고 유도한다 — STS 두 주행레일(−4 / −22m) 한가운데 · 선석 중앙 · 바다(+X)를 바라봄.
+        //   씬에 마커가 있으면 마커가 우선이고(CranePlayerStartPlacer), 이 값은 마커가 없을 때 쓴다.
+        /// <summary>시작점 X — 실척 m. −(해측여유 4 + 레일게이지 18 ÷ 2) = −13m.</summary>
+        public static float PlayerStartXMeters => -(ApronSeawardM + StsConfig.LegGaugeXMeters * 0.5f);
+        /// <summary>시작점 Z — 실척 m. 선석(안벽) 중앙.</summary>
+        public const float PlayerStartZMeters = 0f;
     }
 }

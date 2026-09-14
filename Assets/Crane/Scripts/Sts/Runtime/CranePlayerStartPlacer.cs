@@ -9,7 +9,7 @@ namespace Container.Crane.Sts
     ///   ★ 목표: 호스트가 어디에 있든, 호스트·참가자 '모두' 항상 Quay_Ground(부두 걷는 면) '안'에서 시작한다.
     ///     - 시작 마커(CranePlayerStartPoint)가 있으면 그 위치·방향을 쓴다(디자이너 지정).
     ///     - 마커가 없거나 부두 밖이어도 forceInsideQuay가 켜져 있으면 걷는 면 XZ 범위로 끌어들인다(클램프).
-    ///     - 마커가 아예 없으면 부두 중앙에 놓고 크레인을 바라보게 한다.
+    ///     - 마커가 아예 없으면 저장된 시작점(PortConfig.PlayerStart* — STS 레일 사이 · 선석 중앙)에서 바다를 바라보게 한다.
     ///
     ///   ★ 네트워크 보정: 클라이언트는 접속 동기화 과정에서 리그가 원점(0,0,0)에 방치되는 경우가 있다
     ///     (= 관전자가 '호스트 자리까지 걸어가야 크레인이 보이던' 증상). 그래서 로컬 접속이 완료되면
@@ -179,9 +179,9 @@ namespace Container.Crane.Sts
             }
             else if (hasLand)
             {
-                Vector3 c = land.center;                  // 마커 없음 → 땅 중앙.
-                xz = new Vector3(c.x, 0f, c.z);
-                faceDir = FaceTowardCrane(xz, rig.forward);
+                // 마커 없음 → 저장된 시작점(PortConfig) — STS 레일 사이 · 선석 중앙 · 바다 쪽.
+                xz = new Vector3(PortConfig.PlayerStartXMeters, 0f, PortConfig.PlayerStartZMeters) * StsConfig.ModelScale;
+                faceDir = Vector3.right;
             }
             else
             {
@@ -207,7 +207,7 @@ namespace Container.Crane.Sts
             rig.SetPositionAndRotation(pos, Quaternion.LookRotation(faceDir, Vector3.up));
             if (debugLog)
                 Debug.Log($"[PlayerStartPlacer] 시작 배치 — pos {pos}, facing {faceDir}, " +
-                          $"기준={(marker != null ? "마커" : "부두중앙")}, 부두클램프={(forceInsideQuay && hasLand)}.");
+                          $"기준={(marker != null ? "마커" : "저장좌표")}, 부두클램프={(forceInsideQuay && hasLand)}.");
 
             // QA 콘솔 판정(문서/QA_테스트시나리오.md 그룹 A)
             //   S-START-2: 걷는 면(최대 수평면적 렌더러) 선택 — 부두 '구조물 꼭대기'(레일 등)와 대비해 보고.
@@ -220,7 +220,7 @@ namespace Container.Crane.Sts
             bool onFloor = Mathf.Abs(pos.y - floorY) <= floorClearance + 1e-3f;
             bool notGiant = flatQuay || pos.y < structureTop - 0.1f;   // 구조물 꼭대기(≈0.22)에 서면 거대증상 재발 → FAIL
             QaLog.Check("START", "place", onFloor && notGiant,
-                $"basis={(marker != null ? "marker" : "quayCenter")} floorY={QaLog.F(floorY)} rigY={QaLog.F(pos.y)} " +
+                $"basis={(marker != null ? "marker" : "portStart")} floorY={QaLog.F(floorY)} rigY={QaLog.F(pos.y)} " +
                 $"structureTopY={QaLog.F(structureTop)} clearance={QaLog.F(floorClearance)} onFloor={onFloor} notGiant={notGiant}");
 
             // S-START-3: 네트워크 접속 후 재배치였다면 — 원점(0,0,0) 방치에서 부두 안으로 복귀했는지.
@@ -288,15 +288,6 @@ namespace Container.Crane.Sts
             foreach (var r in quay.GetComponentsInChildren<Renderer>())
                 if (r.bounds.max.y > top) top = r.bounds.max.y;
             return top > float.MinValue ? top : 0f;
-        }
-
-        // 마커가 없을 때 크레인 쪽을 바라보게(수평). 크레인을 못 찾으면 기존 방향 유지.
-        static Vector3 FaceTowardCrane(Vector3 fromXZ, Vector3 fallback)
-        {
-            var crane = FindAnyObjectByType<StsCrane>();
-            if (crane == null) return fallback;
-            Vector3 d = crane.transform.position - fromXZ; d.y = 0f;
-            return d.sqrMagnitude > 1e-4f ? d.normalized : fallback;
         }
 
         static Vector3 ClampToBounds(Vector3 p, Bounds b, float inset)
