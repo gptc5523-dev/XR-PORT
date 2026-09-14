@@ -31,6 +31,8 @@ namespace Container.Crane.Sts.EditorTools
         const string YardPaveFbx  = "Assets/Crane/Models/Yard_Pavement.fbx";
         const string YardBlockFbx = "Assets/Crane/Models/Yard_Block.fbx";
         const string LaneFbx      = "Assets/Crane/Models/Quay_Lane.fbx";
+        const string PawnFbx      = "Assets/Crane/Models/StartMarker_Pawn.fbx";   // 임시 — 시작점 표시
+        const float  PawnHeightM  = 2.0f;   // 문서/스크립트/시작점_체스말_빌드.py H 와 쌍
 
         // 부재 실척 높이 — 블렌더 빌드 스크립트와 쌍으로 유지한다(문서/스크립트/부두연석_유닛_빌드.py).
         const float CurbHeightM    = 0.528f;   // 단면 0.72W × 0.528H
@@ -69,6 +71,7 @@ namespace Container.Crane.Sts.EditorTools
             ("Yard_Fill",         0.48f, 0.46f, 0.43f, 0.00f, 0.08f, null),   // 야드 성토 측면
             ("Yard_Paint",        0.85f, 0.68f, 0.08f, 0.00f, 0.30f, null),   // 블록 도색(황색)
             ("Lane_Paint",        0.88f, 0.74f, 0.10f, 0.00f, 0.25f, null),   // 안전 차선(안전 노랑 — 블록보다 밝게)
+            ("StartMarker_Red",   0.80f, 0.12f, 0.10f, 0.00f, 0.65f, null),   // 시작점 체스말(임시) — 회색 부두에서 튀게
         };
 
         /// <summary>FBX 별로 리맵할 머티리얼 — 그 FBX 에 없는 이름을 리맵하면 .meta 만 지저분해진다.</summary>
@@ -82,6 +85,7 @@ namespace Container.Crane.Sts.EditorTools
             ["Assets/Crane/Models/Yard_Pavement.fbx"] = new[] { "Yard_Fill", "Yard_Asphalt" },
             ["Assets/Crane/Models/Yard_Block.fbx"]    = new[] { "Yard_Paint" },
             ["Assets/Crane/Models/Quay_Lane.fbx"]     = new[] { "Lane_Paint" },
+            [PawnFbx]                                 = new[] { "StartMarker_Red" },
         };
 
         const float YardMarkThickM = 0.015f;
@@ -600,6 +604,46 @@ namespace Container.Crane.Sts.EditorTools
                       $"  렌더러 {renderers:N0} → 인스턴싱 후 드로우콜 근사 {combos.Count:N0}" +
                       $" (감소 {(1f - (float)combos.Count / Mathf.Max(1, renderers)):P1})\n" +
                       $"  서버 5인스턴스 환산 {renderers * 5:N0} → {combos.Count * 5:N0}");
+        }
+
+        /// <summary>플레이어 시작 지점을 빨간 체스말(폰, 2m)로 표시 — 임시. 오너 요청 2026-09-14.
+        /// PlayerStartPoint 마커의 자식이라 마커를 옮기면 따라간다. EditorOnly 태그라 빌드엔 안 들어간다.
+        /// 다시 누르면 교체. 치우려면 PlayerStartPoint 아래 StartMarker_Pawn 을 지우고 이 메뉴도 지운다.</summary>
+        [MenuItem("Model/FBX/항구/시작점 체스말 (임시)", false, 8)]
+        static void PlaceStartPawn()
+        {
+            var sp = Object.FindAnyObjectByType<CranePlayerStartPoint>();
+            Transform marker = sp != null ? sp.transform : null;
+            if (marker == null)
+            {
+                var go = GameObject.Find(StsPartNames.PlayerStartPoint);
+                if (go != null) marker = go.transform;
+            }
+            if (marker == null)
+            {
+                EditorUtility.DisplayDialog("시작점 체스말", "씬에 PlayerStartPoint 마커가 없습니다.", "확인");
+                return;
+            }
+            var fbx = Load(PawnFbx, "시작점 체스말"); if (fbx == null) return;
+
+            var prev = marker.Find("StartMarker_Pawn");
+            if (prev != null) Undo.DestroyObjectImmediate(prev.gameObject);
+
+            float scale = FbxScaleByHeight(fbx, PawnHeightM);
+            Place(fbx, marker, "StartMarker_Pawn", Vector3.zero, scale);
+            var pawn = marker.Find("StartMarker_Pawn");
+            // 발은 아스팔트 윗면에 — CranePlayerStartPlacer 가 리그를 세우는 면과 같다(마커 Y 는 무시된다).
+            var quay = GameObject.Find(StsPartNames.QuayGround);
+            var deck = quay != null ? quay.GetComponentsInChildren<Renderer>()
+                                           .FirstOrDefault(r => r.gameObject.name == StsPartNames.QuayAsphalt) : null;
+            if (deck != null) pawn.position = new Vector3(pawn.position.x, deck.bounds.max.y, pawn.position.z);
+            pawn.gameObject.tag = "EditorOnly";
+            Undo.RegisterCreatedObjectUndo(pawn.gameObject, "Place StartMarker_Pawn");
+            UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(marker.gameObject.scene);
+
+            Vector3 p = marker.position * StsConfig.InvModelScale;
+            Done(pawn, $"시작점 실척 ({p.x:F1}, {p.z:F1})m · 바닥 {(deck != null ? "아스팔트 윗면" : "마커 높이(아스팔트 못 찾음)")} · " +
+                       $"높이 {PawnHeightM}m · scale {scale:F4} · EditorOnly(빌드 제외)");
         }
 
         // ── 공용 ──
