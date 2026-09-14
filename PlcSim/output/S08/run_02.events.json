@@ -2,11 +2,11 @@
   "scenario": "S08",
   "name": "안착 실패/재시도",
   "label": "주의",
-  "duration_s": 42.2,
-  "rows": 422,
+  "duration_s": 41.7,
+  "rows": 417,
   "events": [
     {
-      "t_ms": 31400,
+      "t_ms": 29400,
       "kind": "alarm",
       "code": 4003,
       "severity": 2,

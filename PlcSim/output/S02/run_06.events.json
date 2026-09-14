@@ -2,7 +2,7 @@
   "scenario": "S02",
   "name": "컨테이너 양하",
   "label": "정상",
-  "duration_s": 79.1,
-  "rows": 791,
+  "duration_s": 75.0,
+  "rows": 750,
   "events": []
 }

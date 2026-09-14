@@ -21,14 +21,17 @@
   6) 작업 이력         : 이력 한 줄이 PLC 시계열에서 실제로 그 자리였는가(집기/놓기 시각의 축 위치),
                          그리고 적치 규칙 — 위에 얹힌 걸 빼거나 허공에 놓는 이력은 실물에서 불가능하다.
                          run_until_settled 타임아웃은 조용히 넘어가서, 가는 도중에 집은 이력이 남을 수 있다.
+                         배 자리는 씬의 실제 점유(2단 랜덤 포함)에서 출발한다.
+  7) Port.unity 대조   : 생성기 '씬 기하' 식(배·크레인 위치, 갠트리 범위, 스프레더 오프셋, 갑판 컨테이너 전량)이
+                         실제 씬과 같은가. 오너 지적 2026-09-14 "허공에 작업" — 좌표가 씬과 갈라지면 여기서 멈춘다.
 """
 import csv, glob, json, os, sys, collections
 
 D = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(D, "output")
 sys.path.insert(0, D)
-from generate import (RANGE, AMAX, RANGES, BAY_PITCH, TR_SHIP_NEAR, ROW_PITCH, TR_CHASSIS,   # noqa: E402
-                      HO_CHASSIS, HO_DECK_T1, HO_DECK_T2, CONT_H, rtg_gt, rtg_tr, iso6346)
+import generate as G                                                         # noqa: E402
+from generate import RANGE, AMAX, RANGES, CONT_H, rtg_gt, rtg_tr, iso6346  # noqa: E402
 
 assert iso6346("CSQU", 305438) == "CSQU3054383"   # ISO 6346 표준 예시 번호
 
@@ -116,9 +119,10 @@ for sid, pick_ship in (("S13", False), ("S14", True), ("S15", True)):
         prev = lk
     if not picks or not places:
         fails.append(f"[방향] {sid}: 잠금/해제 전이 없음"); continue
-    # 배쪽 = 안벽(TR_QUAY 33.9)보다 바다쪽, 육지쪽 = 육지쪽 다리(15.9)보다 안쪽
-    pick_side  = all(tr > 33.9 for tr, _ in picks)  if pick_ship else all(tr < 15.9 for tr, _ in picks)
-    place_side = all(tr < 15.9 for tr, _ in places) if pick_ship else all(tr > 33.9 for tr, _ in places)
+    # 배쪽 = 안벽 가장자리(x=0)보다 바다쪽, 육지쪽 = 그보다 안쪽(포털 밑 레인) — 경계도 '씬 기하' 식
+    edge = G.sts_tr(0.0)
+    pick_side  = all(tr > edge for tr, _ in picks)  if pick_ship else all(tr < edge for tr, _ in picks)
+    place_side = all(tr < edge for tr, _ in places) if pick_ship else all(tr > edge for tr, _ in places)
     tiers = [ho for _, ho in picks] if pick_ship else [ho for _, ho in places]
     tier_ok = tiers[0] >= tiers[-1] if pick_ship else tiers[0] <= tiers[-1]   # 양하 위→아래 / 적하 아래→위
     d = "배→육지" if pick_ship else "육지→배"
@@ -130,17 +134,22 @@ for sid, pick_ship in (("S13", False), ("S14", True), ("S15", True)):
     if not tier_ok:    fails.append(f"[단순서] {sid}: {'양하는 위 단부터' if pick_ship else '적하는 아래 단부터'}")
 
 print("\n=== 4) 작업 이력 ↔ PLC 시계열 · 적치 규칙 ===")
-TOL = {"GT_Position": 1.0, "TR_Position": 0.8, "HO_Position": 0.35}   # 목표 산포 σ(0.25/0.20/0.08)의 4배
+# 허용오차 = 목표 산포 σ 의 4배 + 정착 판정 0.05 — STS 연속 이송은 자동 위치결정(AUTO_SIGMA), RTG 는 수동(AIM_SIGMA)
+TOL = {c: {f"{a.upper()}_Position": 4 * sig[a] + 0.05 for a in sig}
+       for c, sig in (("STS", G.AUTO_SIGMA), ("RTG", G.AIM_SIGMA))}
 COUNT = {"S13": 20, "S14": 20, "S15": 5, "S16": 5}
-GT0 = man["range_m"]["gt"] * 0.35                                     # gen_S14 첫 베이
 
 def expect(loc):
-    """이력 위치 → 그 자리에서 PLC 축이 있어야 할 값."""
-    if loc == "CHASSIS": return {"TR_Position": TR_CHASSIS, "HO_Position": HO_CHASSIS}
-    area, b, r, t = loc.split("/"); b, r, t = int(b[1:]) - 1, int(r[1:]) - 1, int(t[1:])
+    """이력 위치 → 그 자리에서 PLC 축이 있어야 할 값(generate.py '씬 기하' 식)."""
+    area = loc.split("/")[0]
+    if area in ("QUAY", "TRUCK"):                       # 포털 밑 레인 — 데크에 내려놓는다(갠트리는 그 베이 그대로)
+        k = int(loc.rsplit("/L", 1)[1]) - 1
+        return {"TR_Position": G.sts_tr(G.lane_x(k)), "HO_Position": G.HO_GROUND}
     if area == "SHIP":
-        return {"GT_Position": GT0 + b * BAY_PITCH, "TR_Position": TR_SHIP_NEAR + r * ROW_PITCH,
-                "HO_Position": HO_DECK_T2 if t == 2 else HO_DECK_T1}
+        k = G.slot_key(loc)
+        return {"GT_Position": G.sts_gt(G.slot_z(k)), "TR_Position": G.sts_tr(G.slot_x(k)),
+                "HO_Position": G.sts_ho(G.slot_top(k))}
+    _, b, r, t = loc.split("/"); b, r, t = int(b[1:]) - 1, int(r[1:]) - 1, int(t[1:])
     return {"GT_Position": rtg_gt(b), "TR_Position": rtg_tr(r), "HO_Position": t * CONT_H}
 
 def tier(loc, d):
@@ -155,12 +164,16 @@ for f in sorted(glob.glob(os.path.join(OUT, "*", "*.history.csv"))):
     for m in mv:
         for loc, t in ((m["from"], m["pick_t_ms"]), (m["to"], m["place_t_ms"])):
             for col, v in expect(loc).items():
-                if abs(float(rows[t][col]) - v) > TOL[col]:
+                if abs(float(rows[t][col]) - v) > TOL[crane[sid]][col]:
                     bad.append(f"#{m['seq']} {loc} {col} {float(rows[t][col]):.2f}≠{v:.2f}")
         if int(m["place_t_ms"]) <= int(m["pick_t_ms"]): bad.append(f"#{m['seq']} 놓기가 집기보다 먼저")
     # 적치 — 처음부터 있던 슬롯(출발지 중 한 번도 도착지가 아닌 곳)에서 시작해 순서대로 옮겨 본다.
     slot = lambda loc: "/T" in loc
     occ = {m["from"] for m in mv if slot(m["from"])} - {m["to"] for m in mv}
+    if any(m["from"].startswith("SHIP/") or m["to"].startswith("SHIP/") for m in mv):
+        occ |= {G.slot_label(k) for k in G.SHIP_OCC}          # 배는 씬의 실제 점유(2단 랜덤 포함)에서 출발
+    quay = [m["to"] for m in mv if m["to"].startswith("QUAY/")]
+    if len(quay) != len(set(quay)): bad.append("같은 에이프런 레인에 두 번 놓음")
     for m in mv:
         a, b = m["from"], m["to"]
         if slot(a) and (a not in occ or tier(a, +1) in occ): bad.append(f"#{m['seq']} {a} 위가 막힘/없음")
@@ -178,7 +191,59 @@ print(f"  시나리오 {len(digests)}종 · 총 {man['total_runs']}런 · " +
       ("전부 상이 OK" if not dup else f"중복 {dup}"))
 if dup: fails.append(f"[중복] {dup}")
 
-print("\n=== 6) 요약 ===")
+print("\n=== 6) Port.unity 대조 — 생성기 '씬 기하' 식이 실제 씬과 같은가 ===")
+SCENE = os.path.join(D, "..", "Assets", "Scenes", "Port.unity")
+if not os.path.exists(SCENE):
+    print("  Port.unity 없음 — 건너뜀")
+else:
+    import re
+    txt = open(SCENE, encoding="utf-8").read()
+    blocks = {m.group(2): (m.group(1), m.group(3))
+              for m in re.finditer(r'--- !u!(\d+) &(-?\d+)[^\n]*\n(.*?)(?=\n--- !u!|\Z)', txt, re.S)}
+    names = {f: n.group(1) for f, (t, b) in blocks.items() if t == "1" and (n := re.search(r'm_Name: (.*)', b))}
+    pos = {}
+    for f, (t, b) in blocks.items():
+        g = re.search(r'm_GameObject: \{fileID: (-?\d+)', b)
+        p = re.search(r'm_LocalPosition: \{x: ([^,]+), y: ([^,]+), z: ([^}]+)\}', b)
+        if t == "4" and g and p: pos.setdefault(names.get(g.group(1)), []).append(tuple(float(v) * 24 for v in p.groups()))
+
+    def chk(label, got, want, tol):
+        ok = got is not None and all(abs(a - b) <= tol for a, b in zip(got, want))
+        print(f"  {label:22s} 씬 {tuple(round(v, 3) for v in got) if got else None} · 식 {tuple(round(v, 3) for v in want)}  "
+              + ("OK" if ok else "NG"))
+        if not ok: fails.append(f"[씬] {label}")
+
+    first = lambda n: (pos.get(n) or [None])[0]
+    chk("ContainerShip", first("ContainerShip"), (G.SHIP_X, G.SHIP_Y, G.SHIP_Z), 1e-3)
+    chk("STS_Crane", first("STS_Crane"), (G.STS_ROOT_X, 0.0, G.STS_ROOT_Z), 1e-3)
+    chk("Boom_1", first("Boom_1"), (0.0, G.BOOM_Y, 0.0), 1e-3)
+    chk("AttachPoint_1", first("AttachPoint_1"), (0.0, -G.ATTACH_DROP, 0.0), 1e-3)
+    sp = first("Spreader_1")
+    chk("Spreader_1 X(HoistX)", sp and sp[:1], (G.HOIST_X,), 1e-3)
+    gg = re.search(r'guid: (\w+)', open(os.path.join(D, "..", "Assets/Crane/Scripts/Sts/Runtime/GantryMover.cs.meta")).read()).group(1)
+    gm = next((b for f, (t, b) in blocks.items() if t == "114" and gg in b
+               and names.get(re.search(r'm_GameObject: \{fileID: (-?\d+)', b).group(1)) == "STS_Crane"), None)
+    if gm is None: fails.append("[씬] STS GantryMover 없음")
+    else:
+        chk("STS 갠트리 min/max", tuple(float(re.search(rf'\n  {k}: (\S+)', gm).group(1)) * 24 for k in ("min", "max")),
+            (G.GT_MIN_Z, G.GT_MIN_Z + G.STS_RANGE["gt"]), 0.01)
+    # 1:1 짝짓기 — 씬 좌표는 float32 라 반올림·정렬로 비교하면 경계값에서 순서가 흔들린다.
+    #   식의 자리마다 1mm 안의 씬 컨테이너를 하나씩 소거하고, 남는 쪽이 없어야 일치다.
+    scene_c, formula = pos.get("ShipContainer", []), G.SHIP_OCC
+    left, miss = list(scene_c), 0
+    for k in formula:
+        want = (G.SHIP_SLOT[k]["x"], G.SHIP_SLOT[k]["y"], G.SHIP_SLOT[k]["z"])
+        i = next((i for i, c in enumerate(left) if all(abs(a - b) <= 1e-3 for a, b in zip(c, want))), None)
+        if i is None: miss += 1
+        else: left.pop(i)
+    same = miss == 0 and not left
+    print(f"  갑판 컨테이너           씬 {len(scene_c)}개 · 식 {len(formula)}개(2단 {sum(k[2] == 2 for k in G.SHIP_OCC)}) · "
+          f"좌표·점유 {'전부 일치(1mm)' if same else '불일치'}")
+    if not same: fails.append("[씬] 배 갑판 컨테이너 좌표·점유")
+    print(f"  작업 베이 B{G.WORK_BAY + 1:02d} z {G.bay_z(G.WORK_BAY):.2f} · GT {G.GT_WORK:.2f} · 이송고 HO {G.HO_CLEAR:.2f} "
+          f"(최고 화물 {G.CARGO_TOP:.2f}m + 컨테이너 + {G.CLEAR_M}m)")
+
+print("\n=== 7) 요약 ===")
 print(f"  {man['total_rows']:,} 행 · {man['total_rows']*dt/60:.1f} 분 · 라벨 {man['label_distribution']}")
 print(f"  range_m={man['range_m']}  vmax={man['vmax_ms']}  amax={man['amax_ms2']}")
 

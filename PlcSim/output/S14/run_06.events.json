@@ -1,8 +1,8 @@
 {
   "scenario": "S14",
-  "name": "20개 양하 (배 갑판→육지 섀시)",
+  "name": "STS 20개 양하 (배→트럭 레인)",
   "label": "정상",
-  "duration_s": 1537.6,
-  "rows": 15376,
+  "duration_s": 1751.7,
+  "rows": 17517,
   "events": []
 }

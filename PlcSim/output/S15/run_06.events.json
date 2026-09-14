@@ -1,8 +1,8 @@
 {
   "scenario": "S15",
-  "name": "STS 5개 양하 (배 갑판→육지 섀시)",
+  "name": "STS 5개 양하 (작업 베이 실컨테이너→포털 밑 레인·시연)",
   "label": "정상",
-  "duration_s": 375.0,
-  "rows": 3750,
+  "duration_s": 400.3,
+  "rows": 4003,
   "events": []
 }

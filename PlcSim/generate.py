@@ -28,20 +28,17 @@ DT = 0.1  # 100ms 폴링 (사양서 §3.2)
 # ★ SSOT 는 Unity 크레인 기하다. PlcBridge 는 무버 Min/Max 에서 rangeM 을 자동 산출해
 #   realPos / rangeM 으로 정규화한다 → 여기 값이 실제 가동범위와 다르면 그 비율만큼
 #   위치가 통째로 어긋나고, 초과분은 클램프돼 축이 끝에 붙어버린다.
-#   유도 (StsCraneCreator.cs, Scale = 1/24):
-#     tr = (TrolleyMaxX − TrolleyMinX) × 24 = (63/24 − (−13/24 − 0.12)) × 24 = 78.9 m
-#     ho = (SpreaderMaxY − SpreaderMinY) × 24 = (44 − 4.8)               = 39.2 m
-#   gt 는 씬의 부두 레일에서 런타임 산출(GantryRangeFit)이라 정적으로 못 박는다.
-#     기본값 = 설계 상수 GantryRange(±2.2 모델) × 2 × 24 = 105.6 m.
-#     ponytail: Play 로그 "[PlcBridge] range 자동산출 ... GT=__m" 의 실측값을
-#               --gt-range 로 주면 정확해진다. 시나리오는 range 비율로 쓰므로 클램프는 안 난다.
-RANGE = {"gt": 105.6, "tr": 78.9, "ho": 39.2}
+#   RANGE 는 아래 '씬 기하' 절에서 유도한다(STS_RANGE — gt 는 GantryRangeFit 식).
+# ── 비활성 2026-09-14 (gt 를 설계 상수 GantryRange ±2.2u 로 박았는데 씬 런타임은 236.98m — 베이가 통째로 어긋나 허공 작업) ──
+# RANGE = {"gt": 105.6, "tr": 78.9, "ho": 39.2}
 # 정격 — SSOT = CraneAxisProfile.cs (VirtualPlcSource 와 같은 출처를 쓴다)
 VMAX  = {"gt": 0.7,  "tr": 3.5, "ho": 1.25}   # CraneAxisProfile.*MaxSpeed
 AMAX  = {"gt": 0.15, "tr": 0.6, "ho": 0.50}   # CraneAxisProfile.*RatedAccel
 # 비상제동 배수 — E-Stop 은 정격을 훨씬 넘겨 세운다. 트립 임계(정격×1.667)를 넘는 건
 #   의도된 것: E-Stop 에서는 가속알람이 떠야 맞다. 다만 '순간 0'은 아니다(무한 감속).
 EMG_BRAKE = 3.0
+# 목표 산포(σ, m) — 수동 운전의 런별 편차. 자동 위치결정 시나리오는 AUTO_SIGMA 로 줄인다.
+AIM_SIGMA = {"gt": 0.25, "tr": 0.20, "ho": 0.08}
 
 # ── 알람 코드북 발췌(코드→심각도/소스/한글) — 시나리오가 쓰는 것만 ──
 ALM = {
@@ -144,14 +141,15 @@ def iso6346(owner, serial):
 
 
 class Sim:
-    def __init__(self, sp_mode=SP40, wind=8.0, rng=None, range_m=None, id_base=0):
+    def __init__(self, sp_mode=SP40, wind=8.0, rng=None, range_m=None, id_base=0, gt0=0.0):
         # 런별 편차의 단일 출처. 시드 고정 = 재현 가능(반복시험 요건).
         self.rng = rng or random.Random(0)
         self.t = 0.0
         # 크레인마다 가동범위가 다르다(STS RANGE / RTG RTG_RANGE). 정격 속도·가속은 같은 CraneAxisProfile.
         self.range = range_m or RANGE
-        self.gt = Axis(0.0, self.range["gt"]); self.tr = Axis(0.0, self.range["tr"])
+        self.gt = Axis(gt0, self.range["gt"]); self.tr = Axis(0.0, self.range["tr"])
         self.ho = Axis(self.range["ho"], self.range["ho"])
+        self.sigma = dict(AIM_SIGMA)   # 목표 산포 — 자동 위치결정 시나리오가 줄인다
         self.moves = []; self.id_base = id_base   # 작업 이력 · 컨테이너 번호 = id_base + 순번
         self.vmul = 1.0  # 풍속 감속 등 속도 스케일
         # 설비 편차 — 인버터 튜닝·로프 마모·운전자 습관으로 런마다 정격이 미세하게 다르다.
@@ -219,16 +217,16 @@ class Sim:
     # 목표 위치에 런별 산포를 섞는다 — 실제 운전은 같은 베이도 매번 몇 cm 씩 다르게 선다.
     #   가동범위 밖으로 새지 않게 클램프한다(넘기면 Unity 축이 끝에 붙어 추종이 끊긴다).
     def goto(self, gt=None, tr=None, ho=None):
-        if gt is not None: self.gt.target = self._aim(gt, "gt", 0.25)
-        if tr is not None: self.tr.target = self._aim(tr, "tr", 0.20)
-        if ho is not None: self.ho.target = self._aim(ho, "ho", 0.08)
+        if gt is not None: self.gt.target = self._aim(gt, "gt")
+        if tr is not None: self.tr.target = self._aim(tr, "tr")
+        if ho is not None: self.ho.target = self._aim(ho, "ho")
 
     # 목표는 리밋에 붙이지 않는다 — 한 틱치 여유(vmax·dt)를 남긴다.
     #   붙이면 마지막 접근이 엔드스톱을 때려 속도가 한 틱에 죽고(실측 TR −0.14 → −0.01)
     #   겉보기 가속이 1.3 m/s² 로 튄다. 실제 크레인도 리밋 스위치 위에 주차하지 않는다.
-    def _aim(self, v, axis, sigma):
+    def _aim(self, v, axis):
         m = VMAX[axis] * DT
-        return max(m, min(self.range[axis] - m, v + self.rng.gauss(0.0, sigma)))
+        return max(m, min(self.range[axis] - m, v + self.rng.gauss(0.0, self.sigma[axis])))
 
     # 급정지 — E-Stop·스내그·모터고장처럼 정격을 넘겨 세우는 구간.
     #   브레이크가 물리는 데 시간이 걸린다: '속도를 한 틱에 0' 으로 두면 미분 시 무한 감속이라
@@ -300,39 +298,236 @@ class Sim:
         }
 
 
-# ─────────────────── 씬 기하에서 유도한 작업 좌표 (실척 m) ───────────────────
-# ★ 여기 숫자는 지어낸 값이 아니라 전부 Unity SSOT 에서 유도한 값이다.
-#   StsConfig      : LegGaugeXMeters 18 · QuayDeckAboveSeaMeters 4 · ModelScale 1/24
-#   StsCraneCreator: TrolleyMinX −15.9 · TrolleyMaxX 63 · LandLegX 0 · WaterLegX 18 · RailH 44
-#   ShipConfig     : FreeboardMeters 11 · BeamMeters 39.53 · DeckRows 15 · ContainerWidthM 2.438
-#   ShipBerthMenu  : 접안틈 = ApronSeawardM 4 + FenderClearance 1.5 = 5.5
+
+# ── 비활성 2026-09-14 (씬과 불일치 — 갠트리 105.6m 가정·선측 모서리를 열로·해치커버 뺀 갑판고 → 허공 작업) ──
+# # ─────────────────── 씬 기하에서 유도한 작업 좌표 (실척 m) ───────────────────
+# # ★ 여기 숫자는 지어낸 값이 아니라 전부 Unity SSOT 에서 유도한 값이다.
+# #   StsConfig      : LegGaugeXMeters 18 · QuayDeckAboveSeaMeters 4 · ModelScale 1/24
+# #   StsCraneCreator: TrolleyMinX −15.9 · TrolleyMaxX 63 · LandLegX 0 · WaterLegX 18 · RailH 44
+# #   ShipConfig     : FreeboardMeters 11 · BeamMeters 39.53 · DeckRows 15 · ContainerWidthM 2.438
+# #   ShipBerthMenu  : 접안틈 = ApronSeawardM 4 + FenderClearance 1.5 = 5.5
+# #
+# # ── 트롤리: PLC 좌표 = 붐로컬 X + 15.9 (0 = 백리치 끝) ──
+# TR_LANDLEG   = 15.9                     # 육지쪽 다리      (X = 0)
+# TR_QUAY      = 33.9                     # 바다쪽 다리·안벽 (X = 18)
+# TR_SHIP_NEAR = 39.4                     # 배 현측          (X = 18 + 5.5 = 23.5)
+# TR_SHIP_FAR  = 78.9                     # 배 원측          (X = 23.5 + 39.53 = 63.03) — 아웃리치가 전폭을 덮는다
+# ROW_PITCH    = 2.478                    # 갑판 열간 피치 = 컨테이너폭 2.438 + 라싱 0.04
+# TR_CHASSIS   = 8.0                      # 육지 섀시(트럭) — 백리치 안(< TR_LANDLEG 15.9)
+# TR_SHIP_WORK = TR_SHIP_NEAR + 2 * ROW_PITCH   # 배 위 기본 작업 열(현측에서 3번째)
 #
-# ── 트롤리: PLC 좌표 = 붐로컬 X + 15.9 (0 = 백리치 끝) ──
-TR_LANDLEG   = 15.9                     # 육지쪽 다리      (X = 0)
-TR_QUAY      = 33.9                     # 바다쪽 다리·안벽 (X = 18)
-TR_SHIP_NEAR = 39.4                     # 배 현측          (X = 18 + 5.5 = 23.5)
-TR_SHIP_FAR  = 78.9                     # 배 원측          (X = 23.5 + 39.53 = 63.03) — 아웃리치가 전폭을 덮는다
-ROW_PITCH    = 2.478                    # 갑판 열간 피치 = 컨테이너폭 2.438 + 라싱 0.04
-TR_CHASSIS   = 8.0                      # 육지 섀시(트럭) — 백리치 안(< TR_LANDLEG 15.9)
-TR_SHIP_WORK = TR_SHIP_NEAR + 2 * ROW_PITCH   # 배 위 기본 작업 열(현측에서 3번째)
+# # ── 권상: PLC 좌표 = 스프레더 하단의 안벽 상면 기준 높이 − 0.8 ──
+# #   HO=0 은 SpreaderMinY = −(RailH − 0.8) 이라 안벽 상면 +0.8m 에 해당한다.
+# QUAY_TO_DECK = 11.0 - 4.0               # 주갑판 − 안벽 = 건현 − 안벽고 = 7.0
+# CONT_H       = 2.591                    # ISO 1AA 높이
+# HO_DECK_T1   = QUAY_TO_DECK + CONT_H - 0.8         #  8.79  갑판 1단 상면
+# HO_DECK_T2   = QUAY_TO_DECK + 2 * CONT_H - 0.8     # 11.38  갑판 2단 상면(오너 지시 갑판 최대 2단)
+# HO_CHASSIS   = 1.51 - 0.8                          #  0.71  섀시 데크 상면(40ft 샤시 1.51m)
+# HO_CLEAR     = HO_DECK_T2 + 3.0                    # 14.38  이송 클리어고
+#
+# # ─────────────────────── 시나리오 ───────────────────────
+# # ※ 옛 값(HI = RANGE["ho"] = 39.2 최상단 / LO = 2.0 / SEA = range 끝)은 씬이 생기기 전
+# #   추상 좌표였다. 매 사이클 최상단까지 올리는 운전은 실물에 없다 — 클리어고까지만 올린다.
+# HI   = HO_CLEAR       # 이송 클리어고
+# LO   = HO_DECK_T2     # 배쪽 작업고(갑판 2단 상면)
+# LO_L = HO_CHASSIS     # 육지쪽 작업고(섀시 데크)
+# SEA  = TR_SHIP_WORK   # 트롤리 선박측
+# LAND = TR_CHASSIS     # 트롤리 육지측
 
-# ── 권상: PLC 좌표 = 스프레더 하단의 안벽 상면 기준 높이 − 0.8 ──
-#   HO=0 은 SpreaderMinY = −(RailH − 0.8) 이라 안벽 상면 +0.8m 에 해당한다.
-QUAY_TO_DECK = 11.0 - 4.0               # 주갑판 − 안벽 = 건현 − 안벽고 = 7.0
-CONT_H       = 2.591                    # ISO 1AA 높이
-HO_DECK_T1   = QUAY_TO_DECK + CONT_H - 0.8         #  8.79  갑판 1단 상면
-HO_DECK_T2   = QUAY_TO_DECK + 2 * CONT_H - 0.8     # 11.38  갑판 2단 상면(오너 지시 갑판 최대 2단)
-HO_CHASSIS   = 1.51 - 0.8                          #  0.71  섀시 데크 상면(40ft 샤시 1.51m)
-HO_CLEAR     = HO_DECK_T2 + 3.0                    # 14.38  이송 클리어고
+# ═══════════════════ 씬 기하 — 전부 Unity SSOT 수식에서 유도 (실척 m, 데크 윗면 y=0) ═══════════════════
+# 오너 지시 2026-09-14 "허공에 작업하고 있는데 수식을 사용해서 작업해 · 시연이라 더 빡세게".
+#   ★ 종전 좌표가 허공이던 이유
+#     ① 갠트리 범위를 설계 상수 105.6m 로 가정 — 씬 런타임은 236.98m(GantryRangeFit, Play 로그).
+#        GT 는 range 비율로 정규화되므로 베이가 통째로 밀려 컨테이너가 없는 곳에 내려갔다.
+#     ② 트롤리 '열' 을 배 현측 모서리에서 셌다 — 실제 열 중심은 사이드데크·해치 폭 식으로 정해진다.
+#     ③ 권상 '갑판' 에 해치 코밍 1.8m·커버 0.35m 가 빠졌다 — 1단 윗면은 11.74m(종전 9.59m).
+#   아래는 C# 원본 식을 그대로 옮긴 것이다. verify.py ⑦ 이 Port.unity 를 파싱해 좌표·점유를 전부 대조한다.
 
-# ─────────────────────── 시나리오 ───────────────────────
-# ※ 옛 값(HI = RANGE["ho"] = 39.2 최상단 / LO = 2.0 / SEA = range 끝)은 씬이 생기기 전
-#   추상 좌표였다. 매 사이클 최상단까지 올리는 운전은 실물에 없다 — 클리어고까지만 올린다.
-HI   = HO_CLEAR       # 이송 클리어고
-LO   = HO_DECK_T2     # 배쪽 작업고(갑판 2단 상면)
-LO_L = HO_CHASSIS     # 육지쪽 작업고(섀시 데크)
-SEA  = TR_SHIP_WORK   # 트롤리 선박측
-LAND = TR_CHASSIS     # 트롤리 육지측
+CONT_W, CONT_H, CONT_L = 2.438, 2.591, 12.192          # ISO 1AA — ProceduralContainerMesh
+
+# ── 부두 (PortConfig · QuayPartsPlacer.PlaceRail/PlaceLane) ──
+APRON_SEAWARD, LEG_GAUGE = 4.0, 18.0                    # PortConfig.ApronSeawardM · StsConfig.LegGaugeXMeters
+RAIL_WATER_X = -APRON_SEAWARD                           # 바다측 레일 −4
+RAIL_LAND_X  = RAIL_WATER_X - LEG_GAUGE                 # 육지측 레일 −22
+BERTH_LEN, LANE_PITCH = 340.0, 12.0                     # PortConfig.BerthLengthMeters · QuayPartsPlacer.LanePitchM
+LANE_HALF_Z = math.floor(BERTH_LEN / LANE_PITCH) * LANE_PITCH / 2   # 노란 차선 28유닛 = ±168 — 갠트리 한계선
+
+# ── STS (StsCraneCreator · StsConfig · GantryRangeFit) — 루트 = 육지측 레일 위 ──
+STS_ROOT_X = RAIL_LAND_X
+STS_ROOT_Z = -40.0                  # 씬 배치값(STS_Crane z −1.6667u) — 배치 결정이라 식이 없다. verify ⑦ 대조
+BOOM_Y     = 44.0                   # RailH — 붐(트롤리 레일) 높이
+TROLLEY_MIN_X, TROLLEY_MAX_X = -13.0 - 0.12 * 24, 63.0  # TrolleyMinX = −13·Scale − BoomBackExtra(0.12u) = −15.88
+HOIST_X     = 0.027 * 24            # HoistX — 스프레더(트위스트락 중심)가 SpreaderRoot 보다 바다쪽 0.648
+ATTACH_DROP = 0.019 * 24            # AttachPoint y −0.019u — 스프레더 원점 → 본체 밑면(= 컨테이너 윗면) 0.456
+SPREADER_MIN_Y, SPREADER_MAX_Y = -(BOOM_Y - 0.8), -4.0  # 붐 로컬 — 행정 39.2
+LEG_FOOT = 1.0 * 1.7                # 격자 다리 footprint = LegSec × 1.7
+LEG_Z    = 16.0 / 2                 # 앞뒤 다리 Z ±8 = GantryBaseZMeters / 2
+WHEEL_HALF_Z = 9.5114               # 크레인 중심 → 바깥 바퀴(Wheel 렌더러 실측) — GantryRangeFit 이 재는 값. verify ⑦ 대조
+
+GT_HALF  = min(LANE_HALF_Z - STS_ROOT_Z, STS_ROOT_Z + LANE_HALF_Z) - WHEEL_HALF_Z   # 128 − 9.51 = 118.49
+GT_MIN_Z = STS_ROOT_Z - GT_HALF                                                     # GT 0 인 루트 Z = −158.49
+STS_RANGE = {"gt": 2 * GT_HALF,
+             "tr": TROLLEY_MAX_X - TROLLEY_MIN_X,
+             "ho": SPREADER_MAX_Y - SPREADER_MIN_Y}
+RANGE = STS_RANGE
+
+# PLC 좌표(0..range) ↔ 월드. PlcBridge.DriveAxis 는 Lerp(Min, Max, real/range) 라 range 가 약분된다.
+def sts_gt(z):   return z - GT_MIN_Z                                    # 트위스트락 중심 Z = 루트 Z
+def sts_tr(x):   return x - STS_ROOT_X - HOIST_X - TROLLEY_MIN_X        # 트위스트락 중심 X
+def sts_ho(top): return top + ATTACH_DROP - BOOM_Y - SPREADER_MIN_Y     # 컨테이너 윗면 = AttachPoint 높이
+
+# ── 컨테이너선 (ShipConfig · ProceduralShipHull · ProceduralShipStructures.CargoSlots · ShipBerthMenu · ShipCreator) ──
+SHIP_LOA, SHIP_ROWS_MAX, SHIP_ROW_GAP, SHIP_SIDE_DECK = 294.0, 15, 0.04, 1.2
+SHIP_BEAM = SHIP_ROWS_MAX * CONT_W + (SHIP_ROWS_MAX - 1) * SHIP_ROW_GAP + 2 * SHIP_SIDE_DECK   # 39.53
+SHIP_FREEBOARD = 24.0 - 13.0                            # Depth − Draft
+CARGO_AFT_Z, CARGO_FWD_Z = -82.0, 112.0
+COAM_H, COVER_H = 1.8, 0.35                             # 해치 코밍 · 커버 — 컨테이너는 커버 위에 앉는다
+SHEER_BOW, SHEER_STERN, STEM_MIN_HALF = 2.2, 0.8, 0.25
+DECK_MAX_TIERS, SECOND_TIER_RATIO, STACK_SEED = 2, 0.5, 20260907
+FENDER = 1.5                                            # ShipBerthMenu.FenderClearanceM
+SHIP_X = RAIL_WATER_X + (APRON_SEAWARD + FENDER) + SHIP_BEAM / 2   # 21.265 — 배 중심선
+SHIP_Y = -4.0                                           # 흘수선 = 수면 = 데크 − QuayDeckAboveSeaMeters
+SHIP_Z = 0.0                                            # 선석 중앙 — 씬 배치값, verify ⑦ 대조
+
+
+def ship_half_beam(z):                                  # ProceduralShipHull.HalfBeam
+    t = z / (SHIP_LOA / 2); a = abs(t)
+    if a <= 0.30: f = 1.0
+    else:
+        p = (a - 0.30) / 0.70
+        f = 1 - p ** 2.2 if t >= 0 else 1 - 0.42 * p ** 1.6
+    b = SHIP_BEAM / 2 * f
+    if t > 0 and a > 0.85: b = max(b, STEM_MIN_HALF)
+    return max(b, 0.02)
+
+
+def ship_deck_y(z):                                     # ProceduralShipHull.DeckY — 건현 + 시어
+    t = z / (SHIP_LOA / 2); a = abs(t)
+    if a <= 0.50: return SHIP_FREEBOARD
+    q = (a - 0.50) / 0.50
+    return SHIP_FREEBOARD + (SHEER_BOW if t >= 0 else SHEER_STERN) * q * q
+
+
+def _cargo_slots():                                     # ProceduralShipStructures.CargoSlots — 배 로컬
+    cargo_len = CARGO_FWD_Z - CARGO_AFT_Z
+    bays = max(1, round(cargo_len / (CONT_L + 2)))
+    pitch, coam_len = cargo_len / bays, CONT_L + 0.5
+    out = []
+    for i in range(bays):
+        zc = CARGO_AFT_Z + pitch * (i + 0.5)
+        hb = min(ship_half_beam(zc - coam_len / 2), ship_half_beam(zc + coam_len / 2))
+        rows = min(max(math.floor(2 * (hb - SHIP_SIDE_DECK) / CONT_W), 1), SHIP_ROWS_MAX)
+        base = ship_deck_y(zc) + COAM_H + COVER_H
+        v = i / (bays - 1) if bays > 1 else 0.0
+        tiers = DECK_MAX_TIERS - min(DECK_MAX_TIERS - 1, math.floor(v * DECK_MAX_TIERS))   # 선미 2단 → 선수 1단 램프
+        for r in range(rows):
+            for t in range(tiers):
+                out.append({"bay": i, "row": r, "tier": t + 1,
+                            "x": -rows * CONT_W / 2 + (r + 0.5) * CONT_W, "y": base + (t + 0.5) * CONT_H, "z": zc})
+    return out
+
+
+class NetRandom:
+    """System.Random(int seed) — .NET/Mono 레거시 감산 생성기. ShipCreator 의 2단 랜덤을 그대로 재현한다."""
+    MBIG, MSEED = 2147483647, 161803398
+
+    def __init__(self, seed):
+        sa = [0] * 56
+        mj = self.MSEED - (self.MBIG if seed == -2147483648 else abs(seed)); sa[55] = mj; mk = 1
+        for i in range(1, 55):
+            ii = (21 * i) % 55; sa[ii] = mk; mk = mj - mk
+            if mk < 0: mk += self.MBIG
+            mj = sa[ii]
+        for _ in range(4):
+            for i in range(1, 56):
+                sa[i] -= sa[1 + (i + 30) % 55]
+                if sa[i] < 0: sa[i] += self.MBIG
+        self.sa, self.inext, self.inextp = sa, 0, 21
+
+    def next_double(self):
+        self.inext = 1 if self.inext + 1 >= 56 else self.inext + 1
+        self.inextp = 1 if self.inextp + 1 >= 56 else self.inextp + 1
+        r = self.sa[self.inext] - self.sa[self.inextp]
+        if r == self.MBIG: r -= 1
+        if r < 0: r += self.MBIG
+        self.sa[self.inext] = r
+        return r * (1.0 / self.MBIG)
+
+
+def _occupied(slots):                                   # ShipCreator.LoadShipCargo — 열(x,z) 단위, 윗단은 확률
+    cols, order = {}, []
+    for sl in slots:
+        k = (round(sl["x"] * 1000), round(sl["z"] * 1000))
+        if k not in cols: cols[k] = []; order.append(k)
+        cols[k].append(sl)
+    rng, out = NetRandom(STACK_SEED), set()
+    for k in order:
+        for t, sl in enumerate(sorted(cols[k], key=lambda v: v["y"])):
+            if t > 0 and rng.next_double() > SECOND_TIER_RATIO: break
+            out.add((sl["bay"], sl["row"], sl["tier"]))
+    return out
+
+
+SHIP_SLOTS = _cargo_slots()
+SHIP_SLOT  = {(sl["bay"], sl["row"], sl["tier"]): sl for sl in SHIP_SLOTS}
+SHIP_OCC   = _occupied(SHIP_SLOTS)                      # 씬에 실제로 있는 238개 (bay, row, tier) — 0부터, 열 0 = 안벽쪽
+
+def slot_label(k): return f"SHIP/B{k[0] + 1:02d}/R{k[1] + 1:02d}/T{k[2]}"
+def slot_key(label):
+    _, b, r, t = label.split("/"); return (int(b[1:]) - 1, int(r[1:]) - 1, int(t[1:]))
+def slot_x(k):   return SHIP_X + SHIP_SLOT[k]["x"]
+def slot_z(k):   return SHIP_Z + SHIP_SLOT[k]["z"]
+def slot_top(k): return SHIP_Y + SHIP_SLOT[k]["y"] + CONT_H / 2
+def bay_z(b):    return SHIP_Z + next(sl["z"] for sl in SHIP_SLOTS if sl["bay"] == b)
+
+SHIP_BAYS  = sorted({sl["bay"] for sl in SHIP_SLOTS})
+REACH_BAYS = [b for b in SHIP_BAYS if 0.1 <= sts_gt(bay_z(b)) <= STS_RANGE["gt"] - 0.1]
+NEAR_BAYS  = sorted(REACH_BAYS, key=lambda b: abs(bay_z(b) - STS_ROOT_Z))          # 크레인 홈에서 가까운 순
+WORK_BAY   = next(b for b in NEAR_BAYS if any(k[0] == b and k[2] == 2 for k in SHIP_OCC))   # 2단이 있는 가장 가까운 베이
+
+
+def discharge_order(bays):
+    """양하 순서 — 베이마다 안벽쪽 열부터, 스택은 위 단 먼저(아래를 먼저 빼면 위가 무너진다)."""
+    return [(b, r, t) for b in bays
+            for r in sorted({k[1] for k in SHIP_OCC if k[0] == b})
+            for t in (2, 1) if (b, r, t) in SHIP_OCC]
+
+
+def load_targets(bays):
+    """적하 자리 — 1단만 있는 스택의 2단(아래가 받쳐야 올린다). 베이마다 안벽쪽 열부터."""
+    return [(b, r, 2) for b in bays
+            for r in sorted({k[1] for k in SHIP_SLOT if k[0] == b})
+            if (b, r, 2) in SHIP_SLOT and (b, r, 1) in SHIP_OCC and (b, r, 2) not in SHIP_OCC]
+
+
+# ── 포털 밑 트럭 레인 5개 — 두 다리 안쪽면 사이 균등 분할. L1 = 바다쪽(트롤리 이동이 가장 짧다) ──
+LANE_N = 5
+LANE_W = (LEG_GAUGE - LEG_FOOT) / LANE_N                                    # 3.26
+def lane_x(k): return STS_ROOT_X + LEG_GAUGE - LEG_FOOT / 2 - LANE_W * (k + 0.5)
+
+HO_GROUND = sts_ho(CONT_H)                                                  # 데크에 내려놓은 컨테이너 윗면
+CARGO_TOP = max(slot_top(k) for k in SHIP_OCC if k[0] in REACH_BAYS)        # 도달 베이의 최고 화물 윗면 14.33
+CLEAR_M   = 2.0                                                             # 매단 컨테이너 밑면 ↔ 최고 화물 여유
+HO_CLEAR  = sts_ho(CARGO_TOP + CONT_H + CLEAR_M)
+HI = HO_CLEAR
+
+# ── 설계 불변식 — 틀리면 import 에서 멈춘다(생성·검증 둘 다) ──
+assert LANE_W / 2 - CONT_W / 2 > 0.3,                "트럭 레인 컨테이너가 다리에 닿는다"
+assert LEG_Z - LEG_FOOT / 2 - CONT_L / 2 > 0.5,      "컨테이너가 앞뒤 다리 사이를 못 지난다"
+assert all(0 < sts_tr(lane_x(k)) < sts_tr(0.0) for k in range(LANE_N)), "레인이 안벽 안쪽·트롤리 범위 안이 아니다"
+assert all(0 < sts_tr(slot_x(k)) < STS_RANGE["tr"] for k in SHIP_OCC if k[0] in REACH_BAYS), "배 열이 트롤리 범위 밖"
+assert 0 < HO_GROUND < HO_CLEAR < STS_RANGE["ho"],  "권상 범위 밖"
+assert len(discharge_order(NEAR_BAYS)) >= 20 and len(load_targets(NEAR_BAYS)) >= 20, "S13/S14 20개 자리가 모자란다"
+
+# ── 단일 사이클 시나리오(S02~S12) 대표 좌표 — 작업 베이 안벽쪽 첫 스택 ──
+GT_HOME = GT_HALF                                       # 크레인 홈(씬 배치 위치) = 주행 중앙
+GT_WORK = sts_gt(bay_z(WORK_BAY))
+_P0 = discharge_order([WORK_BAY])[0]                    # 양하 대상 — 첫 스택 맨 위
+_E0 = load_targets([WORK_BAY])[0]                       # 적하 대상 — 첫 빈 2단
+SEA, LO             = sts_tr(slot_x(_P0)), sts_ho(slot_top(_P0))
+SEA_EMPTY, LO_EMPTY = sts_tr(slot_x(_E0)), sts_ho(slot_top(_E0))
+LAND, LO_L          = sts_tr(lane_x(0)), HO_GROUND
+
 
 def discharge_cycle(s, with_pick=True):
     """S02 양하 1사이클 (선박→안벽)."""
@@ -362,14 +557,14 @@ def gen_S01(s):  # 기동 및 자체 진단 (정상)
 def gen_S02(s):  # 양하 (정상)
     discharge_cycle(s)
 
-def gen_S03(s):  # 선적 (정상) — 양하의 역순: 육지 섀시에서 집어 배 갑판에 놓는다
+def gen_S03(s):  # 선적 (정상) — 양하의 역순: 트럭 레인에서 집어 배의 빈 2단(1단 위)에 놓는다
     s.op_mode = AUTO
     s.goto(tr=LAND, ho=LO_L); s.run_until_settled()
     s.detected = True; s.landed = True; s.run_for(1.0)
     s.locked = True; s.carry = True; s.run_for(1.5); s.landed = False
     s.goto(ho=HI); s.run_until_settled()
-    s.goto(tr=SEA); s.run_until_settled()
-    s.goto(ho=LO); s.run_until_settled()
+    s.goto(tr=SEA_EMPTY); s.run_until_settled()
+    s.goto(ho=LO_EMPTY); s.run_until_settled()
     s.landed = True; s.run_for(1.0)
     s.locked = False; s.carry = False; s.run_for(1.5); s.landed = False; s.detected = False
     s.goto(ho=HI); s.run_until_settled(); s.cycle += 1
@@ -380,7 +575,7 @@ def gen_S04(s):  # 트윈 리프트 (정상)
 
 def gen_S05(s):  # 셧다운 (정상)
     s.op_mode = AUTO
-    s.goto(tr=LAND, ho=HI, gt=0.0); s.run_until_settled()
+    s.goto(tr=LAND, ho=HI, gt=GT_HOME); s.run_until_settled()   # 홈에 주차
     s.op_mode = MANUAL; s.event(5015, kind="event"); s.run_for(1.0)
     s.event(5017, kind="event"); s.ready = False; s.power = False; s.run_for(2.0)
 
@@ -442,76 +637,73 @@ def gen_S12(s):  # 정비 모드 (정비 — 라벨 제외)
     s.locked_out = False; s.clear_alarm(); s.op_mode = MANUAL; s.run_for(2.0)
 
 
-BAY_PITCH = 12.192 + 0.6   # 선박 베이 피치 = 40ft 12.192 + 라싱 간격
+BAY_PITCH = 12.192 + 0.6   # 야드 베이 피치 = 40ft 12.192 + 베이간격 0.6 (PortConfig.BayPitchM) — RTG 가 쓴다
 
 
-def gen_S13(s):  # 20개 적하 (육지 섀시 → 배 갑판), 20ft/40ft 혼합
-    s.op_mode = AUTO
-    GT0 = RANGE["gt"] * 0.35           # 첫 작업 베이 — 절대 m 이 아니라 가동범위 비율(클램프 방지)
-    # 크레인이 이미 작업 베이에 위치 — 0에서 장거리 주행/타임아웃 카스케이드 제거.
-    s.gt.pos = GT0; s.gt.target = GT0
-    n = 0
-    for bay in range(2):                       # 베이 2개
-        s.goto(gt=GT0 + bay * BAY_PITCH)
-        for tier in (1, 2):                    # 적하는 아래 단부터 쌓는다
-            ho_place = HO_DECK_T1 if tier == 1 else HO_DECK_T2
-            for row in range(5):               # 현측에서 5열
-                if n >= 20: break
-                s.sp_mode = SP40 if n % 2 else SP20
-                # ── 픽업(육지 섀시) ──
-                s.goto(tr=LAND, ho=HI); s.run_until_settled()
-                s.goto(ho=LO_L); s.run_until_settled()
-                s.detected = True; s.landed = True; s.run_for(1.0)
-                s.picked("CHASSIS")
-                s.locked = True; s.carry = True; s.run_for(1.5); s.landed = False
-                s.goto(ho=HI); s.run_until_settled()
-                # ── 적치(배 갑판) — 열은 트롤리, 단은 권상 ──
-                s.goto(tr=TR_SHIP_NEAR + row * ROW_PITCH); s.run_until_settled()
-                s.goto(ho=ho_place); s.run_until_settled()
-                s.landed = True; s.run_for(1.0)
-                s.placed(f"SHIP/B{bay + 1:02d}/R{row + 1:02d}/T{tier}")
-                s.locked = False; s.carry = False; s.run_for(1.5)
-                s.landed = False; s.detected = False
-                s.goto(ho=HI); s.run_until_settled()
-                s.cycle += 1; n += 1
+# ── 연속 이송 시나리오(S13~S15) 공용 — 자동 위치결정 · 착지 크리프 ──
+AUTO_SIGMA = {"gt": 0.03, "tr": 0.03, "ho": 0.02}   # 자동 위치결정 산포(σ, m) — 실기 ±30mm 급(수동 AIM_SIGMA 의 약 1/8)
+LAND_CREEP_M, LAND_CREEP_V = 1.0, 0.25              # 착지 1m 전부터 정격 25% — 코너캐스팅·트위스트락 충격 방지
 
 
-def gen_S14(s, count=20, rows=5):  # count개 양하 (배 갑판 → 육지 섀시), 20ft/40ft 혼합
-    """오너 요청 2026-09-09 "배에서 컨테이너를 내리는 PLC".
+def creep_down(s, ho):
+    """착지 — 1m 위까지 정속, 그 아래는 크리프. 목표는 접촉면 아래로 내려가지 않는다:
+    스프레더는 받침 윗면에서 멈추고, Unity SpreaderGrabber 통과방지 클램프가 그 아래 자세를 매 틱 밀어올린다."""
+    s.goto(ho=ho + LAND_CREEP_M); s.run_until_settled()
+    s.vmul = LAND_CREEP_V
+    s.goto(ho=ho); s.ho.target = max(s.ho.target, ho)
+    s.run_until_settled()
+    s.vmul = 1.0
 
-    S02 는 양하 1사이클, S13 은 20개 적하(육지→배)라 '연속 양하'가 비어 있었다.
-    실물 양하 순서를 그대로 따른다 — 한 베이 안에서 <b>위 단부터</b> 열을 훑고, 다 비우면
-    갠트리로 다음 베이. 단을 아래부터 내리면 위 컨테이너가 무너지므로 순서가 뒤집히면 안 된다.
-      갠트리 = 베이(선박 길이방향) · 트롤리 = 열(선폭방향) · 권상 = 단
-    S15(5개)가 같은 루프를 쓴다 — rows=3 이면 2단 3열을 비운 뒤 그 아래 1단으로 내려간다.
-    """
-    s.op_mode = AUTO
-    GT0 = RANGE["gt"] * 0.35
-    s.gt.pos = GT0; s.gt.target = GT0
-    n = 0
-    for bay in range(2):
-        s.goto(gt=GT0 + bay * BAY_PITCH)
-        for tier in (2, 1):                    # ★ 양하는 위 단부터
-            ho_pick = HO_DECK_T2 if tier == 2 else HO_DECK_T1
-            for row in range(rows):
-                if n >= count: return
-                s.sp_mode = SP40 if n % 2 else SP20
-                # ── 픽업(배 갑판) ──
-                s.goto(tr=TR_SHIP_NEAR + row * ROW_PITCH, ho=HI); s.run_until_settled()
-                s.goto(ho=ho_pick); s.run_until_settled()
-                s.detected = True; s.landed = True; s.run_for(1.0)
-                s.picked(f"SHIP/B{bay + 1:02d}/R{row + 1:02d}/T{tier}")
-                s.locked = True; s.carry = True; s.run_for(1.5); s.landed = False
-                s.goto(ho=HI); s.run_until_settled()
-                # ── 안착(육지 섀시) ──
-                s.goto(tr=LAND); s.run_until_settled()
-                s.goto(ho=LO_L); s.run_until_settled()
-                s.landed = True; s.run_for(1.0)
-                s.placed("CHASSIS")
-                s.locked = False; s.carry = False; s.run_for(1.5)
-                s.landed = False; s.detected = False
-                s.goto(ho=HI); s.run_until_settled()
-                s.cycle += 1; n += 1
+
+def sts_transfer(s, gt, frm, to):
+    """STS 컨테이너 1개 이송. frm/to = (TR, HO, 위치명). gt=None 이면 갠트리는 그대로(같은 베이).
+    이송고(HI) → 크리프 착지·잠금 → 이송고 → 횡행 → 크리프 착지·해제 → 이송고."""
+    s.goto(gt=gt, tr=frm[0], ho=HI); s.run_until_settled()
+    creep_down(s, frm[1])
+    s.detected = True; s.landed = True; s.run_for(1.0)
+    s.picked(frm[2])
+    s.locked = True; s.carry = True; s.run_for(1.5); s.landed = False
+    s.goto(ho=HI); s.run_until_settled()
+    s.goto(tr=to[0]); s.run_until_settled()
+    creep_down(s, to[1])
+    s.landed = True; s.run_for(1.0)
+    s.placed(to[2])
+    s.locked = False; s.carry = False; s.run_for(1.5)
+    s.landed = False; s.detected = False
+    s.goto(ho=HI); s.run_until_settled()
+    s.cycle += 1
+
+
+def _ship(k):       return (sts_tr(slot_x(k)), sts_ho(slot_top(k)), slot_label(k))
+def _lane(n, area): return (sts_tr(lane_x(n % LANE_N)), HO_GROUND, f"{area}/L{n % LANE_N + 1}")
+
+
+def gen_S13(s):  # STS 20개 적하 — 트럭 레인에서 집어 가까운 베이의 빈 2단(1단 위)에 올린다
+    s.op_mode = AUTO; s.sigma = dict(AUTO_SIGMA)
+    prev = None
+    for n, k in enumerate(load_targets(NEAR_BAYS)[:20]):
+        gt = sts_gt(slot_z(k))
+        sts_transfer(s, None if gt == prev else gt, _lane(n, "TRUCK"), _ship(k))
+        prev = gt
+
+
+def gen_S14(s):  # STS 20개 양하 — 가까운 베이부터, 안벽쪽 스택부터 위 단 먼저 → 트럭 레인 순환(트럭이 싣고 떠난다)
+    s.op_mode = AUTO; s.sigma = dict(AUTO_SIGMA)
+    prev = None
+    for n, k in enumerate(discharge_order(NEAR_BAYS)[:20]):
+        gt = sts_gt(slot_z(k))
+        sts_transfer(s, None if gt == prev else gt, _ship(k), _lane(n, "TRUCK"))
+        prev = gt
+
+
+def gen_S15(s):  # STS 5개 양하(시연) — 작업 베이의 실제 컨테이너 5개 → 포털 밑 에이프런 레인 5칸
+    """오너 지시 2026-09-14 "허공에 작업 · 수식으로 · 시연이라 빡세게".
+    크레인 홈에서 출발해 작업 베이(2단 스택이 있는 가장 가까운 베이)로 주행 → 안벽쪽 스택부터 위 단 먼저 집고
+    바다쪽 레인(L1)부터 한 칸씩 데크에 내려놓는다. 좌표는 전부 '씬 기하' 식에서 나오고 verify ⑦ 이 씬과 대조한다."""
+    s.op_mode = AUTO; s.sigma = dict(AUTO_SIGMA)
+    s.gt.pos = s.gt.target = GT_HOME
+    for n, k in enumerate(discharge_order([WORK_BAY])[:5]):
+        sts_transfer(s, GT_WORK if n == 0 else None, _ship(k), _lane(n, "QUAY"))
 
 
 # ─────────────── RTG (야드 정리) — 씬 기하에서 유도 (실척 m) ───────────────
@@ -578,9 +770,9 @@ SCENARIOS = [
     ("S10", "풍속 한계 초과(중단)", "이상", gen_S10),
     ("S11", "설비 고장", "이상", gen_S11),
     ("S12", "정비 모드", "정비(제외)", gen_S12),
-    ("S13", "20개 적하 (육지 섀시→배 갑판)", "정상", gen_S13),
-    ("S14", "20개 양하 (배 갑판→육지 섀시)", "정상", gen_S14),
-    ("S15", "STS 5개 양하 (배 갑판→육지 섀시)", "정상", lambda s: gen_S14(s, count=5, rows=3)),
+    ("S13", "STS 20개 적하 (트럭 레인→배 빈 2단)", "정상", gen_S13),
+    ("S14", "STS 20개 양하 (배→트럭 레인)", "정상", gen_S14),
+    ("S15", "STS 5개 양하 (작업 베이 실컨테이너→포털 밑 레인·시연)", "정상", gen_S15),
     ("S16", "RTG 5개 야드 정리 (흩어진 1단→한 베이 적층)", "정상", gen_S16),
 ]
 # 시나리오를 도는 크레인 — 없으면 STS. CSV 형식은 같고 가동범위만 다르다(manifest 에 기록).
@@ -621,10 +813,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--full", action="store_true", help="벤더 부록C 전체 회차(83런) 생성")
     ap.add_argument("--out", default=os.path.join(os.path.dirname(__file__), "output"))
-    ap.add_argument("--gt-range", type=float, default=None,
-                    help="갠트리 실척 주행범위(m). Play 로그 '[PlcBridge] range 자동산출 ... GT=' 실측값.")
     args = ap.parse_args()
-    if args.gt_range: RANGE["gt"] = args.gt_range
     runs_per = FULL_RUNS if args.full else SAMPLE_RUNS
 
     manifest = {"generated_by": "PlcSim/generate.py (stopgap)", "dt_ms": int(DT * 1000),
@@ -642,7 +831,8 @@ def main():
             seed = int(sid[1:]) * 1000 + i
             crane = CRANE.get(sid, "STS")
             sim = Sim(sp_mode=SPTWIN if sid == "S04" else SP40, rng=random.Random(seed),
-                      range_m=RANGES[crane], id_base=int(sid[1:]) * 1000)
+                      range_m=RANGES[crane], id_base=int(sid[1:]) * 1000,
+                      gt0=GT_WORK if crane == "STS" else 0.0)   # STS 는 작업 베이 위에서 시작
             fn(sim)
             out_dir = os.path.join(args.out, sid)
             csv_path, ev_path, hist_path, rows = write_run(out_dir, sid, name, label, i, sim, crane)

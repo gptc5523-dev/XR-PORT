@@ -12,8 +12,10 @@ namespace Container.Crane.Sts.Plc
     ///   ① 출발지에 컨테이너를 놓는다 — 자리는 이력의 집기 시각(pick_t_ms) PLC 자세에서 스프레더 콘 바닥이 오는 곳
     ///      (PlcBridge.WorldAtPose). 슬롯 좌표를 여기서 다시 계산하지 않으니 생성기와 어긋날 일이 없다.
     ///   ② PLC 트위스트락 잠금(SP_TwistLock_Locked) 상승에서 집고, 하강에서 놓는다.
-    ///   ③ 섀시(트럭)엔 쌓이지 않는다 — 섀시에 놓은 건 트럭이 싣고 떠나고(truckLeaveS 뒤 제거),
-    ///      섀시에서 집는 건 직전 작업을 놓는 순간 트럭이 들여온다.
+    ///   ③ 트럭 레인(TRUCK/…)엔 쌓이지 않는다 — 놓은 건 트럭이 싣고 떠나고(truckLeaveS 뒤),
+    ///      트럭에서 집는 건 직전 작업을 놓는 순간 트럭이 들여온다.
+    ///   ④ 그 자리에 씬 컨테이너가 이미 있으면(배 갑판 적재 등) 새로 만들지 않고 그걸 집는다 —
+    ///      겹쳐 복제하면 같은 자리에 두 개가 박힌다. 되감기 때 원위치·재활성화한다.
     /// CSV 가 되감기면 전부 치우고 처음부터 다시 놓는다.
     ///
     /// 잡기는 SpreaderGrabber.Grab 을 쓰지 않는다 — 코너 안착 게이트가 PLC 목표 산포와 겹치고,
@@ -33,7 +35,7 @@ namespace Container.Crane.Sts.Plc
 
         struct Move { public string id, from, to; public bool ft40; public float pickS, placeS; }
 
-        const string Chassis = "CHASSIS";
+        const string Truck = "TRUCK/";   // 트럭 레인 — 놓으면 실려 떠나고, 집을 건 트럭이 들여온다
         StsCrane crane;
         PlcBridge bridge;
         SpreaderGrabber grabber;
@@ -48,6 +50,10 @@ namespace Container.Crane.Sts.Plc
         int held = -1;    // 들고 있는 이동
         bool wasLocked, ready;
         float lastT;
+        Transform spreaderT;
+        // 씬에 원래 있던 컨테이너(배 갑판 적재 등)를 집었으면 — 되감기 때 원위치·재활성화한다.
+        readonly Dictionary<Transform, (Vector3 pos, Quaternion rot, Transform parent)> adopted = new();
+        readonly List<(Transform t, float dueS)> leaving = new();   // 트럭이 싣고 떠날 컨테이너
 
         void Awake()
         {
@@ -66,6 +72,9 @@ namespace Container.Crane.Sts.Plc
             float t = csv.PlayheadS;
             if (t < lastT) ResetCargo();   // CSV 되감기 — 처음부터
             lastT = t;
+
+            for (int i = leaving.Count - 1; i >= 0; i--)
+                if (t >= leaving[i].dueS) { Leave(leaving[i].t); leaving.RemoveAt(i); }
 
             for (int i = next; i < moves.Length; i++)
                 if (boxes[i] == null && t >= AppearS(i)) boxes[i] = Spawn(moves[i]);
@@ -90,14 +99,25 @@ namespace Container.Crane.Sts.Plc
             }
             moves = ReadHistory(path);
             boxes = new Transform[moves.Length];
-            grabDrop = GrabPointNow().y - SpreaderBottomY();
+            spreaderT = ((Component)crane.Spreader).transform;
+            var anchor = crane.Attach.AttachAnchor;
+            // 컨테이너 윗면 기준 — STS 는 AttachPoint(스프레더 본체 밑면, 콘은 코너캐스팅 속으로 들어간다),
+            //   RTG 는 부착점이 스프레더 자신이라 그랩 평면 = 스프레더 최저점(콘 바닥).
+            grabDrop = GrabPointNow().y - (anchor != spreaderT ? anchor.position.y : SpreaderBottomY());
+            // 푸셔 박스(kinematic)가 집으러 내려가는 스프레더 밑의 컨테이너를 밀어 넘어뜨린다 — 재생 중엔 끈다.
+            if (grabber != null) grabber.SetPusherActive(false);
             ready = true;
             Debug.Log($"[PlcCargo] {Path.GetFileName(path)} — {moves.Length}개 이동, 콘 바닥 {grabDrop:F4}u 아래");
             return true;
         }
 
         // 섀시에서 집는 건 직전 작업을 놓는 순간 트럭이 들어온다. 나머지는 처음부터 제자리에 있다.
-        float AppearS(int i) => moves[i].from == Chassis && i > 0 ? moves[i - 1].placeS : 0f;
+        float AppearS(int i) => moves[i].from.StartsWith(Truck) && i > 0 ? moves[i - 1].placeS : 0f;
+
+        void OnDisable()
+        {
+            if (grabber != null) grabber.SetPusherActive(true);
+        }
 
         void Pick(int i)
         {
@@ -117,15 +137,30 @@ namespace Container.Crane.Sts.Plc
             var c = crane.Attach.Detach();
             if (lockAnim != null) lockAnim.SetLocked(false);
             if (rtgTele != null) rtgTele.SetSize(RtgSpreaderTelescope.Size.Ft40);   // 빈 스프레더 기준자세(SpreaderGrabber.Release 와 같음)
-            if (c != null && moves[held].to == Chassis) Destroy(c.gameObject, truckLeaveS);   // 트럭이 싣고 떠난다
+            if (c != null && moves[held].to.StartsWith(Truck)) leaving.Add((c, csv.PlayheadS + truckLeaveS));   // 트럭이 싣고 떠난다
             held = -1;
+        }
+
+        void Leave(Transform c)
+        {
+            if (c == null) return;
+            if (adopted.ContainsKey(c)) c.gameObject.SetActive(false);   // 씬 원본은 숨겼다가 되감기 때 복원
+            else Destroy(c.gameObject);
         }
 
         void ResetCargo()
         {
             if (held >= 0) { crane.Attach.Detach(); held = -1; }
             if (lockAnim != null) lockAnim.SetLocked(false);
-            foreach (var b in boxes) if (b != null) Destroy(b.gameObject);
+            foreach (var b in boxes) if (b != null && !adopted.ContainsKey(b)) Destroy(b.gameObject);
+            foreach (var kv in adopted)                                   // 원래 있던 컨테이너는 제자리로
+            {
+                if (kv.Key == null) continue;
+                kv.Key.SetParent(kv.Value.parent, true);
+                kv.Key.SetPositionAndRotation(kv.Value.pos, kv.Value.rot);
+                kv.Key.gameObject.SetActive(true);
+            }
+            adopted.Clear(); leaving.Clear();
             System.Array.Clear(boxes, 0, boxes.Length);
             next = 0; wasLocked = false;
         }
@@ -134,11 +169,29 @@ namespace Container.Crane.Sts.Plc
         Transform Spawn(Move m)
         {
             Vector3 top = bridge.WorldAtPose(csv.FrameAt(m.pickS), GrabPointNow() - Vector3.up * grabDrop);
+            var have = CargoAt(top - Vector3.up * (0.5f * ContainerHeightM * StsConfig.ModelScale));
+            if (have != null) { adopted[have] = (have.position, have.rotation, have.parent); return have; }
             var go = MakeBox(m.ft40);
             go.name = m.id;
             var b = WorldBounds(go);
             go.transform.position += top - new Vector3(b.center.x, b.max.y, b.center.z);
             return go.transform;
+        }
+
+        const float ContainerHeightM = 2.591f;   // ISO 1AA — 배 갑판·야드 컨테이너와 같다
+
+        // 중심 center 에 이미 있는 컨테이너 — 크레인 밖 강체 중 가장 가까운 것. 반경 0.5m(실척). 없으면 null.
+        Transform CargoAt(Vector3 center)
+        {
+            Transform best = null; float bestD = float.MaxValue;
+            foreach (var h in Physics.OverlapSphere(center, 0.5f * StsConfig.ModelScale))
+            {
+                var rb = h.attachedRigidbody;
+                if (rb == null || rb.transform.IsChildOf(transform)) continue;
+                float d = (rb.worldCenterOfMass - center).sqrMagnitude;
+                if (d < bestD) { bestD = d; best = rb.transform; }
+            }
+            return best;
         }
 
         static GameObject MakeBox(bool ft40)

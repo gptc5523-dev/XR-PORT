@@ -1,8 +1,8 @@
 {
   "scenario": "S13",
-  "name": "20개 적하 (육지 섀시→배 갑판)",
+  "name": "STS 20개 적하 (트럭 레인→배 빈 2단)",
   "label": "정상",
-  "duration_s": 1528.2,
-  "rows": 15282,
+  "duration_s": 1728.0,
+  "rows": 17280,
   "events": []
 }
