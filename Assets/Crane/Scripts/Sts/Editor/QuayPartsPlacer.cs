@@ -612,16 +612,18 @@ namespace Container.Crane.Sts.EditorTools
         [MenuItem("Model/FBX/항구/시작점 체스말 (임시)", false, 8)]
         static void PlaceStartPawn()
         {
-            var sp = Object.FindAnyObjectByType<CranePlayerStartPoint>();
+            var sp = Object.FindAnyObjectByType<CranePlayerStartPoint>(FindObjectsInactive.Include);
             Transform marker = sp != null ? sp.transform : null;
             if (marker == null)
             {
                 var go = GameObject.Find(StsPartNames.PlayerStartPoint);
                 if (go != null) marker = go.transform;
             }
+            if (marker == null) marker = RestoreStartMarker();   // 실수로 지웠으면 저장된 씬 파일 값으로 되살린다
             if (marker == null)
             {
-                EditorUtility.DisplayDialog("시작점 체스말", "씬에 PlayerStartPoint 마커가 없습니다.", "확인");
+                Debug.LogWarning("[항구] 시작점 체스말 — PlayerStartPoint 마커가 씬에도, 저장된 씬 파일에도 없습니다.");
+                EditorUtility.DisplayDialog("시작점 체스말", "PlayerStartPoint 마커가 씬에도, 저장된 씬 파일에도 없습니다.", "확인");
                 return;
             }
             var fbx = Load(PawnFbx, "시작점 체스말"); if (fbx == null) return;
@@ -632,18 +634,67 @@ namespace Container.Crane.Sts.EditorTools
             float scale = FbxScaleByHeight(fbx, PawnHeightM);
             Place(fbx, marker, "StartMarker_Pawn", Vector3.zero, scale);
             var pawn = marker.Find("StartMarker_Pawn");
-            // 발은 아스팔트 윗면에 — CranePlayerStartPlacer 가 리그를 세우는 면과 같다(마커 Y 는 무시된다).
-            var quay = GameObject.Find(StsPartNames.QuayGround);
-            var deck = quay != null ? quay.GetComponentsInChildren<Renderer>()
-                                           .FirstOrDefault(r => r.gameObject.name == StsPartNames.QuayAsphalt) : null;
-            if (deck != null) pawn.position = new Vector3(pawn.position.x, deck.bounds.max.y, pawn.position.z);
+            // 발은 데크 윗면 y=0 — PlaceCaisson 규약. 마커 Y 는 CranePlayerStartPlacer 도 무시한다.
+            //   ('Asphalt' 이름 렌더러를 찾던 첫 버전은 케이슨 FBX 에 그 이름이 없어 늘 '못 찾음'으로 찍혔다.)
+            pawn.position = new Vector3(pawn.position.x, 0f, pawn.position.z);
             pawn.gameObject.tag = "EditorOnly";
             Undo.RegisterCreatedObjectUndo(pawn.gameObject, "Place StartMarker_Pawn");
             UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(marker.gameObject.scene);
 
             Vector3 p = marker.position * StsConfig.InvModelScale;
-            Done(pawn, $"시작점 실척 ({p.x:F1}, {p.z:F1})m · 바닥 {(deck != null ? "아스팔트 윗면" : "마커 높이(아스팔트 못 찾음)")} · " +
-                       $"높이 {PawnHeightM}m · scale {scale:F4} · EditorOnly(빌드 제외)");
+            Done(pawn, $"시작점 실척 ({p.x:F1}, {p.z:F1})m · 데크 윗면 · 높이 {PawnHeightM}m · scale {scale:F4} · EditorOnly(빌드 제외)");
+        }
+
+        /// <summary>PlayerStartPoint 를 지웠을 때 — 디스크에 저장된 씬 파일에서 위치·방향을 읽어 다시 만든다.
+        /// 좌표를 코드에 박지 않는다(마커는 씬에서 끌어다 맞추는 WYSIWYG 규약). 저장 안 한 이동은 복원되지 않는다.</summary>
+        static Transform RestoreStartMarker()
+        {
+            string path = UnityEditor.SceneManagement.EditorSceneManager.GetActiveScene().path;
+            if (!SavedRootPose(path, StsPartNames.PlayerStartPoint, out var pos, out var rot)) return null;
+            var go = new GameObject(StsPartNames.PlayerStartPoint);
+            go.AddComponent<CranePlayerStartPoint>();
+            go.transform.SetPositionAndRotation(pos, rot);
+            Undo.RegisterCreatedObjectUndo(go, "Restore PlayerStartPoint");
+            Debug.Log($"[항구] PlayerStartPoint 복원 — 저장된 씬({path}) 값 · 실척 ({pos.x * StsConfig.InvModelScale:F1}, " +
+                      $"{pos.z * StsConfig.InvModelScale:F1})m · 방향 {rot.eulerAngles.y:F0}°");
+            return go.transform;
+        }
+
+        /// <summary>씬 YAML 에서 이름이 name 인 루트 GameObject 의 Transform 위치·회전(루트라 로컬 = 월드).</summary>
+        static bool SavedRootPose(string scenePath, string name, out Vector3 pos, out Quaternion rot)
+        {
+            pos = default; rot = Quaternion.identity;
+            if (string.IsNullOrEmpty(scenePath) || !File.Exists(scenePath)) return false;
+            string s = File.ReadAllText(scenePath);
+            const System.StringComparison O = System.StringComparison.Ordinal;
+            int at = s.IndexOf("\n  m_Name: " + name + "\n", O);
+            int head = at < 0 ? -1 : s.LastIndexOf("--- !u!1 &", at, O);
+            if (head < 0) return false;
+            string id = s.Substring(head + 10, s.IndexOf('\n', head) - head - 10).Split(' ')[0];
+            // 그 GameObject 를 가리키는 블록 중 Transform(!u!4)만 — 컴포넌트(!u!114)도 같은 줄을 갖는다.
+            string key = "m_GameObject: {fileID: " + id + "}";
+            for (int k = s.IndexOf(key, O); k >= 0; k = s.IndexOf(key, k + 1, O))
+            {
+                int blk = s.LastIndexOf("\n--- !u!", k, O);
+                if (string.CompareOrdinal(s, blk + 1, "--- !u!4 ", 0, 9) != 0) continue;
+                var r = YamlVec(s, "m_LocalRotation: {", k);
+                var p = YamlVec(s, "m_LocalPosition: {", k);
+                if (r == null || r.Length < 4 || p == null || p.Length < 3) return false;
+                rot = new Quaternion(r[0], r[1], r[2], r[3]);
+                pos = new Vector3(p[0], p[1], p[2]);
+                return true;
+            }
+            return false;
+        }
+
+        // "key{x: 1, y: 2, z: 3, w: 4}" → [1, 2, 3, 4]
+        static float[] YamlVec(string s, string key, int from)
+        {
+            int a = s.IndexOf(key, from, System.StringComparison.Ordinal);
+            if (a < 0) return null;
+            int b = s.IndexOf('}', a);
+            return s.Substring(a + key.Length, b - a - key.Length).Split(',')
+                    .Select(kv => float.Parse(kv.Split(':')[1], System.Globalization.CultureInfo.InvariantCulture)).ToArray();
         }
 
         // ── 공용 ──
