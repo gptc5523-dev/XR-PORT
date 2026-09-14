@@ -24,6 +24,17 @@ namespace Container.Crane.Sts.Plc
         public string Name => "CsvReplay";
         public bool IsConnected => _frames != null && _frames.Length > 0;
 
+        /// <summary>재생 위치(초). 되감기면 줄어든다.</summary>
+        public float PlayheadS => _t;
+
+        /// <summary>t 초 시점의 프레임(그 이하 마지막 행). 작업 이력 시각(t_ms)으로 그 순간의 PLC 자세를 찾는다.</summary>
+        public PlcSnapshot FrameAt(float t)
+        {
+            int i = System.Array.BinarySearch(_times, t);
+            if (i < 0) i = ~i - 1;
+            return _frames[i < 0 ? 0 : (i >= _frames.Length ? _frames.Length - 1 : i)];
+        }
+
         /// <summary>CSV 헤더에 없어 0으로 처리된, 파서가 기대한 컬럼명들. 침묵 실패(벤더 태그명 변경/헤더 오타 → 조용히 0) 가시화용 — PlcBridge가 이걸 보고 경고 로그한다. 헤더가 정상이면 비어 있음.</summary>
         public readonly List<string> MissingColumns = new List<string>();
 

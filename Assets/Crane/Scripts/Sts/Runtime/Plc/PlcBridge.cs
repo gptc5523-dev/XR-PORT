@@ -75,6 +75,10 @@ namespace Container.Crane.Sts.Plc
         /// <summary>현재 PLC 소스. Phase B에서 S7/OPC UA 어댑터로 교체.</summary>
         public IPlcSource Source => source;
         public bool Active => active;
+        /// <summary>재생 중인 CSV 경로(csvAsset 이면 빈 값) — 옆의 작업 이력(run_NN.history.csv)을 찾는 데 쓴다.</summary>
+        public string CsvPath => csvPath;
+        /// <summary>정규화 range 를 무버 기하에서 산출했는지. 산출 전엔 WorldAtPose 가 틀린다.</summary>
+        public bool RangesResolved => rangesResolved;
 
         /// <summary>최신 스냅샷(없으면 default) — HUD·WebSocket 송신(추후 항목) 공용 출처.</summary>
         public PlcSnapshot Latest => source != null && source.TryRead(out var s) ? s : default;
@@ -253,6 +257,18 @@ namespace Container.Crane.Sts.Plc
                 Debug.Log($"[PlcBridge] range 자동산출(모델기하×{inv:F0}): " +
                           $"GT={gtRangeM:F2}m TR={trRangeM:F2}m HO={hoRangeM:F2}m (ModelScale={crane.ModelScale:F4})");
         }
+
+        /// <summary>스냅샷 자세에서 크레인에 붙어 움직이는 월드 점 p(예: 트위스트락 중심)가 어디 오나.
+        /// DriveAxis 와 같은 정규화로 목표 축 값을 구하고 (목표 − 현재) × WorldAxis 만큼 평행이동한다.
+        /// 세 축이 전부 평행이동이라(회전 없음) 합이 정확하다.</summary>
+        public Vector3 WorldAtPose(in PlcSnapshot s, Vector3 p) =>
+            p + Shift(crane.Gantry, s.GtPosition, gtRangeM)
+              + Shift(crane.Trolley, s.TrPosition, trRangeM)
+              + Shift(crane.Spreader, s.HoPosition, hoRangeM);
+
+        static Vector3 Shift(IAxisMover a, float realPos, float rangeM) =>
+            a == null || rangeM <= 0f ? Vector3.zero
+            : a.WorldAxis * (Mathf.Lerp(a.Min, a.Max, Mathf.Clamp01(realPos / rangeM)) - a.Current);
 
         static float AxisSpanM(IAxisMover axis, float invScale)
         {

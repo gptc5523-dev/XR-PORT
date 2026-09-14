@@ -36,8 +36,9 @@ namespace Container.Crane.Sts
         // 하강 한계만 floorOffset 만큼 올린다(MoveToNormalized의 Lerp 끝점은 기존대로 min..max 유지).
         protected override float LowerLimit => min + floorOffset;
 
-        // 월드 수직 모드는 min/max 가 월드 Y 절대값이라 부모 스케일을 타지 않는다.
-        public override float WorldPerUnit => worldVertical ? 1f : base.WorldPerUnit;
+        // 월드 수직 모드는 min/max 가 월드 Y 절대값이라 부모의 회전·스케일을 타지 않는다.
+        protected override Vector3 LocalAxis => Vector3.up;
+        public override Vector3 WorldAxis => worldVertical ? Vector3.up : base.WorldAxis;
 
         protected override float ReadAxis()
             => worldVertical ? transform.position.y : transform.localPosition.y;

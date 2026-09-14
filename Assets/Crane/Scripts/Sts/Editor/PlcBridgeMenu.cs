@@ -63,6 +63,8 @@ namespace Container.Crane.Sts.EditorTools
             Undo.RecordObject(bridge, "Configure PLC Bridge (CSV)");
             bridge.EditorConfigureReplay(csv);
             EditorUtility.SetDirty(bridge);
+            // 작업 이력(run_NN.history.csv)이 옆에 있으면 컨테이너도 같이 재생 — 없으면 스스로 꺼진다.
+            if (crane.GetComponent<PlcCargoReplay>() == null) Undo.AddComponent<PlcCargoReplay>(crane.gameObject);
             // 도메인 리로드로 인스펙터가 리셋돼도 Awake가 복원하도록 EditorPrefs에 기록.
             EditorPrefs.SetBool(bridge.PrefKey("forceReplay"), true);
             EditorPrefs.SetString(bridge.PrefKey("csvPath"), csv);

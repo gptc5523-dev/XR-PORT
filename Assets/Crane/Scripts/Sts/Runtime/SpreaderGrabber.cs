@@ -156,7 +156,7 @@ namespace Container.Crane.Sts
         }
 
         // 트위스트락 콘들의 중심(없으면 부착점) — 잡기 기준점
-        Vector3 GrabPoint()
+        public Vector3 GrabPoint()
         {
             if (twistlocks != null && twistlocks.Length > 0)
             {

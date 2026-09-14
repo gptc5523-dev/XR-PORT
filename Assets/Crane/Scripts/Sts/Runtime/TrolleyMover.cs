@@ -19,6 +19,7 @@ namespace Container.Crane.Sts
 
         public override float Min => min;
         public override float Max => max;
+        protected override Vector3 LocalAxis => Vector3.right;
 
         protected override float ReadAxis() => transform.localPosition.x;
         protected override void WriteAxis(float clamped)

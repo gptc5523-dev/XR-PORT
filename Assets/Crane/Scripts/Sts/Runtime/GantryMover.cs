@@ -35,6 +35,7 @@ namespace Container.Crane.Sts
 
         public override float Min => IsLane ? minX : min;
         public override float Max => IsLane ? maxX : max;
+        protected override Vector3 LocalAxis => IsLane ? Vector3.right : Vector3.forward;
 
         /// <summary>주행 정지(잠금) — 보기를 꺾는 중엔 주행 금지. RtgBogieSteering이 제어.</summary>
         public bool TravelLocked { get; set; }
