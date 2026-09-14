@@ -131,7 +131,7 @@ for sid, pick_ship in (("S13", False), ("S14", True), ("S15", True)):
 
 print("\n=== 4) 작업 이력 ↔ PLC 시계열 · 적치 규칙 ===")
 TOL = {"GT_Position": 1.0, "TR_Position": 0.8, "HO_Position": 0.35}   # 목표 산포 σ(0.25/0.20/0.08)의 4배
-COUNT = {"S14": 20, "S15": 5, "S16": 5}
+COUNT = {"S13": 20, "S14": 20, "S15": 5, "S16": 5}
 GT0 = man["range_m"]["gt"] * 0.35                                     # gen_S14 첫 베이
 
 def expect(loc):

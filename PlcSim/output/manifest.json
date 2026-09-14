@@ -1195,9 +1195,10 @@
       "rows": 15140,
       "duration_s": 1514.0,
       "events": 0,
-      "moves": 0,
+      "moves": 20,
       "csv": "S13/run_01.csv",
-      "events_json": "S13/run_01.events.json"
+      "events_json": "S13/run_01.events.json",
+      "history_csv": "S13/run_01.history.csv"
     },
     {
       "scenario": "S13",
@@ -1209,9 +1210,10 @@
       "rows": 15362,
       "duration_s": 1536.2,
       "events": 0,
-      "moves": 0,
+      "moves": 20,
       "csv": "S13/run_02.csv",
-      "events_json": "S13/run_02.events.json"
+      "events_json": "S13/run_02.events.json",
+      "history_csv": "S13/run_02.history.csv"
     },
     {
       "scenario": "S13",
@@ -1223,9 +1225,10 @@
       "rows": 15211,
       "duration_s": 1521.1,
       "events": 0,
-      "moves": 0,
+      "moves": 20,
       "csv": "S13/run_03.csv",
-      "events_json": "S13/run_03.events.json"
+      "events_json": "S13/run_03.events.json",
+      "history_csv": "S13/run_03.history.csv"
     },
     {
       "scenario": "S13",
@@ -1237,9 +1240,10 @@
       "rows": 15282,
       "duration_s": 1528.2,
       "events": 0,
-      "moves": 0,
+      "moves": 20,
       "csv": "S13/run_04.csv",
-      "events_json": "S13/run_04.events.json"
+      "events_json": "S13/run_04.events.json",
+      "history_csv": "S13/run_04.history.csv"
     },
     {
       "scenario": "S13",
@@ -1251,9 +1255,10 @@
       "rows": 15118,
       "duration_s": 1511.8,
       "events": 0,
-      "moves": 0,
+      "moves": 20,
       "csv": "S13/run_05.csv",
-      "events_json": "S13/run_05.events.json"
+      "events_json": "S13/run_05.events.json",
+      "history_csv": "S13/run_05.history.csv"
     },
     {
       "scenario": "S13",
@@ -1265,9 +1270,10 @@
       "rows": 15029,
       "duration_s": 1502.9,
       "events": 0,
-      "moves": 0,
+      "moves": 20,
       "csv": "S13/run_06.csv",
-      "events_json": "S13/run_06.events.json"
+      "events_json": "S13/run_06.events.json",
+      "history_csv": "S13/run_06.history.csv"
     },
     {
       "scenario": "S13",
@@ -1279,9 +1285,10 @@
       "rows": 15292,
       "duration_s": 1529.2,
       "events": 0,
-      "moves": 0,
+      "moves": 20,
       "csv": "S13/run_07.csv",
-      "events_json": "S13/run_07.events.json"
+      "events_json": "S13/run_07.events.json",
+      "history_csv": "S13/run_07.history.csv"
     },
     {
       "scenario": "S13",
@@ -1293,9 +1300,10 @@
       "rows": 15048,
       "duration_s": 1504.8,
       "events": 0,
-      "moves": 0,
+      "moves": 20,
       "csv": "S13/run_08.csv",
-      "events_json": "S13/run_08.events.json"
+      "events_json": "S13/run_08.events.json",
+      "history_csv": "S13/run_08.history.csv"
     },
     {
       "scenario": "S13",
@@ -1307,9 +1315,10 @@
       "rows": 15297,
       "duration_s": 1529.7,
       "events": 0,
-      "moves": 0,
+      "moves": 20,
       "csv": "S13/run_09.csv",
-      "events_json": "S13/run_09.events.json"
+      "events_json": "S13/run_09.events.json",
+      "history_csv": "S13/run_09.history.csv"
     },
     {
       "scenario": "S13",
@@ -1321,9 +1330,10 @@
       "rows": 15158,
       "duration_s": 1515.8,
       "events": 0,
-      "moves": 0,
+      "moves": 20,
       "csv": "S13/run_10.csv",
-      "events_json": "S13/run_10.events.json"
+      "events_json": "S13/run_10.events.json",
+      "history_csv": "S13/run_10.history.csv"
     },
     {
       "scenario": "S14",

@@ -462,12 +462,14 @@ def gen_S13(s):  # 20개 적하 (육지 섀시 → 배 갑판), 20ft/40ft 혼합
                 s.goto(tr=LAND, ho=HI); s.run_until_settled()
                 s.goto(ho=LO_L); s.run_until_settled()
                 s.detected = True; s.landed = True; s.run_for(1.0)
+                s.picked("CHASSIS")
                 s.locked = True; s.carry = True; s.run_for(1.5); s.landed = False
                 s.goto(ho=HI); s.run_until_settled()
                 # ── 적치(배 갑판) — 열은 트롤리, 단은 권상 ──
                 s.goto(tr=TR_SHIP_NEAR + row * ROW_PITCH); s.run_until_settled()
                 s.goto(ho=ho_place); s.run_until_settled()
                 s.landed = True; s.run_for(1.0)
+                s.placed(f"SHIP/B{bay + 1:02d}/R{row + 1:02d}/T{tier}")
                 s.locked = False; s.carry = False; s.run_for(1.5)
                 s.landed = False; s.detected = False
                 s.goto(ho=HI); s.run_until_settled()
