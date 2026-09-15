@@ -141,13 +141,13 @@ def iso6346(owner, serial):
 
 
 class Sim:
-    def __init__(self, sp_mode=SP40, wind=8.0, rng=None, range_m=None, id_base=0, gt0=0.0):
+    def __init__(self, sp_mode=SP40, wind=8.0, rng=None, range_m=None, id_base=0, gt0=0.0, tr0=0.0):
         # 런별 편차의 단일 출처. 시드 고정 = 재현 가능(반복시험 요건).
         self.rng = rng or random.Random(0)
         self.t = 0.0
         # 크레인마다 가동범위가 다르다(STS RANGE / RTG RTG_RANGE). 정격 속도·가속은 같은 CraneAxisProfile.
         self.range = range_m or RANGE
-        self.gt = Axis(gt0, self.range["gt"]); self.tr = Axis(0.0, self.range["tr"])
+        self.gt = Axis(gt0, self.range["gt"]); self.tr = Axis(tr0, self.range["tr"])
         self.ho = Axis(self.range["ho"], self.range["ho"])
         self.sigma = dict(AIM_SIGMA)   # 목표 산포 — 자동 위치결정 시나리오가 줄인다
         self.moves = []; self.id_base = id_base   # 작업 이력 · 컨테이너 번호 = id_base + 순번
@@ -357,6 +357,7 @@ STS_ROOT_X = RAIL_LAND_X
 STS_ROOT_Z = -40.0                  # 씬 배치값(STS_Crane z −1.6667u) — 배치 결정이라 식이 없다. verify ⑦ 대조
 BOOM_Y     = 44.0                   # RailH — 붐(트롤리 레일) 높이
 TROLLEY_MIN_X, TROLLEY_MAX_X = -13.0 - 0.12 * 24, 63.0  # TrolleyMinX = −13·Scale − BoomBackExtra(0.12u) = −15.88
+TROLLEY_REST_X = 8.0                # TrolleyRestX = 8·Scale — 트롤리·SpreaderRoot 휴지 위치(붐 로컬). verify ⑥ 대조
 HOIST_X     = 0.027 * 24            # HoistX — 스프레더(트위스트락 중심)가 SpreaderRoot 보다 바다쪽 0.648
 ATTACH_DROP = 0.019 * 24            # AttachPoint y −0.019u — 스프레더 원점 → 본체 밑면(= 컨테이너 윗면) 0.456
 SPREADER_MIN_Y, SPREADER_MAX_Y = -(BOOM_Y - 0.8), -4.0  # 붐 로컬 — 행정 39.2
@@ -521,6 +522,7 @@ assert len(discharge_order(NEAR_BAYS)) >= 20 and len(load_targets(NEAR_BAYS)) >=
 
 # ── 단일 사이클 시나리오(S02~S12) 대표 좌표 — 작업 베이 안벽쪽 첫 스택 ──
 GT_HOME = GT_HALF                                       # 크레인 홈(씬 배치 위치) = 주행 중앙
+TR_HOME = sts_tr(STS_ROOT_X + TROLLEY_REST_X + HOIST_X)  # 트롤리 홈(씬 휴지 위치) = 23.88 — 0(백리치 끝)이 아니다
 GT_WORK = sts_gt(bay_z(WORK_BAY))
 _P0 = discharge_order([WORK_BAY])[0]                    # 양하 대상 — 첫 스택 맨 위
 _E0 = load_targets([WORK_BAY])[0]                       # 적하 대상 — 첫 빈 2단
@@ -716,6 +718,7 @@ def gen_S15(s):  # STS 5개 양하(시연) — 작업 베이의 실제 컨테이
 RTG_RANGE     = {"gt": 140.887, "tr": 20.19, "ho": 19.566}
 RTG_ROW_PITCH = 2.438 + 0.4                                     # 2.838 = 컨테이너폭 + 열간격
 RTG_TR_ROW0   = RTG_RANGE["tr"] / 2 - 2.5 * RTG_ROW_PITCH       # 3.000 — 6열이 스팬 중앙 대칭
+RTG_TR_HOME   = RTG_RANGE["tr"] / 2                             # 10.095 — 트롤리 x=0 파킹(RtgCraneCreator), 범위 ±10.095 대칭
 RTG_GT_BAY0   = RTG_RANGE["gt"] / 2 - 5.5 * BAY_PITCH           # 0.087 — 12베이가 주행 중앙 대칭
 RTG_HO_CLEAR  = 4 * CONT_H + 3.0                                # 13.36 — 4단 최상단 + 3m (STS HO_CLEAR 와 같은 규칙)
 
@@ -832,7 +835,9 @@ def main():
             crane = CRANE.get(sid, "STS")
             sim = Sim(sp_mode=SPTWIN if sid == "S04" else SP40, rng=random.Random(seed),
                       range_m=RANGES[crane], id_base=int(sid[1:]) * 1000,
-                      gt0=GT_WORK if crane == "STS" else 0.0)   # STS 는 작업 베이 위에서 시작
+                      gt0=GT_WORK if crane == "STS" else 0.0,   # STS 는 작업 베이 위에서 시작
+                      # 트롤리는 씬 휴지 위치에서 시작 — 0(백리치 끝)이면 PlcBridge 첫 스캔에 트롤리가 끝으로 튄다(오너 2026-09-16)
+                      tr0=TR_HOME if crane == "STS" else RTG_TR_HOME)
             fn(sim)
             out_dir = os.path.join(args.out, sid)
             csv_path, ev_path, hist_path, rows = write_run(out_dir, sid, name, label, i, sim, crane)

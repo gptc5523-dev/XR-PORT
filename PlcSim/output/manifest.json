@@ -1038,8 +1038,8 @@
       "crane": "STS",
       "run": 3,
       "seed": 10003,
-      "rows": 309,
-      "duration_s": 30.9,
+      "rows": 301,
+      "duration_s": 30.1,
       "events": 2,
       "moves": 0,
       "csv": "S10/run_03.csv",
@@ -1627,8 +1627,8 @@
       "crane": "STS",
       "run": 10,
       "seed": 15010,
-      "rows": 3998,
-      "duration_s": 399.8,
+      "rows": 4011,
+      "duration_s": 401.1,
       "events": 0,
       "moves": 5,
       "csv": "S15/run_10.csv",
@@ -1793,5 +1793,5 @@
     "정비(제외)": 3
   },
   "total_runs": 123,
-  "total_rows": 471115
+  "total_rows": 471120
 }

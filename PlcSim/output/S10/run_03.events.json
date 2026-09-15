@@ -2,8 +2,8 @@
   "scenario": "S10",
   "name": "풍속 한계 초과(중단)",
   "label": "이상",
-  "duration_s": 30.9,
-  "rows": 309,
+  "duration_s": 30.1,
+  "rows": 301,
   "events": [
     {
       "t_ms": 18600,
@@ -14,7 +14,7 @@
       "description": "풍속 운전중지 (≥25 m/s)"
     },
     {
-      "t_ms": 27100,
+      "t_ms": 27200,
       "kind": "event",
       "code": 5015,
       "severity": 0,

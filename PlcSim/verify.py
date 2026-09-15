@@ -66,6 +66,10 @@ for f in sorted(glob.glob(os.path.join(OUT, "*", "*.csv"))):
     rows = list(csv.DictReader(open(f, encoding="utf-8")))
     miss = [c for c in NEEDED if c not in rows[0]]
     if miss: fails.append(f"[헤더] {sid} 누락 {miss}")
+    # 트롤리 시작 = 씬 휴지 위치 — 어긋나면 PlcBridge 첫 스캔에 트롤리가 그만큼 한 틱에 튄다
+    tr_home = G.TR_HOME if crane[sid] == "STS" else G.RTG_TR_HOME
+    if abs(float(rows[0]["TR_Position"]) - tr_home) > 0.05:
+        fails.append(f"[시작] {os.path.relpath(f, OUT)} 트롤리 {float(rows[0]['TR_Position']):.2f}m ≠ 씬 휴지 {tr_home:.2f}m")
     digests[sid].add(hash(tuple(r["HO_Position"] + r["TR_Position"] for r in rows)))
     ev = json.load(open(f[:-4] + ".events.json", encoding="utf-8"))
     arrested = any(e["code"] in ARREST for e in ev["events"])
@@ -217,6 +221,8 @@ else:
     chk("ContainerShip", first("ContainerShip"), (G.SHIP_X, G.SHIP_Y, G.SHIP_Z), 1e-3)
     chk("STS_Crane", first("STS_Crane"), (G.STS_ROOT_X, 0.0, G.STS_ROOT_Z), 1e-3)
     chk("Boom_1", first("Boom_1"), (0.0, G.BOOM_Y, 0.0), 1e-3)
+    tro = first("Trolley_1")
+    chk("Trolley_1 휴지 X", tro and tro[:1], (G.TROLLEY_REST_X,), 1e-3)
     chk("AttachPoint_1", first("AttachPoint_1"), (0.0, -G.ATTACH_DROP, 0.0), 1e-3)
     sp = first("Spreader_1")
     chk("Spreader_1 X(HoistX)", sp and sp[:1], (G.HOIST_X,), 1e-3)
