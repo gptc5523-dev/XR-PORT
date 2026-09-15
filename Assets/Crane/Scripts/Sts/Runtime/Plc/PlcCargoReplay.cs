@@ -22,7 +22,9 @@ namespace Container.Crane.Sts.Plc
     /// 이미 PLC 자세 그대로 놓았으니 월드 자세를 보존한 채 SpreaderAttach 에 붙이기만 하면 된다.
     /// 모양은 씬 야드의 Cont40_00 / Cont20_00 을 복제한다(스케일·LOD·머티리얼 그대로). 없으면 ISO 치수 박스.
     ///
-    /// 가설 구현·Unity Play 미검증.
+    /// 2026-09-15 Play 검증(PlcReplaySmoke, S14/run_01 20개): 집기·놓기 20/20, 배에서 집은 20개 전부 씬 컨테이너(복제 0),
+    ///   트위스트락↔윗면 중심 평균 0.038m·최대 0.105m, 콘 바닥−윗면 −0.017~+0.039m(생성기 자동 위치결정 σ 30mm 범위).
+    ///   이 컴포넌트는 PlcBridge 가 CSV 재생일 때 스스로 붙인다 — 씬에 저장돼 있지 않아도 된다.
     /// </summary>
     [DefaultExecutionOrder(-90)]   // PlcBridge(-100)가 축을 옮긴 뒤 · SpreaderGrabber(50) 클램프 전
     [AddComponentMenu("Container/STS Crane/PLC 화물 재생 (작업 이력)")]
@@ -123,6 +125,7 @@ namespace Container.Crane.Sts.Plc
         {
             if (boxes[i] == null) boxes[i] = Spawn(moves[i]);   // 등장 전에 잠금이 오면(데이터 이상) 그 자리에 바로
             var c = boxes[i];
+            LogPick(i, c);
             Vector3 pos = c.position; Quaternion rot = c.rotation;
             if (!crane.Attach.Attach(c)) return;                 // 이미 뭔가 들고 있음(VR 잡기 등)
             c.SetPositionAndRotation(pos, rot);                  // Attach 는 부착점 원점·회전으로 스냅한다 — PLC 자세 그대로 둔다
@@ -138,7 +141,20 @@ namespace Container.Crane.Sts.Plc
             if (lockAnim != null) lockAnim.SetLocked(false);
             if (rtgTele != null) rtgTele.SetSize(RtgSpreaderTelescope.Size.Ft40);   // 빈 스프레더 기준자세(SpreaderGrabber.Release 와 같음)
             if (c != null && moves[held].to.StartsWith(Truck)) leaving.Add((c, csv.PlayheadS + truckLeaveS));   // 트럭이 싣고 떠난다
+            Debug.Log($"[PlcCargo] 놓기 {held + 1}/{moves.Length} {moves[held].id} → {moves[held].to}");
             held = -1;
+        }
+
+        // 검증 로그 — 집는 순간 트위스트락 중심(흔들림 포함 실제 위치)과 컨테이너 윗면 중심의 수평 거리·콘 바닥과 윗면의 높이 차(실척 m),
+        //   그리고 씬 컨테이너를 집었는지 새로 만든 건지. 배(SHIP/)에서 '새로 만듦'이면 PLC 자세가 실제 적재와 0.5m 넘게 어긋난 것이다.
+        void LogPick(int i, Transform c)
+        {
+            var b = WorldBounds(c.gameObject);
+            Vector3 gp = grabber != null ? grabber.GrabPoint() : ((Component)crane.Spreader).transform.position;
+            float dxz = new Vector2(gp.x - b.center.x, gp.z - b.center.z).magnitude / StsConfig.ModelScale;
+            float gap = (gp.y - grabDrop - b.max.y) / StsConfig.ModelScale;
+            Debug.Log($"[PlcCargo] 집기 {i + 1}/{moves.Length} {moves[i].id} {moves[i].from}→{moves[i].to} — " +
+                      $"{(adopted.ContainsKey(c) ? "씬 컨테이너" : "새로 만듦")} {c.name}, 트위스트락↔윗면 중심 {dxz:F3}m, 콘 바닥−윗면 {gap:F3}m");
         }
 
         void Leave(Transform c)

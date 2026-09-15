@@ -96,6 +96,10 @@ namespace Container.Crane.Sts.Plc
             }
 #endif
             source = BuildSource();
+            // CSV 재생이면 화물 재생도 붙인다 — 메뉴(PlcBridgeMenu)가 Undo.AddComponent 로 붙인 건 씬을 저장해야 남는데, 재생 설정은
+            //   EditorPrefs 로 매 Play 복원돼서 '축은 재생되는데 스프레더는 빈손'이 됐다(2026-09-15 오너: 배 컨테이너를 안 잡음).
+            //   작업 이력(run_NN.history.csv)이 없으면 PlcCargoReplay 가 스스로 꺼진다.
+            if (active && source is CsvReplaySource && GetComponent<PlcCargoReplay>() == null) gameObject.AddComponent<PlcCargoReplay>();
             Debug.Log($"[PlcBridge] init: mode={sourceMode} active={active} csvAsset={(csvAsset != null)} " +
                       $"csvPath='{csvPath}' → source={source?.Name} connected={source?.IsConnected}");
         }
