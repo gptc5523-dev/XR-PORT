@@ -377,19 +377,21 @@ namespace Container.Crane.Sts
             //     전면 경사창으로 바로 아래(스프레더/선박 셀)를 막힘없이 내려다보게 한다. (옛 Cab_Kick은 생산부가 없어
             //     항상 폴백→좌석 눈높이에 갇혀 '조종실 안' 시점이 됐었음.)
             //   레거시 앵커면: 기준부품 + 오프셋(트롤리 회전만 반영·스케일 안 곱함).
-            Transform cabFloor = dedicated ? FindCabFloor(trolleyT) : null;
+            //   바닥은 전용 앵커 유무와 무관하게 찾는다 — FBX RTG 는 Cab_Viewpoint 가 없어 옛 조건(dedicated)에 막혀
+            //     트롤리 본체 원점(크레인 한가운데)으로 떨어졌다.
+            Transform cabFloor = FindCabFloor(trolleyT, cabFloorAnchorName);
             Transform eyeAnchor = cabFloor != null ? cabFloor : cabAnchor;
-            Vector3 target = cabFloor != null ? cabFloor.position - trolleyT.up * cabFloorDropDown   // 바닥 패널 '아래'
+            Vector3 target = cabFloor != null ? BelowCabFloor(cabFloor, cabFloorDropDown)             // 바닥 패널 '아래'
                            : dedicated         ? cabAnchor.position                                    // 바닥 폴백 → 좌석 눈높이
                                                : cabAnchor.position + trolleyT.rotation * cabLocalOffset;
-            // 전용 앵커면 시선(요)을 운전실 전방(스프레더/바다쪽)에 정렬 — 상하 피치는 머리에 맡김(고개 숙여 내려다봄).
-            if (dedicated)
-            {
-                Vector3 fwd = cabAnchor.forward; fwd.y = 0f;
-                Vector3 camFwd = cam.transform.forward; camFwd.y = 0f;
-                if (fwd.sqrMagnitude > 1e-4f && camFwd.sqrMagnitude > 1e-4f)
-                    rig.rotation = Quaternion.FromToRotation(camFwd.normalized, fwd.normalized) * rig.rotation;
-            }
+            // 시선(요) 정렬 — 전용 앵커면 운전실 전방, 앵커 없이 바닥만 있으면(RTG) 스프레더 쪽. 상하 피치는 머리에 맡김(고개 숙여 내려다봄).
+            Vector3 fwd = dedicated ? cabAnchor.forward
+                        : cabFloor != null && crane.Spreader is Component sp ? sp.transform.position - target
+                        : Vector3.zero;
+            fwd.y = 0f;
+            Vector3 camFwd = cam.transform.forward; camFwd.y = 0f;
+            if (fwd.sqrMagnitude > 1e-4f && camFwd.sqrMagnitude > 1e-4f)
+                rig.rotation = Quaternion.FromToRotation(camFwd.normalized, fwd.normalized) * rig.rotation;
             rig.position += target - cam.transform.position;   // (회전 후) 카메라를 시점으로 정렬
             lastTrolleyPos = trolleyT.position;
 
@@ -415,20 +417,30 @@ namespace Container.Crane.Sts
             return trolleyT;
         }
 
-        // 운전실 '바닥' 부품(Cab_Fb_FloorRear 등) 찾기 — 전용 시점에서 눈 위치를 이 바닥 '아래'에 둬 발밑 화물을 내려다보게.
-        //   1순위: 직렬화된 cabFloorAnchorName  2순위: 실재 후방 바닥 패널(Cab_Fb_FloorRear).
-        //   기존 씬 인스턴스가 옛 'Cab_Kick'(생산부 없음)으로 직렬화돼 있어도 인스펙터 수정 없이 동작하도록 2순위 폴백을 둔다.
-        //   둘 다 못 찾으면 null → EnterCabView가 좌석 눈높이(Cab_Viewpoint)로 폴백.
-        Transform FindCabFloor(Transform trolleyT)
+        // 운전실 '바닥' 부품(Cab_Fb_FloorRear 등) 찾기 — 눈 위치를 이 바닥 '아래'에 둬 발밑 화물을 내려다보게.
+        //   1순위: 직렬화된 이름  2순위: STS 후방 바닥 패널(Cab_Fb_FloorRear)  3순위: FBX RTG 바닥(OperatorCab_Floor_Panel).
+        //   기존 씬 인스턴스가 옛 'Cab_Kick'(생산부 없음)으로 직렬화돼 있어도 인스펙터 수정 없이 동작하도록 폴백을 둔다.
+        //   전부 못 찾으면 null → EnterCabView가 좌석 눈높이(Cab_Viewpoint)로 폴백. FlatCraneController 도 같이 쓴다.
+        public static Transform FindCabFloor(Transform trolleyT, string preferredName)
         {
-            Transform byName = null, byRear = null;
+            Transform byName = null, byRear = null, byRtg = null;
             foreach (var t in trolleyT.GetComponentsInChildren<Transform>(true))
             {
                 string bn = CraneHud.BaseName(t.name);
-                if (byName == null && !string.IsNullOrEmpty(cabFloorAnchorName) && bn == cabFloorAnchorName) byName = t;
+                if (byName == null && !string.IsNullOrEmpty(preferredName) && bn == preferredName) byName = t;
                 if (byRear == null && bn == StsPartNames.CabFloorRear) byRear = t;
+                if (byRtg == null && bn == StsPartNames.RtgCabFloor) byRtg = t;
             }
-            return byName != null ? byName : byRear;
+            return byName != null ? byName : byRear != null ? byRear : byRtg;
+        }
+
+        /// <summary>바닥 패널 '중심' 에서 drop 만큼 아래 — 운전실 시점 눈 위치.
+        ///   FBX RTG 부품은 피벗이 트롤리 원점이라 position 은 크레인 한가운데다 → 렌더러 바운즈 중심을 쓴다.
+        ///   STS 절차 패널은 피벗 = 박스 중심(PivotLocation.Center)이라 값이 같다.</summary>
+        public static Vector3 BelowCabFloor(Transform floor, float drop)
+        {
+            var r = floor.GetComponent<Renderer>();
+            return (r != null ? r.bounds.center : floor.position) + Vector3.down * drop;
         }
 
         // 트롤리가 움직인 만큼 시점도 같이 이동 — 운전실이 트롤리에 붙어 따라가게

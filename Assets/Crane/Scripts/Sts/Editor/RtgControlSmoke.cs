@@ -14,6 +14,10 @@ namespace Container.Crane.Sts.EditorTools
     ///     ② 상태 HUD 가 조종기를 받은 크레인(STS → RTG)을 보여 준다
     ///     ③ 합성 스틱(QaBeginDrive/QaSticks) 1.5초씩 — 트롤리·호이스트·갠트리 실척 속도
     ///        |Δ축| × WorldPerUnit ÷ ModelScale ÷ Δt 가 StsCraneVRController 정격(3.3 · 공하 2.7 · 0.75 m/s) ±10%
+    ///     ④ 갠트리 주행에 타이어가 굴렀다 — 회전각 = 이동거리 ÷ 반경(±5%), 바닥점이 진행 반대로(역회전 아님)
+    ///        (오너 2026-09-16 "RTG 크레인 바퀴가 안 움직여")
+    ///     ⑤ 갠트리 모드 A(운전실 시점) — 카메라가 OperatorCab_Floor_Panel 바로 밑(XZ 안 · 밑면 아래 0~0.02u)
+    ///        (오너 2026-09-16 "운전실 밑에 카메라가 있어야 하는데 중앙에 카메라가 있어")
     /// </summary>
     [InitializeOnLoad]
     public static class RtgControlSmoke
@@ -26,7 +30,11 @@ namespace Container.Crane.Sts.EditorTools
         static float t0, stepAt, a0, aTime;
         static StsCrane sts, rtg;
         static StsCraneVRController stsCtrl, rtgCtrl;
-        static bool switchedByWalk, carried, switched, hudSts, hudRtg, fail;
+        static bool switchedByWalk, carried, switched, hudSts, hudRtg, wheelOk, cabOk, fail;
+        static Transform wheel;
+        static Quaternion wheelRot0;
+        static Vector3 wheelPos0, wheelBottomLocal;
+        static float wheelR;
         static readonly System.Text.StringBuilder report = new System.Text.StringBuilder();
 
         static RtgControlSmoke()
@@ -134,12 +142,22 @@ namespace Container.Crane.Sts.EditorTools
                     Check("호이스트", rtg.Spreader, tons > 0f ? Mathf.Lerp(1.8f, 0.9f, Mathf.InverseLerp(8f, 32f, tons)) : 2.7f);
                     rtgCtrl.QaBeginDrive(StsCraneVRController.Mode.Gantry);
                     Begin(rtg.Gantry, out float dg);
+                    WheelBegin();
                     rtgCtrl.QaSticks(Vector2.zero, new Vector2(dg, 0f));
                     Next(); return;
 
-                case 6:   // 갠트리
+                case 6:   // 갠트리 + 타이어 굴림
                     if (Wall - stepAt < StepS) return;
                     Check("갠트리", rtg.Gantry, 0.75f);
+                    rtgCtrl.QaSticks(Vector2.zero, Vector2.zero);
+                    WheelCheck();
+                    typeof(StsCraneVRController).GetMethod("EnterCabView", Priv).Invoke(rtgCtrl, null);   // 갠트리 모드에서 A
+                    Next(); return;
+
+                case 7:   // 운전실 시점
+                    if (Wall - stepAt < 0.5f) return;
+                    CabCheck();
+                    typeof(StsCraneVRController).GetMethod("ExitCabView", Priv).Invoke(rtgCtrl, null);
                     rtgCtrl.QaEndDrive();
                     Finish(); return;
             }
@@ -170,15 +188,60 @@ namespace Container.Crane.Sts.EditorTools
                 $"{(a is AxisMoverBase m && m.IsBlocked ? " (장애물 정지)" : "")}");
         }
 
+        // 휠 반경은 메시 최대 반폭(Ø 쪽)으로 따로 잰다 — 구현(가장 얇은 축의 직교축)과 다른 길로.
+        static void WheelBegin()
+        {
+            wheel = null;
+            foreach (var t in rtg.GetComponentsInChildren<Transform>()) if (t.name.StartsWith("Wheel_")) { wheel = t; break; }
+            if (wheel == null) return;
+            Vector3 e = wheel.GetComponent<MeshFilter>().sharedMesh.bounds.extents, v = Vector3.zero;
+            int k = e.x >= e.y && e.x >= e.z ? 0 : e.y >= e.z ? 1 : 2;
+            v[k] = e[k];
+            wheelR = wheel.TransformVector(v).magnitude;
+            wheelRot0 = wheel.rotation;
+            wheelPos0 = wheel.position;
+            wheelBottomLocal = wheel.InverseTransformPoint(wheel.position + Vector3.down * wheelR);   // 지금 땅에 닿은 점
+        }
+
+        static void WheelCheck()
+        {
+            if (wheel == null) { Log("타이어: Wheel_* 없음"); fail = true; return; }
+            Vector3 move = wheel.position - wheelPos0;
+            float want = move.magnitude / wheelR * Mathf.Rad2Deg;
+            float got = Quaternion.Angle(wheelRot0, wheel.rotation);
+            // 굴렀다면 처음 닿았던 점은 중심보다 진행 반대쪽에 있다(0°<각<180°). 역회전이면 진행 쪽.
+            bool rolling = Vector3.Dot(wheel.TransformPoint(wheelBottomLocal) - wheel.position, move) < 0f;
+            wheelOk = want > 10f && Mathf.Abs(got - want) <= Mathf.Max(1f, want * 0.05f) && rolling;
+            if (!wheelOk) fail = true;
+            Log($"타이어 {wheel.name}: 이동 {move.magnitude / StsConfig.ModelScale:F3} m ÷ 반경 {wheelR / StsConfig.ModelScale:F3} m = {want:F1}°, " +
+                $"실제 {got:F1}°, 방향 {(rolling ? "정" : "역")} — {(wheelOk ? "OK" : "FAIL")}");
+        }
+
+        static void CabCheck()
+        {
+            var cam = Camera.main;
+            Renderer floor = null;
+            foreach (var r in rtg.GetComponentsInChildren<Renderer>()) if (r.name == StsPartNames.RtgCabFloor) { floor = r; break; }
+            if (cam == null || floor == null) { Log($"운전실: 카메라 {cam != null} · 바닥 {floor != null}"); fail = true; return; }
+            Bounds fb = floor.bounds;
+            Vector3 c = cam.transform.position, t = ((Component)rtg.Trolley).transform.position;
+            bool inside = c.x >= fb.min.x && c.x <= fb.max.x && c.z >= fb.min.z && c.z <= fb.max.z;
+            float below = fb.min.y - c.y;
+            cabOk = rtgCtrl.CabView && inside && below > 0f && below < 0.02f;
+            if (!cabOk) fail = true;
+            Log($"운전실 시점: 바닥 XZ 안 {inside} · 바닥 밑면 아래 {below / StsConfig.ModelScale:F2} m · " +
+                $"트롤리 원점에서 수평 {Vector3.ProjectOnPlane(c - t, Vector3.up).magnitude / StsConfig.ModelScale:F2} m — {(cabOk ? "OK" : "FAIL")}");
+        }
+
         static void Next() { step++; stepAt = Wall; }
         static string Name(Object o) => o != null ? o.name : "없음";
         static void Log(string s) { report.AppendLine(s); Debug.Log($"[RtgControlSmoke] {s}"); }
 
         static void Finish()
         {
-            bool pass = !fail && switchedByWalk && carried && switched && hudSts && hudRtg;
+            bool pass = !fail && switchedByWalk && carried && switched && hudSts && hudRtg && wheelOk && cabOk;
             Debug.Log($"[RtgControlSmoke] {(pass ? "PASS" : "FAIL")} — 걸어와서 받음 {switchedByWalk} · 토글 이어받음 {carried} · 조종기 RTG {switched} · " +
-                      $"HUD STS {hudSts}→RTG {hudRtg}\n{report}");
+                      $"HUD STS {hudSts}→RTG {hudRtg} · 타이어 {wheelOk} · 운전실 {cabOk}\n{report}");
             EditorApplication.update -= Tick;
             EditorPrefs.SetBool(PortDemoDirector.EditorPrefKey, SessionState.GetBool(PrevKey, false));
             SessionState.EraseBool(Key);

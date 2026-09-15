@@ -198,20 +198,25 @@ namespace Container.Crane.Flat
                 return;
             }
 
-            cabAnchor = FindByBaseName(trolleyT, StsPartNames.CabViewpoint) ?? trolleyT;
-            Transform cabFloor = FindByBaseName(trolleyT, StsPartNames.CabFloorRear);
+            Transform viewpoint = FindByBaseName(trolleyT, StsPartNames.CabViewpoint);
+            cabAnchor = viewpoint ?? trolleyT;
+            Transform cabFloor = StsCraneVRController.FindCabFloor(trolleyT, StsPartNames.CabFloorRear);   // STS·FBX RTG 공용
 
             Transform rigT = rig.transform;
             savedRigPos = rigT.position;
             savedRigRot = rigT.rotation;
 
-            // 시선(요)을 운전실 전방(스프레더/바다쪽)에 정렬 — 상하 피치는 사용자 스틱에 맡긴다.
-            Vector3 fwd = cabAnchor.forward; fwd.y = 0f;
+            Vector3 target = cabFloor != null
+                ? StsCraneVRController.BelowCabFloor(cabFloor, cabFloorDropDown)   // 바닥 패널 '아래'
+                : cabAnchor.position;                                               // 폴백 — 좌석 눈높이
+
+            // 시선(요)을 운전실 전방(스프레더/바다쪽)에 정렬 — Cab_Viewpoint 가 없으면(FBX RTG) 스프레더 쪽. 상하 피치는 사용자 스틱에 맡긴다.
+            Vector3 fwd = viewpoint != null ? viewpoint.forward
+                        : crane.Spreader is Component sp ? sp.transform.position - target
+                        : trolleyT.forward;
+            fwd.y = 0f;
             if (fwd.sqrMagnitude > 1e-4f) rigT.rotation = Quaternion.LookRotation(fwd.normalized, Vector3.up);
 
-            Vector3 target = cabFloor != null
-                ? cabFloor.position - trolleyT.up * cabFloorDropDown   // 바닥 패널 '아래'
-                : cabAnchor.position;                                   // 폴백 — 좌석 눈높이
             rigT.position += target - cam.transform.position;           // (회전 후) 카메라를 시점으로 정렬
 
             lastTrolleyPos = trolleyT.position;

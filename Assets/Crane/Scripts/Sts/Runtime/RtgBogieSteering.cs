@@ -111,7 +111,7 @@ namespace Container.Crane.Sts
             mode = Mode.Travel;
         }
 
-        void OnEnable() { angle = TargetAngle; Apply(); SyncGantry(); }
+        void OnEnable() { angle = TargetAngle; Apply(); SyncGantry(); wheels = null; }
 
         bool synced;   // 현재 각도로 갠트리 축을 이미 인계했는지(도달한 프레임에만 넘기려고).
 
@@ -159,6 +159,56 @@ namespace Container.Crane.Sts
                 Vector3 lu = t.parent != null ? t.parent.InverseTransformDirection(Vector3.up) : Vector3.up;
                 if (lu.sqrMagnitude < 1e-8f) lu = Vector3.up; else lu.Normalize();
                 t.localRotation = Quaternion.AngleAxis(angle, lu) * restRot[i];
+            }
+        }
+
+        // ── 타이어 굴림 ──
+        //   Wheel_* 16개는 보기 자식이고 피벗 = 휠 중심(Blender 실측: 로컬 bbox 중심 0, 폭 0.72 · Ø1.514 → 가장 얇은 축 = 차축).
+        //   휠 중심의 월드 이동량을 굴림 방향(차축 × 위)으로 투영해 '거리 ÷ 반경' 만큼 차축으로 돌린다 —
+        //   위치만 보므로 VR 갠트리·레인 이동·조향(킹핀 둘레 원호)·PLC 재생·관전자 동기화를 가리지 않는다.
+        //   Play 에서만 — [ExecuteAlways]라 에디트에서 돌리면 크레인을 끌 때마다 휠 회전이 씬 오버라이드로 쌓인다.
+        Transform[] wheels;
+        Vector3[] wheelAxle, wheelPrev;   // 차축(휠 로컬 단위벡터) · 직전 프레임 휠 중심(월드)
+        float[] wheelRadius;              // 월드 단위
+
+        void LateUpdate()   // 무버(FixedUpdate)·보기 조향(Update) 이후
+        {
+            if (!Application.isPlaying || !IsConfigured) return;
+            if (wheels == null) CacheWheels();
+            for (int i = 0; i < wheels.Length; i++)
+            {
+                var w = wheels[i];
+                if (w == null) continue;
+                Vector3 p = w.position, d = p - wheelPrev[i];
+                wheelPrev[i] = p;
+                Vector3 axle = w.TransformDirection(wheelAxle[i]);
+                // +각(차축 기준)은 바닥점을 -(차축×위)로 보낸다 = (차축×위) 방향으로 굴러감.
+                float deg = Vector3.Dot(d, Vector3.Cross(axle, Vector3.up)) / wheelRadius[i] * Mathf.Rad2Deg;
+                if (deg != 0f) w.rotation = Quaternion.AngleAxis(deg, axle) * w.rotation;
+            }
+        }
+
+        void CacheWheels()
+        {
+            var found = new System.Collections.Generic.List<Transform>();
+            foreach (var b in bogies)
+                if (b != null)
+                    foreach (Transform c in b)
+                        if (c.name.StartsWith("Wheel_") && c.TryGetComponent<MeshFilter>(out var mf) && mf.sharedMesh != null) found.Add(c);
+            wheels = found.ToArray();
+            wheelAxle = new Vector3[wheels.Length];
+            wheelPrev = new Vector3[wheels.Length];
+            wheelRadius = new float[wheels.Length];
+            for (int i = 0; i < wheels.Length; i++)
+            {
+                Vector3 s = wheels[i].GetComponent<MeshFilter>().sharedMesh.bounds.size;
+                int a = s.x <= s.y && s.x <= s.z ? 0 : s.y <= s.z ? 1 : 2;   // 가장 얇은 축 = 차축
+                Vector3 axle = Vector3.zero, rim = Vector3.zero;
+                axle[a] = 1f;
+                rim[(a + 1) % 3] = s[(a + 1) % 3] * 0.5f;                     // 차축과 직교한 반지름
+                wheelAxle[i] = axle;
+                wheelRadius[i] = Mathf.Max(1e-5f, wheels[i].TransformVector(rim).magnitude);
+                wheelPrev[i] = wheels[i].position;
             }
         }
     }

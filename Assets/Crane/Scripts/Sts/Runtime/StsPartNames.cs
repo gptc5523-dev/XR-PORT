@@ -33,6 +33,9 @@ namespace Container.Crane.Sts
         /// <summary>운전실 후방 바닥 패널(폴백 셸 생산, BaseName 비교 → 'Cab_Fb_FloorRear_1' 등 매칭).
         /// VR 운전실 시점의 눈 '아래' 기준 — 이 바닥 패널 밑에 카메라를 둬 발밑 화물을 막힘없이 내려다본다.</summary>
         public const string CabFloorRear = "Cab_Fb_FloorRear";
+        /// <summary>FBX RTG 운전실 바닥 패널. Cab_Viewpoint 가 없어 이게 눈 '아래' 기준이다.
+        /// ★ 피벗이 트롤리 원점(한가운데)이라 transform.position 이 아니라 렌더러 바운즈로 읽는다.</summary>
+        public const string RtgCabFloor = "OperatorCab_Floor_Panel";
 
         // 스프레더 트위스트락
         /// <summary>트위스트락 콘(Numbered 접미사 → BaseName 비교). 잠금 애니/잡기 기준점.</summary>
