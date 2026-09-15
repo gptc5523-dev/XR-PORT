@@ -223,9 +223,7 @@ namespace Container.Crane.Sts
                 return;
             }
 
-            // 컨테이너 윗면을 부착점(스프레더 밑)에 맞춰 매달기 — 중앙 관통 방지
             bool hasBounds = TryBounds(c, out Bounds b);
-            float pivotToTop = hasBounds ? (b.max.y - c.position.y) : 0f;
 
             // 잡은 컨테이너 긴 축 길이로 스프레더 텔레스코픽 자동 신축(20/40ft). 놓아도 유지.
             if ((telescope != null || rtgTele != null) && hasBounds)
@@ -237,10 +235,12 @@ namespace Container.Crane.Sts
                 if (debugLog) Debug.Log($"[Crane] 컨테이너 긴축 {longSide:F3}m → {(is40 ? "40ft" : "20ft")} 신축");
             }
 
-            attach.Attach(c);
-            Vector3 lp = c.localPosition;
-            lp.y -= pivotToTop;
-            c.localPosition = lp;
+            attach.Attach(c);   // 월드 자세 그대로 자식이 된다
+            // 수평은 트위스트락 중심에 맞춘다(플리퍼·가이드 역할 — 안착 게이트 통과면 오차 ≤ registerTolXZ). 회전은 그대로.
+            //   높이: 안착 정렬이면 윗면이 이미 콘 높이(±registerHoverTolY)라 두고, 게이트를 끈 근접 잡기면 윗면을 콘 높이로.
+            //   ※ 옛 코드는 부착점 '로컬' y 에서 월드 거리를 뺐다 — FBX RTG 부착점은 축변환·스케일 4.1667 이라
+            //     0.054u × 4.1667 = 0.225u 가 수평으로 튀었다(StsGrabProbe 실측 0.2249u).
+            if (hasBounds) c.position += new Vector3(gp.x - b.center.x, seated ? 0f : gp.y - b.max.y, gp.z - b.center.z);
 
             // 하강 바닥 한계를 '컨테이너 밑면' 기준으로 — 스프레더가 아니라 컨테이너가 바닥(y=0)에 닿고 멈추게.
             if (spreaderHoist != null && TryBounds(c, out Bounds held))

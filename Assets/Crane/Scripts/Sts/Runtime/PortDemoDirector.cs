@@ -140,7 +140,10 @@ namespace Container.Crane.Sts
                 float d = Distance(e, p);
                 if (d < bestD) { bestD = d; best = e; }
             }
-            bool locked = active != null && (active.ctrl.ControlActive || active.ctrl.CabView);
+            // 붙잡는 건 '운전 중'(조종·갠트리 모드 또는 운전실 시점)일 때만 — 이동모드로 걷는 중엔 조종 토글이 켜져 있어도 넘긴다.
+            //   옛 조건(ControlActive)은 STS 를 조종하다 B 로 이동모드로 바꿔 RTG 로 걸어가도 조종기가 STS 에 잠겨
+            //   RTG 를 조종할 수 없었다(2026-09-15 오너 보고 · RtgControlSmoke: RTG 발치 거리 0 인데 조종기 STS 유지).
+            bool locked = active != null && (active.ctrl.CabView || (active.ctrl.ControlActive && active.ctrl.CraneMode));
             if (!locked && best != active && (active == null || bestD + switchMarginMeters * StsConfig.ModelScale < Distance(active, p)))
                 Activate(best);
             activeNear = active != null && Distance(active, p) <= approachMeters * StsConfig.ModelScale;
@@ -148,8 +151,11 @@ namespace Container.Crane.Sts
 
         void Activate(Entry e)
         {
-            foreach (var x in cranes) if (x != e && x.ctrl.enabled) x.ctrl.enabled = false;   // 끄면 로코모션이 이동모드로 복구된다
+            bool control = active != null && active.ctrl.ControlActive;   // 걸어서 넘어가도 조종 토글(모드 HUD)은 이어받는다
+            foreach (var x in cranes)
+                if (x != e && x.ctrl.enabled) { x.ctrl.ControlActive = false; x.ctrl.enabled = false; }   // 끄면 로코모션이 이동모드로 복구된다
             e.ctrl.enabled = true;
+            e.ctrl.ControlActive = control;
             active = e;
             Debug.Log($"[PortDemo] 조종기 → {e.crane.name}");
         }

@@ -84,6 +84,15 @@ namespace Container.Crane.Sts
         {
             if (canvas == null || text == null) return;
 
+            // 조종기를 받는 크레인을 따라간다 — Start 에서 한 번 묶으면 RTG 를 조종해도 첫 크레인(STS) 상태·표시 여부를 보여 줬다.
+            var act = StsCraneVRController.Active;
+            if (act != null && act != controller)
+            {
+                controller = act;
+                var c = act.GetComponent<StsCrane>();
+                if (c != null && c != crane) Bind(c);
+            }
+
             // 조종모드일 때만 표시 — 컨트롤러의 CraneMode를 따른다(걷기/시점변경 모드면 숨김).
             //   컨트롤러를 못 찾으면(비VR/테스트 씬) 항상 표시(기존 동작 유지).
             if (controller == null) controller = FindController();
@@ -195,7 +204,7 @@ namespace Container.Crane.Sts
         string BuildText()
         {
             sb.Clear();
-            sb.AppendLine("<b><size=22>STS 크레인 상태</size></b>");
+            sb.AppendLine($"<b><size=22>{(crane != null && crane.GetComponent<RtgBogieSteering>() != null ? "RTG" : "STS")} 크레인 상태</size></b>");
             sb.AppendLine();
             if (crane == null)
             {

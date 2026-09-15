@@ -194,7 +194,9 @@ namespace Container.Crane.Sts.Net
         void SuppressController()
         {
             if (controllerSuppressed) return;
-            if (craneController == null) craneController = FindAnyObjectByType<StsCraneVRController>();
+            // 켜진 조종기(Active)를 막는다 — FindAnyObjectByType 은 크레인이 여러 대면 감독이 꺼 둔 RTG 조종기를 집기도 해서,
+            //   호스트 접속 때 그걸 강제로 켜 조종기가 두 대 켜졌다(2026-09-15 RtgControlSmoke: 시작 직후 Active=RTG 크레인_1).
+            if (craneController == null) craneController = StsCraneVRController.Active != null ? StsCraneVRController.Active : FindAnyObjectByType<StsCraneVRController>();
             if (craneController != null) { craneController.enabled = false; controllerSuppressed = true; }
         }
 

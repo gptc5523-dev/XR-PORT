@@ -33,8 +33,14 @@ namespace Container.Crane.Sts.EditorTools
 
         static void Approach(float elapsed)
         {
-            var ctrl = StsCraneVRController.Active;
-            if (ctrl == null) return;
+            // 대상 = 감독이 조종기를 준 크레인. 접속 전엔 접속 메뉴(CraneNetMenuHUD.cs:112 SuppressController)가 그 조종기를 꺼 둬
+            //   Active 가 빈다 — 2026-09-15 스모크 4차·합본 FAIL 의 원인(로그: '조종기 → STS_Crane' 1줄 뒤 접근 줄 없음).
+            //   그땐 감독의 첫 크레인(STS)으로 잡는다.
+            StsCrane crane = StsCraneVRController.Active != null ? StsCraneVRController.Active.GetComponent<StsCrane>() : null;
+            if (crane == null)
+                foreach (var sc in Object.FindObjectsByType<StsCrane>(FindObjectsSortMode.None))
+                    if (sc.GetComponent<RtgBogieSteering>() == null) { crane = sc; break; }
+            if (crane == null) return;
             var cam = Camera.main;
             if (cam == null)   // 배치 스모크엔 Camera.main 이 없을 수 있다(2026-09-15 접근 시험이 안 걸렸다) — 감독이 볼 카메라를 세운다
             {
@@ -47,10 +53,9 @@ namespace Container.Crane.Sts.EditorTools
             {
                 approachStarted = true;
                 rigHome = rig.position;
-                var c = ctrl.GetComponent<StsCrane>();
-                Vector3 at = c != null && c.Gantry is Component g ? g.transform.position : ctrl.transform.position;
+                Vector3 at = crane.Gantry is Component g ? g.transform.position : crane.transform.position;
                 rig.position += new Vector3(at.x - cam.transform.position.x, 0f, at.z - cam.transform.position.z);
-                Debug.Log($"[PortDemoSmoke] 접근 — 리그를 {ctrl.name} 발치로");
+                Debug.Log($"[PortDemoSmoke] 접근 — 리그를 {crane.name} 발치로");
             }
             else if (approachStarted && !approachEnded && elapsed >= ApproachAt + ApproachFor)
             {

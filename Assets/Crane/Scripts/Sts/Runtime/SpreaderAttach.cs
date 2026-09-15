@@ -44,15 +44,10 @@ namespace Container.Crane.Sts
             attachPoint = point;
         }
 
-        /// <summary>목표 월드 스케일을 부모 lossyScale로 역산해 로컬 스케일로. 0 나눗셈은 원값 유지.</summary>
-        static Vector3 LocalScaleFor(Vector3 targetWorld, Vector3 parentLossy) => new Vector3(
-            Mathf.Approximately(parentLossy.x, 0f) ? targetWorld.x : targetWorld.x / parentLossy.x,
-            Mathf.Approximately(parentLossy.y, 0f) ? targetWorld.y : targetWorld.y / parentLossy.y,
-            Mathf.Approximately(parentLossy.z, 0f) ? targetWorld.z : targetWorld.z / parentLossy.z);
-
         /// <summary>
         /// 컨테이너를 결합. 이미 잡고 있으면 무시(중복 잡기 방지).
-        /// 월드 크기는 보존한다 — 부착점 스케일(FBX RTG ≈4.1667)이 상속되지 않게.
+        /// 월드 자세(위치·회전·크기)를 그대로 둔 채 부착점 자식으로만 옮긴다 — 어디에 맞출지는 호출자가 정한다
+        /// (SpreaderGrabber 는 수평만 트위스트락 중심에, PLC 재생·시연 러너는 잰 자세 그대로).
         /// </summary>
         public bool Attach(Transform container)
         {
@@ -81,16 +76,11 @@ namespace Container.Crane.Sts
                 attachedBody.useGravity = false;
                 attachedBody.isKinematic = true;
             }
-            // 월드 크기 보존 — SetParent(worldPositionStays:false)는 localScale을 그대로 두므로
-            // 부착점 lossyScale이 1이 아니면 그대로 상속돼 컨테이너가 그만큼 팽창한다.
-            //   · STS 절차: 부착점 lossyScale=1 → 무해(그래서 여태 안 드러났다)
-            //   · FBX RTG: 스프레더 lossyScale≈4.1667 → 잡는 순간 20ft 6.06m가 25.2m로 부풀었다
-            // 잡기 전 월드 스케일을 그대로 재현하도록 로컬 스케일을 역산한다.
-            Vector3 worldScale = container.lossyScale;
-            container.SetParent(Point, worldPositionStays: false);
-            container.localPosition = Vector3.zero;
-            container.localRotation = Quaternion.identity;
-            container.localScale = LocalScaleFor(worldScale, Point.lossyScale);
+            // 월드 자세 보존 — 옛 코드는 localRotation 을 항등으로 덮어써, 회전된 부착점 밑에서 컨테이너가 같이 돌았다
+            //   (2026-09-15 오너 "컨테이너가 이상하게 잡혀", StsGrabProbe 실측):
+            //   · STS: 스프레더가 로컬 Y 90° → 잡는 순간 90° 돌아 긴 축 Z→X, 스프레더(긴 축 Z)와 엇갈려 매달림
+            //   · FBX RTG: 축변환 부모 → 컨테이너가 세워짐(긴 축 수직). 부착점 스케일(≈4.1667) 역산도 함께 필요 없어진다.
+            container.SetParent(Point, worldPositionStays: true);
             return true;
         }
 

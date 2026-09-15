@@ -306,9 +306,10 @@ namespace Container.Crane.Sts.Net
 
             var rb = target.GetComponent<Rigidbody>();
             if (rb != null) { rb.isKinematic = true; rb.useGravity = false; }
-            target.SetParent(anchor, worldPositionStays: false);
+            // 호스트 SpreaderAttach 와 같이 월드 회전·크기는 그대로(씬이 같아 호스트와 같은 자세) — 위치만 호스트 로컬 값으로.
+            //   옛 localRotation 항등은 회전된 부착점 밑에서 컨테이너를 90° 돌렸다(호스트 쪽 같은 버그, 2026-09-15).
+            target.SetParent(anchor, worldPositionStays: true);
             target.localPosition = grab.AttachLocal;
-            target.localRotation = Quaternion.identity;
             clientHeld = target;
         }
 

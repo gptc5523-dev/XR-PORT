@@ -86,7 +86,8 @@ namespace Container.Crane.Sts
         /// <summary>조종 중(운전 또는 갠트리)인지 — 이동모드면 false. 상태 HUD 표시 여부 판단에 사용.</summary>
         public bool CraneMode => mode != Mode.Move;
         /// <summary>조종 활성 여부 — 관찰(기본)이면 false. 오른쪽 스틱클릭으로 토글. 모드선택·조종 HUD·축 조종은 이게 true일 때만.</summary>
-        public bool ControlActive => controlActive;
+        /// PortDemoDirector 가 조종기를 다른 크레인으로 넘길 때 토글을 이어받게 쓴다(이동모드에서만 넘기므로 운전실 시점 정리는 필요 없다).
+        public bool ControlActive { get => controlActive; set => controlActive = value; }
 
         int selectedIndex;   // 스틱이 가리키는 후보(0..2). B를 눌러야 mode로 확정됨.
 
