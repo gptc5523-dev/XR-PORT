@@ -134,7 +134,8 @@ namespace Container.Crane.Sts.EditorTools
             foreach (int n in placedBy.Values) if (n >= 2 * CraneDemoRunner.Count) done++;   // 옮기고 되돌리기까지 — 두 방향 다
             bool finished = planned > 0 && done >= planned && approachEnded;
             if (!finished && ourExceptions == 0 && elapsed < LimitSeconds) return;
-            bool pass = finished && ourExceptions == 0 && CraneDemoRunner.Violations == 0 && holds > 0 && resumes > 0;
+            float ringErr = PortDemoDirector.RingMaxErrM();
+            bool pass = finished && ourExceptions == 0 && CraneDemoRunner.Violations == 0 && holds > 0 && resumes > 0 && ringErr <= 0.1f;
 
             var parts = new List<string>();
             foreach (var kv in placedBy) parts.Add($"{kv.Key}={kv.Value}");
@@ -142,7 +143,7 @@ namespace Container.Crane.Sts.EditorTools
                       $"막힘 {stalls}, 접근 멈춤 {holds} · 재개 {resumes}, 시나리오 예외 {ourExceptions}, 기타 예외 {otherExceptions}, {elapsed:F0}s(×{TimeScale}) | " +
                       $"검증 실패 {CraneDemoRunner.Violations} · 집기 정렬 최대 {CraneDemoRunner.MaxPickErrM:F3}m(≤0.36) · " +
                       $"안착 오차 최대 {CraneDemoRunner.MaxSupportErrM:F3}m(≤0.02) · 속도/정격 최대 {CraneDemoRunner.MaxSpeedRatio:F3}(≤1) · " +
-                      $"가속/트립 최대 {CraneDemoRunner.MaxAccelRatio:F2}(한 틱 ≤1.2)");
+                      $"가속/트립 최대 {CraneDemoRunner.MaxAccelRatio:F2}(한 틱 ≤1.2) · 접근 띠 경계 오차 최대 {ringErr:F3}m(≤0.1)");
             EditorApplication.update -= Tick;
             Application.logMessageReceived -= OnLog;
             EditorPrefs.SetBool(PortDemoDirector.EditorPrefKey, SessionState.GetBool(PrevKey, false));
