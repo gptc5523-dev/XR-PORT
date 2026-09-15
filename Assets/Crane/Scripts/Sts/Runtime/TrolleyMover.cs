@@ -55,6 +55,10 @@ namespace Container.Crane.Sts
         [Header("장애물 정지 (충돌방지)")]
         [Tooltip("이동 경로에 컨테이너 등 장애물이 있으면 그 방향 이동을 멈춘다(밀지 않음).")]
         [SerializeField] bool stopOnObstacle = true;
+
+        /// <summary>장애물 정지 on/off — 자동 시나리오는 끈다(GantryMover.StopOnObstacle 과 같은 이유). 감지 박스가 스프레더 원점
+        /// ±(0.04, 0.06, 0.06)u 고정이라, 컨테이너 윗면 바로 위에서 트롤리를 조금만 움직여도 그 컨테이너를 장애물로 본다.</summary>
+        public bool StopOnObstacle { get => stopOnObstacle; set => stopOnObstacle = value; }
         [Tooltip("장애물 감지 여유 거리(m).")]
         [SerializeField] float obstacleSkin = 0.03f;
         [Tooltip("감지 박스 반크기(m) — 매달린 스프레더/컨테이너 대략 크기.")]

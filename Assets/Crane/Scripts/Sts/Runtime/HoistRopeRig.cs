@@ -47,6 +47,9 @@ namespace Container.Crane.Sts
                 topAnchors.Length != ropes.Length || botAnchors.Length != ropes.Length) return;
 
             float botY = spreader.localPosition.y + attachOffsetY;
+            // 흔들림 노드(CraneSway)가 끼어 있으면 로프 하단이 스프레더를 따라 수평으로 옮겨간다 — 노드는 이 좌표계(spreaderRoot)의 자식
+            var sn = spreader.parent;
+            Vector3 sway = sn != null && sn.name == CraneSway.NodeName ? sn.localPosition : Vector3.zero;
 
             for (int i = 0; i < ropes.Length; i++)
             {
@@ -54,7 +57,7 @@ namespace Container.Crane.Sts
                 if (r == null) continue;
                 // 상단(트롤리)≠하단(스프레더) → 각진 로프. 실린더(축 Y, 높이 2)를 두 점 사이로 회전·신축.
                 Vector3 top = new Vector3(topAnchors[i].x, topY, topAnchors[i].y);
-                Vector3 bot = new Vector3(botAnchors[i].x, botY, botAnchors[i].y);
+                Vector3 bot = new Vector3(botAnchors[i].x + sway.x, botY, botAnchors[i].y + sway.z);
                 Vector3 dir = top - bot;
                 float len = dir.magnitude;
                 r.localPosition = (top + bot) * 0.5f;

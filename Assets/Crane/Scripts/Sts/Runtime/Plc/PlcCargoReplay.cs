@@ -218,7 +218,13 @@ namespace Container.Crane.Sts.Plc
             return go;
         }
 
-        Vector3 GrabPointNow() => grabber != null ? grabber.GrabPoint() : ((Component)crane.Spreader).transform.position;
+        // 흔들림(CraneSway)을 뺀 트위스트락 중심 — 컨테이너 자리는 흔들리지 않은 PLC 자세 기준이다.
+        Vector3 GrabPointNow()
+        {
+            var s = CraneSway.Of(crane);
+            return (grabber != null ? grabber.GrabPoint() : ((Component)crane.Spreader).transform.position)
+                   - (s != null ? s.Offset : Vector3.zero);
+        }
 
         float SpreaderBottomY()
         {
