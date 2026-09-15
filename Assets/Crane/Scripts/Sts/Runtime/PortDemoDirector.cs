@@ -79,6 +79,13 @@ namespace Container.Crane.Sts
             return max / StsConfig.ModelScale;
         }
 
+        // 관전자('참가'로 접속) — 오너 2026-09-16 "운전은 호스트만". 미접속·싱글·스모크는 그대로 조종된다(접속 전은 메뉴가 입력을 막는다).
+        //   CraneNetSync 는 접속 순간 크레인 한 대의 조종기만 끄고, 걸어서 다른 크레인으로 넘기면 여기서 다시 켜서 관전자도 운전이 됐다.
+        static bool Spectator
+        {
+            get { var nm = Unity.Netcode.NetworkManager.Singleton; return nm != null && nm.IsClient && !nm.IsServer; }
+        }
+
         static bool IsRtg(StsCrane c) => c.GetComponent<RtgBogieSteering>() != null;   // RTG 는 보기 조향이 붙어 있다
 
         void Awake() => inst = this;
@@ -154,6 +161,12 @@ namespace Container.Crane.Sts
             }
             if (cranes.Count == 0 || Time.unscaledTime < nextSelect) return;
             nextSelect = Time.unscaledTime + selectInterval;
+            bool spectator = Spectator;
+            foreach (var e in cranes)
+            {
+                e.ring.enabled = !spectator;   // 범위 띠도 운전하는 사람(호스트·싱글)에게만
+                if (spectator && e.ctrl.enabled) { e.ctrl.ControlActive = false; e.ctrl.enabled = false; }   // 접속 순간 켜져 있던 것까지 — 끄면 로코모션이 이동모드로 복구된다
+            }
             var cam = Camera.main;
             if (cam == null) { activeNear = false; return; }
 
@@ -179,7 +192,7 @@ namespace Container.Crane.Sts
             bool control = active != null && active.ctrl.ControlActive;   // 걸어서 넘어가도 조종 토글(모드 HUD)은 이어받는다
             foreach (var x in cranes)
                 if (x != e && x.ctrl.enabled) { x.ctrl.ControlActive = false; x.ctrl.enabled = false; }   // 끄면 로코모션이 이동모드로 복구된다
-            e.ctrl.enabled = true;
+            e.ctrl.enabled = !Spectator;   // 관전자는 가까운 크레인이 바뀌어도 조종기를 안 켠다
             e.ctrl.ControlActive = control;
             active = e;
             Debug.Log($"[PortDemo] 조종기 → {e.crane.name}");
