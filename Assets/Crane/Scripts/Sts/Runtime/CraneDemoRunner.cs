@@ -78,11 +78,21 @@ namespace Container.Crane.Sts
         bool stalled, auto, started, pusherWas, stopWas;
         int placed;
 
-        static float Lift => SeatLiftMeters * StsConfig.ModelScale;
+        static float Lift => SeatLiftMeters * StsConfig.ModelScale;   // 놓을 때만 쓰는 여유(받침 윗면 위)
+
+        // 집는 자세의 '콘 바닥 − 컨테이너 윗면' (+ 띄움 / − 박힘). 수동 집기와 같은 자세로 앉힌다 —
+        //   그랩버가 기하에서 유도한 삽입 깊이(SpreaderGrabber.InsertDepthMeters, 크레인마다 다르다)만큼 콘을 박는다.
+        //   ★ 종전엔 늘 +SeatLift(윗면 20mm 위)라, 수동 집기를 고쳐도 자동 시연에서는 락이 컨테이너에 안 들어갔다
+        //     (오너 2026-09-16 "스프레더 락이 컨테이너 안으로 안 들어간다"). 상수를 박지 않으므로 그랩버 값이 바뀌면 따라간다.
+        //   ★ 클램프와 결합: 이 목표는 빈 스프레더 통과방지 한계(받침 윗면 − InsertU, fdf56d4)에 '정확히' 얹힌다.
+        //     옛 +20mm 는 그 한계(당시 받침 윗면)보다 위로 피하려던 값이었다. 클램프 기준이 부착점 쪽으로 되돌아가면
+        //     이 목표가 한계 아래가 되어 러너는 앉지 못하고 매 틱 밀리다 '막힘'으로 빠진다 — 둘은 같이 바뀌어야 한다.
+        float SeatGapM => grabber != null ? -grabber.InsertDepthMeters : SeatLiftMeters;
+        float SeatGapU => SeatGapM * StsConfig.ModelScale;
 
         // ── 검증 — 수식으로 세운 불변식을 작업마다 잰다. 위반은 "[PortDemo] 검증 실패" 경고, 스모크(PortDemoMenu)가 센다.
         //   ① 집기 정렬: 트위스트락 중심(SpreaderGrabber.GrabPoint — 러너 식과 따로 잰다) ↔ 윗면 중심 수평거리 ≤ 0.36m
-        //      (= 수동 잠금 허용 registerTolXZ 0.015u × 24), 콘 바닥 − 윗면 = SeatLift ± 1cm
+        //      (= 수동 잠금 허용 registerTolXZ 0.015u × 24), 콘 바닥 − 윗면 = SeatGap(= −삽입깊이) ± 1cm
         //   ② 안착: 옮긴 밑면 = max(땅 윗면, 발밑 컨테이너 윗면) ± 2cm — 공중에 뜨거나 파묻히지 않는다
         //   ③ 겹침·경로: 놓은 자리와 운반 경로가 다른 컨테이너를 1cm 넘게 파고들지 않는다.
         //      경로 = 시작·끝 바운즈의 합 — 주행·횡행이 축마다 단조(사다리꼴, 되돌아가지 않음)라 실제 궤적을 감싼다.
@@ -216,7 +226,7 @@ namespace Container.Crane.Sts
                 yield return Align(seat);               if (Cut()) yield break;
                 Pick(j);
             }
-            float hang = drop + Lift + j.size.y;   // 부착점 → 든 컨테이너 밑면
+            float hang = drop + SeatGapU + j.size.y;   // 부착점 → 든 컨테이너 밑면(집은 자세 그대로 매달림)
             yield return Hoist(clearTopY + hang);       if (Cut()) yield break;
             bool haveFrom = TryBounds(j.box, out var path);
             yield return Travel(dest);                  if (Cut()) yield break;
@@ -450,8 +460,8 @@ namespace Container.Crane.Sts
             float dxz = new Vector2(gp.x - b.center.x, gp.z - b.center.z).magnitude / StsConfig.ModelScale;
             float gap = (SpreaderBottomY() - b.max.y) / StsConfig.ModelScale;
             MaxPickErrM = Mathf.Max(MaxPickErrM, dxz);
-            if (dxz > PickTolM || Mathf.Abs(gap - SeatLiftMeters) > SeatTolM)
-                Fail($"집기 정렬 {box.name} — 트위스트락↔윗면 중심 {dxz:F3}m(≤{PickTolM}), 콘 바닥−윗면 {gap:F3}m(목표 {SeatLiftMeters}±{SeatTolM})");
+            if (dxz > PickTolM || Mathf.Abs(gap - SeatGapM) > SeatTolM)
+                Fail($"집기 정렬 {box.name} — 트위스트락↔윗면 중심 {dxz:F3}m(≤{PickTolM}), 콘 바닥−윗면 {gap:F3}m(목표 {SeatGapM:F3}±{SeatTolM})");
         }
 
         // ②③ 놓은 직후 — 옮긴 자리는 받침(땅·발밑 컨테이너 윗면)에 닿았나, 어디서든 다른 컨테이너를 파고들지 않았나.
@@ -583,7 +593,7 @@ namespace Container.Crane.Sts
                     if (AnyOverlap(slot, site.occupied, skin)) continue;
                     if (Physics.CheckBox(slot.center + Vector3.up * (j.size.y * 0.05f), j.size * 0.45f,
                                          Quaternion.identity, ~0, QueryTriggerInteraction.Ignore)) continue;
-                    if (!Reach(bottom + Vector3.up * (j.size.y + Lift + drop + Lift))) continue;   // 놓기 직전 부착점
+                    if (!Reach(bottom + Vector3.up * (j.size.y + Lift + drop + SeatGapU))) continue;   // 놓기 직전 부착점
                     site.occupied.Add(slot);
                     j.away = bottom;
                     return true;
@@ -607,8 +617,8 @@ namespace Container.Crane.Sts
             lo = Mathf.Min(p, q); hi = Mathf.Max(p, q);
         }
 
-        // 집을 때 부착점이 갈 곳 — 윗면 중심에서 콘 바닥이 SeatLift 위에 오게
-        Vector3 Seat(Bounds b) => new Vector3(b.center.x, b.max.y + Lift + drop, b.center.z);
+        // 집을 때 부착점이 갈 곳 — 윗면 중심에서 콘 바닥이 SeatGap 만큼(= 삽입깊이만큼 아래로) 오게
+        Vector3 Seat(Bounds b) => new Vector3(b.center.x, b.max.y + SeatGapU + drop, b.center.z);
 
         // 흔들림을 뺀 부착점 — 계획·주행 목표는 흔들리지 않은 크레인 기하로 잡는다(실제 화물 맞춤은 Align 이 한다).
         Vector3 Anchor()
