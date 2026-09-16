@@ -150,7 +150,11 @@ namespace Container.Crane.Sts
             {
                 string cursor = (i == sel) ? "▸ " : "   ";
                 string line = $"{cursor}{i + 1}. {names[i]}";
-                string activeTag = (i == cur) ? "  <color=#7FFF7F>● 현재</color>" : "";
+                // 동그라미만 뺀다(오너 2026-09-16 "동그라미 없애 · 디자인도 깨지고") — 라벨 '현재'는 남긴다.
+                //   이 패널에서 ▸(위)와 청록 굵게(아래)는 둘 다 sel(스틱 후보)을 표시하고, cur(적용된 모드)를 표시하는 건 이 태그 하나뿐이다.
+                //   태그를 통째로 지우면 적용 모드 표시가 사라진다 — 중복 제거가 아니라 정보 삭제. (상태판 한 줄 탭의 ● 는 굵게+청록과
+                //   중복이라 93ddf29 에서 글리프만 지웠고, 여기는 같은 이유로 글리프만 지운다.)
+                string activeTag = (i == cur) ? "  <color=#7FFF7F>현재</color>" : "";
                 if (i == sel)
                     sb.AppendLine($"<color=#5FE0FF><b>{line}</b></color>{activeTag}");   // 후보 = 청록 강조
                 else
