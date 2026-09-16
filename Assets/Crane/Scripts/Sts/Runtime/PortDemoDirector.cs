@@ -164,7 +164,7 @@ namespace Container.Crane.Sts
             bool spectator = Spectator;
             foreach (var e in cranes)
             {
-                e.ring.enabled = !spectator;   // 범위 띠도 운전하는 사람(호스트·싱글)에게만
+                e.ring.enabled = !spectator;   // 범위 띠도 운전하는 사람(호스트·싱글)에게만 — 카메라가 아직 없어 아래 판정이 건너뛰는 프레임까지 덮는다
                 if (spectator && e.ctrl.enabled) { e.ctrl.ControlActive = false; e.ctrl.enabled = false; }   // 접속 순간 켜져 있던 것까지 — 끄면 로코모션이 이동모드로 복구된다
             }
             var cam = Camera.main;
@@ -187,7 +187,7 @@ namespace Container.Crane.Sts
             // 운전 중(조종·갠트리 모드 또는 운전실 시점)엔 접근 띠를 숨긴다 — 오너 지시 2026-09-16 "반경표시는 운전할 때 숨겨야지".
             foreach (var e in cranes)
             {
-                e.ring.enabled = !locked;
+                e.ring.enabled = !locked && !spectator;   // ★ !spectator 필수 — 이 줄이 위 관전자 판정보다 뒤라, 빼면 매 프레임 덮어써서 관전자에게 띠가 되살아난다(오너 재보고 2026-09-16 "참가는 라인 지우라니까")
                 e.ring.startColor = e.ring.endColor = e == active && activeNear ? RingInside : RingIdle;
             }
         }
