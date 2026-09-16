@@ -21,8 +21,14 @@ namespace Container.Crane.Sts.EditorTools
     {
         const string Key = "StsGrabProbe", PrevKey = "StsGrabProbe.Prev", ScenePath = "Assets/Scenes/Port.unity";
         const float TolXZ = 0.015f, TolY = 0.003f, LiftU = 0.05f;
+        // 오너 2026-09-16 "락 거는 부분이 컨테이너 안으로 안 들어가" — 케이스 2종으로 나눠 잰다.
+        //   · 호버(HoverM 위에서 Y 누름): 잠기면 실패. 공중 체결은 실물에 없다.
+        //   · 안착(통과방지 클램프가 멈추는 데까지 내림): 잠겨야 하고, 콘이 InsertDepthMeters ± InsertBandM 만큼 박혀야 한다.
+        //   · 과하강(OverdriveM 아래까지 밀어 내림): 통과방지 클램프가 삽입깊이에서 멈춰 세워야 한다. 안 멈추면 콘이 컨테이너를 뚫는다.
+        const float HoverM = 0.2f, OverdriveM = 0.2f, InsertBandM = 0.02f;
 
-        struct Case { public StsCrane crane; public SpreaderGrabber grabber; public Transform box; }
+        // targetOffM = 콘 바닥을 컨테이너 윗면 대비 어디로 보낼지(실척 m, + 위 / − 아래). 최종 높이는 클램프가 정할 수 있다.
+        struct Case { public StsCrane crane; public SpreaderGrabber grabber; public Transform box; public float targetOffM; public bool expectLock; }
         static readonly List<Case> cases = new List<Case>();
         static int idx, phase, fails, measured, skipped;
         static float waitUntil;
@@ -70,20 +76,25 @@ namespace Container.Crane.Sts.EditorTools
             var c = cases[idx];
             switch (phase)
             {
-                case 1:   // 트위스트락 중심을 윗면 중심에
+                case 1:   // 수평은 트위스트락 중심을 윗면 중심에, 높이는 '콘 바닥'을 목표로(원점이 아니라 실측 기하)
                     CraneDemoRunner.TryBounds(c.box, out before);
                     rotBefore = c.box.rotation; posBefore = c.box.position; parentBefore = c.box.parent;
                     var rb = c.box.GetComponent<Rigidbody>(); kinBefore = rb != null && rb.isKinematic;
-                    Vector3 d = Top(before) - c.grabber.GrabPoint();
+                    Vector3 gp1 = c.grabber.GrabPoint();
+                    float targetConeY = before.max.y + c.targetOffM * StsConfig.ModelScale;
+                    Vector3 d = new Vector3(Top(before).x - gp1.x,
+                                            targetConeY - BottomY(c.crane, null, cones: true),
+                                            Top(before).z - gp1.z);
                     MoveBy(c.crane.Gantry, new Vector3(d.x, 0f, d.z));
                     MoveBy(c.crane.Trolley, new Vector3(d.x, 0f, d.z));
                     MoveBy(c.crane.Spreader, new Vector3(0f, d.y, 0f));
-                    phase = 2; Wait(0.3f); return;
-                case 2:   // 닿았으면 잡기
-                    float miss = (Top(before) - c.grabber.GrabPoint()).magnitude;
-                    if (miss > 0.005f)
+                    phase = 2; Wait(0.4f); return;   // 통과방지 클램프가 되밀어 정착할 시간
+                case 2:   // 수평이 맞았으면 잡기(높이는 클램프가 정한 그대로)
+                    Vector3 gp2 = c.grabber.GrabPoint();
+                    float missXZ = new Vector2(Top(before).x - gp2.x, Top(before).z - gp2.z).magnitude;
+                    if (missXZ > 0.005f)
                     {
-                        Debug.Log($"[StsGrabProbe] 건너뜀 {c.crane.name} {c.box.name} — 트위스트락이 윗면 중심에 못 감(남은 {miss:F4}u)");
+                        Debug.Log($"[StsGrabProbe] 건너뜀 {c.crane.name} {c.box.name} — 트위스트락이 윗면 중심에 못 감(수평 {missXZ:F4}u)");
                         skipped++; idx++; phase = 1; return;
                     }
                     c.grabber.Grab();
@@ -106,6 +117,23 @@ namespace Container.Crane.Sts.EditorTools
 
         static Vector3 Top(Bounds b) => new Vector3(b.center.x, b.max.y, b.center.z);
 
+        // SpreaderGrabber.Awake 와 똑같은 이름 규약으로 모은 콘 — RTG 에서 0개면 그랩버가 콘을 못 찾는다는 증거.
+        static List<Transform> Cones(StsCrane crane) => crane.GetComponentsInChildren<Transform>(true)
+            .Where(t => t.name.StartsWith("Twistlock_Cone") || t.name.StartsWith("Spreader_Twistlock_"))   // Span() 과 같은 규약(Numbered 접미사 포함)
+            .ToList();
+
+        // 렌더러 실측 최저점 — held(매단 컨테이너) 렌더러는 뺀다. cones=true 면 규약 일치 콘만, false 면 스프레더 전체.
+        static float BottomY(StsCrane crane, Transform held, bool cones)
+        {
+            var roots = cones ? Cones(crane) : new List<Transform> { ((Component)crane.Spreader).transform };
+            float y = float.MaxValue;
+            foreach (var root in roots)
+                foreach (var r in root.GetComponentsInChildren<Renderer>())
+                    if (held == null || !r.transform.IsChildOf(held)) y = Mathf.Min(y, r.bounds.min.y);
+            if (y == float.MaxValue && cones) return BottomY(crane, held, cones: false);   // 콘 미탐색 폴백 — 러너 SpreaderBottomY 와 같은 식
+            return y;
+        }
+
         static void MoveBy(IAxisMover a, Vector3 d)
         {
             if (a == null) return;
@@ -126,8 +154,13 @@ namespace Container.Crane.Sts.EditorTools
             bool longZ = hb.size.z > hb.size.x, longZBefore = before.size.z > before.size.x;
             Span(c.crane, out float spanX, out float spanZ);
             bool spreaderLongZ = spanZ > spanX;
-            bool ok = same && dxz <= TolXZ && rot < 1f && longZ == longZBefore
-                   && (stage != "잡음" || (jumpXZ <= TolXZ && Mathf.Abs(dTop) <= TolY));
+            // 삽입 = 윗면 − 콘 바닥(실척 m, 양수 = 박힘). 잠긴 케이스는 밴드 안이어야, 호버 케이스는 애초에 안 잠겨야 정상.
+            float insertM = (hb.max.y - BottomY(c.crane, c.box, cones: true)) / StsConfig.ModelScale;
+            bool band = Mathf.Abs(insertM - c.grabber.InsertDepthMeters) <= InsertBandM;
+            bool ok = c.expectLock
+                ? same && band && dxz <= TolXZ && rot < 1f && longZ == longZBefore
+                  && (stage != "잡음" || (jumpXZ <= TolXZ && Mathf.Abs(dTop) <= TolY))
+                : !same;
             measured++;
             if (!ok) fails++;
             Debug.Log($"[StsGrabProbe] {(ok ? "OK " : "BAD")} {stage} {c.crane.name} {c.box.name} — 잡힘 {same}" +
@@ -135,6 +168,15 @@ namespace Container.Crane.Sts.EditorTools
                       $"트위스트락↔중심 {dxz:F4}u, 튄 거리 수평 {jumpXZ:F4}u·윗면 {dTop:+0.0000;-0.0000}u, 회전 {rot:F1}°, " +
                       $"컨테이너 긴축 {(longZ ? "Z" : "X")}(전 {(longZBefore ? "Z" : "X")}) {Mathf.Max(hb.size.x, hb.size.z):F3}u, " +
                       $"스프레더 긴축 {(spreaderLongZ ? "Z" : "X")} 콘 간격 {Mathf.Max(spanX, spanZ):F3}u");
+
+            // 오너 2026-09-16 "락 거는 부분이 컨테이너 안으로 안 들어가" — 콘이 실제로 박혔는지 실측.
+            //   삽입 = 윗면 y − 콘 바닥 y (양수 = 그만큼 박힘, 음수 = 그만큼 떠 있음). 콘 기준·스프레더 기준을 같이 찍어 어느 쪽을 써야 할지 본다.
+            float coneB = BottomY(c.crane, c.box, cones: true), spB = BottomY(c.crane, c.box, cones: false);
+            float apY = c.crane.Attach.AttachAnchor.position.y;
+            Debug.Log($"[StsGrabProbe] 삽입 {stage} {c.crane.name} {c.box.name} — 윗면 {hb.max.y:F4}u, " +
+                      $"콘바닥 {(coneB < float.MaxValue ? $"{coneB:F4}u 삽입 {(hb.max.y - coneB) / StsConfig.ModelScale * 1000f:+0;-0}mm(실척)" : "없음(콘 미탐색)")}, " +
+                      $"스프레더최저 {spB:F4}u 삽입 {(hb.max.y - spB) / StsConfig.ModelScale * 1000f:+0;-0}mm, " +
+                      $"부착점 {apY:F4}u(윗면대비 {(hb.max.y - apY) / StsConfig.ModelScale * 1000f:+0;-0}mm), GrabPoint y {gp.y:F4}u");
         }
 
         // 트위스트락 콘들의 월드 X·Z 벌어짐 — SpreaderGrabber 와 같은 이름 규약
@@ -190,7 +232,12 @@ namespace Container.Crane.Sts.EditorTools
                 var chosen = rtg
                     ? new[] { picks.FirstOrDefault(t => t.name.StartsWith("Cont40")), picks.FirstOrDefault(t => t.name.StartsWith("Cont20")) }.Where(t => t != null)
                     : picks.Where((t, i) => i % 3 == 0).Take(4);
-                foreach (var t in chosen) cases.Add(new Case { crane = crane, grabber = g, box = t });
+                foreach (var t in chosen)
+                {
+                    cases.Add(new Case { crane = crane, grabber = g, box = t, targetOffM = HoverM, expectLock = false });                       // 공중 — 안 잠겨야
+                    cases.Add(new Case { crane = crane, grabber = g, box = t, targetOffM = -g.InsertDepthMeters, expectLock = true });          // 삽입 자세 — 잠겨야
+                    cases.Add(new Case { crane = crane, grabber = g, box = t, targetOffM = -OverdriveM, expectLock = true });                   // 과하강 — 클램프가 삽입깊이에서 세워야
+                }
                 Debug.Log($"[StsGrabProbe] {crane.name}: 후보 {picks.Count}개 중 {chosen.Count()}개 검사");
             }
         }

@@ -37,11 +37,15 @@ namespace Container.Crane.Sts
         [Tooltip("동심 정렬 수평 허용오차(m) — 스프레더(트위스트락 평균) 중심이 컨테이너 중심에서 이 거리 안일 때만. " +
                  "사이즈가 자동 정합되므로 이 값 이내면 콘 4개가 코너캐스팅 위에 놓인다. 0.015≈가이드 정합(실척 ~36cm).")]
         [SerializeField] float registerTolXZ = 0.015f;
-        [Tooltip("안착 높이 허용오차(m) — 콘 끝이 컨테이너 윗면보다 이만큼 위로 떠 있어도 허용(호버 여유). 그 이상 높으면 미정렬.")]
-        [SerializeField] float registerHoverTolY = 0.015f;
-        [Tooltip("콘 끝이 윗면 아래로 내려가도 되는 최대 깊이 = 컨테이너 높이 × 이 비율. " +
-                 "이보다 더 깊으면 '옆면으로 깊숙이 들어온 것'으로 보고 안착 불인정(측면 잠금 방지).")]
-        [SerializeField, Range(0.1f, 0.5f)] float seatDepthFrac = 0.45f;
+        // 옛 높이 밴드 knob 2개 삭제(2026-09-16) — 콘 트랜스폼 원점을 콘 끝으로 착각한 식이라 값 자체가 의미가 없었다.
+        //   registerHoverTolY = 0.015u(실척 360mm 공중 체결 허용), seatDepthFrac = 0.45(실척 1.16m 침투 허용).
+        //   이제 삽입 밴드는 insertMeters × [InsertMinFrac, InsertMaxFrac] 하나로 정해진다(실측 ConeBottomY 기준).
+
+        [Tooltip("트위스트락 콘이 컨테이너 코너캐스팅 안으로 박히는 깊이(실척 m). ISO1161 상면 홀 상판 두께(≈16mm)+여유 — " +
+                 "콘 바닥이 컨테이너 윗면보다 이만큼 아래로 들어간 상태가 '체결'이다. 오너 2026-09-16 '락 거는 부분이 컨테이너 안으로 안 들어가'.")]
+        [SerializeField] float insertMeters = 0.04f;
+        /// <summary>콘 삽입 깊이(실척 m) — 프로브·검사가 같은 값을 쓰게 공개.</summary>
+        public float InsertDepthMeters => insertMeters;
 
         [Header("통과 방지")]
         [SerializeField] bool blockPassThrough = true;
@@ -146,12 +150,16 @@ namespace Container.Crane.Sts
 
         void Refresh()
         {
-            // 크레인 자신(스프레더/부착된 화물 포함) 아래의 강체는 제외 — 외부 자유 강체만 후보.
+            // 강체 전부를 담는다 — '크레인 자식 제외'는 스캔 때가 아니라 쓰는 쪽(FindNearest·통과방지 루프)에서 매 틱 건다.
+            //   ★ 스캔 때 걸러내면 그 순간 매달려 있던 컨테이너가 목록에서 빠지고, 놓은 뒤에도 다음 재스캔(MinRescanInterval 3초)
+            //     까지 안 돌아온다 → 통과방지가 그 컨테이너를 못 보고 빈 스프레더가 그대로 관통한다.
+            //     2026-09-16 StsGrabProbe 실측: 과하강 케이스 8건 중 3건이 삽입 40mm 에서 안 멈추고 200mm 까지 내려갔고,
+            //     그 구간엔 PASS/clamp 엣지가 아예 없었다(over=false). 재생·시연이 방금 놓은 컨테이너에도 같은 구멍이 생긴다.
             // 버퍼(bodies)를 비우고 다시 채워 매 갱신 새 List/배열 할당을 피한다(주기적 GC 절감).
             var all = FindObjectsByType<Rigidbody>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
             bodies.Clear();
             foreach (var rb in all)
-                if (rb != null && !rb.transform.IsChildOf(transform)) bodies.Add(rb);
+                if (rb != null) bodies.Add(rb);
             nextRefresh = Time.time + Mathf.Max(refreshInterval, MinRescanInterval);
         }
 
@@ -167,11 +175,40 @@ namespace Container.Crane.Sts
             return AttachPoint != null ? AttachPoint.position : transform.position;
         }
 
+        /// <summary>콘 바닥(스프레더 최저 기하)의 월드 Y — 매단 컨테이너 렌더러는 뺀다.
+        /// 트랜스폼 원점은 콘 끝이 아니다(2026-09-16 실측: 절차 STS 는 원점=콘끝이지만 FBX RTG 는 원점이 콘끝보다 137mm 위).
+        /// 그래서 잡기·통과방지 기준은 원점이 아니라 이 실측값을 쓴다 — CraneDemoRunner.SpreaderBottomY 와 같은 식.</summary>
+        public float ConeBottomY()
+        {
+            Transform held = crane != null && crane.Attach != null ? crane.Attach.AttachedContainer : null;
+            float y = float.MaxValue;
+            if (twistlocks != null)
+                foreach (var t in twistlocks)
+                    if (t != null)
+                        foreach (var r in t.GetComponentsInChildren<Renderer>())
+                            if (held == null || !r.transform.IsChildOf(held)) y = Mathf.Min(y, r.bounds.min.y);
+            if (y < float.MaxValue) return y;
+
+            var sp = crane != null ? (crane.Spreader as Component) : null;   // 콘 미탐색 폴백 — 스프레더 최저 렌더러
+            if (sp == null) return AttachPoint != null ? AttachPoint.position.y : transform.position.y;
+            y = sp.transform.position.y;
+            foreach (var r in sp.GetComponentsInChildren<Renderer>())
+                if (held == null || !r.transform.IsChildOf(held)) y = Mathf.Min(y, r.bounds.min.y);
+            return y;
+        }
+
+        /// <summary>콘 삽입 깊이(모델 단위).</summary>
+        float InsertU => insertMeters * StsConfig.ModelScale;
+
+        // 체결 인정 삽입 밴드 = InsertU × [최소, 최대]. 클램프가 정확히 InsertU 에 세워 주므로 이 밴드는 여유값이다
+        //   — 위(공중 체결)와 아래(옆면으로 깊숙이 파고든 상태)를 모두 거른다.
+        const float InsertMinFrac = 0.25f, InsertMaxFrac = 2f;
+
         // 빈 스프레더가 컨테이너 c의 상단 코너캐스팅 위에 '안착 정렬'됐는지. gp=트위스트락 콘 평균(잡기 기준점).
         //   · 수평(dXZ): gp가 컨테이너 중심 XZ에서 registerTolXZ 이내 → 동심. 집기 시 텔레스코픽이 사이즈를
         //     자동 정합하므로(20/40ft 혼합 야드), 동심이면 콘 4개가 4개 코너캐스팅 위에 놓인다.
-        //   · 높이(gap=콘끝Y−윗면Y): 윗면보다 registerHoverTolY 위까지(호버 여유) ~ 윗면 아래 (높이×seatDepthFrac)
-        //     까지(안착). 더 높으면 공중, 더 깊으면 옆면 깊숙이 진입 → 미정렬.
+        //   · 높이(gap=콘 바닥Y−윗면Y, ConeBottomY 실측): 콘이 insertMeters×[InsertMinFrac, InsertMaxFrac] 만큼
+        //     '박혀 있을 때'만 체결. gap>0(공중)·너무 깊음(옆면 진입) 모두 거부. 통과방지가 정확히 insertMeters 에서 세워 준다.
         //   사이즈를 별도 검사하지 않는 이유: 자동 신축이 정합하므로 동심+안착이 곧 코너 정렬과 동치.
         bool IsSeatedOver(Transform c, Vector3 gp, out float dXZ, out float gap)
         {
@@ -179,11 +216,14 @@ namespace Container.Crane.Sts
             if (!TryBounds(c, out Bounds b)) return false;
             float dx = gp.x - b.center.x, dz = gp.z - b.center.z;
             dXZ = Mathf.Sqrt(dx * dx + dz * dz);
-            gap = gp.y - b.max.y;
-            float seatDepthMax = b.size.y * seatDepthFrac;
+            // gap = 콘 바닥 − 윗면(음수 = 그만큼 박힘). 실측 기하로 재야 한다 — 옛 코드는 gp.y(콘 트랜스폼 원점 평균)를
+            //   콘 끝으로 썼고, 그래서 원점이 콘끝보다 137mm 위인 RTG 는 콘이 135mm 파묻힌 채, STS 는 0mm(닿기만) 체결됐다.
+            //   옛 밴드: gap ≤ registerHoverTolY(0.015u=실척 360mm) ~ ≥ −높이×seatDepthFrac(0.45→실척 1.16m).
+            //   공중 360mm 에서도 잠겼던 원인(오너 2026-09-16 "락 거는 부분이 컨테이너 안으로 안 들어가").
+            gap = ConeBottomY() - b.max.y;
             bool centered = dXZ <= registerTolXZ;
-            bool seated = gap <= registerHoverTolY && gap >= -seatDepthMax;
-            return centered && seated;
+            bool inserted = gap <= -InsertU * InsertMinFrac && gap >= -InsertU * InsertMaxFrac;
+            return centered && inserted;
         }
 
         /// <summary>VR 컨트롤러 Y 버튼 — 비어 있으면 트위스트락 근처 컨테이너를 잡는다(이미 잡았으면 무시).</summary>
@@ -217,7 +257,8 @@ namespace Container.Crane.Sts
             {
                 if (debugLog)
                     Debug.Log($"[Crane] 집기 거부 — 코너 미정렬: 중심오차 {segXZ:F3}m(허용 {registerTolXZ:F3}), " +
-                              $"높이갭 {segGap:F3}m. 스프레더를 컨테이너 바로 위·윗면 높이에 맞추세요.");
+                              $"콘 바닥−윗면 {segGap:F4}u(체결 밴드 {-InsertU * InsertMaxFrac:F4}~{-InsertU * InsertMinFrac:F4}u). " +
+                              $"스프레더를 컨테이너 중심 위에서 콘이 박힐 때까지 내리세요(통과방지가 삽입 {insertMeters * 1000f:F0}mm 에서 멈춥니다).");
                 QaLog.Info("GRAB", "reject",
                     $"reason=unseated dXZ={QaLog.F(segXZ)} tolXZ={QaLog.F(registerTolXZ)} gap={QaLog.F(segGap)}");
                 return;
@@ -237,10 +278,11 @@ namespace Container.Crane.Sts
 
             attach.Attach(c);   // 월드 자세 그대로 자식이 된다
             // 수평은 트위스트락 중심에 맞춘다(플리퍼·가이드 역할 — 안착 게이트 통과면 오차 ≤ registerTolXZ). 회전은 그대로.
-            //   높이: 안착 정렬이면 윗면이 이미 콘 높이(±registerHoverTolY)라 두고, 게이트를 끈 근접 잡기면 윗면을 콘 높이로.
+            //   높이는 손대지 않는다 — 게이트가 '콘이 박힌 상태'만 통과시키므로 옮길 이유가 없고, 옮기면 컨테이너가 순간이동한다.
+            //     (옛 코드는 게이트를 끈 근접 잡기에서 윗면을 콘 '원점' 높이로 올렸다 — 원점≠콘끝인 RTG 에서 135mm 파묻힘의 원인.)
             //   ※ 옛 코드는 부착점 '로컬' y 에서 월드 거리를 뺐다 — FBX RTG 부착점은 축변환·스케일 4.1667 이라
             //     0.054u × 4.1667 = 0.225u 가 수평으로 튀었다(StsGrabProbe 실측 0.2249u).
-            if (hasBounds) c.position += new Vector3(gp.x - b.center.x, seated ? 0f : gp.y - b.max.y, gp.z - b.center.z);
+            if (hasBounds) c.position += new Vector3(gp.x - b.center.x, 0f, gp.z - b.center.z);
 
             // 하강 바닥 한계를 '컨테이너 밑면' 기준으로 — 스프레더가 아니라 컨테이너가 바닥(y=0)에 닿고 멈추게.
             if (spreaderHoist != null && TryBounds(c, out Bounds held))
@@ -377,8 +419,10 @@ namespace Container.Crane.Sts
             }
             else
             {
-                refBottomY = ap.position.y;
-                refCenter = ap.position;
+                // 빈 스프레더 기준 = 콘 바닥(실측). 부착점을 기준으로 막으면 RTG 는 부착점이 콘끝보다 192mm 위라
+                //   콘이 컨테이너 안으로 300mm 넘게 잠기고(실측 +135~200mm), STS 는 콘이 윗면에 닿기만 해 체결 자세가 안 나온다.
+                refBottomY = ConeBottomY();
+                refCenter = ap.position;   // 수평 판정(footprint 안인지)은 종전대로 부착점 XZ
             }
 
             // 아래에 깔린 컨테이너(받침)를 고른다 — Landing & Position Sensor. bodies는 크레인 자식(스프레더/든 화물) 제외.
@@ -420,7 +464,8 @@ namespace Container.Crane.Sts
             }
 
             // 받침이 없으면(공중/옆 나란히) 클램프·적층 없음 — IsLanded는 위에서 false. QA만 엣지로 보고.
-            float limit = over ? top + topClearance : 0f;
+            // 빈 스프레더는 콘이 insertMeters 만큼 박히는 데까지 내려간다(그 자리가 체결 자세) — 든 상태는 종전대로 밑면이 윗면에 얹힌다.
+            float limit = over ? top + topClearance - (holding ? 0f : InsertU) : 0f;
             // 빈 스프레더가 컨테이너 '옆면 깊숙이'(윗면보다 높이 25% 이상 아래) 들어온 경우 = 측면 충돌 → 클램프 대신 푸셔로 밀기.
             bool sideHit = over && !holding && (top - refBottomY) > (top - topMinY) * SideHitDepthFrac;
             float corr = 0f;
