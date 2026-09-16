@@ -143,7 +143,12 @@ namespace Container.Crane.Sts.EditorTools
                       $"막힘 {stalls}, 접근 멈춤 {holds} · 재개 {resumes}, 시나리오 예외 {ourExceptions}, 기타 예외 {otherExceptions}, {elapsed:F0}s(×{TimeScale}) | " +
                       $"검증 실패 {CraneDemoRunner.Violations} · 집기 정렬 최대 {CraneDemoRunner.MaxPickErrM:F3}m(≤0.36) · " +
                       $"안착 오차 최대 {CraneDemoRunner.MaxSupportErrM:F3}m(≤0.02) · 속도/정격 최대 {CraneDemoRunner.MaxSpeedRatio:F3}(≤1) · " +
-                      $"가속/트립 최대 {CraneDemoRunner.MaxAccelRatio:F2}(한 틱 ≤1.2) · 접근 띠 경계 오차 최대 {ringErr:F3}m(≤0.1)");
+                      // ★ 옛 라벨 '(한 틱 ≤1.2)' 은 낡은 리터럴이었다 — 실제 상한은 CraneDemoRunner.AccelTripRatioMax
+                      //   = 2/TripMargin × 1.05 = 1.26 이고 검사는 그 값을 '넘을 때만' 실패한다. 1.2 로 적어 둬서
+                      //   1.26 을 위반으로 오독하게 만들었다(2026-09-16, xr-port-ae 가 코드에서 확인·지적).
+                      //   숫자를 다시 베끼지 않고 규칙만 적는다 — 상한을 공개 상수로 읽을 수 있게 되면 그 값을 찍을 것.
+                      $"가속/트립 최대 {CraneDemoRunner.MaxAccelRatio:F2}(상한 2/TripMargin×1.05, 초과 시에만 실패) · " +
+                      $"접근 띠 경계 오차 최대 {ringErr:F3}m(≤0.1)");
             EditorApplication.update -= Tick;
             Application.logMessageReceived -= OnLog;
             EditorPrefs.SetBool(PortDemoDirector.EditorPrefKey, SessionState.GetBool(PrevKey, false));
