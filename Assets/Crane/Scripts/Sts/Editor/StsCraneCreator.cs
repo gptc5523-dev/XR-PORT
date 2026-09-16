@@ -1927,6 +1927,83 @@ namespace Container.Crane.Sts.EditorTools
                            spreaderHalf > hl0 + 1e-4f);
         }
 
+        /// <summary>트위스트락 '락 높이'를 콘 메시 정점에서 실측한다 — FBX RTG 처럼 생성기 상수가 없는 크레인용.
+        /// 락(노즈+숄더)이 코너캐스팅 구멍에 들어가야 하므로 <b>필요한 노출 = 락 높이</b>이고, 지금 노출과의 차이가 부족분이다.
+        ///   측정: 콘 자식 메시의 정점을 월드로 옮기고, 콘 축(정점 XZ 평균)에서의 수평 반경 r 을 실척 1mm 높이 버킷마다 최대로 모은다.
+        ///   프로파일을 아래에서 읽으면 노즈(r 증가) → 숄더(r 최대에서 평평) → 넥(r 이 샤프트로 감소) 이 나온다.
+        ///   락 높이 = (숄더 평평 구간 상단) − (콘 끝). 평평 = 최대 반경의 <see cref="ShoulderFrac"/> 이상인 버킷.
+        /// ★ FBX 는 축·스케일이 다를 수 있어 조용히 틀린 값이 나온다 — 그래서 절차 STS 를 대조군으로 같이 찍는다.
+        ///   STS 는 정답을 알고 있다(노즈 52.8 + 숄더 24 = 락 76.8mm). STS 가 재현되지 않으면 RTG 수치도 믿지 말 것.
+        /// 배치: -executeMethod Container.Crane.Sts.EditorTools.StsCraneCreator.MeasureLockHeight</summary>
+        [MenuItem("Model/PG/크레인/트위스트락 락 높이 실측", false, 3)]
+        public static void MeasureLockHeight()
+        {
+            if (Application.isBatchMode) EditorSceneManager.OpenScene("Assets/Scenes/Port.unity");
+            foreach (var crane in Object.FindObjectsByType<StsCrane>(FindObjectsSortMode.None))
+            {
+                Transform body = crane.Spreader is Component sc ? sc.transform : null;
+                // ★ 콘은 4개 전부 모은다 — 하나만 제외하면 '본체 최저면'에 나머지 콘이 잡혀 노출이 0 으로 나온다(2026-09-16 실측 오류).
+                var cones = new List<Transform>();
+                foreach (var t in crane.GetComponentsInChildren<Transform>(true))
+                    if (t.name.StartsWith(StsPartNames.TwistlockCone) || t.name.StartsWith("Spreader_Twistlock_")) cones.Add(t);
+                Transform cone = cones.Count > 0 ? cones[0] : null;
+                if (cone == null || body == null) { Debug.Log($"[락높이] {crane.name} — 콘 미탐색"); continue; }
+
+                // 콘 정점 수집(월드) — 축은 정점 XZ 평균.
+                var pts = new List<Vector3>();
+                foreach (var mf in cone.GetComponentsInChildren<MeshFilter>())
+                {
+                    var m = mf.sharedMesh; if (m == null) continue;
+                    foreach (var v in m.vertices) pts.Add(mf.transform.TransformPoint(v));
+                }
+                if (pts.Count == 0) { Debug.Log($"[락높이] {crane.name} {cone.name} — 메시 정점 없음(스킨드 메시?)"); continue; }
+                Vector3 axis = Vector3.zero;
+                foreach (var p in pts) axis += p;
+                axis /= pts.Count;
+
+                float tipY = float.MaxValue, topY = float.MinValue;
+                foreach (var p in pts) { tipY = Mathf.Min(tipY, p.y); topY = Mathf.Max(topY, p.y); }
+                float toMm = 1000f / StsConfig.ModelScale;                       // 모델 단위 → 실척 mm
+                int n = Mathf.Max(1, Mathf.CeilToInt((topY - tipY) * toMm)) + 1;  // 실척 1mm 버킷
+                var maxR = new float[n];
+                foreach (var p in pts)
+                {
+                    int b = Mathf.Clamp(Mathf.FloorToInt((p.y - tipY) * toMm), 0, n - 1);
+                    float r = new Vector2(p.x - axis.x, p.z - axis.z).magnitude * toMm;
+                    if (r > maxR[b]) maxR[b] = r;
+                }
+                float rMax = 0f;
+                foreach (var r in maxR) rMax = Mathf.Max(rMax, r);
+
+                // 숄더 = 최대 반경의 ShoulderFrac 이상인 버킷 중 '가장 위' — 그 위가 넥(샤프트로 좁아짐).
+                int shoulderTop = 0;
+                for (int i = 0; i < n; i++) if (maxR[i] >= rMax * ShoulderFrac) shoulderTop = i;
+                float lockMm = shoulderTop + 1f;                                  // 콘 끝 → 숄더 상단(실척 mm)
+
+                // 지금 노출 = 콘 아닌 스프레더 최저면 − 콘 끝(SpreaderGrabber·StsGrabProbe 와 같은 식).
+                float bodyB = float.MaxValue;
+                foreach (var r in body.GetComponentsInChildren<Renderer>())
+                {
+                    bool inCone = false;
+                    foreach (var c in cones) if (r.transform == c || r.transform.IsChildOf(c)) { inCone = true; break; }
+                    if (!inCone) bodyB = Mathf.Min(bodyB, r.bounds.min.y);
+                }
+                float exposeMm = bodyB < float.MaxValue ? (bodyB - tipY) * toMm : float.NaN;
+
+                // ★ 정점이 있는 버킷만 찍는다 — 저폴리 메시는 링 위치에만 정점이 있어서, 고정 간격으로 찍으면 대부분 0.0 이 나와 형상을 못 읽는다.
+                var prof = new System.Text.StringBuilder();
+                int filled = 0;
+                for (int i = 0; i < n; i++) if (maxR[i] > 0f) { prof.Append($"{i}:{maxR[i]:F1} "); filled++; }
+                Debug.Log($"[락높이] {crane.name} {cone.name} — 콘 전체 {(topY - tipY) * toMm:F0}mm · " +
+                          $"락(노즈+숄더) {lockMm:F0}mm · 현재 노출 {exposeMm:F0}mm · 부족 {lockMm - exposeMm:F0}mm · " +
+                          $"최대반경 {rMax:F1}mm · 정점링 {filled}개/{n}버킷 · 콘 {cones.Count}개\n    반경 프로파일(정점 있는 버킷만, 실척 mm:반경): {prof}");
+            }
+            Debug.Log("[락높이] 대조군 확인 — 절차 STS 의 정답은 락 76.8mm(노즈 52.8 + 숄더 24). 이 값이 안 나오면 계측을 믿지 말 것.");
+        }
+
+        /// <summary>숄더(평평한 베어링 밴드) 판정 — 버킷 최대 반경이 콘 최대 반경의 이 비율 이상이면 숄더로 본다.</summary>
+        const float ShoulderFrac = 0.98f;
+
         /// <summary>씬에 이미 구워진 절차 STS 의 트위스트락 콘 그룹을 생성기 값(<see cref="ConeTipY"/>)에 맞춘다 —
         /// 크레인을 다시 굽지 않고 콘 그룹 로컬 Y 만 옮긴다(오너 에디터가 연 씬을 통째로 덮지 않으려고).
         ///   · FBX RTG(`Spreader_Twistlock_*`)는 건드리지 않는다 — 이름 규약으로 구분.
