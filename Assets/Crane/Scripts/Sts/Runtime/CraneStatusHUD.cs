@@ -280,7 +280,8 @@ namespace Container.Crane.Sts
             if (controller != null && controller.CabView)
                 sb.AppendLine("<color=#5FE0FF>● 운전실 시점</color>");
 
-            // 모드 선택 — 한 줄 탭(별도 패널 대신 상태판에 합침). 현재 모드=청록●, 스틱 후보=▸.
+            // 모드 선택 — 한 줄 탭(별도 패널 대신 상태판에 합침). 현재 모드=청록 굵게, 스틱 후보=▸.
+            //   현재 모드 뒤 ● 은 삭제(오너 2026-09-16 "조종 옆 동그라미 없애 디자인도 깨지고") — 굵게+청록으로 이미 구분돼 중복이었다.
             if (controller != null)
             {
                 int cur = (int)controller.CurrentMode;
@@ -292,7 +293,7 @@ namespace Container.Crane.Sts
                 for (int i = 0; i < names.Length; i++)
                 {
                     string nm = names[i].Replace("모드", "");   // "조종모드"→"조종"
-                    if (i == cur)      sb.Append($"<b><color=#{acc}>{(i == sel ? "▸" : "")}{nm}●</color></b>");
+                    if (i == cur)      sb.Append($"<b><color=#{acc}>{(i == sel ? "▸" : "")}{nm}</color></b>");
                     else if (i == sel) sb.Append($"<color=#{acc}>▸{nm}</color>");
                     else               sb.Append($"<color=#999999>{nm}</color>");
                     if (i < names.Length - 1) sb.Append("   ");
