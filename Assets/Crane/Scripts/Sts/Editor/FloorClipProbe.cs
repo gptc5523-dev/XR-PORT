@@ -92,7 +92,18 @@ namespace Container.Crane.Sts.EditorTools
                     phase = 3; Wait(0.8f); return;   // 텔레스코프 신축(0.25 m/s)
 
                 case 3:   // 받침이 하나도 없는 자리로 옮긴다 — 여기가 이 검사의 핵심 조건(빈 데크)
-                    if (c.crane.Attach == null || c.crane.Attach.AttachedContainer != c.box) { Skip(c, "안 잡힘"); return; }
+                    if (c.crane.Attach == null || c.crane.Attach.AttachedContainer != c.box)
+                    {
+                        // 왜 게이트에 걸렸는지 숫자로 남긴다 — 이게 없으면 '안 잡힘'이 회귀인지 원래 그런지 구분이 안 된다.
+                        CraneDemoRunner.TryBounds(c.box, out var bs);
+                        float gapMm = (c.g.ConeBottomY() - bs.max.y) / StsConfig.ModelScale * 1000f;   // 음수 = 콘이 박힌 깊이
+                        // '실제로 잡힌 것' 이 다른 컨테이너면 FindNearest 가 옆칸을 골랐다는 뜻(gap 이 −InsertU 인데 이름이 다를 때).
+                        //   gap 이 크게 양수면 대상이 콘 밑에 없었던 것 — 원인이 갈린다(xr-port-ae 2026-09-16 제안).
+                        var got = c.crane.Attach != null ? c.crane.Attach.AttachedContainer : null;
+                        Skip(c, $"안 잡힘 — 콘바닥−윗면 {gapMm:+0;-0}mm(실척), 설정 삽입 {c.g.InsertDepthMeters * 1000f:F0}mm, " +
+                                $"실제 잡힌 것 {(got != null ? got.name : "없음")}");
+                        return;
+                    }
                     var hoist = c.crane.Spreader;
                     hoist.MoveTo(hoist.Current + LiftU / Mathf.Max(hoist.WorldAxis.magnitude, 1e-6f));
                     if (!CraneDemoRunner.TryBounds(c.box, out var b3) || !MoveToBareSpot(c, b3)) { Skip(c, "빈 자리 없음"); return; }
@@ -184,10 +195,19 @@ namespace Container.Crane.Sts.EditorTools
                 && a.min.z - m < b.max.z && a.max.z + m > b.min.z;
         }
 
+        // 옮기기 전에 kinematic 으로 고정한다 — 배 컨테이너는 중력을 받는 동적 강체라, 파킹 높이(공중)의 콘 밑으로
+        //   옮겨 두면 Grab() 하기 전에 도로 갑판으로 떨어진다. 2026-09-16 실측: STS 가 '안 잡힘'으로 건너뛴 원인이
+        //   이것이었다(건너뜀 로그의 콘바닥−윗면 +30,599mm = 떨어져 돌아간 거리. 크레인이나 게이트 문제가 아니다).
+        //   잡히면 어차피 부착 쪽에서 kinematic 이 되고, 놓은 뒤 남는 kinematic 은 바닥가드가 본다.
         static void Move(Transform t, Vector3 d)
         {
-            t.position += d;
             var rb = t.GetComponent<Rigidbody>();
+            if (rb != null)
+            {
+                if (!rb.isKinematic) { rb.linearVelocity = Vector3.zero; rb.angularVelocity = Vector3.zero; }
+                rb.isKinematic = true;
+            }
+            t.position += d;
             if (rb != null) rb.position = t.position;
         }
 
