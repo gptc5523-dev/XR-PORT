@@ -114,8 +114,8 @@ namespace Container.Crane.Sts
             }
 
             sb.AppendLine();
-            Line("오른 스틱", "<color=#FFD25F>↑  ↓</color>", "모드 선택(후보)");
-            Line("B", "", "모드 확정");
+            Line("트리거+오른 스틱", "<color=#FFD25F>↑  ↓</color>", "모드 선택(후보)");
+            Line("트리거+B", "", "모드 확정");
             return sb.ToString();
         }
 

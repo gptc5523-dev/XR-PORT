@@ -184,7 +184,12 @@ namespace Container.Crane.Sts
             if (!locked && best != active && (active == null || bestD + switchMarginMeters * StsConfig.ModelScale < Distance(active, p)))
                 Activate(best);
             activeNear = active != null && Distance(active, p) <= approachMeters * StsConfig.ModelScale;
-            foreach (var e in cranes) e.ring.startColor = e.ring.endColor = e == active && activeNear ? RingInside : RingIdle;
+            // 운전 중(조종·갠트리 모드 또는 운전실 시점)엔 접근 띠를 숨긴다 — 오너 지시 2026-09-16 "반경표시는 운전할 때 숨겨야지".
+            foreach (var e in cranes)
+            {
+                e.ring.enabled = !locked;
+                e.ring.startColor = e.ring.endColor = e == active && activeNear ? RingInside : RingIdle;
+            }
         }
 
         void Activate(Entry e)

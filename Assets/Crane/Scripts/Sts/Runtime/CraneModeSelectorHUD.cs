@@ -157,7 +157,7 @@ namespace Container.Crane.Sts
                     sb.AppendLine($"<color=#999999>{line}</color>{activeTag}");
             }
             sb.AppendLine();
-            sb.AppendLine("<size=13><color=#BBBBBB>스틱 ↑↓ 선택 · B로 확정</color></size>");
+            sb.AppendLine("<size=13><color=#BBBBBB>트리거 당긴 채 스틱 ↑↓ 선택 · B로 확정</color></size>");
 
             // 모드별 버튼 안내 — 처음 하는 사람도 어느 버튼이 무슨 동작인지 알게.
             //   집기/놓기(Y/X)는 모든 모드 공통, 운전실 시점(A)은 조종·갠트리에서만(Move·controller null 제외).

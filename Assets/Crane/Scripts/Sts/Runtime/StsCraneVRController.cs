@@ -62,6 +62,8 @@ namespace Container.Crane.Sts
         [SerializeField, Range(0f, 0.5f)] float deadzone = 0.12f;
         [Tooltip("모드 선택 스틱 위/아래 플릭 임계값(이 이상 밀어야 모드 변경)")]
         [SerializeField, Range(0.5f, 0.95f)] float modeFlickThreshold = 0.7f;
+        [Tooltip("모드 변경(후보 이동·확정)은 오른손 검지 트리거를 이만큼 당긴 채여야 먹는다 — 조종 중 스틱만으로 모드가 바뀌지 않게.")]
+        [SerializeField, Range(0.1f, 0.95f)] float modeTriggerThreshold = 0.6f;
         [Tooltip("Console에 입력/모드 로그 출력")]
         [SerializeField] bool debugLog = true;
 
@@ -218,17 +220,24 @@ namespace Container.Crane.Sts
             //   스틱만으론 모드가 안 바뀜(후보 하이라이트만 이동). B를 눌러야 실제 전환.
             //   → 조종모드에서 오른쪽 스틱 좌우(트롤리) 조작 중 모드가 빠지는 충돌 해소.
             //   추가 가드: 좌우로 밀 땐(|x|≥0.5) 후보도 안 움직임. 중앙 복귀 후에만 다음 이동 인정(폭주 방지).
+            //   ★ 오른손 검지 트리거를 당긴 채여야 후보 이동·확정이 먹는다(오너 지시 2026-09-16) — 조종 중 오른쪽 스틱은
+            //     트롤리라 위아래로 조금만 밀려도 모드가 바뀌던 것을 막는다. 같은 트리거를 쓰는 시점 높이 조절
+            //     (CraneViewHeightAdjuster)은 왼손 스틱이라 겹치지 않는다.
+            float rTrig = 0f;
+            if (right.isValid) right.TryGetFeatureValue(CommonUsages.trigger, out rTrig);
+            bool modeHold = rTrig > modeTriggerThreshold;
+
             if (Mathf.Abs(rs.y) < 0.3f) stickCentered = true;
-            if (stickCentered && Mathf.Abs(rs.y) > modeFlickThreshold && Mathf.Abs(rs.x) < 0.5f)
+            if (modeHold && stickCentered && Mathf.Abs(rs.y) > modeFlickThreshold && Mathf.Abs(rs.x) < 0.5f)
             {
                 selectedIndex = Mathf.Clamp(selectedIndex + (rs.y > 0f ? -1 : 1), 0, 2);
                 Haptic(right, 0.2f, 0.02f);   // 후보 이동 — 가벼운 진동
                 stickCentered = false;
             }
 
-            // B 버튼: 현재 후보를 실제 모드로 확정(엣지 검출)
+            // B 버튼: 현재 후보를 실제 모드로 확정(엣지 검출) — 트리거를 당긴 채일 때만
             bool applyNow = Btn(right, CommonUsages.secondaryButton);
-            if (applyNow && !prevCycleBtn) SetMode((Mode)selectedIndex);
+            if (modeHold && applyNow && !prevCycleBtn) SetMode((Mode)selectedIndex);
             prevCycleBtn = applyNow;
 
             // A 버튼: 운전/갠트리 모드에서 운전실 시점(내려다보기) 토글
