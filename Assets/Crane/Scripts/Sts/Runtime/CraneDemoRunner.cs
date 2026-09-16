@@ -592,6 +592,13 @@ namespace Container.Crane.Sts
                     if (s < lo || s > hi) continue;
                     Vector3 bottom = j.home + td * (s - home);
                     bottom.y = groundY;
+                    // 야드 안이면 칸(라인) 중심으로 라운딩 — 수동 놓기(SpreaderGrabber.Release)와 '같은 식'(YardGrid)을 읽는다.
+                    //   ★ 이게 없으면 자동 시연은 라인을 안 지킨다: 시나리오는 Place() → crane.Attach.Detach() 로 놓아
+                    //     Release() 의 스냅을 통째로 우회하므로, 수동 경로만 고쳐선 오너가 보는 화면이 안 바뀐다(xr-port-82 지적).
+                    //   야드 밖(에이프런·선박 하역)은 false 가 와서 자유 스텝 그대로 — 거기엔 맞출 격자가 없다.
+                    //   두 후보가 같은 칸으로 라운딩되면 아래 site.occupied 겹침 게이트가 걸러, 이웃 칸으로 자연히 넘어간다.
+                    if (YardGrid.TrySnapXZ(bottom, Mathf.Max(j.size.x, j.size.z), out var cell))
+                    { bottom.x = cell.x; bottom.z = cell.z; }
                     var slot = new Bounds(bottom + Vector3.up * (j.size.y * 0.5f), j.size);
                     if (site.haveLand && !InsideXZ(slot, site.land)) continue;
                     if (AnyOverlap(slot, site.occupied, skin)) continue;
