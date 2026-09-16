@@ -57,6 +57,18 @@ namespace Container.Crane.Sts.Net
         public void BeginHost()  => StartHost();
         public void BeginClient() => StartClient();
 
+        /// <summary>세션을 끊고 시작 메뉴로 — 바닥 '나가는 존'(<see cref="ExitZone"/>)과 헤드셋 이탈 감시가 부른다.
+        /// ★ 서버의 Crane.exe 는 헤드셋이 빠져도 계속 살아 있다. 이걸 안 부르면 그 인스턴스가 포트(7777)를
+        ///   쥔 채 남아 다음 '호스트 시작'이 반드시 실패한다(오너 2026-09-16 "호스트 세션이 안 끊긴다").
+        /// IMGUI 의 '연결 끊기'와 같은 동작이지만, 그쪽은 헤드셋에 안 그려져 VR 에서는 쓸 수 없었다.</summary>
+        public void Leave()
+        {
+            var nm = NetworkManager.Singleton;
+            if (nm == null) return;
+            if (nm.IsClient || nm.IsServer) nm.Shutdown();
+            hostFailed = false;   // 다음 시도에 옛 실패 문구가 남지 않게
+        }
+
         void StartHost()
         {
             var nm = NetworkManager.Singleton;

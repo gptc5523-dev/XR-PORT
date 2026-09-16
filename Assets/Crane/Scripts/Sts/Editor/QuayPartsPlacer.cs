@@ -72,7 +72,8 @@ namespace Container.Crane.Sts.EditorTools
             ("Yard_Fill",         0.48f, 0.46f, 0.43f, 0.00f, 0.08f, null),   // 야드 성토 측면
             ("Yard_Paint",        0.85f, 0.68f, 0.08f, 0.00f, 0.30f, null),   // 블록 도색(황색)
             ("Lane_Paint",        0.88f, 0.74f, 0.10f, 0.00f, 0.25f, null),   // 안전 차선(안전 노랑 — 블록보다 밝게)
-            // ("StartMarker_Red",   0.80f, 0.12f, 0.10f, 0.00f, 0.65f, null),   // 비활성 2026-09-14 — 시작점 체스말(임시) 제거
+            ("StartMarker_Red",   0.80f, 0.12f, 0.10f, 0.00f, 0.65f, null),   // 체스말(임시) — 회색 부두에서 튀게.
+                                                                              //   2026-09-14 시작점용으로 껐다가 2026-09-16 나가는 존 표시용으로 되살림.
         };
 
         /// <summary>FBX 별로 리맵할 머티리얼 — 그 FBX 에 없는 이름을 리맵하면 .meta 만 지저분해진다.</summary>
@@ -86,6 +87,7 @@ namespace Container.Crane.Sts.EditorTools
             ["Assets/Crane/Models/Yard_Pavement.fbx"] = new[] { "Yard_Fill", "Yard_Asphalt" },
             ["Assets/Crane/Models/Yard_Block.fbx"]    = new[] { "Yard_Paint" },
             ["Assets/Crane/Models/Quay_Lane.fbx"]     = new[] { "Lane_Paint" },
+            [PawnFbx]                                 = new[] { "StartMarker_Red" },
         };
 
         const float YardMarkThickM = 0.015f;
@@ -93,6 +95,43 @@ namespace Container.Crane.Sts.EditorTools
         const float LanePitchM     = 12.0f;   // 차선 유닛 길이 = 레일 피치. 총길이가 레일과 정확히
                                               //   같아야 갠트리 한계(Lane 기준)가 레일 밖으로 안 나간다  // 블록 도색 두께 = FBX 규격. 실측 스케일 기준값
         const float CaissonPitchM  = 20.0f;   // 케이슨 1함 20m + 줄눈 30mm = FBX 규격. 340/20 = 17함
+        // 체스말(임시 위치 표시) — 2026-09-14 시작점용으로 지웠다가 2026-09-16 '나가는 존' 표시용으로 되살림.
+        //   에셋은 그때 GUID 그대로 복원했다(새로 임포트하면 GUID 가 바뀌어 머티리얼 리맵이 끊긴다).
+        const string PawnFbx       = "Assets/Crane/Models/StartMarker_Pawn.fbx";
+        const float  PawnHeightM   = 2.0f;    // 사람 키 — 멀리서도 자리가 보이게. Blender 빌드 스크립트 H 와 쌍이었다(스크립트는 현재 없음)
+        const string ExitPawnName  = "ExitMarker_Pawn";
+
+        /// <summary>'나가는 존'(<see cref="Container.Crane.Sts.Net.ExitZone"/>) 자리를 빨간 체스말(폰 2m)로 표시 — 임시. 오너 요청 2026-09-16.
+        /// 자리는 런타임 존과 <b>같은 계산</b>을 쓴다 — 눈으로 본 자리와 실제 나가는 자리가 어긋나면 표시가 무의미하다.
+        /// EditorOnly 태그라 빌드엔 안 들어간다(존 자체는 런타임에 자동 생성된다). 다시 누르면 교체, 치우려면 씬에서 지운다.</summary>
+        [MenuItem("Model/FBX/항구/나가는 존 체스말 (임시)", false, 8)]
+        static void PlaceExitPawn()
+        {
+            if (!Container.Crane.Sts.Net.ExitZone.TryComputeCenter(
+                    Container.Crane.Sts.Net.ExitZone.DefaultInsetMeters, out Vector3 c))
+            {
+                EditorUtility.DisplayDialog("나가는 존 체스말",
+                    "걷는 땅(부두)을 못 찾았습니다.\n안벽·야드를 먼저 배치하세요.", "확인");
+                return;
+            }
+            var fbx = Load(PawnFbx, "나가는 존 체스말"); if (fbx == null) return;
+
+            var prev = GameObject.Find(ExitPawnName);
+            if (prev != null) Undo.DestroyObjectImmediate(prev);
+
+            float scale = FbxScaleByHeight(fbx, PawnHeightM);
+            // 부모 null → localPosition 이 곧 월드 좌표. 발은 데크 윗면 y=0(PlaceCaisson 규약)에 둔다.
+            Place(fbx, null, ExitPawnName, new Vector3(c.x, 0f, c.z), scale);
+            var pawn = GameObject.Find(ExitPawnName);
+            if (pawn == null) return;
+            pawn.tag = "EditorOnly";
+            Undo.RegisterCreatedObjectUndo(pawn, "Place " + ExitPawnName);
+            UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(pawn.scene);
+
+            Vector3 real = c * StsConfig.InvModelScale;
+            Done(pawn.transform, $"나가는 존 자리 실척 ({real.x:F1}, {real.z:F1})m · 데크 윗면 · 체스말 {PawnHeightM}m · " +
+                                 $"scale {scale:F4} · EditorOnly(빌드 제외). 실제 존은 반경 실척 3m, 2초 서 있으면 접속 종료.");
+        }
 
         [MenuItem("Model/FBX/항구/연석 배치 (Quay_Curb)", false, 1)]
         static void PlaceCurb()
