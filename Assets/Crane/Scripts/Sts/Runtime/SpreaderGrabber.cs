@@ -593,7 +593,10 @@ namespace Container.Crane.Sts
             // S-PASS-3 적층 안착: '실제로 얹힌 순간'(IsLanded 상승 엣지)에만 판정.
             //   주의: 공중에서 footprint만 겹친 시점(over=true, 높이 높음)이 아니라, 든 컨테이너 밑면이
             //   받침 윗면에 닿아 멈춘 순간을 본다(이전 버전은 공중 over-엣지에서 판정해 오탐 FAIL이 났음).
-            bool landedStack = holding && IsLanded;
+            //   ★ 받침이 '바닥면'이면 footprint 겹침이 0 이 정상이다 — 바닥은 컨테이너가 아니라 지면이라 겹침 비율로 볼 대상이 아니다.
+            //     b9d1d5b 에서 바닥 하한을 넣은 뒤로 바닥 안착마다 이 검사가 "=> FAIL" 을 찍어 로그를 오염시켰다(실측 3건).
+            //     적층(컨테이너 위) 안착만 겹침을 따진다.
+            bool landedStack = holding && IsLanded && top > floorTopY + 1e-4f;
             if (landedStack && !qaPrevLanded)
                 QaLog.Check("LAND", "stack", selOverlap >= landingOverlapFrac,
                     $"holding=true overlapFrac={QaLog.F(selOverlap)} threshold={QaLog.F(landingOverlapFrac)} " +
