@@ -41,8 +41,13 @@ namespace Container.Crane.Sts.Net
 
         [Header("헤드셋 이탈 자동 종료 (근본 대책)")]
         [Tooltip("헤드셋이 빠진 뒤 이만큼 지나면 세션을 자동 종료(초). 0 이하면 끔. " +
-                 "★ 사용자는 대개 존을 밟지 않고 그냥 앱을 끈다 — 그 경우를 덮는 건 이쪽뿐이다.")]
+                 "★ 호스트는 '관전자가 없을 때만' 적용된다 — 남을 끊는 자동 종료는 하지 않는다(WatchHeadset 주석).")]
         [SerializeField] float headsetLostGraceSeconds = 15f;
+
+        [Header("호스트 확인 입력")]
+        [Tooltip("호스트가 존에서 나갈 때 함께 당기고 있어야 하는 오른손 트리거 임계값. 관전자는 서 있기만 하면 된다(자기만 끊기므로). " +
+                 "새 규약을 만들지 않고 모드 변경(StsCraneVRController.modeTriggerThreshold)과 같은 관례를 쓴다.")]
+        [SerializeField, Range(0.1f, 0.95f)] float hostTriggerThreshold = 0.6f;
 
         // 나가기 = 빨강(HudColor.Danger 계열). 접근 범위 띠(청록)와 색으로 구분돼 헷갈리지 않는다.
         static readonly Color BandIdle = new Color(0.92f, 0.20f, 0.18f, 0.35f);
@@ -81,22 +86,46 @@ namespace Container.Crane.Sts.Net
             Vector3 d = cam.transform.position - center; d.y = 0f;
             bool inside = d.sqrMagnitude <= r * r;
 
-            dwell = inside ? dwell + Time.unscaledDeltaTime : 0f;
+            // 호스트는 '서 있기'만으로 안 끊는다 — 끊기는 사람이 자기 혼자가 아니기 때문.
+            //   관전자는 서 있기만 하면 된다(자기만 끊김). 트리거 홀드는 오너가 오늘 이미 익힌 동작이라 새로 배울 게 없다.
+            int spectators = SpectatorCount();
+            bool host = spectators >= 0;
+            bool arming = inside && (!host || TriggerHeld());
+
+            dwell = arming ? dwell + Time.unscaledDeltaTime : 0f;
             band.startColor = band.endColor = inside ? BandInside : BandIdle;
 
-            if (inside && dwell >= dwellSeconds) { Leave("존을 밟고 나감"); return; }
+            if (arming && dwell >= dwellSeconds)
+            {
+                Leave(host ? $"존에서 나감 — 호스트(관전자 {spectators}명 함께 종료)" : "존을 밟고 나감");
+                return;
+            }
 
-            CraneHud.SetTextIfChanged(text, ref lastText, inside
-                ? $"<b><size=34><color=#EB332E>나가는 중… {Mathf.Max(0f, dwellSeconds - dwell):0.0}초</color></size></b>\n" +
-                  "<size=18><color=#999999>존에서 나오면 취소돼요</color></size>"
-                : "<b><size=30><color=#EB332E>나가기</color></size></b>\n" +
-                  $"<size=18><color=#999999>이 자리에 {dwellSeconds:0}초 서 있으면\n접속을 끊고 시작 화면으로 갑니다</color></size>");
+            // 끊기는 사람이 나 말고 더 있으면 반드시 먼저 보여준다.
+            string warn = spectators > 0 ? $"\n<size=17><color=#EB332E>관전자 {spectators}명도 함께 끊깁니다</color></size>" : "";
+            CraneHud.SetTextIfChanged(text, ref lastText,
+                !inside
+                    ? "<b><size=30><color=#EB332E>나가기</color></size></b>\n" +
+                      $"<size=18><color=#999999>이 자리에 {(host ? "트리거를 당긴 채 " : "")}{dwellSeconds:0}초 서 있으면\n" +
+                      "접속을 끊고 시작 화면으로 갑니다</color></size>" + warn
+                : arming
+                    ? $"<b><size=34><color=#EB332E>나가는 중… {Mathf.Max(0f, dwellSeconds - dwell):0.0}초</color></size></b>\n" +
+                      "<size=18><color=#999999>존에서 나오거나 트리거를 놓으면 취소돼요</color></size>" + warn
+                    : "<b><size=30><color=#EB332E>나가기</color></size></b>\n" +
+                      "<size=18><color=#5FE0FF>오른손 트리거를 당긴 채 서 있으세요</color></size>" + warn);
 
             if (canvas != null) CraneHud.FaceCameraAbove(canvas.transform, transform, 2.2f * StsConfig.ModelScale, cam);
         }
 
         // ② 헤드셋 이탈 감시 — XR 디스플레이가 running 에서 멈추면 유예 뒤 종료.
         //   평면 모드(비VR)에서는 애초에 running 이 된 적이 없으므로 xrSeenRunning 가드로 오발을 막는다.
+        //
+        // ★ 호스트는 '관전자가 없을 때만' 자동 종료한다 (xr-port-04·ae·42 지적 2026-09-16).
+        //   호스트가 Shutdown 하면 관전자 전원이 시작 메뉴로 튕긴다. 시연 중 헤드셋을 잠깐 벗는 건 아주 흔하고
+        //   (설명하려고·클라이언트에게 씌워 주려고), 벗은 사람에게는 경고를 띄울 화면조차 없다 → 유예를 늘려도 '알고 누른다'가 안 된다.
+        //   반대로 '혼자 남은 호스트'의 자동 정리는 그대로 둔다 — 그게 오너가 보고한 원래 버그
+        //   (앱을 그냥 끄면 7777 이 잡힌 채 남아 다음 호스트가 실패)의 유일한 자동 해결 경로다.
+        //   "명시적 종료로 대체하면 된다"는 논리는 '명시적 종료를 안 하는 경우'를 못 덮는다 — 그게 원래 사고였다.
         void WatchHeadset()
         {
             if (headsetLostGraceSeconds <= 0f) return;
@@ -106,11 +135,28 @@ namespace Container.Crane.Sts.Net
             foreach (var d in displays) if (d != null && d.running) { running = true; break; }
 
             if (running) { xrSeenRunning = true; xrLostFor = 0f; return; }
-            if (!xrSeenRunning) return;   // VR 로 시작한 적이 없는 세션 — 감시 대상 아님
+            if (!xrSeenRunning) return;            // VR 로 시작한 적이 없는 세션 — 감시 대상 아님
+            if (SpectatorCount() > 0) { xrLostFor = 0f; return; }   // 남을 끊는 자동 종료는 하지 않는다
 
             xrLostFor += Time.unscaledDeltaTime;
             if (xrLostFor >= headsetLostGraceSeconds)
-                Leave($"헤드셋 이탈 {headsetLostGraceSeconds:0}초 경과 — 세션 자동 정리");
+                Leave($"헤드셋 이탈 {headsetLostGraceSeconds:0}초 경과 — 자동 정리(관전자 없음)");
+        }
+
+        /// <summary>내가 호스트일 때 붙어 있는 관전자 수(나 자신 제외). 호스트가 아니면 −1.
+        ///   자동 종료 가드와 안내 문구가 <b>같은 수</b>를 보도록 판정을 한 곳에 둔다.</summary>
+        int SpectatorCount()
+        {
+            var nm = NetworkManager.Singleton;
+            if (nm == null || !nm.IsServer) return -1;
+            return Mathf.Max(0, nm.ConnectedClientsIds.Count - 1);   // 호스트 자신(0번) 제외 — CraneNetMenuHUD 와 같은 셈
+        }
+
+        // 오른손 검지 트리거 — 모드 변경(StsCraneVRController)과 같은 입력·같은 임계값 관례.
+        bool TriggerHeld()
+        {
+            var right = InputDevices.GetDeviceAtXRNode(XRNode.RightHand);
+            return right.isValid && right.TryGetFeatureValue(CommonUsages.trigger, out float t) && t > hostTriggerThreshold;
         }
 
         void Leave(string why)
