@@ -1990,13 +1990,21 @@ namespace Container.Crane.Sts.EditorTools
                 }
                 float exposeMm = bodyB < float.MaxValue ? (bodyB - tipY) * toMm : float.NaN;
 
+                // 부재별 Y 구간(콘 끝 기준 실척 mm) — 이 오브젝트가 '콘만'인지 '하우징까지 포함'인지 가른다.
+                //   하우징까지면 콘 전체 길이·노출의 의미가 달라지므로 수치를 그대로 쓰면 안 된다.
+                var parts = new System.Text.StringBuilder();
+                foreach (var r in cone.GetComponentsInChildren<Renderer>())
+                    parts.Append($"{r.name}[{(r.bounds.min.y - tipY) * toMm:F0}~{(r.bounds.max.y - tipY) * toMm:F0}] ");
+
                 // ★ 정점이 있는 버킷만 찍는다 — 저폴리 메시는 링 위치에만 정점이 있어서, 고정 간격으로 찍으면 대부분 0.0 이 나와 형상을 못 읽는다.
                 var prof = new System.Text.StringBuilder();
                 int filled = 0;
                 for (int i = 0; i < n; i++) if (maxR[i] > 0f) { prof.Append($"{i}:{maxR[i]:F1} "); filled++; }
                 Debug.Log($"[락높이] {crane.name} {cone.name} — 콘 전체 {(topY - tipY) * toMm:F0}mm · " +
                           $"락(노즈+숄더) {lockMm:F0}mm · 현재 노출 {exposeMm:F0}mm · 부족 {lockMm - exposeMm:F0}mm · " +
-                          $"최대반경 {rMax:F1}mm · 정점링 {filled}개/{n}버킷 · 콘 {cones.Count}개\n    반경 프로파일(정점 있는 버킷만, 실척 mm:반경): {prof}");
+                          $"최대반경 {rMax:F1}mm · 정점링 {filled}개/{n}버킷 · 콘 {cones.Count}개\n" +
+                          $"    반경 프로파일(정점 있는 버킷만, 실척 mm:반경): {prof}\n" +
+                          $"    부재(콘 끝 기준 실척 mm 구간): {parts}");
             }
             Debug.Log("[락높이] 대조군 확인 — 절차 STS 의 정답은 락 76.8mm(노즈 52.8 + 숄더 24). 이 값이 안 나오면 계측을 믿지 말 것.");
         }
