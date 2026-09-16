@@ -158,7 +158,8 @@ namespace Container.Crane.Sts
             }
             clearTopY = top + clearanceMeters * StsConfig.ModelScale;
             Debug.Log($"[PortDemo] {name}: 계획 {jobs.Count}개 — {(rtg ? "야드 → 빈 열" : "배 위 단 → 안벽")}, " +
-                      $"이동 높이 y={clearTopY:F3}, 부착점→콘 바닥 {drop:F4}");
+                      $"이동 높이 y={clearTopY:F3}, 부착점→콘 바닥 {drop:F4}, " +
+                      $"축 시작(PLC m) GT={PlcM(crane.Gantry):F2} TR={PlcM(crane.Trolley):F2} HO={PlcM(crane.Spreader):F2}");
         }
 
         public void Go()
@@ -409,6 +410,10 @@ namespace Container.Crane.Sts
 
         // ── 검증 헬퍼(위 ①~④) ──
         static float Cur(IAxisMover a) => a != null ? a.Current : 0f;
+
+        /// <summary>축의 지금 위치를 PLC 좌표(실척 m, 0 = 무버 Min)로 — PlcSim 시작 자세를 씬과 맞출 때 쓰는 측정값.
+        ///   RTG 는 무버 위치가 FBX 기본값이라 씬 파일에 안 남는다(프리팹 오버라이드 없음) → 로그로만 잴 수 있다.</summary>
+        static float PlcM(IAxisMover a) => a == null ? 0f : (a.Current - a.Min) * a.WorldPerUnit / StsConfig.ModelScale;
 
         void Fail(string what)
         {
