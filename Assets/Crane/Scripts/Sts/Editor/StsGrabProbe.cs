@@ -136,18 +136,25 @@ namespace Container.Crane.Sts.EditorTools
 
         // 콘이 스프레더 구조물(빔·플리퍼 등 콘 아닌 부재) 밑으로 나온 길이(실척 m) = 삽입 깊이의 물리 상한.
         //   이만큼 박으면 구조물 밑면이 컨테이너 윗면에 닿는다 — 실물 안착 자세. 오너 2026-09-16 "40mm 로는 부족".
-        static float ProtrusionM(StsCrane crane)
+        //   wholeAssembly=false: 'Twistlock_Cone*'(절차)·'Spreader_Twistlock_*'(FBX) 만 콘으로 제외 → 절차 STS 는 콘 바로 위
+        //     Twistlock_Head/Body 로드가 '구조물'로 잡혀 돌출이 작게 나온다(24mm). 트위스트락 부재를 구조물로 세는 건 기준이 틀렸다.
+        //   wholeAssembly=true: 이름에 Twistlock 이 든 부재를 전부 제외 → 빔·플리퍼 등 진짜 스프레더 구조물까지의 거리.
+        //   기준을 정하려고 둘 다 재고, 바닥을 정한 부재 이름(part)도 같이 찍는다.
+        static float ProtrusionM(StsCrane crane, out string part, bool wholeAssembly = false)
         {
+            part = "없음";
             if (crane == null || crane.Spreader == null) return 0f;
             var cones = Cones(crane);
             float coneB = BottomY(crane, null, cones: true);
             float bodyB = float.MaxValue;
             foreach (var r in ((Component)crane.Spreader).transform.GetComponentsInChildren<Renderer>())
             {
-                bool inCone = false;
-                foreach (var c in cones)
-                    if (r.transform == c || r.transform.IsChildOf(c)) { inCone = true; break; }
-                if (!inCone) bodyB = Mathf.Min(bodyB, r.bounds.min.y);
+                bool skip = wholeAssembly && r.transform.name.Contains("Twistlock");
+                if (!skip)
+                    foreach (var c in cones)
+                        if (r.transform == c || r.transform.IsChildOf(c)) { skip = true; break; }
+                if (skip) continue;
+                if (r.bounds.min.y < bodyB) { bodyB = r.bounds.min.y; part = r.transform.name; }
             }
             return bodyB < float.MaxValue ? (bodyB - coneB) / StsConfig.ModelScale : 0f;
         }
@@ -256,8 +263,11 @@ namespace Container.Crane.Sts.EditorTools
                     cases.Add(new Case { crane = crane, grabber = g, box = t, targetOffM = -g.InsertDepthMeters, expectLock = true });          // 삽입 자세 — 잠겨야
                     cases.Add(new Case { crane = crane, grabber = g, box = t, targetOffM = -OverdriveM, expectLock = true });                   // 과하강 — 클램프가 삽입깊이에서 세워야
                 }
-                Debug.Log($"[StsGrabProbe] {crane.name}: 후보 {picks.Count}개 중 {chosen.Count()}개 검사 · " +
-                          $"콘 {Cones(crane).Count}개 · 콘 돌출 {ProtrusionM(crane) * 1000f:F0}mm(실척, 삽입 깊이의 물리 상한) · " +
+                float protCone = ProtrusionM(crane, out string partCone);                       // 콘만 제외
+                float protAsm  = ProtrusionM(crane, out string partAsm, wholeAssembly: true);   // 트위스트락 부재 전부 제외
+                Debug.Log($"[StsGrabProbe] {crane.name}: 후보 {picks.Count}개 중 {chosen.Count()}개 검사 · 콘 {Cones(crane).Count}개 · " +
+                          $"돌출(콘만 제외) {protCone * 1000f:F0}mm ← {partCone} · " +
+                          $"돌출(트위스트락 전부 제외) {protAsm * 1000f:F0}mm ← {partAsm} · " +
                           $"현재 삽입 설정 {g.InsertDepthMeters * 1000f:F0}mm");
             }
         }
