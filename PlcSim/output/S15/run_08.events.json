@@ -2,7 +2,7 @@
   "scenario": "S15",
   "name": "STS 5개 양하 (작업 베이 실컨테이너→포털 밑 레인·시연)",
   "label": "정상",
-  "duration_s": 415.5,
-  "rows": 4155,
+  "duration_s": 410.1,
+  "rows": 4101,
   "events": []
 }

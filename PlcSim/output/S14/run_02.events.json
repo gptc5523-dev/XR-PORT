@@ -2,7 +2,7 @@
   "scenario": "S14",
   "name": "STS 20개 양하 (배→트럭 레인)",
   "label": "정상",
-  "duration_s": 1733.8,
-  "rows": 17338,
+  "duration_s": 1729.0,
+  "rows": 17290,
   "events": []
 }

@@ -141,14 +141,14 @@ def iso6346(owner, serial):
 
 
 class Sim:
-    def __init__(self, sp_mode=SP40, wind=8.0, rng=None, range_m=None, id_base=0, gt0=0.0, tr0=0.0):
+    def __init__(self, sp_mode=SP40, wind=8.0, rng=None, range_m=None, id_base=0, gt0=0.0, tr0=0.0, ho0=None):
         # 런별 편차의 단일 출처. 시드 고정 = 재현 가능(반복시험 요건).
         self.rng = rng or random.Random(0)
         self.t = 0.0
         # 크레인마다 가동범위가 다르다(STS RANGE / RTG RTG_RANGE). 정격 속도·가속은 같은 CraneAxisProfile.
         self.range = range_m or RANGE
         self.gt = Axis(gt0, self.range["gt"]); self.tr = Axis(tr0, self.range["tr"])
-        self.ho = Axis(self.range["ho"], self.range["ho"])
+        self.ho = Axis(self.range["ho"] if ho0 is None else ho0, self.range["ho"])
         self.sigma = dict(AIM_SIGMA)   # 목표 산포 — 자동 위치결정 시나리오가 줄인다
         self.moves = []; self.id_base = id_base   # 작업 이력 · 컨테이너 번호 = id_base + 순번
         self.vmul = 1.0  # 풍속 감속 등 속도 스케일
@@ -361,6 +361,7 @@ TROLLEY_REST_X = 8.0                # TrolleyRestX = 8·Scale — 트롤리·Spr
 HOIST_X     = 0.027 * 24            # HoistX — 스프레더(트위스트락 중심)가 SpreaderRoot 보다 바다쪽 0.648
 ATTACH_DROP = 0.019 * 24            # AttachPoint y −0.019u — 스프레더 원점 → 본체 밑면(= 컨테이너 윗면) 0.456
 SPREADER_MIN_Y, SPREADER_MAX_Y = -(BOOM_Y - 0.8), -4.0  # 붐 로컬 — 행정 39.2
+SPREADER_REST_Y = -10.0             # SpreaderRestY = −10·Scale — 스프레더 휴지 높이(붐 로컬). verify ⑥ 대조
 LEG_FOOT = 1.0 * 1.7                # 격자 다리 footprint = LegSec × 1.7
 LEG_Z    = 16.0 / 2                 # 앞뒤 다리 Z ±8 = GantryBaseZMeters / 2
 WHEEL_HALF_Z = 9.5114               # 크레인 중심 → 바깥 바퀴(Wheel 렌더러 실측) — GantryRangeFit 이 재는 값. verify ⑦ 대조
@@ -523,6 +524,7 @@ assert len(discharge_order(NEAR_BAYS)) >= 20 and len(load_targets(NEAR_BAYS)) >=
 # ── 단일 사이클 시나리오(S02~S12) 대표 좌표 — 작업 베이 안벽쪽 첫 스택 ──
 GT_HOME = GT_HALF                                       # 크레인 홈(씬 배치 위치) = 주행 중앙
 TR_HOME = sts_tr(STS_ROOT_X + TROLLEY_REST_X + HOIST_X)  # 트롤리 홈(씬 휴지 위치) = 23.88 — 0(백리치 끝)이 아니다
+HO_HOME = SPREADER_REST_Y - SPREADER_MIN_Y               # 권상 홈(씬 휴지 높이) = 33.2 — 최상단(39.2)이 아니다
 GT_WORK = sts_gt(bay_z(WORK_BAY))
 _P0 = discharge_order([WORK_BAY])[0]                    # 양하 대상 — 첫 스택 맨 위
 _E0 = load_targets([WORK_BAY])[0]                       # 적하 대상 — 첫 빈 2단
@@ -534,7 +536,7 @@ LAND, LO_L          = sts_tr(lane_x(0)), HO_GROUND
 def discharge_cycle(s, with_pick=True):
     """S02 양하 1사이클 (선박→안벽)."""
     s.op_mode = AUTO
-    s.goto(tr=SEA, ho=HI); s.run_until_settled()           # 트롤리 선박측
+    s.goto(gt=GT_WORK, tr=SEA, ho=HI); s.run_until_settled()   # 홈에서 작업 베이로 주행 + 트롤리 선박측
     s.goto(ho=LO); s.run_until_settled()                    # 권상 하강(픽업)
     if with_pick:
         s.detected = True; s.landed = True; s.run_for(1.0)
@@ -561,7 +563,7 @@ def gen_S02(s):  # 양하 (정상)
 
 def gen_S03(s):  # 선적 (정상) — 양하의 역순: 트럭 레인에서 집어 배의 빈 2단(1단 위)에 놓는다
     s.op_mode = AUTO
-    s.goto(tr=LAND, ho=LO_L); s.run_until_settled()
+    s.goto(gt=GT_WORK, tr=LAND, ho=LO_L); s.run_until_settled()   # 홈에서 작업 베이로 주행 + 트롤리 육지측
     s.detected = True; s.landed = True; s.run_for(1.0)
     s.locked = True; s.carry = True; s.run_for(1.5); s.landed = False
     s.goto(ho=HI); s.run_until_settled()
@@ -582,7 +584,7 @@ def gen_S05(s):  # 셧다운 (정상)
     s.event(5017, kind="event"); s.ready = False; s.power = False; s.run_for(2.0)
 
 def gen_S06(s):  # 풍속 주의 (주의) — 18 m/s 접근, 감속
-    s.goto(tr=SEA, ho=HI); s.run_until_settled()
+    s.goto(gt=GT_WORK, tr=SEA, ho=HI); s.run_until_settled()
     s.wind = 18.4; s.wind_alarm = True; s.event(6001); s.vmul = 0.7   # 70% 감속
     s.goto(ho=LO); s.run_until_settled()
     s.detected = True; s.landed = True; s.locked = True; s.carry = True; s.run_for(1.5); s.landed = False
@@ -591,7 +593,7 @@ def gen_S06(s):  # 풍속 주의 (주의) — 18 m/s 접근, 감속
     s.goto(tr=LAND); s.run_until_settled(); s.cycle += 1
 
 def gen_S07(s):  # 스내그 (주의) — 권상 중 걸림
-    s.goto(tr=SEA, ho=HI); s.run_until_settled()
+    s.goto(gt=GT_WORK, tr=SEA, ho=HI); s.run_until_settled()
     s.goto(ho=LO); s.run_until_settled()
     s.detected = True; s.landed = True; s.locked = True; s.carry = True; s.run_for(1.5); s.landed = False
     s.goto(ho=HI / 2)  # 권상 상승 시작
@@ -602,7 +604,7 @@ def gen_S07(s):  # 스내그 (주의) — 권상 중 걸림
     s.goto(ho=HI); s.run_until_settled(); s.cycle += 1
 
 def gen_S08(s):  # 안착 실패/재시도 (주의)
-    s.goto(tr=SEA, ho=LO); s.run_until_settled()   # 배 갑판 위 안착 시도
+    s.goto(gt=GT_WORK, tr=SEA, ho=LO); s.run_until_settled()   # 작업 베이로 주행 + 배 갑판 위 안착 시도
     s.detected = True; s.landed = True; s.run_for(5.0)        # 5초 내 미잠금
     s.mismatch = True; s.event(4003); s.run_for(1.0)
     s.goto(ho=LO + 0.4); s.run_until_settled()                # 5~10cm 들어 재정렬
@@ -612,7 +614,7 @@ def gen_S08(s):  # 안착 실패/재시도 (주의)
     s.goto(ho=HI); s.run_until_settled(); s.cycle += 1
 
 def gen_S09(s):  # 비상정지 (이상)
-    s.goto(tr=SEA, ho=LO); s.run_until_settled()
+    s.goto(gt=GT_WORK, tr=SEA, ho=LO); s.run_until_settled()
     s.detected = True; s.locked = True; s.carry = True
     s.goto(ho=HI); s.run_for(2.0)
     s.event(5001); s.arrest(estop=True)                        # E-Stop — 비상제동으로 감속 정지
@@ -620,13 +622,13 @@ def gen_S09(s):  # 비상정지 (이상)
     s.estop = False; s.clear_alarm(); s.ready = True; s.run_for(1.0)
 
 def gen_S10(s):  # 풍속 한계 초과 (이상) — 작업 강제 중단
-    s.goto(tr=SEA, ho=HI); s.run_until_settled()
+    s.goto(gt=GT_WORK, tr=SEA, ho=HI); s.run_until_settled()
     s.wind = 26.0; s.wind_alarm = True; s.event(6002)          # ≥25 m/s
     s.goto(tr=LAND, ho=HI); s.run_until_settled()              # 스프레더 안전 회수
     s.op_mode = MAINT; s.event(5015, kind="event"); s.run_for(3.0)
 
 def gen_S11(s):  # 설비 고장 (이상) — 권상 모터 과열
-    s.goto(tr=SEA, ho=LO); s.run_until_settled()
+    s.goto(gt=GT_WORK, tr=SEA, ho=LO); s.run_until_settled()
     s.detected = True; s.locked = True; s.carry = True
     s.goto(ho=HI); s.run_for(2.5)
     s.ho_motor_alarm = True; s.event(3002)                     # 권선 온도 초과 → 권상 정지
@@ -719,6 +721,9 @@ RTG_RANGE     = {"gt": 140.887, "tr": 20.19, "ho": 19.566}
 RTG_ROW_PITCH = 2.438 + 0.4                                     # 2.838 = 컨테이너폭 + 열간격
 RTG_TR_ROW0   = RTG_RANGE["tr"] / 2 - 2.5 * RTG_ROW_PITCH       # 3.000 — 6열이 스팬 중앙 대칭
 RTG_TR_HOME   = RTG_RANGE["tr"] / 2                             # 10.095 — 트롤리 x=0 파킹(RtgCraneCreator), 범위 ±10.095 대칭
+RTG_GT_HOME   = RTG_RANGE["gt"] / 2                             # 70.44 — 크레인이 블록 존 한가운데 선다(씬 z ±3.5313u = 범위 중앙)
+RTG_HO_HOME   = 9.94                                            # FBX 스프레더 파킹 높이(그랩 평면) 실측 — 프리팹 오버라이드가 없어
+                                                                #   씬 파일엔 안 남는다. CraneDemoRunner 의 '축 시작(PLC m)' 로그로 잰 값
 RTG_GT_BAY0   = RTG_RANGE["gt"] / 2 - 5.5 * BAY_PITCH           # 0.087 — 12베이가 주행 중앙 대칭
 RTG_HO_CLEAR  = 4 * CONT_H + 3.0                                # 13.36 — 4단 최상단 + 3m (STS HO_CLEAR 와 같은 규칙)
 
@@ -739,7 +744,7 @@ RTG_JOBS = [
 
 def gen_S16(s):  # RTG 야드 정리 5개 — 흩어진 1단 40ft 를 한 베이로 모아 쌓는다
     s.op_mode = AUTO
-    s.gt.pos = s.gt.target = rtg_gt(RTG_JOBS[0][0][0])   # 첫 작업 베이에서 시작(S13/S14 와 같은 이유)
+    s.goto(gt=rtg_gt(RTG_JOBS[0][0][0])); s.run_until_settled()   # 홈에서 첫 작업 베이로 주행 — 시작값을 박으면 첫 스캔에 튄다
     loc = lambda b, r, t: f"YARD1/B{b + 1:02d}/R{r + 1:02d}/T{t}"
     for (pb, pr, pt), (qb, qr, qt) in RTG_JOBS:
         # ── 집기 ──
@@ -835,9 +840,11 @@ def main():
             crane = CRANE.get(sid, "STS")
             sim = Sim(sp_mode=SPTWIN if sid == "S04" else SP40, rng=random.Random(seed),
                       range_m=RANGES[crane], id_base=int(sid[1:]) * 1000,
-                      gt0=GT_WORK if crane == "STS" else 0.0,   # STS 는 작업 베이 위에서 시작
-                      # 트롤리는 씬 휴지 위치에서 시작 — 0(백리치 끝)이면 PlcBridge 첫 스캔에 트롤리가 끝으로 튄다(오너 2026-09-16)
-                      tr0=TR_HOME if crane == "STS" else RTG_TR_HOME)
+                      # 세 축 모두 씬 휴지 자세에서 시작하고, 작업 위치로는 '주행해서' 간다 — 시작값을 작업 위치로 박으면
+                      #   PlcBridge 첫 스캔(절대 위치)에 그만큼 한 틱에 튄다(오너 2026-09-16 "트롤리가 맨 끝에서 시작").
+                      gt0=GT_HOME if crane == "STS" else RTG_GT_HOME,
+                      tr0=TR_HOME if crane == "STS" else RTG_TR_HOME,
+                      ho0=HO_HOME if crane == "STS" else RTG_HO_HOME)
             fn(sim)
             out_dir = os.path.join(args.out, sid)
             csv_path, ev_path, hist_path, rows = write_run(out_dir, sid, name, label, i, sim, crane)

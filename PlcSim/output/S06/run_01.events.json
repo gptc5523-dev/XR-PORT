@@ -2,11 +2,11 @@
   "scenario": "S06",
   "name": "풍속 한계 접근(감속)",
   "label": "주의",
-  "duration_s": 42.8,
-  "rows": 428,
+  "duration_s": 38.2,
+  "rows": 382,
   "events": [
     {
-      "t_ms": 19000,
+      "t_ms": 14100,
       "kind": "alarm",
       "code": 6001,
       "severity": 1,

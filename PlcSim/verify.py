@@ -66,10 +66,12 @@ for f in sorted(glob.glob(os.path.join(OUT, "*", "*.csv"))):
     rows = list(csv.DictReader(open(f, encoding="utf-8")))
     miss = [c for c in NEEDED if c not in rows[0]]
     if miss: fails.append(f"[헤더] {sid} 누락 {miss}")
-    # 트롤리 시작 = 씬 휴지 위치 — 어긋나면 PlcBridge 첫 스캔에 트롤리가 그만큼 한 틱에 튄다
-    tr_home = G.TR_HOME if crane[sid] == "STS" else G.RTG_TR_HOME
-    if abs(float(rows[0]["TR_Position"]) - tr_home) > 0.05:
-        fails.append(f"[시작] {os.path.relpath(f, OUT)} 트롤리 {float(rows[0]['TR_Position']):.2f}m ≠ 씬 휴지 {tr_home:.2f}m")
+    # 시작 자세 = 씬 휴지 자세 — 어긋나면 PlcBridge 첫 스캔(절대 위치)에 그 축이 한 틱에 튄다
+    home = ({"gt": G.GT_HOME, "tr": G.TR_HOME, "ho": G.HO_HOME} if crane[sid] == "STS"
+            else {"gt": G.RTG_GT_HOME, "tr": G.RTG_TR_HOME, "ho": G.RTG_HO_HOME})
+    for k, c in COL.items():
+        if abs(float(rows[0][c]) - home[k]) > 0.05:
+            fails.append(f"[시작] {os.path.relpath(f, OUT)} {k} {float(rows[0][c]):.2f}m ≠ 씬 휴지 {home[k]:.2f}m")
     digests[sid].add(hash(tuple(r["HO_Position"] + r["TR_Position"] for r in rows)))
     ev = json.load(open(f[:-4] + ".events.json", encoding="utf-8"))
     arrested = any(e["code"] in ARREST for e in ev["events"])
@@ -119,20 +121,29 @@ for sid, pick_ship in (("S13", False), ("S14", True), ("S15", True)):
         lk = r["SP_TwistLock_Locked"]
         if prev is not None and lk != prev:
             (picks if lk == "1" else places).append(
-                (float(r["TR_Position"]), float(r["HO_Position"])))
+                (float(r["GT_Position"]), float(r["TR_Position"]), float(r["HO_Position"])))
         prev = lk
     if not picks or not places:
         fails.append(f"[방향] {sid}: 잠금/해제 전이 없음"); continue
     # 배쪽 = 안벽 가장자리(x=0)보다 바다쪽, 육지쪽 = 그보다 안쪽(포털 밑 레인) — 경계도 '씬 기하' 식
     edge = G.sts_tr(0.0)
-    pick_side  = all(tr > edge for tr, _ in picks)  if pick_ship else all(tr < edge for tr, _ in picks)
-    place_side = all(tr < edge for tr, _ in places) if pick_ship else all(tr > edge for tr, _ in places)
-    tiers = [ho for _, ho in picks] if pick_ship else [ho for _, ho in places]
-    tier_ok = tiers[0] >= tiers[-1] if pick_ship else tiers[0] <= tiers[-1]   # 양하 위→아래 / 적하 아래→위
+    pick_side  = all(tr > edge for _, tr, _ in picks)  if pick_ship else all(tr < edge for _, tr, _ in picks)
+    place_side = all(tr < edge for _, tr, _ in places) if pick_ship else all(tr > edge for _, tr, _ in places)
+    # 단 순서는 '스택별'로 본다 — 20개는 베이·열을 오가며 옮기므로 첫 개와 마지막 개를 비교하면 서로 다른 스택이라
+    #   의미가 없다(같은 단이면 산포 ±3cm 방향에 따라 판정이 뒤집혔다 — 2026-09-16). 같은 스택(베이·열 격자)
+    #   안에서 양하는 위 단부터, 적하는 아래 단부터여야 한다. 허용 오차는 한 단의 절반.
+    seq, half, bad, stack = (picks if pick_ship else places), G.CONT_H / 2, 0, {}
+    for gt, tr, ho in seq:
+        key = (round(gt / G.CONT_L), round(tr / G.CONT_W))          # 베이(GT)·열(TR) 격자
+        last = stack.get(key)
+        if last is not None and (ho > last + half if pick_ship else ho < last - half): bad += 1
+        stack[key] = ho
+    tier_ok = bad == 0
+    verdict = "OK" if tier_ok else f"NG({bad}건)"
     d = "배→육지" if pick_ship else "육지→배"
     print(f"  {sid} {d}  집는곳 {'배' if pick_ship else '육지'}={'OK' if pick_side else 'NG'}"
           f"  놓는곳 {'육지' if pick_ship else '배'}={'OK' if place_side else 'NG'}"
-          f"  단 {tiers[0]:.1f}→{tiers[-1]:.1f}m {'OK' if tier_ok else 'NG'}  ({len(picks)}개)")
+          f"  스택 {len(stack)}곳 단 순서 {verdict}  ({len(picks)}개)")
     if not pick_side:  fails.append(f"[방향] {sid}: 집는 위치가 반대")
     if not place_side: fails.append(f"[방향] {sid}: 놓는 위치가 반대")
     if not tier_ok:    fails.append(f"[단순서] {sid}: {'양하는 위 단부터' if pick_ship else '적하는 아래 단부터'}")
@@ -226,6 +237,7 @@ else:
     chk("AttachPoint_1", first("AttachPoint_1"), (0.0, -G.ATTACH_DROP, 0.0), 1e-3)
     sp = first("Spreader_1")
     chk("Spreader_1 X(HoistX)", sp and sp[:1], (G.HOIST_X,), 1e-3)
+    chk("Spreader_1 휴지 Y", sp and sp[1:2], (G.SPREADER_REST_Y,), 1e-3)   # 권상 시작 자세의 근거
     gg = re.search(r'guid: (\w+)', open(os.path.join(D, "..", "Assets/Crane/Scripts/Sts/Runtime/GantryMover.cs.meta")).read()).group(1)
     gm = next((b for f, (t, b) in blocks.items() if t == "114" and gg in b
                and names.get(re.search(r'm_GameObject: \{fileID: (-?\d+)', b).group(1)) == "STS_Crane"), None)

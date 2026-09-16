@@ -2,7 +2,7 @@
   "scenario": "S13",
   "name": "STS 20개 적하 (트럭 레인→배 빈 2단)",
   "label": "정상",
-  "duration_s": 1749.0,
-  "rows": 17490,
+  "duration_s": 1742.1,
+  "rows": 17421,
   "events": []
 }

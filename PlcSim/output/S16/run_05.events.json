@@ -2,7 +2,7 @@
   "scenario": "S16",
   "name": "RTG 5개 야드 정리 (흩어진 1단→한 베이 적층)",
   "label": "정상",
-  "duration_s": 460.7,
-  "rows": 4607,
+  "duration_s": 504.9,
+  "rows": 5049,
   "events": []
 }

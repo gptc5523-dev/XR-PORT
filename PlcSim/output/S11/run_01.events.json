@@ -2,11 +2,11 @@
   "scenario": "S11",
   "name": "설비 고장",
   "label": "이상",
-  "duration_s": 31.1,
-  "rows": 311,
+  "duration_s": 27.4,
+  "rows": 274,
   "events": [
     {
-      "t_ms": 24500,
+      "t_ms": 20000,
       "kind": "alarm",
       "code": 3002,
       "severity": 2,
