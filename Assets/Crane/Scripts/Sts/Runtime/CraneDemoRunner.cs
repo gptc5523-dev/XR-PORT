@@ -99,7 +99,11 @@ namespace Container.Crane.Sts
         //   ④ 축: 틱마다 |v| ≤ 정격속, |a| ≤ 2·정격가속 — 사다리꼴 가속 구간은 a, 도착 틱 감속은 ≤ 2a 로 유계(Step 주석의 유도).
         //      트립 한계(정격 × TripMargin 5/3)로 나누면 2 ÷ 5/3 = 1.2 — 부동소수 여유 5% 를 두고 넘으면 그 틱에서 실패.
         //      2026-09-15 스모크에서 옛 도착 규칙(1mm 만 보고 섬)이 트립의 3.9배 스파이크를 냈다 — 이 검사가 그걸 잡는다.
-        const float PickTolM = 0.36f, SeatTolM = 0.01f, SupportTolM = 0.02f, OverlapSkinM = 0.01f;
+        const float PickTolM = 0.36f, SupportTolM = 0.02f, OverlapSkinM = 0.01f;
+
+        // 집기 안착 허용오차 — 목표(= 삽입 깊이)에서 유도한다. 옛 고정 ±1cm 는 STS 유도깊이 24mm 의 ±42% 라
+        //   사실상 아무것도 못 잡았다(82 지적 2026-09-16). StsGrabProbe 의 밴드(d937f71)와 같은 식: min(5mm, 깊이×25%).
+        float SeatTolM => Mathf.Min(0.005f, Mathf.Abs(SeatGapM) * 0.25f);
         const float AccelTripRatioMax = 2f / CraneAxisProfile.TripMargin * 1.05f;
         public static int Violations;
         public static float MaxPickErrM, MaxSupportErrM, MaxSpeedRatio, MaxAccelRatio;
