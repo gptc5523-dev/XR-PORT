@@ -364,6 +364,7 @@ namespace Container.Crane.Sts
             if (attach == null || !attach.HasContainer) return;
 
             var held = attach.AttachedContainer;   // Detach 전에 참조 확보 — 접점 릴레이 제거용
+            if (held != null) SnapToYardCell(held);   // 아직 kinematic 인 동안 칸에 맞춘다 — 물리와 싸우지 않게
             attach.Detach();
             if (held != null)
             {
@@ -374,6 +375,45 @@ namespace Container.Crane.Sts
             if (lockAnim != null) lockAnim.SetLocked(false);
             if (rtgTele != null) rtgTele.SetSize(RtgSpreaderTelescope.Size.Ft40);   // 빈 스프레더는 40ft 기준자세로 복원
             if (debugLog) Debug.Log("[Crane] 놓기(Detach)");
+        }
+
+        // 놓을 때 야드 칸(라인) 중심·격자 축으로 맞춘다 — 오너 2026-09-16 "바닥 라인 안 지키고 그냥 내려놓는다. 수식으로 계산해서 수정".
+        //   · 수식은 YardGrid 한 곳에서만 유도한다 — 자동 시나리오(CraneDemoRunner.FindSlot)도 같은 식을 읽는다.
+        //     두 벌이 되면 수동·자동이 서로 다른 자리에 놓는다.
+        //   · 높이는 건드리지 않는다: 통과방지 클램프와 바닥 하한이 이미 밑면을 받침 윗면/바닥면에 세워 뒀다(b9d1d5b).
+        //   · 야드 블록 밖(에이프런·배·트럭)이면 아무것도 안 한다 — 그 자리는 격자와 무관하다.
+        //   · 목표 칸이 같은 높이에서 이미 차 있으면 맞추지 않는다 — 칸에 맞추려고 남의 컨테이너를 파고드는 게
+        //     라인 어긋남보다 나쁘다. 같은 칸 '위로' 쌓는 건 통과한다(쌓인 상자는 닿기만 하고 교차하지 않는다).
+        void SnapToYardCell(Transform c)
+        {
+            if (!TryBounds(c, out Bounds b)) return;
+            float longSide = Mathf.Max(b.size.x, b.size.z);
+            if (!YardGrid.TrySnapXZ(b.center, longSide, out Vector3 cell)) return;
+
+            Quaternion rotWas = c.rotation;
+            float yaw = YardGrid.SnapYawDeg(c.eulerAngles.y);
+            c.rotation = Quaternion.Euler(c.eulerAngles.x, yaw, c.eulerAngles.z);
+            // 회전 뒤 바운즈가 달라지므로 다시 재서 중심을 칸에 맞춘다(원점 ≠ 바운즈 중심인 화물 대비).
+            if (!TryBounds(c, out Bounds nb)) { c.rotation = rotWas; return; }
+            Vector3 delta = new Vector3(cell.x - nb.center.x, 0f, cell.z - nb.center.z);
+
+            // 옮길 자리가 다른 컨테이너와 '교차'하면 원복. 0.98 은 닿음(적층)과 파고듦을 가르는 여유.
+            var moved = new Bounds(nb.center + delta, nb.size * 0.98f);
+            foreach (var rb in bodies)
+            {
+                if (rb == null) continue;
+                Transform t = rb.transform;
+                if (t == c || t.IsChildOf(c) || c.IsChildOf(t) || t.IsChildOf(transform)) continue;
+                if (TryBounds(t, out Bounds ob) && moved.Intersects(ob))
+                {
+                    c.rotation = rotWas;
+                    if (debugLog) Debug.Log($"[Crane] 야드 칸 정렬 건너뜀 — 목표 칸이 {t.name} 와(과) 겹침. 놓은 자리 그대로 둠.");
+                    return;
+                }
+            }
+            c.position += delta;
+            if (debugLog)
+                Debug.Log($"[Crane] 야드 칸 정렬 — 중심 x {nb.center.x:F4}→{cell.x:F4}, z {nb.center.z:F4}→{cell.z:F4}, yaw {yaw:F0}°");
         }
 
         /// <summary>잡고 있으면 놓고, 아니면 잡는다(토글). 단일 버튼 매핑용 — 현재 컨트롤러는 Grab/Release를 직접 호출.</summary>

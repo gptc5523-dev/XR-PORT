@@ -29,6 +29,56 @@ namespace Container.Crane.Sts.EditorTools
         //   부동소수 수준이다. 옛 고정 ±20mm 는 STS 24mm 에 대해 검사가 아니었다(깊이의 80% 가 틀려도 통과) — xr-port-ae 지적.
         const float HoverM = 0.2f, OverdriveM = 0.2f, InsertBandAbsM = 0.005f, InsertBandFrac = 0.25f;
 
+        // ⑨ 야드 칸 정렬 검사 — 제자리에서 놓으면 이미 칸 위라 '스냅이 돌았는지'만 보이고 '틀어진 걸 바로잡는지'는 안 보인다.
+        //   그래서 일부러 칸의 40% 만큼 옆으로 옮기고 7° 틀어서 놓고, 칸 중심·격자 축으로 되돌아오는지 잰다.
+        const float OffCellFrac = 0.4f, OffYawDeg = 7f, SnapTolM = 0.005f;
+
+        /// <summary>칸에서 일부러 벗어나게 할 월드 변위(모델 단위) — 행·베이 피치의 OffCellFrac.</summary>
+        static Vector3 OffCellU() =>
+            new Vector3(PortConfig.RowPitchM * OffCellFrac, 0f, PortConfig.BayPitchM * OffCellFrac) * StsConfig.ModelScale;
+
+        // 놓기 직전 상태 — 기대치가 '칸 정렬'인지 '건드리지 않음'인지는 놓는 자리가 야드 블록 안인지로 갈린다.
+        static bool snapExpected;
+        static Vector3 snapCellWanted, snapCenterBefore;
+
+        /// <summary>놓기 직전에 호출 — 이 자리가 야드 칸인지(=스냅이 일어나야 하는지) 미리 판정해 둔다.</summary>
+        static void MarkSnapExpectation(Case c)
+        {
+            snapExpected = false; snapCellWanted = snapCenterBefore = Vector3.zero;
+            if (!CraneDemoRunner.TryBounds(c.box, out var b)) return;
+            snapCenterBefore = b.center;
+            snapExpected = YardGrid.TrySnapXZ(b.center, Mathf.Max(b.size.x, b.size.z), out snapCellWanted);
+        }
+
+        // 놓은 결과 판정. 수식은 런타임 YardGrid 를 그대로 쓴다 — 검사가 제 식을 따로 두면 서로를 검증하지 못한다.
+        //   ★ 기대치가 둘로 갈린다(2026-09-16 첫 실행에서 내 판정이 틀렸던 부분):
+        //     · 야드 블록 안에 놓았으면 → 칸 중심 ±SnapTolM + 격자 요각. 이게 오너가 요구한 '라인 지키기'다.
+        //     · 야드 블록 밖(STS 는 배·에이프런에서 작업한다)이면 → 아무것도 안 건드리는 게 정상.
+        //       첫 판정은 여기서도 칸 정렬을 요구해 STS 6건을 BAD 로 찍었다 — 코드가 아니라 검사가 틀린 것이었다.
+        static void MeasureSnap(Case c)
+        {
+            measured++;
+            if (!CraneDemoRunner.TryBounds(c.box, out var b)) { fails++; Debug.Log($"[StsGrabProbe] BAD 칸정렬 {c.box.name} — 바운즈 없음"); return; }
+
+            float yawOff = Mathf.Abs(Mathf.DeltaAngle(c.box.eulerAngles.y, Mathf.Round(c.box.eulerAngles.y / 90f) * 90f));
+            bool ok; string detail;
+            if (snapExpected)
+            {
+                float dM = new Vector2(b.center.x - snapCellWanted.x, b.center.z - snapCellWanted.z).magnitude * StsConfig.InvModelScale;
+                ok = dM <= SnapTolM && yawOff <= 1f;
+                detail = $"야드 칸 안 → 칸 중심 이탈 {dM * 1000f:F0}mm(허용 {SnapTolM * 1000f:F0}), yaw 잔차 {yawOff:F1}°";
+            }
+            else
+            {
+                // 야드 밖 — 놓은 자리에서 움직이지 않아야 한다(격자와 무관한 자리를 임의로 옮기면 그게 버그다).
+                float movedM = (b.center - snapCenterBefore).magnitude * StsConfig.InvModelScale;
+                ok = movedM <= SnapTolM;
+                detail = $"야드 밖(배·에이프런) → 놓은 자리 유지 확인, 이동 {movedM * 1000f:F0}mm(허용 {SnapTolM * 1000f:F0})";
+            }
+            if (!ok) fails++;
+            Debug.Log($"[StsGrabProbe] {(ok ? "OK " : "BAD")} 칸정렬 {c.crane.name} {c.box.name} — {detail}");
+        }
+
         // targetOffM = 콘 바닥을 컨테이너 윗면 대비 어디로 보낼지(실척 m, + 위 / − 아래). 최종 높이는 클램프가 정할 수 있다.
         struct Case { public StsCrane crane; public SpreaderGrabber grabber; public Transform box; public float targetOffM; public bool expectLock; }
         static readonly List<Case> cases = new List<Case>();
@@ -82,6 +132,11 @@ namespace Container.Crane.Sts.EditorTools
                     CraneDemoRunner.TryBounds(c.box, out before);
                     rotBefore = c.box.rotation; posBefore = c.box.position; parentBefore = c.box.parent;
                     var rb = c.box.GetComponent<Rigidbody>(); kinBefore = rb != null && rb.isKinematic;
+                    // ★ 재는 동안 kinematic 으로 고정한다 — 배 컨테이너는 동적 강체라 측정 창 사이에 중력으로 내려앉고,
+                    //   그 낙하가 '집는 순간 튄 거리(윗면)'에 섞여 STS 1건이 허용 0.003u 를 0.0007u 넘겼다(2026-09-16).
+                    //   xr-port-42 가 FloorClipProbe 에서 찾은 것과 같은 원인(b56eead) — 그쪽 해법을 그대로 따른다.
+                    //   phase 5 에서 kinBefore 로 원복하므로 씬 상태는 유지된다.
+                    if (rb != null) rb.isKinematic = true;
                     Vector3 gp1 = c.grabber.GrabPoint();
                     float targetConeY = before.max.y + c.targetOffM * StsConfig.ModelScale;
                     Vector3 d = new Vector3(Top(before).x - gp1.x,
@@ -108,7 +163,19 @@ namespace Container.Crane.Sts.EditorTools
                     phase = 4; Wait(0.3f); return;
                 case 4:
                     Measure(c, "들어올림");
+                    if (c.expectLock)   // 잠긴 케이스만 — 안 잡힌 케이스는 놓을 게 없다
+                    {
+                        MoveBy(c.crane.Trolley, OffCellU());
+                        MoveBy(c.crane.Gantry, OffCellU());
+                        c.box.rotation = Quaternion.Euler(0f, OffYawDeg, 0f) * c.box.rotation;
+                        phase = 5; Wait(0.3f); return;
+                    }
+                    goto case 5;
+                case 5:
+                    bool wasLocked = c.expectLock && c.crane.Attach != null && c.crane.Attach.HasContainer;
+                    if (wasLocked) MarkSnapExpectation(c);   // 이 자리가 야드 칸인지 먼저 판정(기대치가 갈린다)
                     c.grabber.Release();
+                    if (wasLocked) MeasureSnap(c);   // 야드면 칸 정렬, 야드 밖이면 놓은 자리 유지
                     c.box.SetParent(parentBefore, true);
                     c.box.SetPositionAndRotation(posBefore, rotBefore);
                     var rb2 = c.box.GetComponent<Rigidbody>();
@@ -163,6 +230,90 @@ namespace Container.Crane.Sts.EditorTools
                 if (r.bounds.min.y < bodyB) { bodyB = r.bounds.min.y; part = r.transform.name; }
             }
             return bodyB < float.MaxValue ? (bodyB - coneB) / StsConfig.ModelScale : 0f;
+        }
+
+        // 콘 오브젝트 하나의 전체 길이(실척 m) — 렌더러 합 바운즈의 높이. xr-port-ae 요청 2026-09-16:
+        //   FBX RTG 는 락(숄더) 높이를 코드로 못 읽어서, '전체 길이 대비 본체 밑면 아래 노출 비'를 그 대용으로 쓴다.
+        //   노출 비가 작으면 락이 콘 위쪽에 남아 STS 와 같은 증상(락이 구멍에 안 들어감)이 된다.
+        // 콘 반경 프로파일로 '락(노즈+숄더) 높이'를 실측한다 — xr-port-ae 제안 2026-09-16. 비례 추정을 없애려는 계측이다.
+        //   ① 콘 메시 정점을 월드로 변환 ② 콘 중심축(정점 XZ 평균) 기준 수평반경 r 과 콘끝 기준 높이 h
+        //   ③ h 를 1mm(실척) 버킷으로 묶어 버킷별 최대 r → 반경 프로파일
+        //   ④ 아래→위로 노즈(r 증가) → 숄더(r 최대에서 평탄) → 넥(r 감소). 락 높이 = 숄더 평탄 구간의 상단 h.
+        //   ★ 계측 자체의 검증: 절차 생성 STS 는 정답을 안다(노즈 52.8 + 숄더 24 = 락 76.8mm, 전체 144mm).
+        //     STS 에서 76.8mm 근처가 안 나오면 이 계측을 신뢰하지 말 것 — FBX 쪽 축·스케일이 달라 조용히 틀릴 수 있다.
+        //   반환값은 '정점을 재긴 했는가'만 뜻한다. 형상이 노즈·숄더·넥 이 아니면 shapeOk=false 로 알린다 —
+        //   두 뜻을 한 반환값에 섞으면 형상 이상일 때 진단 로그 자체가 안 찍혀서, 넣은 이유가 사라진다(내가 방금 그렇게 썼다).
+        static bool TryLockHeightM(StsCrane crane, out float lockM, out string profile, out bool shapeOk)
+        {
+            lockM = 0f; profile = "없음"; shapeOk = false;
+            var cones = Cones(crane);
+            if (cones.Count == 0) return false;
+
+            var pts = new List<Vector3>();
+            foreach (var mf in cones[0].GetComponentsInChildren<MeshFilter>())
+            {
+                var m = mf.sharedMesh;
+                if (m == null) continue;
+                foreach (var v in m.vertices) pts.Add(mf.transform.TransformPoint(v));
+            }
+            if (pts.Count == 0) return false;
+
+            float inv = StsConfig.InvModelScale;
+            float minY = float.MaxValue, cx = 0f, cz = 0f;
+            foreach (var p in pts) { minY = Mathf.Min(minY, p.y); cx += p.x; cz += p.z; }
+            cx /= pts.Count; cz /= pts.Count;
+
+            var maxR = new Dictionary<int, float>();
+            foreach (var p in pts)
+            {
+                int mm = Mathf.RoundToInt((p.y - minY) * inv * 1000f);
+                float r = new Vector2(p.x - cx, p.z - cz).magnitude * inv * 1000f;
+                if (!maxR.TryGetValue(mm, out float cur) || r > cur) maxR[mm] = r;
+            }
+
+            float rMax = 0f;
+            foreach (var kv in maxR) rMax = Mathf.Max(rMax, kv.Value);
+            int shoulderTop = 0;
+            foreach (var kv in maxR) if (kv.Value >= rMax * 0.98f) shoulderTop = Mathf.Max(shoulderTop, kv.Key);
+            lockM = shoulderTop / 1000f;
+
+            var keys = new List<int>(maxR.Keys);
+            keys.Sort();
+
+            // ★ 고정 간격(예: 8mm)으로 샘플하면 안 된다 — 저폴리 메시는 링 높이에만 정점이 있어 대부분 버킷이 비고,
+            //   찍히는 값이 '8의 배수인 높이'라는 우연에 좌우돼 형상이 안 보인다(xr-port-ae 가 자기 1차 계측에서 발견).
+            //   정점이 있는 버킷만 전부 찍는다. 로그 폭주를 막으려고 개수만 제한한다.
+            const int MaxPrint = 48;
+            int step = Mathf.Max(1, keys.Count / MaxPrint);
+            var sb2 = new System.Text.StringBuilder();
+            for (int i = 0; i < keys.Count; i += step) sb2.Append($"{keys[i]}:{maxR[keys[i]]:F1} ");
+
+            // 계측이 조용히 틀리는 경우를 드러낸다 — 뾰족한 노즈면 콘 끝 반경이 최소여야 한다.
+            //   끝에서 반경이 최대면 노즈·숄더·넥 형상이 아니라는 뜻이고, 그때 '숄더 상단'으로 뽑은 락 높이는 의미가 없다.
+            // ★ 정렬된 keys 를 훑어야 한다 — Dictionary 순회는 순서가 없어서, RTG(0:59.9 · 45:59.9 동률)에서 45 를 먼저 집고
+            //   "끝이 최대"를 놓쳤다(2026-09-16 내 실행에서 가드가 안 걸렸다). 최저 버킷부터 봐야 '끝이 최대인가'를 옳게 판정한다.
+            int rMaxAt = keys[0];
+            foreach (int k in keys) if (maxR[k] >= rMax * 0.999f) { rMaxAt = k; break; }
+            bool tipIsWidest = rMaxAt <= keys[0] + 1;
+            shapeOk = !tipIsWidest;
+            profile = (tipIsWidest ? $"★형상 이상(콘 끝에서 반경 최대 {rMax:F1}mm — 뾰족한 노즈가 아님 ⇒ 이 락 높이는 신뢰 불가) " : "")
+                    + $"[최대반경 {rMax:F1}mm @ h={rMaxAt}mm · 끝 버킷 반경 {maxR[keys[0]]:F1}mm · 버킷 {keys.Count}개] "
+                    + sb2.ToString().TrimEnd();
+            return true;   // 정점 계측 자체는 성공 — 신뢰 여부는 shapeOk 로 알린다(프로파일은 항상 찍혀야 한다)
+        }
+
+        static float ConeHeightM(StsCrane crane)
+        {
+            var cones = Cones(crane);
+            if (cones.Count == 0) return 0f;
+            bool any = false;
+            Bounds u = default;
+            foreach (var r in cones[0].GetComponentsInChildren<Renderer>())
+            {
+                if (!any) { u = r.bounds; any = true; }
+                else u.Encapsulate(r.bounds);
+            }
+            return any ? u.size.y / StsConfig.ModelScale : 0f;
         }
 
         static void MoveBy(IAxisMover a, Vector3 d)
@@ -273,10 +424,27 @@ namespace Container.Crane.Sts.EditorTools
                 }
                 float protCone = ProtrusionM(crane, out string partCone);                       // 콘만 제외
                 float protAsm  = ProtrusionM(crane, out string partAsm, wholeAssembly: true);   // 트위스트락 부재 전부 제외
+                float coneH = ConeHeightM(crane);                                               // 콘 오브젝트 자체의 전체 길이
                 Debug.Log($"[StsGrabProbe] {crane.name}: 후보 {picks.Count}개 중 {chosen.Count()}개 검사 · 콘 {Cones(crane).Count}개 · " +
                           $"돌출(콘만 제외) {protCone * 1000f:F0}mm ← {partCone} · " +
                           $"돌출(트위스트락 전부 제외) {protAsm * 1000f:F0}mm ← {partAsm} · " +
                           $"현재 삽입 설정 {g.InsertDepthMeters * 1000f:F0}mm");
+                // xr-port-ae 요청 2026-09-16 — 오너 "락은 컨테이너 안쪽으로 들어간 다음 락을 걸어야 된다".
+                //   콘 전체 길이 대비 노출 비가 작으면, 락(숄더)이 콘 위쪽에 있을 때 STS 와 같은 증상(락이 구멍에 안 들어감)이 된다.
+                //   FBX RTG 는 생성기 상수가 없어 숄더 높이를 코드로 못 읽는다 — 이 비가 그 판정의 대용이다.
+                Debug.Log($"[StsGrabProbe] {crane.name} 콘 기하: 전체 길이 {coneH * 1000f:F0}mm · 본체 밑면 아래 노출 {protCone * 1000f:F0}mm · " +
+                          $"노출/전체 {(coneH > 1e-6f ? protCone / coneH * 100f : 0f):F0}% · " +
+                          $"본체 안에 숨은 길이 {(coneH - protCone) * 1000f:F0}mm");
+                // 락 높이 실측(반경 프로파일) — 비례 추정 대신 수치. STS 는 정답 76.8mm 라 이 계측의 검증도 같이 된다.
+                if (TryLockHeightM(crane, out float lockM, out string prof, out bool shapeOk))
+                {
+                    float shortM = lockM - protCone;   // 양수 = 락이 그만큼 본체 안에 남아 구멍에 안 들어간다
+                    string verdict = !shapeOk
+                        ? "락 높이 판정 보류 — 형상이 노즈·숄더·넥 이 아니다(아래 ★ 참고)"
+                        : $"락 높이 {lockM * 1000f:F1}mm · 노출 {protCone * 1000f:F0}mm · " +
+                          (shortM > 0.0005f ? $"부족 {shortM * 1000f:F1}mm(그만큼 더 노출해야 락이 구멍 안)" : "락 전체가 구멍 안(부족 없음)");
+                    Debug.Log($"[StsGrabProbe] {crane.name} 락 실측: {verdict} · 반경 프로파일(h:최대r, mm) {prof}");
+                }
             }
         }
 
