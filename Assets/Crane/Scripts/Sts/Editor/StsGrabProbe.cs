@@ -25,7 +25,9 @@ namespace Container.Crane.Sts.EditorTools
         //   · 호버(HoverM 위에서 Y 누름): 잠기면 실패. 공중 체결은 실물에 없다.
         //   · 안착(통과방지 클램프가 멈추는 데까지 내림): 잠겨야 하고, 콘이 InsertDepthMeters ± InsertBandM 만큼 박혀야 한다.
         //   · 과하강(OverdriveM 아래까지 밀어 내림): 통과방지 클램프가 삽입깊이에서 멈춰 세워야 한다. 안 멈추면 콘이 컨테이너를 뚫는다.
-        const float HoverM = 0.2f, OverdriveM = 0.2f, InsertBandM = 0.02f;
+        //   허용오차 = min(InsertBandAbsM, 깊이 × InsertBandFrac) — 클램프가 정확히 InsertDepthMeters 에 세우므로 실제 오차는
+        //   부동소수 수준이다. 옛 고정 ±20mm 는 STS 24mm 에 대해 검사가 아니었다(깊이의 80% 가 틀려도 통과) — xr-port-ae 지적.
+        const float HoverM = 0.2f, OverdriveM = 0.2f, InsertBandAbsM = 0.005f, InsertBandFrac = 0.25f;
 
         // targetOffM = 콘 바닥을 컨테이너 윗면 대비 어디로 보낼지(실척 m, + 위 / − 아래). 최종 높이는 클램프가 정할 수 있다.
         struct Case { public StsCrane crane; public SpreaderGrabber grabber; public Transform box; public float targetOffM; public bool expectLock; }
@@ -136,10 +138,14 @@ namespace Container.Crane.Sts.EditorTools
 
         // 콘이 스프레더 구조물(빔·플리퍼 등 콘 아닌 부재) 밑으로 나온 길이(실척 m) = 삽입 깊이의 물리 상한.
         //   이만큼 박으면 구조물 밑면이 컨테이너 윗면에 닿는다 — 실물 안착 자세. 오너 2026-09-16 "40mm 로는 부족".
-        //   wholeAssembly=false: 'Twistlock_Cone*'(절차)·'Spreader_Twistlock_*'(FBX) 만 콘으로 제외 → 절차 STS 는 콘 바로 위
-        //     Twistlock_Head/Body 로드가 '구조물'로 잡혀 돌출이 작게 나온다(24mm). 트위스트락 부재를 구조물로 세는 건 기준이 틀렸다.
+        //   wholeAssembly=false: 'Twistlock_Cone*'(절차)·'Spreader_Twistlock_*'(FBX) 만 콘으로 제외.
         //   wholeAssembly=true: 이름에 Twistlock 이 든 부재를 전부 제외 → 빔·플리퍼 등 진짜 스프레더 구조물까지의 거리.
-        //   기준을 정하려고 둘 다 재고, 바닥을 정한 부재 이름(part)도 같이 찍는다.
+        //   ★ 2026-09-16 실측 결론: 두 기준이 세 크레인 모두 같은 값 — STS 24mm ← Beam_Flange_1 · RTG 56mm ← EndBeam_F_Body.
+        //     '콘 바로 위 Twistlock_Head/Body 로드가 구조물로 잡혀 값이 작게 나온다'던 내 가설은 틀렸다. 바닥을 정하는 건 실제 빔이다.
+        //   ★ StsCraneCreator 주석의 '빔 밑 노출 0.005u ≈ 120mm' 와 24mm 는 모순이 아니다 — 주석은 End_Beam 밑면(−0.015) 기준이고
+        //     실제 최저 부재는 그보다 낮은 Beam_Flange_1 이다(xr-port-ae 검산). 그 주석을 '틀렸다'고 고치지 말 것.
+        //     내 커밋 ad0f17c 메시지가 '주석과 안 맞는다'고 쓴 건 이 구분을 몰랐을 때다 — 삽입 깊이로 읽지만 않으면 둘 다 맞다.
+        //   두 기준을 남겨 두는 이유: 모델이 바뀌어 구조 최저 부재가 트위스트락 계열로 바뀌면 두 값이 갈라져 바로 드러난다.
         static float ProtrusionM(StsCrane crane, out string part, bool wholeAssembly = false)
         {
             part = "없음";
@@ -181,7 +187,9 @@ namespace Container.Crane.Sts.EditorTools
             bool spreaderLongZ = spanZ > spanX;
             // 삽입 = 윗면 − 콘 바닥(실척 m, 양수 = 박힘). 잠긴 케이스는 밴드 안이어야, 호버 케이스는 애초에 안 잠겨야 정상.
             float insertM = (hb.max.y - BottomY(c.crane, c.box, cones: true)) / StsConfig.ModelScale;
-            bool band = Mathf.Abs(insertM - c.grabber.InsertDepthMeters) <= InsertBandM;
+            float want = c.grabber.InsertDepthMeters;
+            float tol = Mathf.Min(InsertBandAbsM, InsertBandFrac * want);
+            bool band = Mathf.Abs(insertM - want) <= tol;
             bool ok = c.expectLock
                 ? same && band && dxz <= TolXZ && rot < 1f && longZ == longZBefore
                   && (stage != "잡음" || (jumpXZ <= TolXZ && Mathf.Abs(dTop) <= TolY))
