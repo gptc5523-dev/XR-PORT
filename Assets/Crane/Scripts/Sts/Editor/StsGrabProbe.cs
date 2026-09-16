@@ -85,6 +85,7 @@ namespace Container.Crane.Sts.EditorTools
         static int idx, phase, fails, measured, skipped;
         static float waitUntil;
         static Bounds before; static Quaternion rotBefore; static Vector3 posBefore; static Transform parentBefore; static bool kinBefore;
+        static Bounds beforeAll;   // 전 LOD 유니온(비활성 렌더러 포함) 기준선 — 활성 전용 바운즈와 나란히 비교할 때 쓴다
 
         static StsGrabProbe()
         {
@@ -130,6 +131,7 @@ namespace Container.Crane.Sts.EditorTools
             {
                 case 1:   // 수평은 트위스트락 중심을 윗면 중심에, 높이는 '콘 바닥'을 목표로(원점이 아니라 실측 기하)
                     CraneDemoRunner.TryBounds(c.box, out before);
+                    TryBoundsAllLods(c.box, out beforeAll);   // LOD 무관 기준선 — 활성 기준만 움직이면 LOD 가 원인
                     rotBefore = c.box.rotation; posBefore = c.box.position; parentBefore = c.box.parent;
                     var rb = c.box.GetComponent<Rigidbody>(); kinBefore = rb != null && rb.isKinematic;
                     // ★ 재는 동안 kinematic 으로 고정한다 — 배 컨테이너는 동적 강체라 측정 창 사이에 중력으로 내려앉고,
@@ -185,6 +187,19 @@ namespace Container.Crane.Sts.EditorTools
         }
 
         static Vector3 Top(Bounds b) => new Vector3(b.center.x, b.max.y, b.center.z);
+
+        // 전 LOD 유니온 바운즈(비활성 렌더러 포함). 활성만 쓰는 TryBounds 와 나란히 재면 'LOD 전환이 측정값을 움직였나'가 갈린다.
+        //   LODGroup 은 선택된 LOD 의 렌더러만 켜므로, 활성만 재는 식은 어느 LOD 가 켜졌는지에 따라 값이 달라진다(xr-port-ae 기여).
+        //   이쪽은 어느 LOD 가 켜져 있어도 같은 값 — 전후로 이 값이 안 변하고 활성 기준만 변하면 LOD 가 원인이다.
+        static bool TryBoundsAllLods(Transform t, out Bounds b)
+        {
+            b = default;
+            var rends = t.GetComponentsInChildren<Renderer>(true);
+            if (rends == null || rends.Length == 0) return false;
+            b = rends[0].bounds;
+            for (int i = 1; i < rends.Length; i++) b.Encapsulate(rends[i].bounds);
+            return true;
+        }
 
         // SpreaderGrabber.Awake 와 똑같은 이름 규약으로 모은 콘 — RTG 에서 0개면 그랩버가 콘을 못 찾는다는 증거.
         static List<Transform> Cones(StsCrane crane) => crane.GetComponentsInChildren<Transform>(true)
@@ -341,9 +356,15 @@ namespace Container.Crane.Sts.EditorTools
             float want = c.grabber.InsertDepthMeters;
             float tol = Mathf.Min(InsertBandAbsM, InsertBandFrac * want);
             bool band = Mathf.Abs(insertM - want) <= tol;
+            // ★ 세로 방향은 '올라감'을 허용하고 '내려감'만 잡는다(2026-09-16 실측으로 고친 판정):
+            //   집는 순간 통과방지 클램프가 받침에 파고든 컨테이너를 들어 올리는 건 정상 동작이다(b9d1d5b 의 바닥·적층 하한).
+            //   실측 확인: 실패했던 2건의 +0.0033u·+0.0032u 가 클램프 로그의 corr=0.003 2회와 1:1로 대응했다.
+            //   반대로 '내려감'은 받침을 파고든다는 뜻이라 여전히 실패로 잡는다. 옛 판정은 |dTop| 로 둘을 같이 막아
+            //   정상 동작을 결함으로 찍었다(Grab 이 높이를 옮기던 시절의 기준이 남아 있었다).
+            bool vOk = stage != "잡음" || dTop >= -TolY;
             bool ok = c.expectLock
                 ? same && band && dxz <= TolXZ && rot < 1f && longZ == longZBefore
-                  && (stage != "잡음" || (jumpXZ <= TolXZ && Mathf.Abs(dTop) <= TolY))
+                  && (stage != "잡음" || jumpXZ <= TolXZ) && vOk
                 : !same;
             measured++;
             if (!ok) fails++;
@@ -351,7 +372,15 @@ namespace Container.Crane.Sts.EditorTools
                       $"{(same ? "" : $"(실제 {(attach != null && attach.AttachedContainer != null ? attach.AttachedContainer.name : "없음")})")}, " +
                       $"트위스트락↔중심 {dxz:F4}u, 튄 거리 수평 {jumpXZ:F4}u·윗면 {dTop:+0.0000;-0.0000}u, 회전 {rot:F1}°, " +
                       $"컨테이너 긴축 {(longZ ? "Z" : "X")}(전 {(longZBefore ? "Z" : "X")}) {Mathf.Max(hb.size.x, hb.size.z):F3}u, " +
-                      $"스프레더 긴축 {(spreaderLongZ ? "Z" : "X")} 콘 간격 {Mathf.Max(spanX, spanZ):F3}u");
+                      $"스프레더 긴축 {(spreaderLongZ ? "Z" : "X")} 콘 간격 {Mathf.Max(spanX, spanZ):F3}u, " +
+                      // '윗면 튐'이 2건 남았고 중력 낙하 가설(kinematic 고정)로 안 잡혔다. 가설을 또 세우지 않고 바운즈 자체를 찍는다 —
+                      //   긴축이 0.508 → 0.513u 로 커진 것도 같이 설명돼야 한다(LOD 교체? 자식 렌더러 활성화?).
+                      $"[활성LOD] 전 size({before.size.x:F4},{before.size.y:F4},{before.size.z:F4}) max.y {before.max.y:F4} " +
+                      $"→ 후 size({hb.size.x:F4},{hb.size.y:F4},{hb.size.z:F4}) max.y {hb.max.y:F4} · " +
+                      $"활성렌더러 {c.box.GetComponentsInChildren<Renderer>().Length}개 / 전체 {c.box.GetComponentsInChildren<Renderer>(true).Length}개, " +
+                      // 전 LOD 유니온 — 이쪽이 전후로 같고 위쪽(활성)만 변하면 LOD 전환이 원인이다(가설 판별).
+                      $"[전LOD] 전 size({beforeAll.size.x:F4},{beforeAll.size.y:F4},{beforeAll.size.z:F4}) max.y {beforeAll.max.y:F4} " +
+                      $"→ 후 {(TryBoundsAllLods(c.box, out Bounds nowAll) ? $"size({nowAll.size.x:F4},{nowAll.size.y:F4},{nowAll.size.z:F4}) max.y {nowAll.max.y:F4}" : "측정 실패")}");
 
             // 오너 2026-09-16 "락 거는 부분이 컨테이너 안으로 안 들어가" — 콘이 실제로 박혔는지 실측.
             //   삽입 = 윗면 y − 콘 바닥 y (양수 = 그만큼 박힘, 음수 = 그만큼 떠 있음). 콘 기준·스프레더 기준을 같이 찍어 어느 쪽을 써야 할지 본다.
