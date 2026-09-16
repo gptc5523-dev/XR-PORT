@@ -143,22 +143,26 @@ namespace Container.Crane.Sts
             sb.AppendLine("<b><size=22>모드 선택</size></b>");
             sb.AppendLine();
 
-            int cur = controller != null ? (int)controller.CurrentMode : -1;   // 적용된 모드(●현재)
-            int sel = controller != null ? controller.SelectedIndex : -1;       // 스틱 후보(▸ 커서)
+            int cur = controller != null ? (int)controller.CurrentMode : -1;   // 적용된 모드 — 초록으로 표시
+            int sel = controller != null ? controller.SelectedIndex : -1;       // 스틱 후보 — 굵게로 표시
             var names = StsCraneVRController.ModeNames;
             for (int i = 0; i < names.Length; i++)
             {
-                string cursor = (i == sel) ? "▸ " : "   ";
-                string line = $"{cursor}{i + 1}. {names[i]}";
-                // 동그라미만 뺀다(오너 2026-09-16 "동그라미 없애 · 디자인도 깨지고") — 라벨 '현재'는 남긴다.
-                //   이 패널에서 ▸(위)와 청록 굵게(아래)는 둘 다 sel(스틱 후보)을 표시하고, cur(적용된 모드)를 표시하는 건 이 태그 하나뿐이다.
-                //   태그를 통째로 지우면 적용 모드 표시가 사라진다 — 중복 제거가 아니라 정보 삭제. (상태판 한 줄 탭의 ● 는 굵게+청록과
-                //   중복이라 93ddf29 에서 글리프만 지웠고, 여기는 같은 이유로 글리프만 지운다.)
-                string activeTag = (i == cur) ? "  <color=#7FFF7F>현재</color>" : "";
-                if (i == sel)
-                    sb.AppendLine($"<color=#5FE0FF><b>{line}</b></color>{activeTag}");   // 후보 = 청록 강조
+                string line = $"{i + 1}. {names[i]}";
+                // 글리프(▸·●) 없이 색+굵기만으로 네 상태를 구분한다 — 오너 2026-09-16 정정:
+                //   "스틱후보 내가 지우라고 했어" · "그냥 글자 색으로 하자".
+                //   후보이자 적용 중 = 굵게+초록 · 후보 = 굵게+청록 · 적용 중 = 초록 · 그 외 = 회색.
+                //   ★ 정보 손실 0 이 조건이다: 네 상태가 모두 구별돼야 한다. 색만 빼고 글리프를 지우면
+                //     적용 모드(cur) 표시가 사라진다(▸ 와 청록 굵게는 둘 다 후보 sel 을 표시했다).
+                //   색은 이 파일에 이미 쓰던 토큰 그대로 — 새 상수를 만들지 않는다.
+                if (i == sel && i == cur)
+                    sb.AppendLine($"<color=#7FFF7F><b>{line}</b></color>");
+                else if (i == sel)
+                    sb.AppendLine($"<color=#5FE0FF><b>{line}</b></color>");
+                else if (i == cur)
+                    sb.AppendLine($"<color=#7FFF7F>{line}</color>");
                 else
-                    sb.AppendLine($"<color=#999999>{line}</color>{activeTag}");
+                    sb.AppendLine($"<color=#999999>{line}</color>");
             }
             sb.AppendLine();
             sb.AppendLine("<size=13><color=#BBBBBB>트리거 당긴 채 스틱 ↑↓ 선택 · B로 확정</color></size>");
