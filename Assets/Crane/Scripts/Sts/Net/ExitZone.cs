@@ -136,12 +136,25 @@ namespace Container.Crane.Sts.Net
 
             if (running) { xrSeenRunning = true; xrLostFor = 0f; return; }
             if (!xrSeenRunning) return;            // VR 로 시작한 적이 없는 세션 — 감시 대상 아님
-            if (SpectatorCount() > 0) { xrLostFor = 0f; return; }   // 남을 끊는 자동 종료는 하지 않는다
+
+            int spectators = SpectatorCount();
+            // 관전자가 있으면 타이머 자체를 안 쌓는다 — 안 그러면 관전자가 나간 순간 '이미 지난 시간'으로 즉시 종료된다.
+            if (spectators > 0) { xrLostFor = 0f; return; }
 
             xrLostFor += Time.unscaledDeltaTime;
-            if (xrLostFor >= headsetLostGraceSeconds)
+            if (ShouldAutoEnd(xrLostFor, headsetLostGraceSeconds, spectators))
                 Leave($"헤드셋 이탈 {headsetLostGraceSeconds:0}초 경과 — 자동 정리(관전자 없음)");
         }
+
+        /// <summary>헤드셋 이탈 자동 종료 판정 — <b>규칙 그 자체</b>. 배관(서브시스템 폴링)과 분리해 XR 없이도 부를 수 있다.
+        ///   배치(-batchmode)에는 XRDisplaySubsystem 이 없어 <see cref="WatchHeadset"/> 경로는 실행조차 안 되므로,
+        ///   회귀가 실제로 나는 '규칙'만 떼어 검사 가능하게 둔다(xr-port-42 HostStartProbe ④).
+        /// <para>spectators 규약 — <see cref="SpectatorCount"/> 와 같다:
+        ///   <b>≥1</b> 나는 호스트고 관전자가 붙어 있다 → 종료 안 함(남을 끊게 된다).
+        ///   <b>0</b> 나는 호스트인데 혼자다 → 유예 뒤 종료(잃는 사람 없고 포트 7777 을 푼다 — 오너의 원래 버그).
+        ///   <b>−1</b> 나는 호스트가 아니다(관전자) → 유예 뒤 종료(자기 연결만 끊긴다).</para></summary>
+        public static bool ShouldAutoEnd(float lostFor, float graceSeconds, int spectators)
+            => graceSeconds > 0f && lostFor >= graceSeconds && spectators <= 0;
 
         /// <summary>내가 호스트일 때 붙어 있는 관전자 수(나 자신 제외). 호스트가 아니면 −1.
         ///   자동 종료 가드와 안내 문구가 <b>같은 수</b>를 보도록 판정을 한 곳에 둔다.</summary>
