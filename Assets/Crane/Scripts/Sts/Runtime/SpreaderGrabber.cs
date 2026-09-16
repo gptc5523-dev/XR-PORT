@@ -41,11 +41,54 @@ namespace Container.Crane.Sts
         //   registerHoverTolY = 0.015u(실척 360mm 공중 체결 허용), seatDepthFrac = 0.45(실척 1.16m 침투 허용).
         //   이제 삽입 밴드는 insertMeters × [InsertMinFrac, InsertMaxFrac] 하나로 정해진다(실측 ConeBottomY 기준).
 
-        [Tooltip("트위스트락 콘이 컨테이너 코너캐스팅 안으로 박히는 깊이(실척 m). ISO1161 상면 홀 상판 두께(≈16mm)+여유 — " +
-                 "콘 바닥이 컨테이너 윗면보다 이만큼 아래로 들어간 상태가 '체결'이다. 오너 2026-09-16 '락 거는 부분이 컨테이너 안으로 안 들어가'.")]
-        [SerializeField] float insertMeters = 0.04f;
-        /// <summary>콘 삽입 깊이(실척 m) — 프로브·검사가 같은 값을 쓰게 공개.</summary>
-        public float InsertDepthMeters => insertMeters;
+        [Tooltip("콘 돌출량을 못 재는 크레인(콘 미탐색)에서만 쓰는 폴백 삽입 깊이(실척 m). " +
+                 "정상 크레인은 이 값을 무시하고 씬 기하에서 유도한다 — InsertDepthMeters 참고.")]
+        [SerializeField] float insertFallbackMeters = 0.04f;
+        // 옛 knob insertMeters = 0.04f 는 삭제(2026-09-16). 근거가 "ISO 1161 상면 홀 상판 두께 ≈16mm + 여유" 였는데 1차 출처가 없다:
+        //   · ISO 1161:2016 은 1984판 Annex A(외형 치수 '예시, 비의무')를 삭제했다 ⇒ 현행판에 코너피팅 외형·상판 두께 규정이 아예 없다.
+        //   · 채택 수치 문서(~/Container/문서/컨테이너_통합.md Part 2)에도 상판 두께가 없다. 있는 것은 개구 63.5 × 124.5(스타디움형)와
+        //     캐스팅 외형 178×162×118(ISO 아님 · CIMC 제조사값, 우리 모델은 높이 113.5)뿐이다.
+        // ★ 다음 세션 주의 — 상판 두께를 벤더 카탈로그·블로그 같은 2차 출처로 채워 삽입 상한을 만들지 말 것.
+        //   Part 2 에 1차 출처로 들어온 뒤에만 쓴다(컨테이너 1차자료는 2026-08-14 전량 삭제됐다).
+
+        float protrusionM = -1f;   // 콘 돌출량 실측 캐시(실척 m, 음수 = 아직 안 쟀음). 렌더러가 준비된 첫 사용 때 1회.
+
+        /// <summary>콘 삽입 깊이(실척 m) — 상수가 아니라 씬 기하에서 유도한다(오너 2026-09-16 "수식을 사용해서 수정하라고 했는데").
+        /// 실물 안착 자세는 <b>스프레더 구조 밑면이 컨테이너 최상면에 닿는</b> 깊이다. 그 최상면은 지붕이 아니라 상단 코너캐스팅 상면이다
+        /// — ISO 1496-1 5.2 가 상단 코너피팅을 위로 6mm 이상 돌출하도록 의무화하므로 컨테이너에서 가장 높은 면이 늘 캐스팅 상면이고,
+        /// 그래서 렌더러 바운즈 max.y 가 바로 그 면이다(잡기·클램프가 쓰는 기준면이 맞다는 근거).
+        ///   ⇒ 삽입 깊이 = 콘이 구조 밑면보다 아래로 나온 길이 = <see cref="MeasureProtrusionM"/> 콘 돌출량. 튜닝 상수가 없다.
+        ///   ⇒ 불변식: 이 깊이까지만 내려가면 스프레더 어느 부재도 컨테이너 최상면 아래로 안 들어간다.
+        /// 2026-09-16 실측(StsGrabProbe, 두 기준 일치): STS 24mm(Beam_Flange_1) · RTG 56mm(EndBeam_F_Body).
+        ///   옛 고정 40mm 는 STS 를 16mm 파묻고(구조가 컨테이너 안) RTG 를 16mm 띄웠다(콘이 덜 박힘 = 오너 보고).
+        /// 콘을 못 찾으면 <see cref="insertFallbackMeters"/>. ★ 호출자는 이 값을 필드로 캐시하지 말 것 — 프로퍼티로 매번 읽는다.</summary>
+        public float InsertDepthMeters
+        {
+            get
+            {
+                if (protrusionM < 0f) protrusionM = MeasureProtrusionM();
+                return protrusionM > 0f ? protrusionM : insertFallbackMeters;
+            }
+        }
+
+        // 콘 돌출량(실척 m) = (콘 아닌 스프레더 최저 렌더러 Y) − (콘 바닥 Y). StsGrabProbe.ProtrusionM 과 같은 식 —
+        //   배치 검사와 런타임이 같은 수를 쓰게 한다. 0 이하면 구조가 콘보다 낮아 안착 깊이를 정의할 수 없다 → 폴백.
+        float MeasureProtrusionM()
+        {
+            var sp = crane != null ? crane.Spreader as Component : null;
+            if (sp == null || twistlocks == null || twistlocks.Length == 0) return 0f;
+            Transform held = crane.Attach != null ? crane.Attach.AttachedContainer : null;
+            float coneB = ConeBottomY(), bodyB = float.MaxValue;
+            foreach (var r in sp.GetComponentsInChildren<Renderer>())
+            {
+                if (held != null && r.transform.IsChildOf(held)) continue;
+                bool inCone = false;
+                foreach (var t in twistlocks)
+                    if (t != null && (r.transform == t || r.transform.IsChildOf(t))) { inCone = true; break; }
+                if (!inCone) bodyB = Mathf.Min(bodyB, r.bounds.min.y);
+            }
+            return bodyB < float.MaxValue ? (bodyB - coneB) / StsConfig.ModelScale : 0f;
+        }
 
         [Header("통과 방지")]
         [SerializeField] bool blockPassThrough = true;
@@ -84,6 +127,7 @@ namespace Container.Crane.Sts
         readonly List<Rigidbody> bodies = new List<Rigidbody>();   // 크레인 외부의 집을 수 있는 강체들(재사용 버퍼 — 매 갱신 새 할당 방지)
         float nextRefresh;
 
+        float floorTopY;             // 바닥 윗면 월드 Y — 통과방지의 '항상 있는 받침'. SSOT = ContainerPhysicsStabilizer.FindFloorTopY(GameObject.Find 라 Start 1회)
         BoxCollider pusherBox;       // SpreaderPusher 콜라이더 — 텔레스코픽 현재 길이(2×current)에 맞춰 X를 매 프레임 갱신
         float lastAntiCollTime = -999f;   // 마지막 Anti-Collision 겹침 시각(hold 동안 경보 유지)
 
@@ -141,6 +185,7 @@ namespace Container.Crane.Sts
 
         void Start()
         {
+            floorTopY = ContainerProject.ContainerPhysicsStabilizer.FindFloorTopY(out _);
             CreateSpreaderPusher();   // 물리 충돌용 kinematic 콜라이더 부착(컨테이너 밀림/토플)
             // 이 줄이 Play 시 Console에 안 보이면 = SpreaderGrabber가 안 돌고 있는 것(컴파일/재생성 문제)
             if (debugLog)
@@ -198,7 +243,7 @@ namespace Container.Crane.Sts
         }
 
         /// <summary>콘 삽입 깊이(모델 단위).</summary>
-        float InsertU => insertMeters * StsConfig.ModelScale;
+        float InsertU => InsertDepthMeters * StsConfig.ModelScale;
 
         // 체결 인정 삽입 밴드 = InsertU × [최소, 최대]. 클램프가 정확히 InsertU 에 세워 주므로 이 밴드는 여유값이다
         //   — 위(공중 체결)와 아래(옆면으로 깊숙이 파고든 상태)를 모두 거른다.
@@ -258,7 +303,7 @@ namespace Container.Crane.Sts
                 if (debugLog)
                     Debug.Log($"[Crane] 집기 거부 — 코너 미정렬: 중심오차 {segXZ:F3}m(허용 {registerTolXZ:F3}), " +
                               $"콘 바닥−윗면 {segGap:F4}u(체결 밴드 {-InsertU * InsertMaxFrac:F4}~{-InsertU * InsertMinFrac:F4}u). " +
-                              $"스프레더를 컨테이너 중심 위에서 콘이 박힐 때까지 내리세요(통과방지가 삽입 {insertMeters * 1000f:F0}mm 에서 멈춥니다).");
+                              $"스프레더를 컨테이너 중심 위에서 콘이 박힐 때까지 내리세요(통과방지가 삽입 {InsertDepthMeters * 1000f:F0}mm 에서 멈춥니다).");
                 QaLog.Info("GRAB", "reject",
                     $"reason=unseated dXZ={QaLog.F(segXZ)} tolXZ={QaLog.F(registerTolXZ)} gap={QaLog.F(segGap)}");
                 return;
@@ -287,10 +332,15 @@ namespace Container.Crane.Sts
             // 하강 바닥 한계를 '컨테이너 밑면' 기준으로 — 스프레더가 아니라 컨테이너가 바닥(y=0)에 닿고 멈추게.
             if (spreaderHoist != null && TryBounds(c, out Bounds held))
             {
-                Transform sp = spreaderHoist.transform;                 // 스프레더 원점
-                float dropToBottom = sp.position.y - held.min.y;        // 스프레더 원점 → 컨테이너 밑면(아래로)
-                float parentY = sp.parent != null ? sp.parent.position.y : 0f;
-                float floorMinY = dropToBottom - parentY;               // 컨테이너 밑면이 y=0에 오는 스프레더 로컬 Y
+                // 든 컨테이너 밑면이 바닥에 닿는 '축 값' — 축 해석과 무관하게 성립하는 한 식으로 구한다.
+                //   밑면을 바닥까지 내리려면 스프레더를 월드로 (floorTopY − 밑면Y) 만큼 움직여야 하고,
+                //   월드 이동 → 축 이동 환산이 WorldPerUnit 이다. 그래서 축 목표 = Current + 그 값 / WorldPerUnit.
+                //   ★ 옛 식 `(sp.position.y − 밑면Y) − 부모.position.y` 는 축을 로컬 Y 로 읽는 크레인에서만 맞았다.
+                //     SpreaderHoist.ReadAxis 는 worldVertical 이면 '월드' Y 를 읽으므로(FBX RTG), 그 크레인은
+                //     부모(트롤리) 높이만큼 하강 한계가 어긋나 컨테이너가 바닥 아래까지 내려갈 수 있었다.
+                //   검산 — 월드축: Current = sp.position.y · WorldPerUnit = 1 ⇒ sp.position.y − 밑면Y(= 옛 dropToBottom).
+                //          로컬축: Current = localPosition.y                  ⇒ localY − 밑면Y(= 옛 식과 동일).
+                float floorMinY = spreaderHoist.Current + (floorTopY - held.min.y) / spreaderHoist.WorldPerUnit;
                 spreaderHoist.SetFloorOffset(floorMinY - spreaderHoist.Min);
                 if (debugLog) Debug.Log($"[Crane] 컨테이너 밑면 기준 바닥 — 하강한계 +{floorMinY - spreaderHoist.Min:F3} (높이 {held.size.y:F3})");
                 // QA S-PHYS-6: 하강 바닥한계 오프셋이 LowerLimit≤Max를 유지하는지(역전 시 호이스트 먹통).
@@ -463,18 +513,24 @@ namespace Container.Crane.Sts
                 if (b.max.y > top) { top = b.max.y; topMinY = b.min.y; over = true; selOverlap = overlapFrac; }
             }
 
-            // 받침이 없으면(공중/옆 나란히) 클램프·적층 없음 — IsLanded는 위에서 false. QA만 엣지로 보고.
-            // 빈 스프레더는 콘이 insertMeters 만큼 박히는 데까지 내려간다(그 자리가 체결 자세) — 든 상태는 종전대로 밑면이 윗면에 얹힌다.
-            float limit = over ? top + topClearance - (holding ? 0f : InsertU) : 0f;
+            // 받침 컨테이너가 없으면 '바닥'이 받침이다. 옛 코드는 그 경우 limit 를 0 으로 두고 클램프를 `over` 안에서만 걸어서
+            //   빈 땅 위에서는 하한이 아예 없었다 — 든 채로 내리면 데크를 뚫고 내려갔다(오너 2026-09-16 스크린샷).
+            //   바닥 높이는 ContainerPhysicsStabilizer.FindFloorTopY 가 SSOT(VirtualFloor 윗면 / 없으면 데크 y=0) — Start 에서 1회 캐시.
+            // 빈 스프레더는 콘이 InsertDepthMeters 만큼 박히는 데까지 내려간다(그 자리가 체결 자세) — 든 상태는 밑면이 윗면에 얹힌다.
+            //   ★ 바닥 받침에서는 삽입을 빼지 않는다 — 콘이 박힐 코너캐스팅 구멍은 컨테이너에만 있고, 데크 아래로 내려갈 이유가 없다.
+            bool onFloor = !over;
+            if (onFloor) top = floorTopY;
+            float limit = top + topClearance - (holding || onFloor ? 0f : InsertU);
             // 빈 스프레더가 컨테이너 '옆면 깊숙이'(윗면보다 높이 25% 이상 아래) 들어온 경우 = 측면 충돌 → 클램프 대신 푸셔로 밀기.
-            bool sideHit = over && !holding && (top - refBottomY) > (top - topMinY) * SideHitDepthFrac;
+            //   바닥은 옆면이 없으므로(무한 두께) 이 판정에서 제외한다.
+            bool sideHit = !onFloor && !holding && (top - refBottomY) > (top - topMinY) * SideHitDepthFrac;
             float corr = 0f;
-            if (over && refBottomY < limit && !sideHit)
+            if (refBottomY < limit && !sideHit)
             {
                 corr = limit - refBottomY;
-                hoist.MoveTo(hoist.Current + corr);   // 로컬 Y ≈ 월드 Y, 받침 윗면에서 하강 정지
+                hoist.MoveTo(hoist.Current + corr);   // 로컬 Y ≈ 월드 Y, 받침 윗면(또는 바닥)에서 하강 정지
             }
-            IsLanded = over && !sideHit && refBottomY <= limit + topClearance;   // 받침 위에 거의 얹힘 → 안착(Landing 센서)
+            IsLanded = !sideHit && refBottomY <= limit + topClearance;   // 받침·바닥 위에 거의 얹힘 → 안착(Landing 센서)
 
             QaPassState(holding, over, sideHit, corr, limit, top, topMinY, refBottomY, selOverlap, maxOverlapSeen);
         }
