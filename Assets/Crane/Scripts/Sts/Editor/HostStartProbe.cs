@@ -1,6 +1,7 @@
 #if UNITY_EDITOR
 using System.Net;
 using System.Net.Sockets;
+using System.Reflection;
 using Unity.Netcode;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -14,6 +15,8 @@ namespace Container.Crane.Sts.EditorTools
     ///   ① 포트가 점유된 상태: 호스트가 실패하고 NetLanUI.HostFailed 가 true 여야 한다.
     ///      → 이 상태를 못 잡으면 VR 메뉴가 아무 말도 못 하고, 사용자는 눌렀는지조차 모른다(종전 거동).
     ///   ② 포트가 빈 상태: 호스트가 뜨고(IsServer) HostFailed 는 false 여야 한다.
+    ///   ③ 나가기: 세션을 끊으면 포트가 풀려 **다시 호스트가 될 수 있어야** 한다(오너 "호스트 세션이 안 끊긴다").
+    ///      서버의 Crane.exe 는 헤드셋이 빠져도 살아 있어, 안 끊으면 그 인스턴스가 7777 을 쥔 채 남는다.
     /// 서버는 한 머신에 인스턴스 5개를 띄우므로 ①은 실제로 일어나는 상황이다(먼저 뜬 쪽이 포트를 쥠).
     /// UnityTransport 는 UDP 라 점유도 UdpClient 로 한다(TcpListener 로는 충돌하지 않는다).
     ///   Unity -batchmode -nographics -projectPath . -executeMethod Container.Crane.Sts.EditorTools.HostStartProbe.Run -logFile host.log
@@ -25,7 +28,7 @@ namespace Container.Crane.Sts.EditorTools
         const string Key = "HostStartProbe", PrevKey = "HostStartProbe.Prev", ScenePath = "Assets/Scenes/Port.unity";
 
         static int phase, fails, measured;
-        static float waitUntil;
+        static float waitUntil, downDeadline;
         static NetLanUI ui;
         static UdpClient squatter;   // 7777 을 먼저 쥐는 역할(다른 인스턴스 흉내)
 
@@ -108,6 +111,47 @@ namespace Container.Crane.Sts.EditorTools
                     bool ok = !failed && serverUp;
                     measured++; if (!ok) fails++;
                     Debug.Log($"[HostStartProbe] {(ok ? "OK " : "BAD")} ②포트정상 — HostFailed {failed}(기대 false), IsServer {serverUp}(기대 true)");
+
+                    // ③ 나가기 — NetLanUI.Leave() 는 다른 세션이 작업 중이라 아직 HEAD 에 없다.
+                    //   직접 호출하면 HEAD 빌드가 깨져 배포 체인이 멈추므로, 있으면 부르고 없으면 '미구현'으로 판정만 남긴다.
+                    //   ※ Leave() 가 커밋되면 이 리플렉션을 ui.Leave() 직접 호출로 바꿀 것.
+                    var leave = typeof(NetLanUI).GetMethod("Leave", BindingFlags.Public | BindingFlags.Instance);
+                    if (leave == null)
+                    {
+                        measured++; fails++;
+                        Debug.Log("[HostStartProbe] BAD ③나가기 — NetLanUI.Leave() 미구현. 헤드셋에서 세션을 끊을 방법이 없어 " +
+                                  "그 인스턴스가 포트를 쥔 채 남는다(기능이 들어오면 이 줄이 실제 측정으로 바뀐다).");
+                        if (serverUp) NetworkManager.Singleton.Shutdown();
+                        Finish(); return;
+                    }
+                    leave.Invoke(ui, null);
+                    downDeadline = Time.time + 5f;
+                    phase = 4; Wait(1.0f); return;
+                }
+
+                case 4:   // 세션이 실제로 끊겼는지 — 안 끊기는 것 자체가 오너가 보고한 증상이다
+                {
+                    var nm4 = NetworkManager.Singleton;
+                    if (nm4 != null && (nm4.IsServer || nm4.IsClient))
+                    {
+                        if (Time.time < downDeadline) { Wait(0.5f); return; }
+                        measured++; fails++;
+                        Debug.Log($"[HostStartProbe] BAD ③나가기 — Leave() 뒤 5초가 지나도 세션이 안 끊김(IsServer {nm4.IsServer}, IsClient {nm4.IsClient}). " +
+                                  "포트가 계속 잡혀 있어 다음 호스트 시작이 실패한다.");
+                        nm4.Shutdown();
+                        Finish(); return;
+                    }
+                    ui.BeginHost();   // 포트가 풀렸으면 다시 호스트가 되어야 한다
+                    phase = 5; Wait(1.5f); return;
+                }
+
+                case 5:
+                {
+                    bool failed = ui.HostFailed;
+                    bool serverUp = NetworkManager.Singleton != null && NetworkManager.Singleton.IsServer;
+                    bool ok = !failed && serverUp;
+                    measured++; if (!ok) fails++;
+                    Debug.Log($"[HostStartProbe] {(ok ? "OK " : "BAD")} ③나가기후재호스트 — HostFailed {failed}(기대 false), IsServer {serverUp}(기대 true)");
                     if (serverUp) NetworkManager.Singleton.Shutdown();
                     Finish(); return;
                 }
