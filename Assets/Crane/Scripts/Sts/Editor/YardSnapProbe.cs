@@ -74,7 +74,35 @@ namespace Container.Crane.Sts.EditorTools
                       $"칸 벗어남 {off}개(허용 {TolM:F2}m), 최대 이탈 {maxD:F3}m ← {worst}, " +
                       $"방향 틀어짐 {yawOff}개(허용 {YawTolDeg:F0}°), 최대 {maxYaw:F1}° ← {worstYaw}");
 
-            EditorApplication.Exit(pass ? 0 : 1);
+            // ★ 감도 시험 — 이 계측이 '벗어난 것'을 실제로 잡는지 본다.
+            //   초록만 관측한 기준은 공허할 수 있다: 스모크의 야드 칸 기준(PortDemoMenu.YardCellMaxErrM)은 첫 실행 때
+            //   이미 라운딩(6d28561)이 들어간 HEAD 였어서 FAIL 을 한 번도 못 봤다. 같은 수식(YardGrid.TrySnapXZ)을 쓰는
+            //   여기서 일부러 칸에서 밀어 놓고 '검출되는지'를 확인한다 — 플레이 모드 없이 몇 초, 메모리도 안 먹는다.
+            //   (배치 스모크로 end-to-end 를 보려 했으나 시스템 메모리 부족으로 죽었다. 이건 그 대체가 아니라 계측 감도만 본다.)
+            float probeM = 0.6f;   // 실척 0.6m — 허용 0.2m 의 3배. 이만큼 밀면 반드시 잡혀야 한다.
+            int sensed = 0, tried = 0;
+            foreach (var t in boxes)
+            {
+                if (tried >= 2) break;
+                if (!TryBounds(t, out Bounds b0)) continue;
+                if (!YardGrid.TrySnapXZ(b0.center, Mathf.Max(b0.size.x, b0.size.z), out _)) continue;
+                tried++;
+                Vector3 was = t.position;
+                t.position = was + new Vector3(probeM * StsConfig.ModelScale, 0f, 0f);
+                if (TryBounds(t, out Bounds b1)
+                    && YardGrid.TrySnapXZ(b1.center, Mathf.Max(b1.size.x, b1.size.z), out Vector3 cell1))
+                {
+                    float d = new Vector2(b1.center.x - cell1.x, b1.center.z - cell1.z).magnitude * inv;
+                    if (d > TolM) sensed++;
+                    Debug.Log($"[YardSnapProbe] 감도 {(d > TolM ? "검출" : "★놓침")} {t.name} — {probeM:F2}m 밀었을 때 이탈 {d:F3}m(허용 {TolM:F2})");
+                }
+                t.position = was;   // 원복 — 씬은 저장하지 않지만 상태를 남기지 않는다
+            }
+            bool sensOk = tried > 0 && sensed == tried;
+            Debug.Log($"[YardSnapProbe] 감도 시험 {(sensOk ? "PASS" : "FAIL")} — {tried}건 중 {sensed}건 검출. " +
+                      $"{(sensOk ? "이 계측은 벗어난 배치를 잡는다(같은 수식을 쓰는 스모크 기준도 유효)" : "★계측이 못 잡는다 — 이 기준을 신뢰하지 말 것")}");
+
+            EditorApplication.Exit(pass && sensOk ? 0 : 1);
         }
 
         /// <summary>PortConfig 에서 유도한 칸 중심 XZ(모델 단위). 20ft 앞뒤 자리도 후보로 포함.</summary>
