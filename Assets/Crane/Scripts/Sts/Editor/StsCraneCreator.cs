@@ -1,6 +1,7 @@
 #if UNITY_EDITOR
 using System.Collections.Generic;
 using UnityEditor;
+using UnityEditor.SceneManagement;
 using UnityEngine;
 
 namespace Container.Crane.Sts.EditorTools
@@ -1815,8 +1816,8 @@ namespace Container.Crane.Sts.EditorTools
             Box(spreader, "Spreader_Bar", Vector3.zero,
                 new Vector3(hl0 * 2f, 0.028f, hw * 2f), CSpread);
             for (int sy = -1; sy <= 1; sy += 2)
-                Box(spreader, "Beam_Flange", new Vector3(0f, sy * 0.016f, 0f),
-                    new Vector3(hl0 * 2f, 0.006f, hw * 2f + 0.008f), CSpread);
+                Box(spreader, "Beam_Flange", new Vector3(0f, sy * FlangeCenterY, 0f),
+                    new Vector3(hl0 * 2f, FlangeThick, hw * 2f + 0.008f), CSpread);
 
             // 헤드블록 — includeHead=false(예: RTG)면 외부가 자체 헤드블록을 얹으므로 생략
             if (includeHead)
@@ -1926,6 +1927,56 @@ namespace Container.Crane.Sts.EditorTools
                            spreaderHalf > hl0 + 1e-4f);
         }
 
+        /// <summary>씬에 이미 구워진 절차 STS 의 트위스트락 콘 그룹을 생성기 값(<see cref="ConeTipY"/>)에 맞춘다 —
+        /// 크레인을 다시 굽지 않고 콘 그룹 로컬 Y 만 옮긴다(오너 에디터가 연 씬을 통째로 덮지 않으려고).
+        ///   · FBX RTG(`Spreader_Twistlock_*`)는 건드리지 않는다 — 이름 규약으로 구분.
+        ///   · 샤프트(`Twistlock_Body`) 밑단은 메시 정점이라 트랜스폼으로 못 옮기지만, 콘을 내려도 생기는 틈
+        ///     (넥 상단 −0.0162 ~ 막대 밑단 −0.014)은 하단 플랜지(−0.019~−0.013) 안이라 보이지 않는다.
+        ///     다음에 크레인을 새로 구울 때는 생성기가 둘을 이어서 만든다.
+        /// 배치에서도 부를 수 있다: -executeMethod Container.Crane.Sts.EditorTools.StsCraneCreator.SyncTwistlockExposure</summary>
+        [MenuItem("Model/PG/크레인/트위스트락 노출 씬 동기화", false, 2)]
+        public static void SyncTwistlockExposure()
+        {
+            if (Application.isBatchMode) EditorSceneManager.OpenScene("Assets/Scenes/Port.unity");
+            int moved = 0, already = 0;
+            foreach (var t in Object.FindObjectsByType<Transform>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+            {
+                // 이름 규약은 StsGrabProbe·SpreaderGrabber 와 같다 — 절차 STS 는 'Twistlock_Cone'(+번호), FBX RTG 는 'Spreader_Twistlock_'(제외).
+                if (!t.name.StartsWith(StsPartNames.TwistlockCone)) continue;
+                Vector3 p = t.localPosition;
+                if (Mathf.Abs(p.y - ConeTipY) < 1e-6f) { already++; continue; }
+                Undo.RecordObject(t, "트위스트락 노출 씬 동기화");
+                Debug.Log($"[StsCraneCreator] {t.parent?.name}/{t.name} 콘 끝 {p.y:F5} → {ConeTipY:F5}u " +
+                          $"(실척 {(ConeTipY - p.y) / StsConfig.ModelScale * 1000f:+0;-0}mm)");
+                p.y = ConeTipY;
+                t.localPosition = p;
+                moved++;
+                EditorSceneManager.MarkSceneDirty(t.gameObject.scene);
+            }
+            if (Application.isBatchMode && moved > 0) EditorSceneManager.SaveOpenScenes();   // 배치(클론 검증)에서는 바로 저장
+            Debug.Log($"[StsCraneCreator] 트위스트락 노출 동기화 — 옮김 {moved}개 · 이미 맞음 {already}개 · " +
+                      $"노출 = 락 높이 {LugH / StsConfig.ModelScale * 1000f:F1}mm(실척). " +
+                      (moved > 0 && !Application.isBatchMode ? "씬을 저장하세요(Ctrl+S)." : "변경 없음 또는 저장됨."));
+        }
+
+        // ── 스프레더 밑면 · 트위스트락 노출 길이(모델 단위 · 실척 = ×24) ──────────────────────────
+        //   안착 자세는 '스프레더 본체 밑면이 컨테이너 최상면(= 상단 코너캐스팅 상면)에 얹히고, 트위스트락만 구멍에 들어간' 상태다.
+        //   그래서 구멍에 들어가야 하는 길이 = 락(노즈+숄더) 높이이고, 그만큼 본체 밑면보다 아래로 나와 있어야 한다.
+        //   ★ 옛 노출 0.001u(실척 24mm)는 '곤봉 실루엣 방지'로 고른 값이었고 락 높이(0.0032u)보다 짧았다 —
+        //     그래서 다 내려놓아도 숄더가 컨테이너 윗면보다 28.8mm 위에 남아 '락이 컨테이너 안으로 안 들어가'는 상태였다
+        //     (오너 2026-09-16 반복 보고). 이제 노출을 락 높이에서 유도하므로 실루엣도 '짧은 헤드만 빼꼼'이 유지된다(옛 곤봉 360mm 의 1/4.7).
+        const float FlangeCenterY = 0.016f, FlangeThick = 0.006f;         // 하단 Beam_Flange — 중심 · 두께
+        /// <summary>스프레더 본체 최하단(하단 플랜지 밑면). 안착 시 컨테이너 최상면에 닿는 면 — 삽입 깊이의 기준면.</summary>
+        const float SpreaderBodyBottom = -(FlangeCenterY + FlangeThick * 0.5f);   // -0.019u
+        /// <summary>락 헤드 구간 높이 — 노즈(유도 쐐기) · 숄더(캐스팅 밑에 걸리는 베어링 밴드) · 넥(샤프트 전이).</summary>
+        const float LugNoseH = 0.0022f, LugShoulderH = 0.0010f, LugNeckH = 0.0028f;
+        /// <summary>'락' 높이 = 콘 끝 → 숄더 상단. 코너캐스팅 구멍 안으로 들어가야 하는 길이(실척 76.8mm).</summary>
+        const float LugH = LugNoseH + LugShoulderH;                       // 0.0032u
+        /// <summary>콘 끝(Twistlock_Cone 그룹 원점) Y = 본체 밑면 − 락 높이 ⇒ 락 전체가 본체 밑으로 노출된다.</summary>
+        const float ConeTipY = SpreaderBodyBottom - LugH;                 // -0.0222u (실척 노출 76.8mm)
+        /// <summary>넥 상단 = 샤프트가 시작되는 높이. 플랜지 두께 안이라 샤프트는 빔 속에 숨는다.</summary>
+        const float ConeNeckTopY = ConeTipY + LugH + LugNeckH;            // -0.0162u
+
         // 트위스트락 핀(둥근 샤프트) — 실물: 스프레더 코너 하우징 안의 회전 너트에 나사 체결된 원형 핀.
         //   'Twistlock_Head'(빈 그룹)를 코너 수직축(=트위스트 회전축)에 두고, 그 아래로 둥근 핀을 내린다.
         //   ★ 핀은 원형이라 90° 회전이 시각적으로 무변화(자기복귀). '보이는 잠금'은 아래의 뭉툭한 락 헤드(숄더)가 담당.
@@ -1941,7 +1992,7 @@ namespace Container.Crane.Sts.EditorTools
             // 체결 너트/칼라 — 끝빔 밑면에 물리는 머시닝 칼라(실물 더블칼라 나사부). 빔 속~밑면.
             Rod(h, "Twistlock_Collar", new Vector3(0f, 0.006f, 0f), new Vector3(0f, 0.000f, 0f), 0.0013f, CMachine);
             // 단조 핀 샤프트 — 빔 속(+0.005)에서 락 헤드 넥 상단(arm -0.014)까지. 끝이 빔 밑면(-0.015)보다 위라 전부 빔 속에 숨음(곤봉 방지).
-            Rod(h, "Twistlock_Body",   new Vector3(0f, 0.005f, 0f), new Vector3(0f, -0.014f, 0f), 0.001f, metal);
+            Rod(h, "Twistlock_Body",   new Vector3(0f, 0.005f, 0f), new Vector3(0f, ConeNeckTopY, 0f), 0.001f, metal);
         }
 
         // 트위스트락 콘(락 헤드) — 코너캐스팅 타원 구멍에 삽입돼 90° 돌아 걸리는 단조 락 헤드.
@@ -1957,7 +2008,7 @@ namespace Container.Crane.Sts.EditorTools
         {
             var cone = new GameObject(Numbered(StsPartNames.TwistlockCone));
             cone.transform.SetParent(arm, worldPositionStays: false);
-            cone.transform.localPosition = corner + new Vector3(0f, -0.020f, 0f);
+            cone.transform.localPosition = corner + new Vector3(0f, ConeTipY, 0f);
             Transform c = cone.transform;
 
             const float zHalf     = 0.00217f;  // 장축 half (104mm/24/2) — 숄더 최대폭
@@ -1972,12 +2023,12 @@ namespace Container.Crane.Sts.EditorTools
             ell.transform.localScale = new Vector3(xHalf / zHalf, 1f, 1f);
             Transform h = ell.transform;
 
-            // 노즈(유도 쐐기): local y 0→0.0022, tip→숄더로 벌어짐. tip Y=그룹원점(=안착 기준·arm -0.020, 빔 밑 0.005 노출).
-            Cone(h, "Twistlock_LugNose", new Vector3(0f, 0f,      0f), new Vector3(0f, 0.0022f, 0f), tipHalf,   zHalf,     metal, 20);
-            // 숄더(베어링 밴드): 0.0022→0.0032, 곧은 옆면 — 90° 회전 시 코너캐스팅 밑에 걸리는 어깨.
-            Cone(h, "Twistlock_LugBody", new Vector3(0f, 0.0022f, 0f), new Vector3(0f, 0.0032f, 0f), zHalf,     zHalf,     metal, 20);
-            // 넥(샤프트 전이): 0.0032→0.006(arm -0.014, 빔 속), 숄더→샤프트로 좁혀 위쪽 샤프트에 매끈히 연결.
-            Cone(h, "Twistlock_LugNeck", new Vector3(0f, 0.0032f, 0f), new Vector3(0f, 0.006f,  0f), zHalf,     shaftHalf, metal, 20);
+            // 노즈(유도 쐐기): local y 0→LugNoseH, tip→숄더로 벌어짐. tip Y = 그룹원점(= 콘 끝 · 본체 밑면보다 LugH 아래).
+            Cone(h, "Twistlock_LugNose", new Vector3(0f, 0f,        0f), new Vector3(0f, LugNoseH, 0f), tipHalf, zHalf,     metal, 20);
+            // 숄더(베어링 밴드): LugNoseH→LugH, 곧은 옆면 — 90° 회전 시 코너캐스팅 밑에 걸리는 어깨. 여기까지가 구멍에 들어가야 한다.
+            Cone(h, "Twistlock_LugBody", new Vector3(0f, LugNoseH,  0f), new Vector3(0f, LugH,     0f), zHalf,   zHalf,     metal, 20);
+            // 넥(샤프트 전이): LugH→LugH+LugNeckH(= 플랜지 두께 안, 빔 속), 숄더→샤프트로 좁혀 위쪽 샤프트에 매끈히 연결.
+            Cone(h, "Twistlock_LugNeck", new Vector3(0f, LugH,      0f), new Vector3(0f, LugH + LugNeckH, 0f), zHalf, shaftHalf, metal, 20);
         }
 
         // 호이스트 로프 4줄 — spreaderRoot(붐 레벨 y=0) → 스프레더 헤드.
