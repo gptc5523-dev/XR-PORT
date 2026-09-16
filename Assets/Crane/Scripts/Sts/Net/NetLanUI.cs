@@ -24,6 +24,7 @@ namespace Container.Crane.Sts.Net
 
         string localIp = "...";
         bool hostDiscovered;
+        bool hostFailed;
 
         // 승인됐지만 아직 ConnectedClientsIds에 합류 전인 클라이언트들 — 동시 접속 시 정원 초과 레이스 방지용.
         readonly HashSet<ulong> pendingApprovals = new();
@@ -34,6 +35,9 @@ namespace Container.Crane.Sts.Net
         public string JoinIp { get => joinIp; set { if (!string.IsNullOrEmpty(value)) joinIp = value; } }
         /// <summary>LanDiscovery가 호스트 비콘을 받아 JoinIp를 자동 설정했는지(자동 접속 트리거용).</summary>
         public bool HostDiscovered => hostDiscovered;
+        /// <summary>직전 '호스트 시작'이 실패했는지 — 대개 같은 PC의 다른 인스턴스가 이미 포트를 쥐고 있는 경우.
+        /// VR 시작 메뉴(CraneNetMenuHUD)가 사용자에게 알리는 데 쓴다.</summary>
+        public bool HostFailed => hostFailed;
 
         void Awake() => localIp = GetLocalIPv4();
 
@@ -67,7 +71,11 @@ namespace Container.Crane.Sts.Net
             nm.OnClientDisconnectCallback -= OnClientLeft;   nm.OnClientDisconnectCallback += OnClientLeft;
 
             Transport.SetConnectionData("0.0.0.0", port, "0.0.0.0");   // 모든 인터페이스에서 수신
-            nm.StartHost();
+            // 한 머신에 인스턴스를 여러 개 띄우면(서버 5개 구성) 먼저 뜬 쪽이 포트를 쥐므로 두 번째 호스트는 반드시 실패한다.
+            //   StartHost 는 실패를 false 로만 알리고 사유는 서버 로그(UnityTransport start failure)에만 남아,
+            //   헤드셋에서는 버튼을 눌러도 아무 일도 안 일어난 것처럼 보였다(오너 2026-09-16 "호스트 참가가 안 된다").
+            //   결과를 남겨 시작 메뉴가 사용자에게 알리고 '참가'로 안내하게 한다.
+            hostFailed = !nm.StartHost();
         }
 
         // 정원 검사 — ConnectedClientsIds.Count만 보면 거의 동시에 들어온 두 요청이 둘 다 통과해 정원을

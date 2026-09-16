@@ -50,6 +50,8 @@ namespace Container.Crane.Sts.Net
         bool ipEntryMode;          // 참가 선택 후, 호스트 IP(마지막 옥텟) 입력 중
         int joinOctet = NetConfig.DefaultJoinOctet;   // [H3] SSOT. 최종 IP = NetConfig.DefaultSubnetPrefix + joinOctet
         bool discoveredPrev;       // 자동 발견 엣지 검출(false→true 순간 한 번만 자동 접속)
+        float connectedAt;         // 접속된 시각(무접속이면 0) — 결과 화면을 잠깐 띄우는 데만 쓴다
+        const float ResultSeconds = 6f;   // 접속 결과를 보여주는 시간. 더 길면 시야를 가리고, 더 짧으면 헤드셋에서 놓친다
         readonly StringBuilder sb = new StringBuilder(256);
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
@@ -99,13 +101,20 @@ namespace Container.Crane.Sts.Net
             bool connected = nm.IsClient || nm.IsServer;
             if (connected)
             {
-                // 접속됨 — 메뉴 닫고, 호스트면 조종 컨트롤러 복구(관전자는 CraneNetSync가 꺼둔 채 유지).
+                // 접속됨 — 호스트면 조종 컨트롤러 복구(관전자는 CraneNetSync가 꺼둔 채 유지).
                 // 이동(로코모션)은 모두 복구 — 호스트·관전자 모두 선택 후엔 돌아다닐 수 있게.
-                SetVisible(false);
+                // 종전엔 여기서 메뉴를 바로 숨겨, 성공했는지 실패했는지는커녕 '눌리긴 했는지'도 알 수 없었다
+                //   (오너 2026-09-16 "호스트 참가가 안 된다" — 서버 관측상 아무도 호스트를 누르지 않은 상태였다).
+                //   접속 직후 ResultSeconds 동안만 결과를 보여주고 닫는다 — 시야를 계속 가리지 않게.
+                if (connectedAt <= 0f) connectedAt = Time.unscaledTime;
+                bool showResult = Time.unscaledTime - connectedAt < ResultSeconds;
+                SetVisible(showResult);
+                if (showResult) text.text = BuildConnectedText(nm);
                 RestoreController(forceEnable: nm.IsServer);
                 UnlockLocomotion();
                 return;
             }
+            connectedAt = 0f;   // 끊기면 다음 접속에서 다시 보여준다
 
             // 접속 전 — 메뉴 표시 + 크레인 입력/이동 모두 차단 + 선택/확정 처리.
             SetVisible(true);
@@ -246,6 +255,31 @@ namespace Container.Crane.Sts.Net
             if (canvas != null && canvas.gameObject.activeSelf != v) canvas.gameObject.SetActive(v);
         }
 
+        // 접속 직후 결과 화면 — 내가 호스트인지 관전인지, 운전이 되는지를 한눈에.
+        //   관전자가 "왜 크레인이 안 움직이지"로 막히지 않게 운전 권한을 여기서 명시한다(오너 규칙: 운전은 호스트만).
+        string BuildConnectedText(Unity.Netcode.NetworkManager nm)
+        {
+            sb.Clear();
+            sb.AppendLine("<b><size=30>STS 크레인 멀티플레이</size></b>");
+            sb.AppendLine();
+            if (nm.IsServer)
+            {
+                int joined = Mathf.Max(0, nm.ConnectedClientsIds.Count - 1);   // 호스트 자신(0번)은 참가자 수에서 뺀다
+                sb.AppendLine("<color=#5FE0FF><b>호스트 중 · 운전 가능</b></color>");
+                sb.AppendLine($"<size=18>내 IP <b>{ui.LocalIp}</b> · 참가 {joined}/{Mathf.Max(0, ui.MaxPlayers - 1)}</size>");
+                sb.AppendLine();
+                sb.AppendLine("<size=16><color=#999999>참가자에게 이 IP 를 불러주세요</color></size>");
+            }
+            else
+            {
+                sb.AppendLine("<color=#5FE0FF><b>관전 중</b></color>");
+                sb.AppendLine($"<size=18>호스트 <b>{ui.JoinIp}</b></size>");
+                sb.AppendLine();
+                sb.AppendLine("<size=16><color=#999999>운전은 호스트만 할 수 있어요</color></size>");
+            }
+            return sb.ToString();
+        }
+
         string BuildText()
         {
             sb.Clear();
@@ -278,6 +312,15 @@ namespace Container.Crane.Sts.Net
                 else               sb.AppendLine($"<color=#999999>{Options[i]}</color>");
             }
             sb.AppendLine();
+            // 호스트 시작 실패 안내 — 한 머신에 인스턴스가 여러 개면(서버 5개) 먼저 뜬 쪽이 포트를 쥐어 두 번째는 반드시 실패한다.
+            //   종전엔 버튼을 눌러도 화면이 그대로라 오너가 "호스트 참가가 안 된다"로 막혔다. 막힌 자리에서 다음 행동까지 알려준다.
+            //   (#EB332E = HudColor.Danger, #5FE0FF = Accent — 이 파일의 다른 줄과 같은 표기)
+            if (ui.HostFailed)
+            {
+                sb.AppendLine("<size=17><color=#EB332E><b>호스트 시작 실패</b> — 이 PC 에서 다른 인스턴스가 이미 호스트 중입니다.</color></size>");
+                sb.AppendLine("<size=16><color=#5FE0FF>'참가'를 고르면 그 세계에 들어갑니다 · 관전이라 운전은 호스트만 할 수 있어요.</color></size>");
+                sb.AppendLine();
+            }
             if (selected == 0)
                 sb.AppendLine($"<size=16><color=#999999>내 IP <b>{ui.LocalIp}</b> · 최대 {ui.MaxPlayers}인</color></size>");
             else if (ui.HostDiscovered)
