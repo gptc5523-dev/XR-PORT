@@ -17,6 +17,10 @@ namespace Container.Crane.Sts.EditorTools
     ///   ② 포트가 빈 상태: 호스트가 뜨고(IsServer) HostFailed 는 false 여야 한다.
     ///   ③ 나가기: 세션을 끊으면 포트가 풀려 **다시 호스트가 될 수 있어야** 한다(오너 "호스트 세션이 안 끊긴다").
     ///      서버의 Crane.exe 는 헤드셋이 빠져도 살아 있어, 안 끊으면 그 인스턴스가 7777 을 쥔 채 남는다.
+    ///   ④ 헤드셋 이탈 자동 종료 '규칙'(ExitZone.ShouldAutoEnd) — 관전자가 있으면 유지, 혼자면 종료.
+    ///      ※ 규칙만 잰다. 배관(XRDisplaySubsystem 폴링 → xrSeenRunning 가드 → 타이머 누적)은 배치에
+    ///        XR 서브시스템이 없어 도달 자체가 불가능하므로 **헤드셋에서만 확인된다**. 특히 '관전자가 있는
+    ///        동안은 타이머를 아예 안 쌓는다'(관전자가 나간 순간 즉시 종료 방지)는 이 검사 밖이다(c8 미검증 항목).
     /// 서버는 한 머신에 인스턴스 5개를 띄우므로 ①은 실제로 일어나는 상황이다(먼저 뜬 쪽이 포트를 쥠).
     /// UnityTransport 는 UDP 라 점유도 UdpClient 로 한다(TcpListener 로는 충돌하지 않는다).
     ///   Unity -batchmode -nographics -projectPath . -executeMethod Container.Crane.Sts.EditorTools.HostStartProbe.Run -logFile host.log
@@ -153,9 +157,30 @@ namespace Container.Crane.Sts.EditorTools
                     measured++; if (!ok) fails++;
                     Debug.Log($"[HostStartProbe] {(ok ? "OK " : "BAD")} ③나가기후재호스트 — HostFailed {failed}(기대 false), IsServer {serverUp}(기대 true)");
                     if (serverUp) NetworkManager.Singleton.Shutdown();
-                    Finish(); return;
+                    phase = 6; Wait(0.2f); return;
                 }
+
+                case 6:   // ④ 자동 종료 규칙 — 순수 함수라 XR 없이 결정적으로 잰다
+                    Rule("관전자 있는 호스트 → 유지",  lostFor: 999f, grace: 15f, spectators:  1, expect: false);
+                    Rule("혼자 남은 호스트 → 종료",    lostFor:  16f, grace: 15f, spectators:  0, expect: true);
+                    Rule("관전자 본인 → 자기만 종료",  lostFor:  16f, grace: 15f, spectators: -1, expect: true);
+                    Rule("유예 전 → 유지",             lostFor:  14f, grace: 15f, spectators:  0, expect: false);
+                    Rule("유예 0(기능 끔) → 유지",     lostFor:  16f, grace:  0f, spectators:  0, expect: false);
+                    Finish(); return;
             }
+        }
+
+        // ④ 규칙 한 줄 판정. spectators 는 인원수가 아니라 **3상태**다(c8 규약, ExitZone.SpectatorCount 와 동일):
+        //   ≥1 관전자가 붙은 호스트 · 0 혼자 남은 호스트 · −1 나는 관전자(호스트 아님).
+        //   그래서 조건이 `spectators <= 0` 이고, 이게 "혼자 남은 호스트"와 "관전자 본인"을 함께 덮는다.
+        //   ★ 누가 `<= 0` 을 `== 0` 으로 '고치면' 관전자 자동 정리가 조용히 죽는다 — −1 케이스가 그걸 잡는다.
+        static void Rule(string what, float lostFor, float grace, int spectators, bool expect)
+        {
+            bool got = ExitZone.ShouldAutoEnd(lostFor, grace, spectators);
+            bool ok = got == expect;
+            measured++; if (!ok) fails++;
+            Debug.Log($"[HostStartProbe] {(ok ? "OK " : "BAD")} ④{what} — " +
+                      $"ShouldAutoEnd(상실 {lostFor:0}초, 유예 {grace:0}초, 관전자 {spectators}) = {got}(기대 {expect})");
         }
 
         static void Finish()
