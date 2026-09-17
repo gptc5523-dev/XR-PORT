@@ -133,6 +133,50 @@ namespace Container.Crane.Sts.EditorTools
                                  $"scale {scale:F4} · EditorOnly(빌드 제외). 실제 존은 반경 실척 3m, 2초 서 있으면 접속 종료.");
         }
 
+        const string SpawnPawnName = "SpawnMarker_Pawn";
+
+        /// <summary>플레이어가 <b>리스폰되는 자리</b>를 빨간 체스말(폰 2m)로 표시 — 임시. 오너 요청 2026-09-17
+        /// "이 체스말은 내가 XY 좌표를 너한테 알려주려고 만든 거야. 일단 내가 리스폰 되는 곳에 체스말 배치해".
+        ///
+        /// 즉 이 표식은 <b>좌표를 부르는 도구</b>다. 그래서 자리가 실제와 1 mm 라도 어긋나면 안 된다 —
+        /// 런타임 배치와 <b>같은 계산</b>(CranePlayerStartPlacer.TryComputeSpawnXZ)을 그대로 쓴다.
+        ///   ★ 마커(CranePlayerStartPoint) 좌표를 그대로 쓰면 안 된다. 마커가 부두 밖이면 걷는 땅 안으로
+        ///     클램프되어 값이 바뀌므로 '마커 자리' 와 '실제 리스폰 자리' 가 다르다(xr-port-c8 지적).
+        ///     TryComputeSpawnXZ 는 클램프까지 끝난 최종 좌표를 준다.
+        ///   ★ Y 는 0 — 런타임도 마커 Y 를 무시하고 걷는 면 윗면에 발을 붙인다. 케이슨·야드 포장 둘 다 윗면이 y=0.
+        /// EditorOnly 태그라 빌드엔 안 들어간다. 다시 누르면 교체, 치우려면 씬에서 지운다.
+        /// ExitMarker_Pawn 과 이름이 달라 둘이 같이 서 있을 수 있다(리스폰 ↔ 나가는 존 거리를 눈으로 잰다).</summary>
+        [MenuItem("Model/FBX/항구/리스폰 지점 체스말 (임시)", false, 9)]
+        static void PlaceSpawnPawn()
+        {
+            if (!Container.Crane.Sts.CranePlayerStartPlacer.TryComputeSpawnXZ(out Vector3 xz))
+            {
+                EditorUtility.DisplayDialog("리스폰 지점 체스말",
+                    "시작 지점을 못 잡았습니다.\n시작 마커(CranePlayerStartPoint)도 걷는 땅(부두)도 없습니다.\n" +
+                    "안벽·야드를 먼저 배치하세요.", "확인");
+                return;
+            }
+            var fbx = Load(PawnFbx, "리스폰 지점 체스말"); if (fbx == null) return;
+
+            var prev = GameObject.Find(SpawnPawnName);
+            if (prev != null) Undo.DestroyObjectImmediate(prev);
+
+            float scale = FbxScaleByHeight(fbx, PawnHeightM);
+            // 부모 null → localPosition 이 곧 월드 좌표. 발은 걷는 면 윗면 y=0(PlaceCaisson 규약)에 둔다.
+            Place(fbx, null, SpawnPawnName, new Vector3(xz.x, 0f, xz.z), scale);
+            var pawn = GameObject.Find(SpawnPawnName);
+            if (pawn == null) return;
+            pawn.tag = "EditorOnly";
+            Undo.RegisterCreatedObjectUndo(pawn, "Place " + SpawnPawnName);
+            UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(pawn.scene);
+
+            // 실척으로도 찍는다 — 모델 단위(×1/24)로만 보면 숫자가 안 읽혀 부르기 어렵다.
+            Vector3 real = xz * StsConfig.InvModelScale;
+            Done(pawn.transform, $"리스폰 지점 — 실척 X {real.x:F2}m · Z {real.z:F2}m  (모델 {xz.x:F4}, {xz.z:F4}) · " +
+                                 $"발은 y=0 · 체스말 {PawnHeightM}m · scale {scale:F4} · EditorOnly(빌드 제외). " +
+                                 $"런타임 배치와 같은 계산(TryComputeSpawnXZ) — 클램프까지 끝난 최종 좌표다.");
+        }
+
         [MenuItem("Model/FBX/항구/연석 배치 (Quay_Curb)", false, 1)]
         static void PlaceCurb()
         {

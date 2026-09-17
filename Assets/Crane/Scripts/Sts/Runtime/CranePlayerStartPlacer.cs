@@ -164,40 +164,13 @@ namespace Container.Crane.Sts
             if (rig == null) return false;
 
             float rigYBefore = rig.position.y;            // QA: 재배치 전 높이(접속 후 원점 방치 복구 확인용)
-            var marker = FindMarker();
-            bool hasLand = TryGetLand(out Bounds land);
-
-            // 시작 XZ·바라보는 방향 결정.
-            Vector3 xz; Vector3 faceDir;
-            if (marker != null)
-            {
-                Vector3 mp = marker.transform.position;
-                xz = new Vector3(mp.x, 0f, mp.z);
-                Vector3 f = marker.transform.forward; f.y = 0f;
-                faceDir = f.sqrMagnitude > 1e-4f ? f.normalized : rig.forward;
-            }
-            else if (hasLand)
-            {
-                // 마커 없음 → 저장된 시작점(PortConfig) — STS 레일 사이 · 선석 중앙 · 바다 쪽.
-                xz = new Vector3(PortConfig.PlayerStartXMeters, 0f, PortConfig.PlayerStartZMeters) * StsConfig.ModelScale;
-                faceDir = Vector3.right;
-            }
-            else
-            {
+            // 시작 XZ·바라보는 방향 결정 — 계산은 TryComputeSpawn() 한 곳에만 둔다.
+            //   ★ 에디터 표식(리스폰 체스말, QuayPartsPlacer.PlaceSpawnPawn)이 같은 식을 읽어야
+            //     눈에 보이는 자리와 실제 리스폰 자리가 일치한다. 계산이 두 벌이 되면 반드시 갈라지고,
+            //     그러면 그 표식으로 읽은 좌표가 거짓이 된다.
+            if (!TryComputeSpawn(out Vector3 xz, out Vector3 faceDir, out bool hasLand, out Bounds land,
+                                 out var marker, forceInsideQuay, quayEdgeInset, rig.forward))
                 return false;                             // 마커도 부두도 아직 없음 — 재시도(없으면 maxAttempts에서 포기).
-            }
-
-            // 항상 부두 '안'으로 — 마커가 없거나 부두 밖이어도 걷는 면 XZ 범위로 클램프.
-            Vector3 xzBeforeClamp = xz;
-            bool clampApplied = false;
-            if (forceInsideQuay && hasLand)
-            {
-                xz = ClampToBounds(xz, land, quayEdgeInset);
-                clampApplied = (xz - xzBeforeClamp).sqrMagnitude > 1e-8f;
-                if (clampApplied)   // S-START-4: 부두 밖 → 안으로 끌어들였을 때만
-                    QaLog.Info("START", "clamp",
-                        $"xz_before={QaLog.V(xzBeforeClamp)} xz_after={QaLog.V(xz)} inset={QaLog.F(quayEdgeInset)} clamped=true");
-            }
 
             // Y(높이): 마커 값 무시하고 항상 걷는 면 윗면에 발이 닿게. 부두를 못 찾으면 레이캐스트→0 폴백.
             float floorY = hasLand ? land.max.y : ResolveFloorYRaycast(xz);
@@ -231,6 +204,58 @@ namespace Container.Crane.Sts
             }
             return true;
         }
+
+        /// <summary>기본 부두 가장자리 인셋(m·모델 단위) — 인스펙터 기본값과 에디터 표식이 같은 값을 쓴다.</summary>
+        public const float DefaultQuayEdgeInset = 0.1f;
+
+        /// <summary>시작 XZ·바라보는 방향을 결정한다 — 런타임 배치와 에디터 표식이 공유하는 <b>단 하나의</b> 계산.
+        ///
+        /// 순서: 마커(CranePlayerStartPoint) → 없으면 저장 좌표(PortConfig.PlayerStart*) → 걷는 땅 안으로 클램프.
+        /// ★ 마커 좌표를 그대로 쓰면 안 된다. 마커가 부두 밖이면 클램프가 값을 바꾸므로, '마커 자리' 와
+        ///   '실제 리스폰 자리' 가 다르다(xr-port-c8 지적 2026-09-17). 반환값은 클램프까지 끝난 최종 좌표다.
+        /// ★ Y 는 여기서 안 정한다 — 호출부가 걷는 면 윗면(또는 레이캐스트 폴백)에 맞춘다.</summary>
+        public static bool TryComputeSpawn(out Vector3 xz, out Vector3 faceDir, out bool hasLand, out Bounds land,
+                                           out CranePlayerStartPoint marker, bool forceInsideQuay = true,
+                                           float inset = DefaultQuayEdgeInset, Vector3 fallbackForward = default)
+        {
+            xz = default; faceDir = Vector3.right;
+            marker = FindMarker();
+            hasLand = TryGetLand(out land);
+
+            if (marker != null)
+            {
+                Vector3 mp = marker.transform.position;
+                xz = new Vector3(mp.x, 0f, mp.z);
+                Vector3 f = marker.transform.forward; f.y = 0f;
+                faceDir = f.sqrMagnitude > 1e-4f ? f.normalized
+                        : (fallbackForward.sqrMagnitude > 1e-4f ? fallbackForward.normalized : Vector3.right);
+            }
+            else if (hasLand)
+            {
+                // 마커 없음 → 저장된 시작점(PortConfig) — STS 레일 사이 · 선석 중앙 · 바다 쪽.
+                xz = new Vector3(PortConfig.PlayerStartXMeters, 0f, PortConfig.PlayerStartZMeters) * StsConfig.ModelScale;
+                faceDir = Vector3.right;
+            }
+            else
+            {
+                return false;                             // 마커도 부두도 아직 없음.
+            }
+
+            // 항상 부두 '안'으로 — 마커가 없거나 부두 밖이어도 걷는 면 XZ 범위로 클램프.
+            Vector3 xzBeforeClamp = xz;
+            if (forceInsideQuay && hasLand)
+            {
+                xz = ClampToBounds(xz, land, inset);
+                if ((xz - xzBeforeClamp).sqrMagnitude > 1e-8f)   // S-START-4: 부두 밖 → 안으로 끌어들였을 때만
+                    QaLog.Info("START", "clamp",
+                        $"xz_before={QaLog.V(xzBeforeClamp)} xz_after={QaLog.V(xz)} inset={QaLog.F(inset)} clamped=true");
+            }
+            return true;
+        }
+
+        /// <summary>에디터 표식용 간편 진입점 — 최종 시작 XZ 만 필요할 때.</summary>
+        public static bool TryComputeSpawnXZ(out Vector3 xz) =>
+            TryComputeSpawn(out xz, out _, out _, out _, out _);
 
         static CranePlayerStartPoint FindMarker()
         {
