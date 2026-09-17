@@ -16,7 +16,7 @@ namespace Container.Crane.Sts.Net
     /// 시작 메뉴(<see cref="CraneNetMenuHUD"/>)는 접속 6초 뒤 사라지며 나가기 항목이 없다.</para>
     ///
     /// <para><b>두 갈래로 막는다</b>
-    /// ① <b>존을 밟고 나가기</b> — 의도적으로 끝낼 때. 지나가다 스치는 것으로는 안 끊기게 dwell(기본 20초)을 둔다.
+    /// ① <b>존을 밟고 나가기</b> — 의도적으로 끝낼 때. 지나가다 스치는 것으로는 안 끊기게 dwell(기본 10초)을 둔다.
     /// ② <b>헤드셋 이탈 자동 종료</b> — 실제로는 대부분 존을 안 밟고 그냥 앱을 끈다. 그때가 근본 원인이므로
     ///    XR 디스플레이가 멈추면 유예 뒤 스스로 Shutdown 한다. ①만으로는 같은 사고가 계속 난다.</para>
     ///
@@ -31,7 +31,7 @@ namespace Container.Crane.Sts.Net
         [Tooltip("존 반경(실척 m). 걷다가 실수로 들어오지 않게 부두 '모서리'에 둔다.")]
         [SerializeField] float radiusMeters = 3f;
         [Tooltip("존 안에 이만큼 서 있어야 나간다(초). 지나가다 스치는 것으로 안 끊기게.")]
-        [SerializeField] float dwellSeconds = 20f;   // 오너 지시 2026-09-17 — 트리거를 없앤 대신 체류시간으로 실수 방지
+        [SerializeField] float dwellSeconds = 10f;   // 오너 지시 2026-09-17 — 트리거를 없앤 대신 체류시간으로 실수 방지(시연 뒤 20→10초)
         [Tooltip("걷는 땅 모서리에서 안쪽으로 띄울 거리(실척 m) — 띠가 경계 밖으로 새지 않게.")]
         [SerializeField] float insetMeters = DefaultInsetMeters;
 
@@ -50,14 +50,15 @@ namespace Container.Crane.Sts.Net
         // ★ 월드공간 Canvas(HUD)는 2026-09-17 오너 지시로 없앴다 — "나가는 존에 HUD 삭제하고
         //   blender 에서 표시판 하나 이쁘게 만들어서 나가는 존 가운데 놔줘".
         //   대신 실물 표지판 ExitSign.fbx(문서/스크립트/표시판_빌드.py)가 존 중심에 선다
-        //   (QuayPartsPlacer.PlaceExitSign — 같은 TryComputeCenter 를 써서 자리가 어긋나지 않는다).
+        //   (BuildSign 이 존과 같은 center 를 쓰므로 자리가 어긋날 수 없다 — 심는 메뉴는 없앴다).
         //   바닥 띠(LineRenderer)는 그대로 둔다 — 존 '경계'는 표지판으로 못 보여준다.
         /// <summary>표지판 리소스 경로(Assets/Crane/Resources/ 기준, 확장자 없음).</summary>
         const string SignResourcePath = "Models/ExitSign";
-        /// <summary>표지판 전체 높이(실척 m) — 문서/스크립트/표시판_빌드.py 의 H_TOTAL 과 <b>쌍</b>이다.
-        ///   ★ 한쪽만 바꾸면 조용히 어긋난다. 2026-09-17 H_TOTAL 을 2.40→2.20 으로 낮추고 이 값을 안 고쳐
-        ///     표지판이 10% 크게 설 뻔했다. 모델 치수를 바꾸면 여기도 같이 바꾼다.</summary>
-        const float  SignHeightMeters = 2.2f;
+        /// <summary>표지판 배율 — 실척 모델을 이만큼 부풀려 세운다. 오너 지시 2026-09-17 "판자 사이즈 10배로 키워".
+        ///   ★ 이건 표지판의 <b>실제 치수가 아니라 연출</b>이다(실척 2.2m 짜리를 22m 로 보이게 한다).
+        ///     모델은 실척 그대로 두고 '얼마나 크게 세우나'만 여기서 정한다 — 치수와 연출을 한 숫자에 섞으면
+        ///     다음 사람이 어느 쪽을 고쳐야 할지 모른다(표시판_빌드.py 의 H_TOTAL 2.20 은 건드리지 않았다).</summary>
+        const float SignScale = 10f;
 
         GameObject sign;
         LineRenderer band;
@@ -92,7 +93,7 @@ namespace Container.Crane.Sts.Net
 
             // 오너 지시 2026-09-17: "나가는 존에 들어가면 그냥 트리거 없이 20초 뒤에 나가게 만들자".
             //   종전에는 호스트에게 트리거 홀드를 요구했다 — 호스트가 끊기면 관전자도 같이 끊기기 때문이었다.
-            //   그 보호를 체류시간으로 옮긴다: 2초는 지나가다 스칠 수 있지만 20초는 서 있기로 결심해야 채워진다.
+            //   그 보호를 체류시간으로 옮긴다: 2초는 지나가다 스칠 수 있지만 10초는 서 있기로 결심해야 채워진다.
             //   호스트/관전자 구분은 경고 문구에만 남긴다(끊기는 사람이 몇 명인지는 여전히 보여줘야 한다).
             int spectators = SpectatorCount();
             bool host = spectators >= 0;
@@ -108,7 +109,7 @@ namespace Container.Crane.Sts.Net
                 return;
             }
 
-            // 헤드셋 상단 공지 — 오너 지시 2026-09-17 "존에 들어오면 … 상단에 20초 후 종료합니다".
+            // 헤드셋 상단 공지 — 오너 지시 2026-09-17 "존에 들어오면 … 상단에 N초 후 종료합니다"(N = dwellSeconds).
             //   존 안에 있는 동안만 매 프레임 갱신한다. 밖으로 나가면 갱신이 끊겨 유예 뒤 저절로 사라진다
             //   (여기서 지우지 않아도 남지 않는다 — 호출자가 정리를 잊는 실수 자체를 없앤 설계).
             //   끊기는 사람이 나 말고 더 있으면 그 수를 같이 보여준다. 모르고 끊으면 안 되니까.
@@ -245,7 +246,6 @@ namespace Container.Crane.Sts.Net
         /// ★ 에디터 메뉴로 씬에 심지 않는다. 존 자체가 <c>[RuntimeInitializeOnLoadMethod]</c> 로 스스로 뜨고
         ///   바닥 띠도 절차 생성인데, 표지판만 사람이 눌러 심어야 하면 자리가 어긋나고(존은 계산으로 움직인다)
         ///   누르는 걸 잊으면 아무 표시가 없다. 실제로 2026-09-17 그렇게 만들어 오너가 "표지판이 안 보인다"고 했다.
-        /// ★ 스케일은 하드코딩하지 않는다 — 렌더러 바운즈를 재서 수렴시킨다(FBX 단위계·임포트 설정이 바뀌어도 안 깨진다).
         /// ★ 리소스가 없으면 띠만 남기고 조용히 넘어간다 — 표지판 때문에 존이 동작을 멈추면 안 된다.</summary>
         void BuildSign()
         {
@@ -261,14 +261,24 @@ namespace Container.Crane.Sts.Net
             //   ★ 종전에는 렌더러 바운즈의 Y 를 '높이' 로 보고 맞췄다. 그런데 FBX 축이 틀어져 들어오면 Y 가
             //     높이가 아니라 폭(1.8m)이 되고, 1.8 을 0.1 로 줄여 18배 작아진 채 누워 버린다 — 실제로 그랬다.
             //     상수 배율은 그런 '조용한 어긋남' 이 없다. 모델이 실척이라는 전제만 지키면 된다.
-            sign.transform.localScale = Vector3.one * StsConfig.ModelScale;
+            sign.transform.localScale = Vector3.one * (StsConfig.ModelScale * SignScale);
 
+            // ★★ FBX 축 보정을 지우지 말 것 — 표지판이 바닥에 눕는 원인이 바로 이것이었다(오너 2026-09-17 "바닥에 누워 있어").
+            //   블렌더 메시는 Z-up 이라 정점이 높이를 Z 에 갖고 있다(ExitSign.fbx 실측: X 1.80 폭 · Y 0.29 두께 · Z 0…2.20 높이).
+            //   그걸 세우는 건 임포트된 루트의 회전 −90°X <b>하나뿐</b>인데, 여기서 rotation 에 그냥 대입하면 그 보정이 날아간다.
+            //   LookRotation(수평벡터, up) 은 피치가 0 이라, 대입 즉시 높이축 Z 가 월드 +Z 로 누워 판이 바닥에 깔린다.
+            //   그래서 덮어쓰지 않고 <b>곱한다</b>(축 보정 먼저 → 그다음 야우).
+            //   임포터에서 축을 구우면(bakeAxisConversion=1) 이 회전이 단위원이 되어 식이 그대로 성립한다.
+            Quaternion axisFix = prefab.transform.localRotation;
+            sign.transform.localRotation = axisFix;   // 바라볼 곳을 못 구해도 최소한 서 있게
 
             // 리스폰 지점 쪽을 바라보게 — 걸어오는 사람 정면에 글자가 온다.
+            //   블렌더 앞면은 −Y(FACE_F)고 축 보정 뒤 유니티 +Z 가 되므로 LookRotation 의 forward 와 맞는다.
             if (CranePlayerStartPlacer.TryComputeSpawnXZ(out Vector3 spawn))
             {
                 Vector3 look = new Vector3(spawn.x - center.x, 0f, spawn.z - center.z);
-                if (look.sqrMagnitude > 1e-6f) sign.transform.rotation = Quaternion.LookRotation(look.normalized, Vector3.up);
+                if (look.sqrMagnitude > 1e-6f)
+                    sign.transform.rotation = Quaternion.LookRotation(look.normalized, Vector3.up) * axisFix;
             }
         }
 
