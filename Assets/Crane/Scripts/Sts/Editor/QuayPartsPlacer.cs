@@ -215,12 +215,16 @@ namespace Container.Crane.Sts.EditorTools
             if (f.sqrMagnitude > 1e-4f) mgo.transform.rotation = Quaternion.LookRotation(f.normalized, Vector3.up);
             EditorUtility.SetDirty(mgo.transform);
             UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(mgo.scene);
+            // 적용과 동시에 저장한다 — 오너 지시 2026-09-17 흐름에서 '적용했다' 와 '파일에 있다' 가 어긋났다.
+            //   Unity 는 저장 전까지 디스크에 안 쓰므로, 저장 안 하면 빌드에도 안 들어가고 외부에서 읽을 수도 없다.
+            //   메뉴를 누른 것 자체가 '이 상태를 원한다' 는 의사표시라 여기서 저장까지 끝내는 게 맞다.
+            UnityEditor.SceneManagement.EditorSceneManager.SaveOpenScenes();
 
             Vector3 rb = before * StsConfig.InvModelScale, ra = mgo.transform.position * StsConfig.InvModelScale;
             Done(mgo.transform,
                  $"시작 지점 적용 — 실척 (X {rb.x:F2}, Z {rb.z:F2})m → (X {ra.x:F2}, Z {ra.z:F2})m " +
                  $"(모델 {mgo.transform.position.x:F4}, {mgo.transform.position.z:F4}) · 방향 {mgo.transform.forward} · " +
-                 $"★ 씬을 저장해야 빌드에 반영됩니다(Cmd+S).");
+                 $"★ 씬 저장까지 완료 — 이제 배포하면 반영됩니다.");
         }
 
         [MenuItem("Model/FBX/항구/연석 배치 (Quay_Curb)", false, 1)]
