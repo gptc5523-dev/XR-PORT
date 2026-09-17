@@ -11,7 +11,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 0af9dc0f17f1f4b0bb9e8d607d07b031, type: 3}
   m_Name: Container_Palette_Default
-  m_EditorClassIdentifier: Assembly-CSharp::ContainerProject.ContainerColorPalette
+  m_EditorClassIdentifier: Assembly-CSharp::AIXRCrane.ContainerColorPalette
   colors:
   - name: White
     color: {r: 0.92, g: 0.92, b: 0.9, a: 1}

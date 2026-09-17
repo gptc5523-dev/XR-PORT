@@ -138,7 +138,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 0c08b1f1318304ad293868dc760a3956, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::Container.Crane.Sts.Net.PlayerAvatarSync
+  m_EditorClassIdentifier: Assembly-CSharp::AIXRCrane.Crane.Sts.Net.PlayerAvatarSync
   ShowTopMostFoldoutHeaderGroup: 1
   body: {fileID: 5667046024539584682}
   palette:

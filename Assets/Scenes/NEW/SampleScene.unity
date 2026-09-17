@@ -538,7 +538,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 654a9021464ad4360a6fb7a217057675, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::Container.Crane.Sts.TrolleyMover
+  m_EditorClassIdentifier: Assembly-CSharp::AIXRCrane.Crane.Sts.TrolleyMover
   min: -9.5
   max: 9.5
   spreaderRoot: {fileID: 1752082142}
@@ -136497,7 +136497,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 468de3e93e15e4b7e883e3d44d533b1a, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::Container.Crane.Sts.StsCraneVRController
+  m_EditorClassIdentifier: Assembly-CSharp::AIXRCrane.Crane.Sts.StsCraneVRController
   startInCraneMode: 0
   suppressWhileControlling: []
   trolleySpeedMps: 3.3
@@ -136526,7 +136526,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: bc05ba5c826d9496cbc910e30fc6af74, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::Container.Crane.Sts.StsCrane
+  m_EditorClassIdentifier: Assembly-CSharp::AIXRCrane.Crane.Sts.StsCrane
   boom: {fileID: 0}
   trolley: {fileID: 3637609}
   spreader: {fileID: 1752082143}
@@ -136575,7 +136575,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: ff6f16bd694ec4b6b99c126c95ae1799, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::Container.Crane.Sts.GantryMover
+  m_EditorClassIdentifier: Assembly-CSharp::AIXRCrane.Crane.Sts.GantryMover
   min: -0.8333334
   max: 0.8333334
   minX: 0
@@ -257737,7 +257737,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 2e597185ac79c4dddb75eadada9f7ecf, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::Container.Crane.Sts.QuayContainerScanner
+  m_EditorClassIdentifier: Assembly-CSharp::AIXRCrane.Crane.Sts.QuayContainerScanner
   scanOnStart: 1
   logResults: 1
   fortyFtThreshold: 0.38
@@ -352752,7 +352752,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 889cb2afefa234d4988870ebc5c3a2c3, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::Container.Crane.Sts.SpreaderHoist
+  m_EditorClassIdentifier: Assembly-CSharp::AIXRCrane.Crane.Sts.SpreaderHoist
   min: 3.4
   max: 21.5
   worldVertical: 0
@@ -352767,7 +352767,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 3164ee3b651744e89b133180f8993f7f, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::Container.Crane.Sts.SpreaderTelescope
+  m_EditorClassIdentifier: Assembly-CSharp::AIXRCrane.Crane.Sts.SpreaderTelescope
   armL: {fileID: 1974006818}
   armR: {fileID: 2015612089}
   teleL: {fileID: 2075965815}
@@ -353562,7 +353562,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: b7e1738fb9cd0438aba040ad4c70a387, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::Container.Crane.Sts.RtgBogieSteering
+  m_EditorClassIdentifier: Assembly-CSharp::AIXRCrane.Crane.Sts.RtgBogieSteering
   bogies:
   - {fileID: 1756639402}
   - {fileID: 1756639401}
@@ -353588,7 +353588,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: f883a28b5840146a9958879861abe28e, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::Container.Crane.Sts.SpreaderGrabber
+  m_EditorClassIdentifier: Assembly-CSharp::AIXRCrane.Crane.Sts.SpreaderGrabber
   grabRange: 0.35
   maxGrabRange: 0.1
   sizeThreshold: 0.38
@@ -353617,7 +353617,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: bc05ba5c826d9496cbc910e30fc6af74, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::Container.Crane.Sts.StsCrane
+  m_EditorClassIdentifier: Assembly-CSharp::AIXRCrane.Crane.Sts.StsCrane
   boom: {fileID: 0}
   trolley: {fileID: 1860118134}
   spreader: {fileID: 1756639426}
@@ -353639,7 +353639,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: b2202cdb8195d41b3ba4091eadc84ff6, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::Container.Crane.Sts.SpreaderAttach
+  m_EditorClassIdentifier: Assembly-CSharp::AIXRCrane.Crane.Sts.SpreaderAttach
   attachPoint: {fileID: 1756639403}
 --- !u!114 &1756639424
 MonoBehaviour:
@@ -353652,7 +353652,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: bbae1423a27134fea92844a6f4c547d2, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::Container.Crane.Sts.RtgSpreaderTelescope
+  m_EditorClassIdentifier: Assembly-CSharp::AIXRCrane.Crane.Sts.RtgSpreaderTelescope
   teleBeamF: {fileID: 1756639410}
   teleBeamB: {fileID: 1756639411}
   restF: {x: 0, y: 0.028930001, z: -0.0037699984}
@@ -353676,7 +353676,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: b90aa42248601401d9169414a7f19c69, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::Container.Crane.Sts.SpreaderLockAnimator
+  m_EditorClassIdentifier: Assembly-CSharp::AIXRCrane.Crane.Sts.SpreaderLockAnimator
   twistAngle: 90
   speed: 4
   worldVertical: 1
@@ -353691,7 +353691,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 889cb2afefa234d4988870ebc5c3a2c3, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::Container.Crane.Sts.SpreaderHoist
+  m_EditorClassIdentifier: Assembly-CSharp::AIXRCrane.Crane.Sts.SpreaderHoist
   min: 0.013645917
   max: 0.82889163
   worldVertical: 1
@@ -353706,7 +353706,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: ff6f16bd694ec4b6b99c126c95ae1799, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::Container.Crane.Sts.GantryMover
+  m_EditorClassIdentifier: Assembly-CSharp::AIXRCrane.Crane.Sts.GantryMover
   min: -1.0378333
   max: 1.0338334
   minX: -2.2708335
@@ -357950,7 +357950,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 3ba0876eb8077449cac952f4d5866b96, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::Container.Crane.Sts.RtgRopeTube
+  m_EditorClassIdentifier: Assembly-CSharp::AIXRCrane.Crane.Sts.RtgRopeTube
   drumExits:
   - {fileID: 746040468}
   - {fileID: 333620730}
@@ -373838,7 +373838,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 654a9021464ad4360a6fb7a217057675, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::Container.Crane.Sts.TrolleyMover
+  m_EditorClassIdentifier: Assembly-CSharp::AIXRCrane.Crane.Sts.TrolleyMover
   min: -0.100949995
   max: 0.100949995
   spreaderRoot: {fileID: 1756639403}

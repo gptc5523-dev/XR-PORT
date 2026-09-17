@@ -491,7 +491,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 73bcf7e5ac3ce43a5b9bff06968f7ec0, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::ContainerProject.ContainerInstance
+  m_EditorClassIdentifier: Assembly-CSharp::AIXRCrane.ContainerInstance
   bodyRenderers:
   - renderer: {fileID: 1983448613518718369}
     materialIndex: 0
