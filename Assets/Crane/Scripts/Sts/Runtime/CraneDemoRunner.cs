@@ -408,6 +408,14 @@ namespace Container.Crane.Sts
             var c = crane.Attach.Detach(j.parent);
             if (c == null) return;
             c.SetPositionAndRotation(bottom + j.pivot, j.rot);   // SeatLift 만큼 띄워 내린 것을 정확한 자리로
+            // 진단 — 야드 칸 이탈이 어디서 생기는지 보려면 '어느 상자를 어디에 놓았는지' 가 있어야 한다.
+            //   2026-09-17 스모크가 Cont20_02 에서 이탈 0.256m(≤0.2)로 FAIL 했는데, 자동 경로엔 로그가 없어
+            //   옮긴 자리인지 되돌린 자리인지조차 못 갈랐다. 실척으로 남긴다(모델 단위는 1/24 라 안 읽힌다).
+            if (YardGrid.TrySnapXZ(bottom, Mathf.Max(j.size.x, j.size.z), out var cell))
+                Debug.Log($"[PortDemo] {name}: {c.name} {(toAway ? "옮김" : "되돌림")} — 실척 " +
+                          $"({bottom.x * StsConfig.InvModelScale:F2}, {bottom.z * StsConfig.InvModelScale:F2})m · " +
+                          $"칸중심 ({cell.x * StsConfig.InvModelScale:F2}, {cell.z * StsConfig.InvModelScale:F2})m · " +
+                          $"이탈 {Vector3.Distance(new Vector3(bottom.x, 0f, bottom.z), new Vector3(cell.x, 0f, cell.z)) * StsConfig.InvModelScale:F3}m");
             ShowColliders();
             var rb = c.GetComponent<Rigidbody>();
             if (rb != null)

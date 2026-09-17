@@ -1,7 +1,6 @@
 using System.Collections.Generic;
 using Unity.Netcode;
 using UnityEngine;
-using UnityEngine.UI;
 using UnityEngine.XR;
 
 namespace Container.Crane.Sts.Net
@@ -17,7 +16,7 @@ namespace Container.Crane.Sts.Net
     /// 시작 메뉴(<see cref="CraneNetMenuHUD"/>)는 접속 6초 뒤 사라지며 나가기 항목이 없다.</para>
     ///
     /// <para><b>두 갈래로 막는다</b>
-    /// ① <b>존을 밟고 나가기</b> — 의도적으로 끝낼 때. 지나가다 스치는 것으로는 안 끊기게 dwell(기본 2초)을 둔다.
+    /// ① <b>존을 밟고 나가기</b> — 의도적으로 끝낼 때. 지나가다 스치는 것으로는 안 끊기게 dwell(기본 20초)을 둔다.
     /// ② <b>헤드셋 이탈 자동 종료</b> — 실제로는 대부분 존을 안 밟고 그냥 앱을 끈다. 그때가 근본 원인이므로
     ///    XR 디스플레이가 멈추면 유예 뒤 스스로 Shutdown 한다. ①만으로는 같은 사고가 계속 난다.</para>
     ///
@@ -32,7 +31,7 @@ namespace Container.Crane.Sts.Net
         [Tooltip("존 반경(실척 m). 걷다가 실수로 들어오지 않게 부두 '모서리'에 둔다.")]
         [SerializeField] float radiusMeters = 3f;
         [Tooltip("존 안에 이만큼 서 있어야 나간다(초). 지나가다 스치는 것으로 안 끊기게.")]
-        [SerializeField] float dwellSeconds = 2f;
+        [SerializeField] float dwellSeconds = 20f;   // 오너 지시 2026-09-17 — 트리거를 없앤 대신 체류시간으로 실수 방지
         [Tooltip("걷는 땅 모서리에서 안쪽으로 띄울 거리(실척 m) — 띠가 경계 밖으로 새지 않게.")]
         [SerializeField] float insetMeters = DefaultInsetMeters;
 
@@ -44,18 +43,16 @@ namespace Container.Crane.Sts.Net
                  "★ 호스트는 '관전자가 없을 때만' 적용된다 — 남을 끊는 자동 종료는 하지 않는다(WatchHeadset 주석).")]
         [SerializeField] float headsetLostGraceSeconds = 15f;
 
-        [Header("호스트 확인 입력")]
-        [Tooltip("호스트가 존에서 나갈 때 함께 당기고 있어야 하는 오른손 트리거 임계값. 관전자는 서 있기만 하면 된다(자기만 끊기므로). " +
-                 "새 규약을 만들지 않고 모드 변경(StsCraneVRController.modeTriggerThreshold)과 같은 관례를 쓴다.")]
-        [SerializeField, Range(0.1f, 0.95f)] float hostTriggerThreshold = 0.6f;
-
         // 나가기 = 빨강(HudColor.Danger 계열). 접근 범위 띠(청록)와 색으로 구분돼 헷갈리지 않는다.
         static readonly Color BandIdle = new Color(0.92f, 0.20f, 0.18f, 0.35f);
         static readonly Color BandInside = new Color(0.92f, 0.20f, 0.18f, 0.95f);
 
+        // ★ 월드공간 Canvas(HUD)는 2026-09-17 오너 지시로 없앴다 — "나가는 존에 HUD 삭제하고
+        //   blender 에서 표시판 하나 이쁘게 만들어서 나가는 존 가운데 놔줘".
+        //   대신 실물 표지판 ExitSign.fbx(문서/스크립트/표시판_빌드.py)가 존 중심에 선다
+        //   (QuayPartsPlacer.PlaceExitSign — 같은 TryComputeCenter 를 써서 자리가 어긋나지 않는다).
+        //   바닥 띠(LineRenderer)는 그대로 둔다 — 존 '경계'는 표지판으로 못 보여준다.
         LineRenderer band;
-        Canvas canvas;
-        Text text;
         NetLanUI ui;
         Vector3 center;
         bool placed;
@@ -63,7 +60,6 @@ namespace Container.Crane.Sts.Net
         float nextFind;
         float xrLostFor;
         bool xrSeenRunning;      // 한 번이라도 XR 이 돌았는가 — 평면(비VR) 모드에서 자동 종료가 오발하지 않게
-        string lastText = "";
         readonly List<XRDisplaySubsystem> displays = new List<XRDisplaySubsystem>();
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
@@ -86,11 +82,13 @@ namespace Container.Crane.Sts.Net
             Vector3 d = cam.transform.position - center; d.y = 0f;
             bool inside = d.sqrMagnitude <= r * r;
 
-            // 호스트는 '서 있기'만으로 안 끊는다 — 끊기는 사람이 자기 혼자가 아니기 때문.
-            //   관전자는 서 있기만 하면 된다(자기만 끊김). 트리거 홀드는 오너가 오늘 이미 익힌 동작이라 새로 배울 게 없다.
+            // 오너 지시 2026-09-17: "나가는 존에 들어가면 그냥 트리거 없이 20초 뒤에 나가게 만들자".
+            //   종전에는 호스트에게 트리거 홀드를 요구했다 — 호스트가 끊기면 관전자도 같이 끊기기 때문이었다.
+            //   그 보호를 체류시간으로 옮긴다: 2초는 지나가다 스칠 수 있지만 20초는 서 있기로 결심해야 채워진다.
+            //   호스트/관전자 구분은 경고 문구에만 남긴다(끊기는 사람이 몇 명인지는 여전히 보여줘야 한다).
             int spectators = SpectatorCount();
             bool host = spectators >= 0;
-            bool arming = inside && (!host || TriggerHeld());
+            bool arming = inside;
 
             dwell = arming ? dwell + Time.unscaledDeltaTime : 0f;
             band.startColor = band.endColor = inside ? BandInside : BandIdle;
@@ -101,20 +99,6 @@ namespace Container.Crane.Sts.Net
                 return;
             }
 
-            // 끊기는 사람이 나 말고 더 있으면 반드시 먼저 보여준다.
-            string warn = spectators > 0 ? $"\n<size=17><color=#EB332E>관전자 {spectators}명도 함께 끊깁니다</color></size>" : "";
-            CraneHud.SetTextIfChanged(text, ref lastText,
-                !inside
-                    ? "<b><size=30><color=#EB332E>나가기</color></size></b>\n" +
-                      $"<size=18><color=#999999>이 자리에 {(host ? "트리거를 당긴 채 " : "")}{dwellSeconds:0}초 서 있으면\n" +
-                      "접속을 끊고 시작 화면으로 갑니다</color></size>" + warn
-                : arming
-                    ? $"<b><size=34><color=#EB332E>나가는 중… {Mathf.Max(0f, dwellSeconds - dwell):0.0}초</color></size></b>\n" +
-                      "<size=18><color=#999999>존에서 나오거나 트리거를 놓으면 취소돼요</color></size>" + warn
-                    : "<b><size=30><color=#EB332E>나가기</color></size></b>\n" +
-                      "<size=18><color=#5FE0FF>오른손 트리거를 당긴 채 서 있으세요</color></size>" + warn);
-
-            if (canvas != null) CraneHud.FaceCameraAbove(canvas.transform, transform, 2.2f * StsConfig.ModelScale, cam);
         }
 
         // ② 헤드셋 이탈 감시 — XR 디스플레이가 running 에서 멈추면 유예 뒤 종료.
@@ -166,11 +150,6 @@ namespace Container.Crane.Sts.Net
         }
 
         // 오른손 검지 트리거 — 모드 변경(StsCraneVRController)과 같은 입력·같은 임계값 관례.
-        bool TriggerHeld()
-        {
-            var right = InputDevices.GetDeviceAtXRNode(XRNode.RightHand);
-            return right.isValid && right.TryGetFeatureValue(CommonUsages.trigger, out float t) && t > hostTriggerThreshold;
-        }
 
         void Leave(string why)
         {
@@ -229,7 +208,6 @@ namespace Container.Crane.Sts.Net
 
             transform.position = center;
             BuildBand();
-            BuildLabel();
             placed = true;
             // 좌표는 실척(m)을 앞에 찍는다 — 오너 지시 2026-09-17 "실척 좌표로 해줘".
             //   모델 단위는 1 unit = 24 m 라 숫자가 1/24 로 눌려 사람이 못 읽는다(−0.25 vs −6.00m).
@@ -283,18 +261,9 @@ namespace Container.Crane.Sts.Net
             return new Material(Shader.Find("Sprites/Default")) { mainTexture = tex };
         }
 
-        void BuildLabel()
-        {
-            if (canvas != null) return;
-            canvas = CraneHud.BuildPanel(transform, "ExitZoneCanvas", new Vector2(420, 170), 0.0016f,
-                new Color(0f, 0f, 0f, CraneHud.PanelBgAlpha), 26, Color.white, TextAnchor.MiddleCenter,
-                new Vector2(24, 18), out text, fitToText: true);
-        }
-
         void SetVisible(bool v)
         {
             if (band != null && band.enabled != v) band.enabled = v;
-            if (canvas != null && canvas.gameObject.activeSelf != v) canvas.gameObject.SetActive(v);
         }
     }
 }

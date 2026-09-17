@@ -73,6 +73,10 @@ namespace Container.Crane.Sts.EditorTools
             ("Yard_Paint",        0.85f, 0.68f, 0.08f, 0.00f, 0.30f, null),   // 블록 도색(황색)
             ("Lane_Paint",        0.88f, 0.74f, 0.10f, 0.00f, 0.25f, null),   // 안전 차선(안전 노랑 — 블록보다 밝게)
             ("StartMarker_Red",   0.80f, 0.12f, 0.10f, 0.00f, 0.65f, null),   // 체스말(임시) — 회색 부두에서 튀게.
+            ("ExitSign_White",    0.92f, 0.92f, 0.90f, 0.00f, 0.45f, null),   // '나가는 문' 표시판 바탕(테두리)
+            ("ExitSign_Red",      0.78f, 0.10f, 0.09f, 0.00f, 0.50f, null),   // 표시판 앞면 — 나가기는 빨강(존 띠와 같은 계열)
+            ("ExitSign_Post",     0.38f, 0.39f, 0.41f, 0.30f, 0.60f, null),   // 표시판 기둥(도장 강재)
+            ("ExitSign_Text",     0.97f, 0.97f, 0.95f, 0.00f, 0.40f, null),   // 글자 — 빨강 위에서 읽히게
                                                                               //   2026-09-14 시작점용으로 껐다가 2026-09-16 나가는 존 표시용으로 되살림.
         };
 
@@ -88,6 +92,7 @@ namespace Container.Crane.Sts.EditorTools
             ["Assets/Crane/Models/Yard_Block.fbx"]    = new[] { "Yard_Paint" },
             ["Assets/Crane/Models/Quay_Lane.fbx"]     = new[] { "Lane_Paint" },
             [PawnFbx]                                 = new[] { "StartMarker_Red" },
+            [ExitSignFbx]                             = new[] { "ExitSign_White", "ExitSign_Red", "ExitSign_Post", "ExitSign_Text" },
         };
 
         const float YardMarkThickM = 0.015f;
@@ -134,6 +139,50 @@ namespace Container.Crane.Sts.EditorTools
         }
 
         const string SpawnPawnName = "SpawnMarker_Pawn";
+        const string ExitSignFbx   = "Assets/Crane/Models/ExitSign.fbx";
+        const float  SignHeightM   = 2.4f;    // 표시판 전체 높이 — 문서/스크립트/표시판_빌드.py 의 H_TOTAL 과 쌍
+        const string ExitSignName  = "ExitSign";
+
+        /// <summary>'나가는 문' 표시판을 나가는 존 <b>가운데</b>에 세운다 — 오너 요청 2026-09-17
+        /// "나가는 존에 HUD 삭제하고 blender 에서 표시판 하나 이쁘게 만들어서 나가는 존 가운데 놔줘".
+        ///
+        /// 자리는 런타임 존과 <b>같은 계산</b>(ExitZone.TryComputeCenter)을 쓴다 — 표시판이 존 밖에 서면
+        /// 오히려 사람을 잘못된 자리로 부른다. 바라보는 방향은 리스폰 지점 쪽 — 걸어오는 사람이 읽는다.
+        ///   ★ 체스말(ExitMarker_Pawn)과 달리 이건 EditorOnly 가 <b>아니다</b>. 빌드에 들어가야 VR 에서 보인다.</summary>
+        [MenuItem("Model/FBX/항구/나가는 문 표시판 배치", false, 12)]
+        static void PlaceExitSign()
+        {
+            if (!Container.Crane.Sts.Net.ExitZone.TryComputeCenter(
+                    Container.Crane.Sts.Net.ExitZone.DefaultInsetMeters, out Vector3 c))
+            {
+                EditorUtility.DisplayDialog("나가는 문 표시판",
+                    "나가는 존 자리를 못 잡았습니다.\n걷는 땅(부두)을 먼저 배치하세요.", "확인");
+                return;
+            }
+            var fbx = Load(ExitSignFbx, "나가는 문 표시판"); if (fbx == null) return;
+
+            var prev = GameObject.Find(ExitSignName);
+            if (prev != null) Undo.DestroyObjectImmediate(prev);
+
+            float scale = FbxScaleByHeight(fbx, SignHeightM);
+            Place(fbx, null, ExitSignName, new Vector3(c.x, 0f, c.z), scale);
+            var sign = GameObject.Find(ExitSignName);
+            if (sign == null) return;
+
+            // 리스폰 지점 쪽을 바라보게 — 걸어오는 사람 정면에 글자가 온다.
+            if (Container.Crane.Sts.CranePlayerStartPlacer.TryComputeSpawnXZ(out Vector3 spawn))
+            {
+                Vector3 look = new Vector3(spawn.x - c.x, 0f, spawn.z - c.z);
+                if (look.sqrMagnitude > 1e-6f) sign.transform.rotation = Quaternion.LookRotation(look.normalized, Vector3.up);
+            }
+            Undo.RegisterCreatedObjectUndo(sign, "Place " + ExitSignName);
+            UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(sign.scene);
+            UnityEditor.SceneManagement.EditorSceneManager.SaveOpenScenes();
+
+            Vector3 real = new Vector3(c.x, 0f, c.z) * StsConfig.InvModelScale;
+            Done(sign.transform, $"나가는 문 표시판 — 실척 X {real.x:F2}m · Z {real.z:F2}m · 높이 {SignHeightM}m · " +
+                                 $"scale {scale:F4} · 존 중심과 같은 계산 · 씬 저장까지 완료.");
+        }
 
         /// <summary>플레이어가 <b>리스폰되는 자리</b>를 빨간 체스말(폰 2m)로 표시 — 임시. 오너 요청 2026-09-17
         /// "이 체스말은 내가 XY 좌표를 너한테 알려주려고 만든 거야. 일단 내가 리스폰 되는 곳에 체스말 배치해".
