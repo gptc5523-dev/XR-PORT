@@ -178,8 +178,13 @@ namespace Container.Crane.Sts
 
             rig.SetPositionAndRotation(pos, Quaternion.LookRotation(faceDir, Vector3.up));
             if (debugLog)
-                Debug.Log($"[PlayerStartPlacer] 시작 배치 — pos {pos}, facing {faceDir}, " +
-                          $"기준={(marker != null ? "마커" : "저장좌표")}, 부두클램프={(forceInsideQuay && hasLand)}.");
+            {
+                // 좌표는 실척(m)을 앞에 찍는다 — 오너 지시 2026-09-17 "실척 좌표로 해줘".
+                //   모델 단위는 1 unit = 24 m 라 숫자가 1/24 로 눌려 사람이 못 읽는다(−0.5417 vs −13.00m).
+                Vector3 real = pos * StsConfig.InvModelScale;
+                Debug.Log($"[PlayerStartPlacer] 시작 배치 — 실척 X {real.x:F2}m · Z {real.z:F2}m (모델 {pos.x:F4}, {pos.y:F4}, {pos.z:F4}), " +
+                          $"facing {faceDir}, 기준={(marker != null ? "마커" : "저장좌표")}, 부두클램프={(forceInsideQuay && hasLand)}.");
+            }
 
             // QA 콘솔 판정(문서/QA_테스트시나리오.md 그룹 A)
             //   S-START-2: 걷는 면(최대 수평면적 렌더러) 선택 — 부두 '구조물 꼭대기'(레일 등)와 대비해 보고.

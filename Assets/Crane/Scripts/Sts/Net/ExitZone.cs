@@ -216,7 +216,12 @@ namespace Container.Crane.Sts.Net
             BuildBand();
             BuildLabel();
             placed = true;
-            Debug.Log($"[ExitZone] 나가는 존 배치 — {center} · 반경 실척 {radiusMeters:0.#}m · {dwellSeconds:0}초 머물면 종료 · " +
+            // 좌표는 실척(m)을 앞에 찍는다 — 오너 지시 2026-09-17 "실척 좌표로 해줘".
+            //   모델 단위는 1 unit = 24 m 라 숫자가 1/24 로 눌려 사람이 못 읽는다(−0.25 vs −6.00m).
+            //   모델 값도 괄호로 같이 남긴다 — 코드에 넣을 땐 그쪽이 필요하다.
+            Vector3 real = center * StsConfig.InvModelScale;
+            Debug.Log($"[ExitZone] 나가는 존 배치 — 실척 X {real.x:F2}m · Z {real.z:F2}m (모델 {center.x:F4}, {center.z:F4}) · " +
+                      $"반경 실척 {radiusMeters:0.#}m · {dwellSeconds:0}초 머물면 종료 · " +
                       $"헤드셋 이탈 {headsetLostGraceSeconds:0}초면 자동 종료");
             return true;
         }
