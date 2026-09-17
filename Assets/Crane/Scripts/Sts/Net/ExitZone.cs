@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using Unity.Netcode;
 using UnityEngine;
+using UnityEngine.UI;   // 표지판 'EXIT' 텍스트
 using UnityEngine.XR;
 
 namespace Container.Crane.Sts.Net
@@ -54,8 +55,10 @@ namespace Container.Crane.Sts.Net
         //   바닥 띠(LineRenderer)는 그대로 둔다 — 존 '경계'는 표지판으로 못 보여준다.
         /// <summary>표지판 리소스 경로(Assets/Crane/Resources/ 기준, 확장자 없음).</summary>
         const string SignResourcePath = "Models/ExitSign";
-        /// <summary>표지판 전체 높이(실척 m) — 문서/스크립트/표시판_빌드.py 의 H_TOTAL 과 쌍.</summary>
-        const float  SignHeightMeters = 2.4f;
+        /// <summary>표지판 전체 높이(실척 m) — 문서/스크립트/표시판_빌드.py 의 H_TOTAL 과 <b>쌍</b>이다.
+        ///   ★ 한쪽만 바꾸면 조용히 어긋난다. 2026-09-17 H_TOTAL 을 2.40→2.20 으로 낮추고 이 값을 안 고쳐
+        ///     표지판이 10% 크게 설 뻔했다. 모델 치수를 바꾸면 여기도 같이 바꾼다.</summary>
+        const float  SignHeightMeters = 2.2f;
 
         GameObject sign;
         LineRenderer band;
@@ -261,12 +264,39 @@ namespace Container.Crane.Sts.Net
             //     상수 배율은 그런 '조용한 어긋남' 이 없다. 모델이 실척이라는 전제만 지키면 된다.
             sign.transform.localScale = Vector3.one * StsConfig.ModelScale;
 
+            BuildSignText();
+
             // 리스폰 지점 쪽을 바라보게 — 걸어오는 사람 정면에 글자가 온다.
             if (CranePlayerStartPlacer.TryComputeSpawnXZ(out Vector3 spawn))
             {
                 Vector3 look = new Vector3(spawn.x - center.x, 0f, spawn.z - center.z);
                 if (look.sqrMagnitude > 1e-6f) sign.transform.rotation = Quaternion.LookRotation(look.normalized, Vector3.up);
             }
+        }
+
+        /// <summary>표지판 판 앞면 위쪽에 'EXIT' 를 그린다 — 오너 지시 2026-09-17 "Text 는 유니티에서 작업하자".
+        ///
+        /// 글자를 메시로 굽지 않는 이유: 판과 미세하게 떠 보이고, 한글은 폴리곤이 크게 늘며,
+        /// 문구·글꼴을 바꾸려면 FBX 를 다시 구워야 한다. 유니티가 그리면 코드 한 줄로 바뀐다.
+        ///   ★ 아래 두 상수는 표시판_빌드.py 의 판 배치와 <b>쌍</b>이다. 모델을 바꾸면 여기도 바꾼다.
+        ///     TEXT_CZ/H_TOTAL 과 FACE_F 를 그 스크립트가 빌드 때 찍어 주므로 그 값을 옮겨 적으면 된다.</summary>
+        const float SignTextHeightRatio = 0.7955f;  // 표지판 높이 대비 글자 중심 높이 = 판 중심(PANEL_Z/H_TOTAL)
+        //   ★ 손으로 계산한 0.868 이 실측 0.8904 와 어긋났다(2026-09-17). 스크립트가 빌드 때 이 비율을
+        //     찍어 주므로 그 값을 옮겨 적을 것 — 눈대중으로 맞추면 글자가 판을 벗어난다.
+        const float SignTextFrontMeters = 0.038f;   // 판 앞면보다 이만큼 앞(실척 m) — 겹침 방지
+
+        void BuildSignText()
+        {
+            if (sign == null) return;
+            var canvas = CraneHud.BuildPanel(sign.transform, "ExitSignText", new Vector2(420, 150), 0.0016f,
+                new Color(0f, 0f, 0f, 0f),            // 배경 없음 — 판 자체가 배경이다
+                96, new Color(0.97f, 0.97f, 0.95f, 1f), TextAnchor.MiddleCenter,
+                new Vector2(0f, 0f), out var t, fitToText: true);
+            if (canvas == null) return;
+            t.text = "EXIT";
+            // 실척(m) 로 놓는다 — 부모(표지판)가 ModelScale 로 줄어들면 글자도 같이 줄어든다.
+            canvas.transform.localPosition = new Vector3(0f, SignHeightMeters * SignTextHeightRatio, SignTextFrontMeters);
+            canvas.transform.localRotation = Quaternion.identity;
         }
 
         void BuildBand()
