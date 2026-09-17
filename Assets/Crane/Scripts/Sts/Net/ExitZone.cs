@@ -52,6 +52,12 @@ namespace Container.Crane.Sts.Net
         //   대신 실물 표지판 ExitSign.fbx(문서/스크립트/표시판_빌드.py)가 존 중심에 선다
         //   (QuayPartsPlacer.PlaceExitSign — 같은 TryComputeCenter 를 써서 자리가 어긋나지 않는다).
         //   바닥 띠(LineRenderer)는 그대로 둔다 — 존 '경계'는 표지판으로 못 보여준다.
+        /// <summary>표지판 리소스 경로(Assets/Crane/Resources/ 기준, 확장자 없음).</summary>
+        const string SignResourcePath = "Models/ExitSign";
+        /// <summary>표지판 전체 높이(실척 m) — 문서/스크립트/표시판_빌드.py 의 H_TOTAL 과 쌍.</summary>
+        const float  SignHeightMeters = 2.4f;
+
+        GameObject sign;
         LineRenderer band;
         NetLanUI ui;
         Vector3 center;
@@ -208,6 +214,7 @@ namespace Container.Crane.Sts.Net
 
             transform.position = center;
             BuildBand();
+            BuildSign();
             placed = true;
             // 좌표는 실척(m)을 앞에 찍는다 — 오너 지시 2026-09-17 "실척 좌표로 해줘".
             //   모델 단위는 1 unit = 24 m 라 숫자가 1/24 로 눌려 사람이 못 읽는다(−0.25 vs −6.00m).
@@ -217,6 +224,40 @@ namespace Container.Crane.Sts.Net
                       $"반경 실척 {radiusMeters:0.#}m · {dwellSeconds:0}초 머물면 종료 · " +
                       $"헤드셋 이탈 {headsetLostGraceSeconds:0}초면 자동 종료");
             return true;
+        }
+
+        /// <summary>존 가운데에 '나가는 문' 표지판을 세운다 — 오너 지시 2026-09-17.
+        ///
+        /// ★ 에디터 메뉴로 씬에 심지 않는다. 존 자체가 <c>[RuntimeInitializeOnLoadMethod]</c> 로 스스로 뜨고
+        ///   바닥 띠도 절차 생성인데, 표지판만 사람이 눌러 심어야 하면 자리가 어긋나고(존은 계산으로 움직인다)
+        ///   누르는 걸 잊으면 아무 표시가 없다. 실제로 2026-09-17 그렇게 만들어 오너가 "표지판이 안 보인다"고 했다.
+        /// ★ 스케일은 하드코딩하지 않는다 — 렌더러 바운즈를 재서 수렴시킨다(FBX 단위계·임포트 설정이 바뀌어도 안 깨진다).
+        /// ★ 리소스가 없으면 띠만 남기고 조용히 넘어간다 — 표지판 때문에 존이 동작을 멈추면 안 된다.</summary>
+        void BuildSign()
+        {
+            if (sign != null) return;
+            var prefab = Resources.Load<GameObject>(SignResourcePath);
+            if (prefab == null) return;
+
+            sign = Instantiate(prefab, transform);
+            sign.name = "ExitSign";
+            sign.transform.localPosition = Vector3.zero;   // 존 중심 = 부모 원점
+
+            var rends = sign.GetComponentsInChildren<Renderer>();
+            if (rends.Length > 0)
+            {
+                Bounds b = rends[0].bounds;
+                for (int i = 1; i < rends.Length; i++) b.Encapsulate(rends[i].bounds);
+                float want = SignHeightMeters * StsConfig.ModelScale;
+                if (b.size.y > 1e-6f) sign.transform.localScale = Vector3.one * (want / b.size.y);
+            }
+
+            // 리스폰 지점 쪽을 바라보게 — 걸어오는 사람 정면에 글자가 온다.
+            if (CranePlayerStartPlacer.TryComputeSpawnXZ(out Vector3 spawn))
+            {
+                Vector3 look = new Vector3(spawn.x - center.x, 0f, spawn.z - center.z);
+                if (look.sqrMagnitude > 1e-6f) sign.transform.rotation = Quaternion.LookRotation(look.normalized, Vector3.up);
+            }
         }
 
         void BuildBand()
@@ -264,6 +305,7 @@ namespace Container.Crane.Sts.Net
         void SetVisible(bool v)
         {
             if (band != null && band.enabled != v) band.enabled = v;
+            if (sign != null && sign.activeSelf != v) sign.SetActive(v);
         }
     }
 }
