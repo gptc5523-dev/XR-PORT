@@ -101,8 +101,20 @@ namespace Container.Crane.Sts.Net
 
             if (arming && dwell >= dwellSeconds)
             {
+                CraneAlarmHUD.ClearNotice();
                 Leave(host ? $"존에서 나감 — 호스트(관전자 {spectators}명 함께 종료)" : "존을 밟고 나감");
                 return;
+            }
+
+            // 헤드셋 상단 공지 — 오너 지시 2026-09-17 "존에 들어오면 … 상단에 20초 후 종료합니다".
+            //   존 안에 있는 동안만 매 프레임 갱신한다. 밖으로 나가면 갱신이 끊겨 유예 뒤 저절로 사라진다
+            //   (여기서 지우지 않아도 남지 않는다 — 호출자가 정리를 잊는 실수 자체를 없앤 설계).
+            //   끊기는 사람이 나 말고 더 있으면 그 수를 같이 보여준다. 모르고 끊으면 안 되니까.
+            if (inside)
+            {
+                float left = Mathf.Max(0f, dwellSeconds - dwell);
+                string more = spectators > 0 ? $"  <size=26>(관전자 {spectators}명도 함께)</size>" : "";
+                CraneAlarmHUD.Notify($"<b>{left:0}초 후 종료합니다</b>{more}", CraneHud.HudColor.Danger);
             }
 
         }
@@ -243,14 +255,11 @@ namespace Container.Crane.Sts.Net
             sign.name = "ExitSign";
             sign.transform.localPosition = Vector3.zero;   // 존 중심 = 부모 원점
 
-            var rends = sign.GetComponentsInChildren<Renderer>();
-            if (rends.Length > 0)
-            {
-                Bounds b = rends[0].bounds;
-                for (int i = 1; i < rends.Length; i++) b.Encapsulate(rends[i].bounds);
-                float want = SignHeightMeters * StsConfig.ModelScale;
-                if (b.size.y > 1e-6f) sign.transform.localScale = Vector3.one * (want / b.size.y);
-            }
+            // 실척으로 만든 모델에 축척(1/24)만 곱한다 — 오너 지시 2026-09-17 "실제 사이즈 만들고 1/24 이렇게 작업해야지".
+            //   ★ 종전에는 렌더러 바운즈의 Y 를 '높이' 로 보고 맞췄다. 그런데 FBX 축이 틀어져 들어오면 Y 가
+            //     높이가 아니라 폭(1.8m)이 되고, 1.8 을 0.1 로 줄여 18배 작아진 채 누워 버린다 — 실제로 그랬다.
+            //     상수 배율은 그런 '조용한 어긋남' 이 없다. 모델이 실척이라는 전제만 지키면 된다.
+            sign.transform.localScale = Vector3.one * StsConfig.ModelScale;
 
             // 리스폰 지점 쪽을 바라보게 — 걸어오는 사람 정면에 글자가 온다.
             if (CranePlayerStartPlacer.TryComputeSpawnXZ(out Vector3 spawn))

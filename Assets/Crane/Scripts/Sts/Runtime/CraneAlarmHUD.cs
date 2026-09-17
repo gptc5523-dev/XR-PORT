@@ -37,6 +37,26 @@ namespace Container.Crane.Sts
         [SerializeField] float hostWorldScale = 0.0006f;    // 호스트: 운전 HUD(상태판)와 안 겹치게 더 작게
         [SerializeField] int fontSize = 48;   // ⚠ 아이콘 단독이라 크게
 
+        // ── 외부 공지 ─────────────────────────────────────────────────────
+        // 오너 지시 2026-09-17: "존에 들어오면 알림을 하나 뜨게 해줘 … 헤드셋 상단에 20초 후 종료합니다".
+        //   새 HUD 를 만들지 않고 이 배너를 쓴다 — 머리 정면 상단 고정·호스트/관전자 위치 분리가 이미 돼 있다.
+        //   ★ 알람이 있으면 알람이 이긴다. 알람은 안전 신호라 공지가 덮으면 안 된다.
+        //   ★ 부른 쪽이 매 프레임 갱신하고, 끊기면 유예 뒤 저절로 사라진다(호출자가 지우는 걸 잊어도 안 남는다).
+        static string notice;
+        static Color  noticeColor = CraneHud.HudColor.Danger;
+        static float  noticeUntil;
+
+        /// <summary>헤드셋 상단에 공지를 띄운다. 매 프레임 다시 불러 갱신하고, 안 부르면 <paramref name="holdSeconds"/> 뒤 사라진다.</summary>
+        public static void Notify(string message, Color color, float holdSeconds = 0.4f)
+        {
+            notice = message; noticeColor = color; noticeUntil = Time.unscaledTime + holdSeconds;
+        }
+
+        /// <summary>공지를 즉시 내린다.</summary>
+        public static void ClearNotice() { notice = null; noticeUntil = 0f; }
+
+        static bool NoticeActive => !string.IsNullOrEmpty(notice) && Time.unscaledTime < noticeUntil;
+
         Canvas canvas;
         Text text;
         string lastText;
@@ -80,7 +100,7 @@ namespace Container.Crane.Sts
                 Refresh();
 
             // 펄스 — 활성 중엔 ⚠ 아이콘 알파를 사인으로 흔들어 주의를 끈다(매 프레임, 무할당). 배경은 투명.
-            if (canvas.enabled && text != null)
+            if (canvas.enabled && text != null && !NoticeActive)
             {
                 float a = 0.74f + 0.20f * Mathf.Abs(Mathf.Sin(Time.unscaledTime * 3.4f));
                 var c = curSev; c.a = a; text.color = c;
@@ -91,9 +111,17 @@ namespace Container.Crane.Sts
         void Refresh()
         {
             int code = CurrentAlarmCode();
-            bool show = code != 0;
-            canvas.enabled = show;
-            if (!show) { lastText = null; return; }
+            if (code == 0)                      // 알람 없음 — 공지가 있으면 공지를 띄운다
+            {
+                bool notify = NoticeActive;
+                canvas.enabled = notify;
+                if (!notify) { lastText = null; return; }
+                curSev = noticeColor;
+                text.color = curSev;
+                CraneHud.SetTextIfChanged(text, ref lastText, notice);
+                return;
+            }
+            canvas.enabled = true;
 
             var e = AlarmCodebook.Get(code);
             curSev = e != null ? AlarmCodebook.Color(e) : CraneHud.HudColor.Danger;
