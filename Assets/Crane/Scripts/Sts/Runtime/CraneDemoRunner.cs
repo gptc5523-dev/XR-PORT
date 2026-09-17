@@ -416,6 +416,22 @@ namespace AIXRCrane.Crane.Sts
                           $"({bottom.x * StsConfig.InvModelScale:F2}, {bottom.z * StsConfig.InvModelScale:F2})m · " +
                           $"칸중심 ({cell.x * StsConfig.InvModelScale:F2}, {cell.z * StsConfig.InvModelScale:F2})m · " +
                           $"이탈 {Vector3.Distance(new Vector3(bottom.x, 0f, bottom.z), new Vector3(cell.x, 0f, cell.z)) * StsConfig.InvModelScale:F3}m");
+            // ★ 위 진단은 '명령한 자리'(bottom)를 잰다 — 그건 스냅의 <b>입력</b>이라 구조적으로 늘 0.000 이 나오고
+            //   놓은 <b>결과</b>는 못 본다. 2026-09-17 스모크가 Cont20_02 에서 0.317m 로 FAIL 했는데 이 로그는
+            //   네 번 다 0.000 이라 원인을 한 칸도 못 좁혔다(명령을 재고 결과라 믿은 것).
+            //   그래서 스모크(PortDemoMenu.YardCellMaxErrM)와 <b>같은 식</b>으로 결과를 같이 잰다:
+            //   렌더러 AABB 중심 → YardGrid.TrySnapXZ → 칸중심까지 거리. 계획 크기와 측정 크기도 같이 남긴다 —
+            //   스냅은 크기로 격자를 고르므로 둘이 갈라지면 '다른 칸'을 기준으로 재게 된다.
+            if (TryBounds(c, out var got) && YardGrid.TrySnapXZ(got.center, Mathf.Max(got.size.x, got.size.z), out var gotCell))
+            {
+                float dr = new Vector2(got.center.x - gotCell.x, got.center.z - gotCell.z).magnitude * StsConfig.InvModelScale;
+                if (dr > 0.05f)
+                    Debug.LogWarning($"[PortDemo] {c.name} 결과 이탈 {dr:F3}m — AABB중심 실척 " +
+                        $"({got.center.x * StsConfig.InvModelScale:F2}, {got.center.z * StsConfig.InvModelScale:F2})m · " +
+                        $"칸중심 ({gotCell.x * StsConfig.InvModelScale:F2}, {gotCell.z * StsConfig.InvModelScale:F2})m · " +
+                        $"크기 계획 {Mathf.Max(j.size.x, j.size.z) * StsConfig.InvModelScale:F2}m ↔ 측정 " +
+                        $"{Mathf.Max(got.size.x, got.size.z) * StsConfig.InvModelScale:F2}m");
+            }
             ShowColliders();
             var rb = c.GetComponent<Rigidbody>();
             if (rb != null)
