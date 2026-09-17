@@ -193,6 +193,21 @@ namespace Container.Crane.Sts.Net
             center = default;
             if (!CranePlayerStartPlacer.TryGetLand(out Bounds land)) return false;
 
+            // ★ 지정 마커가 있으면 그 자리를 쓴다 — 오너가 체스말로 자리를 정하는 흐름
+            //   (QuayPartsPlacer.ApplyPawnToExitZone). 리스폰이 PlayerStartPoint 를 우선하는 것과
+            //   같은 규칙이라 다음 사람이 두 곳을 같은 방식으로 읽는다. 마커가 없으면 아래 모서리 계산이 폴백.
+            var fixedPoint = GameObject.Find(StsPartNames.ExitZonePoint);
+            if (fixedPoint != null)
+            {
+                // 걷는 땅 밖이면 안으로 끌어당긴다 — 존이 허공이나 바다에 뜨면 밟을 수가 없다(리스폰 클램프와 같은 이유).
+                float ins = insetMeters * StsConfig.ModelScale;
+                Vector3 fp = fixedPoint.transform.position;
+                center = new Vector3(Mathf.Clamp(fp.x, land.min.x + ins, land.max.x - ins),
+                                     land.max.y + 0.1f * StsConfig.ModelScale,   // 바닥 z-파이팅 방지
+                                     Mathf.Clamp(fp.z, land.min.z + ins, land.max.z - ins));
+                return true;
+            }
+
             var marker = GameObject.Find(StsPartNames.PlayerStartPoint);
             Vector3 from = marker != null ? marker.transform.position
                          : Camera.main != null ? Camera.main.transform.position

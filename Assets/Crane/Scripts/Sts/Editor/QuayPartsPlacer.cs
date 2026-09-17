@@ -227,6 +227,44 @@ namespace Container.Crane.Sts.EditorTools
                  $"★ 씬 저장까지 완료 — 이제 배포하면 반영됩니다.");
         }
 
+        /// <summary>체스말을 옮겨 둔 자리를 <b>나가는 존</b> 자리로 적용 — 오너 요청 2026-09-17
+        /// "ExitMarker 도 지점 적용해줘 지금 Pawn 으로 위치 옮겼거든".
+        ///
+        /// 시작 지점과 같은 흐름이다: 체스말을 옮긴다 → 이 메뉴 → 마커가 생기거나 옮겨진다 → 저장(자동).
+        ///   ★ 나가는 존은 원래 걷는 땅 모서리에서 <b>계산</b>만 했다. 지정할 방법이 없어서 체스말을 옮겨도
+        ///     아무 일이 안 일어났다 — 리스폰에서 겪은 것과 같은 간극이라 같은 방식으로 메운다.
+        ///   ★ 마커(ExitZonePoint)가 없으면 ExitZone 은 예전처럼 모서리를 계산한다. 폴백이 살아 있다.</summary>
+        [MenuItem("Model/FBX/항구/체스말 자리를 나가는 존으로 적용", false, 11)]
+        static void ApplyPawnToExitZone()
+        {
+            var pawn = GameObject.Find(ExitPawnName);
+            if (pawn == null)
+            {
+                EditorUtility.DisplayDialog("나가는 존 적용",
+                    $"'{ExitPawnName}' 을(를) 씬에서 못 찾았습니다.\n\n" +
+                    "먼저 [나가는 존 체스말 (임시)] 로 체스말을 세운 뒤\n원하는 자리로 옮기고 다시 누르세요.", "확인");
+                return;
+            }
+            var point = GameObject.Find(StsPartNames.ExitZonePoint);
+            if (point == null)
+            {
+                point = new GameObject(StsPartNames.ExitZonePoint);
+                Undo.RegisterCreatedObjectUndo(point, "Create " + StsPartNames.ExitZonePoint);
+            }
+            else Undo.RecordObject(point.transform, "나가는 존을 체스말 자리로");
+
+            Vector3 p = pawn.transform.position;
+            point.transform.position = new Vector3(p.x, 0f, p.z);   // Y 는 런타임이 걷는 면 윗면으로 올린다
+            EditorUtility.SetDirty(point.transform);
+            UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(point.scene);
+            UnityEditor.SceneManagement.EditorSceneManager.SaveOpenScenes();
+
+            Vector3 real = point.transform.position * StsConfig.InvModelScale;
+            Done(point.transform,
+                 $"나가는 존 적용 — 실척 X {real.x:F2}m · Z {real.z:F2}m (모델 {p.x:F4}, {p.z:F4}) · " +
+                 $"반경 실척 3m · 2초 머물면 접속 종료 · 씬 저장까지 완료.");
+        }
+
         [MenuItem("Model/FBX/항구/연석 배치 (Quay_Curb)", false, 1)]
         static void PlaceCurb()
         {

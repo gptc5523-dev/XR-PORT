@@ -87,6 +87,9 @@ namespace Container.Crane.Sts
         /// <summary>플레이어 시작 지점 마커. 타입(CranePlayerStartPoint)으로 못 찾을 때 이름 폴백.</summary>
         public const string PlayerStartPoint = "PlayerStartPoint";
 
+        /// <summary>나가는 존 지정 마커. 있으면 ExitZone 이 모서리 계산 대신 이 자리를 쓴다(리스폰의 PlayerStartPoint 와 같은 규칙).</summary>
+        public const string ExitZonePoint = "ExitZonePoint";
+
         // HUD 캔버스
         /// <summary>크레인 상태 패널 캔버스. CraneStatusHUD가 생성, ModeSelectorHUD가 GameObject.Find로 추적.</summary>
         public const string CraneStatusCanvas = "CraneStatusCanvas";
