@@ -5,7 +5,7 @@ namespace Container.Crane.Sts.Plc
 {
     /// <summary>
     /// PLC ↔ 크레인 다리(문서/PLC.md §5.2) — <see cref="IPlcSource"/>의 스냅샷을 기존 교체 지점에 흘려보낸다.
-    /// 소스는 둘 중 하나: <b>Virtual</b>(실시간 가상 생성) / <b>CsvReplay</b>(PlcSim 생성 CSV 재생).
+    /// 소스는 셋 중 하나: <b>Virtual</b>(실시간 가상 생성) / <b>CsvReplay</b>(PlcSim 생성 CSV 재생) / <b>Server</b>(통합서버에서 읽기).
     /// ㈜엠비이 PLCSIM/실 PLC 도착 시 S7/OPC UA 어댑터를 한 갈래 더 추가하면 상위 코드(HUD·알람)는 그대로다.
     ///
     /// <para><b>상호배타:</b> Active=true면 PLC 소스가 축을 구동하고 PlcDriven=true(가속알람 1021/2021/3021 유효).
@@ -20,12 +20,12 @@ namespace Container.Crane.Sts.Plc
     [DisallowMultipleComponent]
     public sealed class PlcBridge : MonoBehaviour
     {
-        public enum SourceMode { Virtual, CsvReplay }
+        public enum SourceMode { Virtual, CsvReplay, Server }   // 순서 고정 — 씬에 정수로 저장된다
 
         [Tooltip("켜면 PLC 소스가 3축을 구동하고 PlcDriven=true. 끄면 직접조종(VR) 유지. 둘은 상호배타.")]
         [SerializeField] bool active = false;
 
-        [Tooltip("Virtual=실시간 가상 생성 / CsvReplay=PlcSim 생성 CSV 재생.")]
+        [Tooltip("Virtual=실시간 가상 생성 / CsvReplay=PlcSim 생성 CSV 재생 / Server=통합서버에서 읽기.")]
         [SerializeField] SourceMode sourceMode = SourceMode.Virtual;
 
         [Header("Virtual 모드")]
@@ -38,6 +38,10 @@ namespace Container.Crane.Sts.Plc
         [Tooltip("CSV 절대/상대 경로(에디터·스탠드얼론 전용). 예: <프로젝트>/PlcSim/output/S02/run_01.csv")]
         [SerializeField] string csvPath = "";
         [SerializeField] bool loop = true;
+
+        [Header("Server 모드")]
+        [Tooltip("통합서버(Server/xrcrane_db.py) 주소. 크레인 이름(gameObject.name)을 DB 의 crane 값으로 조회한다.")]
+        [SerializeField] string serverUrl = "http://192.168.0.167:5006";
 
         [Header("정규화 범위 (실척 m)")]
         // 0이면 자동 산출 — crane 무버 기하에서 rangeM = (Max−Min)×(1/ModelScale)로 채운다(SSOT=무버 기하).
@@ -94,6 +98,8 @@ namespace Container.Crane.Sts.Plc
                 string p = UnityEditor.EditorPrefs.GetString(PrefKey("csvPath"), "");
                 if (!string.IsNullOrEmpty(p)) { sourceMode = SourceMode.CsvReplay; csvPath = p; csvAsset = null; active = true; }
             }
+            // 재생 복원이 먼저다 — 재생 스모크·지표2 측정이 forceReplay 만 켜고 도는데, 서버 선택이 남아 있으면 그걸 가로챈다.
+            else if (UnityEditor.EditorPrefs.GetBool(PrefKey("forceServer"), false)) { sourceMode = SourceMode.Server; active = true; }
 #endif
             source = BuildSource();
             // CSV 재생이면 화물 재생도 붙인다 — 메뉴(PlcBridgeMenu)가 Undo.AddComponent 로 붙인 건 씬을 저장해야 남는데, 재생 설정은
@@ -130,6 +136,11 @@ namespace Container.Crane.Sts.Plc
         {
             sourceMode = SourceMode.CsvReplay; csvPath = path; csvAsset = null; active = true;
         }
+        /// <summary>에디터 메뉴용 — 통합서버에서 읽도록 구성.</summary>
+        public void EditorConfigureServer()
+        {
+            sourceMode = SourceMode.Server; active = true;
+        }
         /// <summary>에디터 메뉴용 — Virtual로 구성.</summary>
         public void EditorConfigureVirtual(bool aggressive)
         {
@@ -140,8 +151,12 @@ namespace Container.Crane.Sts.Plc
         public string PrefKey(string k) => $"PlcBridge.{k}.{gameObject.name}";
 #endif
 
+        // 서버 소스의 폴링 스레드를 멈춘다.
+        void OnDestroy() => (source as System.IDisposable)?.Dispose();
+
         IPlcSource BuildSource()
         {
+            if (sourceMode == SourceMode.Server) return new ServerPlcSource(serverUrl, gameObject.name);   // 폴백 없음 — 끊기면 멈춘 채로 둔다
             if (sourceMode == SourceMode.CsvReplay)
             {
                 string text = LoadCsvText();
@@ -220,7 +235,8 @@ namespace Container.Crane.Sts.Plc
         {
             source.Pump(scanDt);                  // 가상/CSV 소스를 고정 증분으로 전진(결정성).
             // H5: CSV 되감기(끝→0) 직후엔 위치가 불연속이므로 가속 추적을 재프라임해 인공 스파이크 알람을 막는다.
-            if (source is CsvReplaySource csv && csv.ConsumeDiscontinuity()) crane.OpMode.ResetAccelTracking();
+            if (source is CsvReplaySource csv && csv.ConsumeDiscontinuity()
+                || source is ServerPlcSource srv && srv.ConsumeDiscontinuity()) crane.OpMode.ResetAccelTracking();
             if (!active) return;
             if (!source.TryRead(out var s)) return;
             lastSnap = s; haveSnap = true;        // 이 스캔의 입력 스냅샷을 동결.

@@ -32,6 +32,7 @@ namespace Container.Crane.Sts.EditorTools
             bridge.EditorConfigureVirtual(false);
             EditorUtility.SetDirty(bridge);
             EditorPrefs.SetBool(bridge.PrefKey("forceReplay"), false);   // Virtual 모드 — 복원 비활성
+            EditorPrefs.SetBool(bridge.PrefKey("forceServer"), false);
 
             Selection.activeGameObject = crane.gameObject;
             Debug.Log("[PlcBridgeMenu] PlcBridge 부착·Active ON. ▶Play 진입 → 3축이 가상 PLC로 양하 사이클 자동 운전. " +
@@ -68,10 +69,38 @@ namespace Container.Crane.Sts.EditorTools
             // 도메인 리로드로 인스펙터가 리셋돼도 Awake가 복원하도록 EditorPrefs에 기록.
             EditorPrefs.SetBool(bridge.PrefKey("forceReplay"), true);
             EditorPrefs.SetString(bridge.PrefKey("csvPath"), csv);
+            EditorPrefs.SetBool(bridge.PrefKey("forceServer"), false);
 
             Selection.activeGameObject = crane.gameObject;
             Debug.Log($"[PlcBridgeMenu] {crane.name} 에 PlcBridge 부착·CsvReplay ON → {Path.GetFileName(csv)}. " +
                       "▶Play 진입 → 기록된 시나리오대로 크레인이 재현됩니다. 원복은 Inspector에서 PlcBridge 제거.");
+        }
+
+        /// <summary>통합서버에서 읽은 PLC 데이터로 구동 — 오너 2026-09-17 "서버에서 데이터 읽어서 크레인 움직이게".
+        /// 서버에 데이터가 들어와야 움직인다(실 PLC 전엔 <c>python3 Server/xrcrane_db.py feed &lt;csv&gt; --loop</c>).</summary>
+        [MenuItem("PLC/서버 데이터로 구동", false, 4)]
+        public static void AttachAndDriveFromServer()
+        {
+            var crane = Target();
+            if (crane == null)
+            {
+                Debug.LogWarning("[PlcBridgeMenu] 씬에 StsCrane이 없습니다 — 먼저 'Model ▸ PG ▸ 크레인 ▸ STS 크레인 생성' 실행.");
+                return;
+            }
+
+            var bridge = crane.GetComponent<PlcBridge>();
+            if (bridge == null) bridge = Undo.AddComponent<PlcBridge>(crane.gameObject);
+
+            Undo.RecordObject(bridge, "Configure PLC Bridge (Server)");
+            bridge.EditorConfigureServer();
+            EditorUtility.SetDirty(bridge);
+            EditorPrefs.SetBool(bridge.PrefKey("forceReplay"), false);   // 재생 복원이 서버보다 우선이라 끈다
+            EditorPrefs.SetBool(bridge.PrefKey("forceServer"), true);
+
+            Selection.activeGameObject = crane.gameObject;
+            Debug.Log($"[PlcBridgeMenu] {crane.name} → 서버 데이터로 구동. ▶Play 하면 통합서버에서 crane='{crane.name}' 행을 읽어 3축을 움직입니다." +
+                      (EditorPrefs.GetBool(PortDemoDirector.EditorPrefKey, false)
+                          ? " ★ 'PLC/시연 시나리오 (에디터 Play)' 가 켜져 있으면 시나리오가 PlcBridge 를 끕니다 — 먼저 끄세요." : ""));
         }
 
         [MenuItem("PLC/지표2 정확도 측정 부착 (100회)", false, 5)]

@@ -21,15 +21,19 @@ XR 크레인 통합서버 v0.5 — PLC 이력 수집·저장·조회 (WBS 2.6 �
   GET  /history?crane=&from_ms=&to_ms=&limit=   구간 조회(기본 최근 500)
   GET  /alarms?crane=&limit=                    알람 코드가 0이 아닌 행만
   GET  /runs                                    적재된 (크레인, 출처) 별 행 수·시간 범위
+  GET  /since?crane=&after_id=                  크레인이 이어 받는 경로(CSV, X-Last-Id) — Unity ServerPlcSource
 
 CLI
   python3 xrcrane_db.py serve [--port 5006] [--db /data/xrcrane.db]
   python3 xrcrane_db.py import <csv...> [--crane STS_Crane] [--source S02/run_01]
     ─ Unity 를 건드리지 않고 기존 PlcSim CSV 를 그대로 적재한다(1차 수집 경로).
+  python3 xrcrane_db.py feed <csv> [--url http://127.0.0.1:5006] [--crane STS_Crane] [--loop]
+    ─ PLC 대역. CSV 를 t_ms 간격 그대로 /ingest 에 한 행씩 보낸다(실 PLC 어댑터가 오기 전까지).
 """
 
 import argparse
 import csv
+import io
 import json
 import os
 import sqlite3
@@ -133,6 +137,22 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def send_csv(self, rows, last_id):
+        # 헤더는 PlcSim CSV 와 같다(t_ms + raw 태그) — Unity 쪽이 CsvReplaySource 파서를 그대로 써서 태그 계약이 한 곳에 남는다.
+        dicts = [{"t_ms": r["t_ms"], **json.loads(r["raw"])} for r in rows]
+        buf = io.StringIO()
+        w = csv.DictWriter(buf, fieldnames=list(dict.fromkeys(k for d in dicts for k in d)), restval="", lineterminator="\n")
+        w.writeheader()
+        w.writerows(dicts)
+        body = buf.getvalue().encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "text/csv; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        if last_id is not None:
+            self.send_header("X-Last-Id", str(last_id))
+        self.end_headers()
+        self.wfile.write(body)
+
     def q(self, name, default=None):
         vals = parse_qs(urlparse(self.path).query).get(name)
         return vals[0] if vals else default
@@ -177,6 +197,22 @@ class Handler(BaseHTTPRequestHandler):
             sql += " ORDER BY id DESC LIMIT ?"; args.append(limit)
             return self.send_json(rows_to_dicts(self.con.execute(sql, args)))
 
+        if path == "/since":
+            # after_id 가 없으면 최신 1행(접속 순간의 자세), 있으면 그 뒤 행 전부를 오름차순으로.
+            if not crane:
+                return self.send_json({"error": "crane required"}, 400)
+            after = self.q("after_id")
+            try:
+                if after is None:
+                    rows = self.con.execute("SELECT id, t_ms, raw FROM snapshot WHERE crane=? ORDER BY id DESC LIMIT 1",
+                                            (crane,)).fetchall()
+                else:
+                    rows = self.con.execute("SELECT id, t_ms, raw FROM snapshot WHERE crane=? AND id>? ORDER BY id LIMIT ?",
+                                            (crane, int(after), limit)).fetchall()
+            except ValueError:
+                return self.send_json({"error": "after_id must be an integer"}, 400)
+            return self.send_csv(rows, rows[-1]["id"] if rows else after)
+
         if path == "/runs":
             cur = self.con.execute(
                 "SELECT crane, source, COUNT(*) rows, MIN(t_ms) t_min, MAX(t_ms) t_max, "
@@ -185,7 +221,7 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json(rows_to_dicts(cur))
 
         return self.send_json({"error": "not found",
-                               "endpoints": ["/health", "/latest", "/history", "/alarms", "/runs", "POST /ingest"]}, 404)
+                               "endpoints": ["/health", "/latest", "/history", "/alarms", "/runs", "/since", "POST /ingest"]}, 404)
 
     def do_POST(self):
         if urlparse(self.path).path != "/ingest":
@@ -241,6 +277,28 @@ def cmd_import(args):
     con.close()
 
 
+def cmd_feed(args):
+    """PLC 대역 — CSV 를 t_ms 간격 그대로 /ingest 에 한 행씩 보낸다. 서버→크레인 경로를 살아 있는 데이터로 돌린다."""
+    import time
+    import urllib.request
+    with open(args.csv, newline="", encoding="utf-8") as f:
+        rows = list(csv.DictReader(f))
+    source = args.source or "feed/" + "/".join(args.csv.replace("\\", "/").split("/")[-2:]).replace(".csv", "")
+    url = args.url.rstrip("/") + "/ingest"
+    print(f"[xrcrane-db] feed {source} {len(rows)}행 → {url} crane={args.crane}{' 반복' if args.loop else ''}", flush=True)
+    while True:
+        t0 = time.monotonic()
+        for row in rows:
+            wait = t0 + float(row["t_ms"]) / 1000 - time.monotonic()
+            if wait > 0:
+                time.sleep(wait)
+            row.update(crane=args.crane, source=source)
+            req = urllib.request.Request(url, json.dumps(row).encode("utf-8"), {"Content-Type": "application/json"})
+            urllib.request.urlopen(req, timeout=5).read()
+        if not args.loop:
+            break
+
+
 def main():
     p = argparse.ArgumentParser(description="XR 크레인 통합서버 v0.5 (수집·저장·조회)")
     p.add_argument("--db", default=DEFAULT_DB)
@@ -256,6 +314,14 @@ def main():
     i.add_argument("--crane", default="STS_Crane")
     i.add_argument("--source", default=None)
     i.set_defaults(func=cmd_import)
+
+    fd = sub.add_parser("feed", help="PLC 대역: CSV 를 실시간 속도로 /ingest 에 흘린다")
+    fd.add_argument("csv")
+    fd.add_argument("--url", default=f"http://127.0.0.1:{DEFAULT_PORT}")
+    fd.add_argument("--crane", default="STS_Crane")
+    fd.add_argument("--source", default=None)
+    fd.add_argument("--loop", action="store_true")
+    fd.set_defaults(func=cmd_feed)
 
     args = p.parse_args()
     args.func(args)

@@ -74,7 +74,7 @@ namespace Container.Crane.Sts.Plc
         }
 
         // 연속량(위치/속도/하중/가속ground-truth/풍속)만 선형보간. 나머지(상태비트·모드·알람)는 a(floor) 유지.
-        static PlcSnapshot LerpFrame(PlcSnapshot a, PlcSnapshot b, float f)
+        internal static PlcSnapshot LerpFrame(PlcSnapshot a, PlcSnapshot b, float f)
         {
             var s = a;
             s.GtPosition = a.GtPosition + (b.GtPosition - a.GtPosition) * f;
@@ -91,8 +91,8 @@ namespace Container.Crane.Sts.Plc
             return s;
         }
 
-        // CSV 파싱 (헤더 이름 기반 — 컬럼 순서 변동에 견고)
-        static void ParseCsv(string text, out PlcSnapshot[] frames, out float[] times, List<string> missingCols)
+        // CSV 파싱 (헤더 이름 기반 — 컬럼 순서 변동에 견고). ServerPlcSource 도 이 파서를 쓴다 — 서버가 같은 헤더로 돌려준다.
+        internal static void ParseCsv(string text, out PlcSnapshot[] frames, out float[] times, List<string> missingCols)
         {
             frames = new PlcSnapshot[0]; times = new float[0];
             if (string.IsNullOrEmpty(text)) return;
