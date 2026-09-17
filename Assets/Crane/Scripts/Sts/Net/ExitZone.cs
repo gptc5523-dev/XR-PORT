@@ -29,7 +29,7 @@ namespace AIXRCrane.Crane.Sts.Net
     {
         [Header("존")]
         [Tooltip("존 반경(실척 m). 걷다가 실수로 들어오지 않게 부두 '모서리'에 둔다.")]
-        [SerializeField] float radiusMeters = 3f;
+        [SerializeField] float radiusMeters = DefaultRadiusMeters;
         [Tooltip("존 안에 이만큼 서 있어야 나간다(초). 지나가다 스치는 것으로 안 끊기게.")]
         [SerializeField] float dwellSeconds = 10f;   // 오너 지시 2026-09-17 — 트리거를 없앤 대신 체류시간으로 실수 방지(시연 뒤 20→10초)
         [Tooltip("걷는 땅 모서리에서 안쪽으로 띄울 거리(실척 m) — 띠가 경계 밖으로 새지 않게.")]
@@ -37,6 +37,9 @@ namespace AIXRCrane.Crane.Sts.Net
 
         /// <summary>기본 인셋(실척 m) — 에디터 표시용 체스말도 같은 값을 써야 같은 자리에 선다.</summary>
         public const float DefaultInsetMeters = 6f;
+
+        /// <summary>기본 반경(실척 m) — 에디터가 씬에 심는 띠도 같은 값을 써야 런타임 띠와 겹친다.</summary>
+        public const float DefaultRadiusMeters = 3f;
 
         [Header("헤드셋 이탈 자동 종료 (근본 대책)")]
         [Tooltip("헤드셋이 빠진 뒤 이만큼 지나면 세션을 자동 종료(초). 0 이하면 끔. " +
@@ -53,7 +56,7 @@ namespace AIXRCrane.Crane.Sts.Net
         //   (BuildSign 이 존과 같은 center 를 쓰므로 자리가 어긋날 수 없다 — 심는 메뉴는 없앴다).
         //   바닥 띠(LineRenderer)는 그대로 둔다 — 존 '경계'는 표지판으로 못 보여준다.
         /// <summary>표지판 리소스 경로(Assets/Crane/Resources/ 기준, 확장자 없음).</summary>
-        const string SignResourcePath = "Models/ExitSign";
+        public const string SignResourcePath = "Models/ExitSign";
         /// <summary>표지판 배율 — 실척 모델을 이만큼 부풀려 세운다. 오너 지시 2026-09-17 "10배" → "더 많이 키우고".
         ///   ★ 이건 표지판의 <b>실제 치수가 아니라 연출</b>이다(실척 2.2m 짜리를 66m 로 보이게 한다).
         ///     모델은 실척 그대로 두고 '얼마나 크게 세우나'만 여기서 정한다 — 치수와 연출을 한 숫자에 섞으면
@@ -241,7 +244,12 @@ namespace AIXRCrane.Crane.Sts.Net
 
             transform.position = center;
             BuildBand();
-            BuildSign();
+            // ★ 표지판은 오너 지시 2026-09-18 "유니티에 있는 표지판을 일단 삭제해" 로 <b>띄우지 않는다</b>.
+            //   '일단' 이라 되돌리기 쉽게 호출만 막는다 — BuildSign 본문·ExitSign.fbx·표시판_빌드.py 는 그대로 둔다.
+            //   되살리려면 아래 한 줄의 주석만 풀면 된다.
+            //   ★ 씬에 심은 오브젝트는 애초에 없다(Port.unity 의 ExitSign 0개) — 표지판은 접속 중에만 생기는
+            //     런타임 생성물이라, '유니티에서 지운다' 는 곧 이 호출을 막는 것이다.
+            // BuildSign();
             placed = true;
             // 좌표는 실척(m)을 앞에 찍는다 — 오너 지시 2026-09-17 "실척 좌표로 해줘".
             //   모델 단위는 1 unit = 24 m 라 숫자가 1/24 로 눌려 사람이 못 읽는다(−0.25 vs −6.00m).
@@ -255,9 +263,10 @@ namespace AIXRCrane.Crane.Sts.Net
 
         /// <summary>존 가운데에 '나가는 문' 표지판을 세운다 — 오너 지시 2026-09-17.
         ///
-        /// ★ 에디터 메뉴로 씬에 심지 않는다. 존 자체가 <c>[RuntimeInitializeOnLoadMethod]</c> 로 스스로 뜨고
-        ///   바닥 띠도 절차 생성인데, 표지판만 사람이 눌러 심어야 하면 자리가 어긋나고(존은 계산으로 움직인다)
-        ///   누르는 걸 잊으면 아무 표시가 없다. 실제로 2026-09-17 그렇게 만들어 오너가 "표지판이 안 보인다"고 했다.
+        /// ★ 지금은 <b>호출이 막혀 있다</b>(TryPlace 참조). 표지판은 2026-09-18 오너 지시로 씬에 심는 쪽으로
+        ///   옮겼다 — "Scene 를 서버쪽이랑 똑같이 만들어줘". 런타임 생성과 씬 배치가 <b>겹치면 표지판이 둘</b>
+        ///   서므로, 되살릴 땐 씬에 심은 ExitSign 을 먼저 지울 것.
+        /// ★ 자리·자세·배율은 <see cref="FitSign"/> 한 곳에서 나온다 — 에디터 배치와 같은 식이다.
         /// ★ 리소스가 없으면 띠만 남기고 조용히 넘어간다 — 표지판 때문에 존이 동작을 멈추면 안 된다.</summary>
         void BuildSign()
         {
@@ -269,6 +278,16 @@ namespace AIXRCrane.Crane.Sts.Net
             sign.name = "ExitSign";
             sign.transform.localPosition = Vector3.zero;   // 존 중심 = 부모 원점
 
+            FitSign(sign, prefab.transform.localRotation, center);
+        }
+
+        /// <summary>표지판의 <b>자세·배율</b>. 런타임(ExitZone.BuildSign)과 에디터 배치
+        /// (QuayPartsPlacer '나가는 문 표지판 씬에 배치')가 <b>같은 식</b>을 쓰도록 여기 한 곳에만 둔다.
+        ///   ★ 두 곳에 베껴 두면 반드시 갈라진다 — 2026-09-17 에만 이 식이 두 번 틀렸다(누움 · 100배).
+        ///     씬에 심은 표지판과 VR 에 뜨는 표지판이 다르면 씬을 보고 고칠 수가 없다.</summary>
+        /// <param name="axisFix">임포트된 프리팹 루트의 회전(블렌더 Z-up 보정). 지우면 표지판이 눕는다.</param>
+        public static void FitSign(GameObject sign, Quaternion axisFix, Vector3 center)
+        {
             // 실척으로 만든 모델에 축척(1/24)만 곱한다 — 오너 지시 2026-09-17 "실제 사이즈 만들고 1/24 이렇게 작업해야지".
             //   ★ 종전에는 렌더러 바운즈의 Y 를 '높이' 로 보고 맞췄다. 그런데 FBX 축이 틀어져 들어오면 Y 가
             //     높이가 아니라 폭(1.8m)이 되고, 1.8 을 0.1 로 줄여 18배 작아진 채 누워 버린다 — 실제로 그랬다.
@@ -279,7 +298,6 @@ namespace AIXRCrane.Crane.Sts.Net
             //   LookRotation(수평벡터, up) 은 피치가 0 이라, 대입 즉시 높이축 Z 가 월드 +Z 로 누워 판이 바닥에 깔린다.
             //   그래서 덮어쓰지 않고 <b>곱한다</b>(축 보정 먼저 → 그다음 야우).
             //   임포터에서 축을 구우면(bakeAxisConversion=1) 이 회전이 단위원이 되어 식이 그대로 성립한다.
-            Quaternion axisFix = prefab.transform.localRotation;
             sign.transform.localRotation = axisFix;   // 바라볼 곳을 못 구해도 최소한 서 있게
 
             // ★★ 배율을 계산으로 단정하지 말고 <b>재서 맞춘다</b> — 2026-09-17 여기서 100배를 틀렸다.
@@ -328,13 +346,15 @@ namespace AIXRCrane.Crane.Sts.Net
             return b.size.y;
         }
 
-        void BuildBand()
+        void BuildBand() { if (band == null) band = CreateBand(transform, radiusMeters); }
+
+        /// <summary>바닥 띠(존 경계) 한 개. 런타임과 에디터 배치가 같은 띠를 쓰도록 static 으로 둔다.</summary>
+        public static LineRenderer CreateBand(Transform parent, float radiusMeters)
         {
-            if (band != null) return;
             var go = new GameObject("ExitBand");
-            go.transform.SetParent(transform, false);
+            go.transform.SetParent(parent, false);
             go.transform.rotation = Quaternion.Euler(90f, 0f, 0f);   // 로컬 Y → 월드 Z, 띠 면이 바닥에 눕는다
-            band = go.AddComponent<LineRenderer>();
+            var band = go.AddComponent<LineRenderer>();
             band.useWorldSpace = false;
             band.loop = true;
             band.alignment = LineAlignment.TransformZ;
@@ -352,6 +372,7 @@ namespace AIXRCrane.Crane.Sts.Net
                 float a = i / (float)seg * Mathf.PI * 2f;
                 band.SetPosition(i, new Vector3(r * Mathf.Cos(a), r * Mathf.Sin(a), 0f));
             }
+            return band;
         }
 
         // 띠 단면 알파 = 가우시안 — 가운데 진하고 가장자리로 번져 사라진다.

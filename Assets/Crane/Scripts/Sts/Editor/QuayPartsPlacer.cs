@@ -5,6 +5,7 @@ using System.Linq;
 using AIXRCrane.Ship;
 using AIXRCrane;
 using AIXRCrane.EditorTools;
+using AIXRCrane.Crane.Sts.Net;
 using UnityEditor;
 using UnityEngine;
 
@@ -263,6 +264,59 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             Done(point.transform,
                  $"나가는 존 적용 — 실척 X {real.x:F2}m · Z {real.z:F2}m (모델 {p.x:F4}, {p.z:F4}) · " +
                  $"반경 실척 3m · 2초 머물면 접속 종료 · 씬 저장까지 완료.");
+        }
+
+        const string ExitSignName = "ExitSign";
+        const string ExitBandName = "ExitBand";
+
+        /// <summary>'나가는 문' 표지판과 존 띠를 <b>씬에 심는다</b> — 오너 지시 2026-09-18
+        /// "지금 유니티에서 Scene 랑 서버랑 다르거든 … Scene 를 서버쪽이랑 똑같이 만들어줘".
+        ///
+        /// 서버 빌드에는 보이는데 씬에는 오브젝트가 없었다 — 표지판·띠가 <b>런타임 생성물</b>이라
+        /// 에디터에서는 보이지도, 옮기지도, 지우지도 못했다(2026-09-18 "표지판 삭제해" 가 씬에서 안 되던 이유).
+        ///   ★ 자리·자세·배율·띠는 런타임과 <b>같은 코드</b>를 부른다(<see cref="ExitZone.FitSign"/> ·
+        ///     <see cref="ExitZone.CreateBand"/>). 베껴 쓰면 씬에서 고친 게 VR 에서 다르게 나타난다.
+        ///   ★ 체스말과 달리 EditorOnly 가 <b>아니다</b> — 빌드에 들어가야 VR 에서 보인다.
+        ///   ★ 런타임 <c>BuildSign()</c> 호출은 막아 둔 상태라야 한다. 둘 다 살면 표지판이 두 개 선다.</summary>
+        [MenuItem("Model/FBX/항구/나가는 문 표지판·존 배치", false, 12)]
+        public static void PlaceExitSign()   // 배치 검증이 부를 수 있게 public
+        {
+            if (!ExitZone.TryComputeCenter(ExitZone.DefaultInsetMeters, out Vector3 c))
+            {
+                EditorUtility.DisplayDialog("나가는 문 표지판",
+                    "나가는 존 자리를 못 잡았습니다.\n걷는 땅(부두)을 먼저 배치하세요.", "확인");
+                return;
+            }
+            var prefab = Resources.Load<GameObject>(ExitZone.SignResourcePath);
+            if (prefab == null)
+            {
+                EditorUtility.DisplayDialog("나가는 문 표지판",
+                    $"표지판을 못 찾았습니다:\nAssets/Crane/Resources/{ExitZone.SignResourcePath}.fbx\n\n" +
+                    "유니티 창을 한 번 포커스해 임포트되게 하세요.", "확인");
+                return;
+            }
+
+            foreach (var n in new[] { ExitSignName, ExitBandName })      // 다시 눌러도 하나만 남는다
+            {
+                var prev = GameObject.Find(n);
+                if (prev != null) Undo.DestroyObjectImmediate(prev);
+            }
+
+            var sign = (GameObject)PrefabUtility.InstantiatePrefab(prefab);
+            sign.name = ExitSignName;
+            sign.transform.position = c;
+            ExitZone.FitSign(sign, prefab.transform.localRotation, c);   // 런타임과 같은 식
+            Undo.RegisterCreatedObjectUndo(sign, "Place " + ExitSignName);
+
+            var band = ExitZone.CreateBand(null, ExitZone.DefaultRadiusMeters);
+            band.transform.position = c;
+            Undo.RegisterCreatedObjectUndo(band.gameObject, "Place " + ExitBandName);
+
+            UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(sign.scene);
+            Vector3 real = c * StsConfig.InvModelScale;
+            Done(sign.transform,
+                 $"나가는 문 표지판·존 — 실척 X {real.x:F2}m · Z {real.z:F2}m (모델 {c.x:F4}, {c.z:F4}) · " +
+                 $"반경 실척 {ExitZone.DefaultRadiusMeters:0.#}m · 런타임과 같은 식. 씬 저장은 직접(⌘S).");
         }
 
         [MenuItem("Model/FBX/항구/연석 배치 (Quay_Curb)", false, 1)]
