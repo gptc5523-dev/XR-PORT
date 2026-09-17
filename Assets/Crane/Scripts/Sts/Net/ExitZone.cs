@@ -66,6 +66,12 @@ namespace AIXRCrane.Crane.Sts.Net
         ///     반대로 돌아 있으면 −90 으로 바꾸면 끝나게 손잡이로 뺐다.</summary>
         const float SignYawOffset = 90f;
 
+        /// <summary>표지판 실척 높이(m) — 표시판_빌드.py 의 H_TOTAL 과 같은 값.
+        ///   ★ 이 값은 <b>목표</b>일 뿐 FBX 단위계를 가정하지 않는다. 실제 배율은 BuildSign 이 프리팹을
+        ///     띄워 <b>재서</b> 맞춘다(FbxScaleByHeight 와 같은 원리). 그래서 H_TOTAL 과 어긋나도
+        ///     표지판이 틀린 크기로 서는 게 아니라 '목표가 바뀌는' 것뿐이라 조용히 깨지지 않는다.</summary>
+        const float SignRealHeightMeters = 2.2f;
+
         GameObject sign;
         LineRenderer band;
         NetLanUI ui;
@@ -267,8 +273,6 @@ namespace AIXRCrane.Crane.Sts.Net
             //   ★ 종전에는 렌더러 바운즈의 Y 를 '높이' 로 보고 맞췄다. 그런데 FBX 축이 틀어져 들어오면 Y 가
             //     높이가 아니라 폭(1.8m)이 되고, 1.8 을 0.1 로 줄여 18배 작아진 채 누워 버린다 — 실제로 그랬다.
             //     상수 배율은 그런 '조용한 어긋남' 이 없다. 모델이 실척이라는 전제만 지키면 된다.
-            sign.transform.localScale = Vector3.one * (StsConfig.ModelScale * SignScale);
-
             // ★★ FBX 축 보정을 지우지 말 것 — 표지판이 바닥에 눕는 원인이 바로 이것이었다(오너 2026-09-17 "바닥에 누워 있어").
             //   블렌더 메시는 Z-up 이라 정점이 높이를 Z 에 갖고 있다(ExitSign.fbx 실측: X 1.80 폭 · Y 0.29 두께 · Z 0…2.20 높이).
             //   그걸 세우는 건 임포트된 루트의 회전 −90°X <b>하나뿐</b>인데, 여기서 rotation 에 그냥 대입하면 그 보정이 날아간다.
@@ -277,6 +281,19 @@ namespace AIXRCrane.Crane.Sts.Net
             //   임포터에서 축을 구우면(bakeAxisConversion=1) 이 회전이 단위원이 되어 식이 그대로 성립한다.
             Quaternion axisFix = prefab.transform.localRotation;
             sign.transform.localRotation = axisFix;   // 바라볼 곳을 못 구해도 최소한 서 있게
+
+            // ★★ 배율을 계산으로 단정하지 말고 <b>재서 맞춘다</b> — 2026-09-17 여기서 100배를 틀렸다.
+            //   종전엔 "실척 모델이니 ModelScale×SignScale 이면 된다"고 단정했는데, 이 FBX 는 노드에
+            //   Lcl Scaling 100 이 들어 있어 임포트된 프리팹의 단위가 그 가정과 100배 달랐다. 결과가
+            //   실척 66m 여야 할 표지판이 0.7m 로 섰고(로그로 잡혔다), 오너에겐 "작다"가 아니라
+            //   "디자인이 깨져 보인다"로 나타났다 — 70cm 판에 EXIT 를 넣으면 멀리서 뭉개진다.
+            //   그래서 프리팹을 배율 1 로 세워 높이를 재고 목표 실척으로 수렴시킨다(FbxScaleByHeight 와 같은 식).
+            //   ★ 반드시 axisFix 를 먼저 건 뒤에 잰다 — 안 그러면 Y 가 높이가 아니라 두께(0.29m)라 배율이 7배 튄다.
+            //   ★ 에디터 헬퍼(QuayPartsPlacer.FbxScaleByHeight)는 PrefabUtility 를 써서 런타임에선 못 부른다.
+            sign.transform.localScale = Vector3.one;
+            float h = MeasuredHeight(sign);
+            float targetWorld = SignRealHeightMeters * SignScale * StsConfig.ModelScale;
+            sign.transform.localScale = Vector3.one * (h > 1e-6f ? targetWorld / h : StsConfig.ModelScale);
 
             // 리스폰 지점 쪽을 바라보게 — 걸어오는 사람 정면에 글자가 온다.
             //   블렌더 앞면은 −Y(FACE_F)고 축 보정 뒤 유니티 +Z 가 되므로 LookRotation 의 forward 와 맞는다.
@@ -299,6 +316,16 @@ namespace AIXRCrane.Crane.Sts.Net
                 Debug.Log($"[ExitZone] 표지판 — 실척 바운즈 X {s.x:F1}m · Y {s.y:F1}m · Z {s.z:F1}m " +
                           $"(배율 {SignScale:0}× · 야우보정 {SignYawOffset:0}°) → {(upright ? "서 있음" : "★ 누웠다")}");
             }
+        }
+
+        /// <summary>렌더러 전체를 합친 월드 높이. 서브메시가 여럿이거나 자식으로 쪼개져 들어와도 같은 값이 나온다.</summary>
+        static float MeasuredHeight(GameObject go)
+        {
+            var rs = go.GetComponentsInChildren<Renderer>();
+            if (rs.Length == 0) return 0f;
+            var b = rs[0].bounds;
+            for (int i = 1; i < rs.Length; i++) b.Encapsulate(rs[i].bounds);
+            return b.size.y;
         }
 
         void BuildBand()
