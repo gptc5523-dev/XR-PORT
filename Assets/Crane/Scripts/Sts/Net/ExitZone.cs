@@ -54,11 +54,17 @@ namespace Container.Crane.Sts.Net
         //   바닥 띠(LineRenderer)는 그대로 둔다 — 존 '경계'는 표지판으로 못 보여준다.
         /// <summary>표지판 리소스 경로(Assets/Crane/Resources/ 기준, 확장자 없음).</summary>
         const string SignResourcePath = "Models/ExitSign";
-        /// <summary>표지판 배율 — 실척 모델을 이만큼 부풀려 세운다. 오너 지시 2026-09-17 "판자 사이즈 10배로 키워".
-        ///   ★ 이건 표지판의 <b>실제 치수가 아니라 연출</b>이다(실척 2.2m 짜리를 22m 로 보이게 한다).
+        /// <summary>표지판 배율 — 실척 모델을 이만큼 부풀려 세운다. 오너 지시 2026-09-17 "10배" → "더 많이 키우고".
+        ///   ★ 이건 표지판의 <b>실제 치수가 아니라 연출</b>이다(실척 2.2m 짜리를 66m 로 보이게 한다).
         ///     모델은 실척 그대로 두고 '얼마나 크게 세우나'만 여기서 정한다 — 치수와 연출을 한 숫자에 섞으면
-        ///     다음 사람이 어느 쪽을 고쳐야 할지 모른다(표시판_빌드.py 의 H_TOTAL 2.20 은 건드리지 않았다).</summary>
-        const float SignScale = 10f;
+        ///     다음 사람이 어느 쪽을 고쳐야 할지 모른다(표시판_빌드.py 의 H_TOTAL 2.20 은 건드리지 않았다).
+        ///   ★ <b>눈으로 맞추는 값</b>이라 손잡이로 남긴다 — 헤드셋에서 보고 이 숫자만 고치면 된다.</summary>
+        const float SignScale = 30f;
+
+        /// <summary>표지판 방향 보정(도, 월드 Y 축). 오너 지시 2026-09-17 "표지판 90도로 돌리고".
+        ///   ★ <b>부호는 계산으로 못 정한다</b> — 어느 쪽에서 걸어와 보는지는 사람이 본다.
+        ///     반대로 돌아 있으면 −90 으로 바꾸면 끝나게 손잡이로 뺐다.</summary>
+        const float SignYawOffset = 90f;
 
         GameObject sign;
         LineRenderer band;
@@ -278,7 +284,20 @@ namespace Container.Crane.Sts.Net
             {
                 Vector3 look = new Vector3(spawn.x - center.x, 0f, spawn.z - center.z);
                 if (look.sqrMagnitude > 1e-6f)
-                    sign.transform.rotation = Quaternion.LookRotation(look.normalized, Vector3.up) * axisFix;
+                    sign.transform.rotation = Quaternion.AngleAxis(SignYawOffset, Vector3.up)
+                                            * Quaternion.LookRotation(look.normalized, Vector3.up) * axisFix;
+            }
+
+            // 진단 — '섰나 누웠나'를 로그 한 줄로 끝낸다. 모델이 높이 2.2m · 폭 1.8m · 두께 0.29m 라
+            //   월드 바운즈에서 <b>Y 가 가장 길면 서 있는 것</b>이고, 아니면 누운 것이다(야우로는 X·Z 만 섞인다).
+            //   ★ 오너 눈으로만 닫히던 항목을 기계가 먼저 거르게 하려는 것이다 — 헛배포 한 번을 아낀다.
+            var rend = sign.GetComponentInChildren<Renderer>();
+            if (rend != null)
+            {
+                Vector3 s = rend.bounds.size * StsConfig.InvModelScale;
+                bool upright = s.y >= Mathf.Max(s.x, s.z);
+                Debug.Log($"[ExitZone] 표지판 — 실척 바운즈 X {s.x:F1}m · Y {s.y:F1}m · Z {s.z:F1}m " +
+                          $"(배율 {SignScale:0}× · 야우보정 {SignYawOffset:0}°) → {(upright ? "서 있음" : "★ 누웠다")}");
             }
         }
 
