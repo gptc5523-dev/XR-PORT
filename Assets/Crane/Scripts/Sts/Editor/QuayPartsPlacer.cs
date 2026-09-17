@@ -177,6 +177,52 @@ namespace Container.Crane.Sts.EditorTools
                                  $"런타임 배치와 같은 계산(TryComputeSpawnXZ) — 클램프까지 끝난 최종 좌표다.");
         }
 
+        /// <summary>체스말을 옮겨 둔 자리를 <b>실제 시작 지점</b>(PlayerStartPoint)으로 적용 — 오너 요청 2026-09-17
+        /// "내가 체스말로 PlayStartPoint 로 지정해준 거라고 했는데 … 그걸로 Point 변경작업해".
+        ///
+        /// 오너 작업 흐름: 체스말을 원하는 자리로 끌어다 놓는다 → 이 메뉴를 누른다 → 마커가 그 자리로 간다 → 저장.
+        ///   ★ 체스말은 <b>표시일 뿐</b> 리스폰을 정하지 않는다. 리스폰은 PlayerStartPoint 마커가 정한다.
+        ///     그래서 체스말만 옮기면 아무 일도 안 일어난다 — 이 메뉴가 그 둘을 잇는다.
+        ///   ★ Y 는 옮기지 않는다. 런타임이 마커 Y 를 무시하고 걷는 면 윗면에 발을 붙이므로 의미가 없다.
+        ///   ★ 회전(바라보는 방향)은 체스말의 yaw 를 그대로 가져온다 — 런타임이 마커 forward 를 쓴다.</summary>
+        [MenuItem("Model/FBX/항구/체스말 자리를 시작 지점으로 적용", false, 10)]
+        static void ApplyPawnToStartPoint()
+        {
+            var pawn = GameObject.Find(SpawnPawnName);
+            if (pawn == null)
+            {
+                EditorUtility.DisplayDialog("시작 지점 적용",
+                    $"'{SpawnPawnName}' 을(를) 씬에서 못 찾았습니다.\n\n" +
+                    "먼저 [리스폰 지점 체스말 (임시)] 로 체스말을 세운 뒤\n원하는 자리로 옮기고 다시 누르세요.", "확인");
+                return;
+            }
+            var marker = Object.FindAnyObjectByType<Container.Crane.Sts.CranePlayerStartPoint>(FindObjectsInactive.Include);
+            GameObject mgo = marker != null ? marker.gameObject : GameObject.Find(StsPartNames.PlayerStartPoint);
+            if (mgo == null)
+            {
+                EditorUtility.DisplayDialog("시작 지점 적용",
+                    $"시작 지점 마커('{StsPartNames.PlayerStartPoint}')가 씬에 없습니다.\n\n" +
+                    "마커가 없으면 저장 좌표(PortConfig)로 시작하므로\n이 적용이 의미가 없습니다.", "확인");
+                return;
+            }
+
+            Undo.RecordObject(mgo.transform, "시작 지점을 체스말 자리로");
+            Vector3 before = mgo.transform.position;
+            Vector3 p = pawn.transform.position;
+            // Y 는 유지 — 런타임이 마커 Y 를 무시하고 걷는 면 윗면에 발을 붙인다.
+            mgo.transform.position = new Vector3(p.x, before.y, p.z);
+            Vector3 f = pawn.transform.forward; f.y = 0f;
+            if (f.sqrMagnitude > 1e-4f) mgo.transform.rotation = Quaternion.LookRotation(f.normalized, Vector3.up);
+            EditorUtility.SetDirty(mgo.transform);
+            UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(mgo.scene);
+
+            Vector3 rb = before * StsConfig.InvModelScale, ra = mgo.transform.position * StsConfig.InvModelScale;
+            Done(mgo.transform,
+                 $"시작 지점 적용 — 실척 (X {rb.x:F2}, Z {rb.z:F2})m → (X {ra.x:F2}, Z {ra.z:F2})m " +
+                 $"(모델 {mgo.transform.position.x:F4}, {mgo.transform.position.z:F4}) · 방향 {mgo.transform.forward} · " +
+                 $"★ 씬을 저장해야 빌드에 반영됩니다(Cmd+S).");
+        }
+
         [MenuItem("Model/FBX/항구/연석 배치 (Quay_Curb)", false, 1)]
         static void PlaceCurb()
         {
