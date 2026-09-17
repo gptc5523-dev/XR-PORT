@@ -5,7 +5,7 @@ using System.Linq;
 using UnityEditor;
 using UnityEngine;
 
-namespace ContainerProject.EditorTools
+namespace AIXRCrane.EditorTools
 {
     /// <summary>컨테이너 FBX 머티리얼 리맵 — 내장본 대신 Final4 의 .mat 을 쓰게 한다.
     ///

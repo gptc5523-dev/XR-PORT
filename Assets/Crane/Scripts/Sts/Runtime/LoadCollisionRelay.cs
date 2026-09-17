@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace Container.Crane.Sts
+namespace AIXRCrane.Crane.Sts
 {
     /// <summary>
     /// 스프레더 푸셔/든 컨테이너 콜라이더에 붙어, 외부 컨테이너와 '옆·아래로' 부딪힌 접촉을 SpreaderGrabber에 보고(3013 HO Snag).

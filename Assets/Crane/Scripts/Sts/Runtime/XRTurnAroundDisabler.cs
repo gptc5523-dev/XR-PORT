@@ -2,7 +2,7 @@ using System;
 using System.Reflection;
 using UnityEngine;
 
-namespace Container.Crane.Sts
+namespace AIXRCrane.Crane.Sts
 {
     /// <summary>
     /// 시점변경(걷기) 모드에서 오른손 스틱을 '아래'로 밀면 180° 뒤도는 동작(Turn Around)만 끈다.

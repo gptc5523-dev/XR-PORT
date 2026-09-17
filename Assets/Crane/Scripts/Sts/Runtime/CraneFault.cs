@@ -1,7 +1,7 @@
 using UnityEngine;
-using ContainerProject;
+using AIXRCrane;
 
-namespace Container.Crane.Sts
+namespace AIXRCrane.Crane.Sts
 {
     /// <summary>알람 심각도 — ㈜엠비이 코드북: 0=Info, 1=Warning, 2=Critical, 3=Fatal.</summary>
     public enum FaultSeverity { Info = 0, Warning = 1, Critical = 2, Fatal = 3 }

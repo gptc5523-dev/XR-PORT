@@ -1,13 +1,13 @@
 using UnityEngine;
 
-namespace Container.Crane.Sts
+namespace AIXRCrane.Crane.Sts
 {
     /// <summary>
     /// 호이스트 로프를 매 프레임 트롤리(고정 상단)↔스프레더(승강 하단) 사이로 늘이고 줄인다.
     /// 게임 오브젝트(실린더)를 직접 스케일/이동하므로 스프레더가 오르내리면 로프가 따라 신축한다.
     /// 로프는 spreaderRoot의 자식이고, 스프레더 Y는 spreaderRoot 로컬 기준이라 같은 좌표계에서 계산.
     /// </summary>
-    [AddComponentMenu("Container/STS Crane/Hoist Rope Rig")]
+    [AddComponentMenu("AI-XR Crane/STS Crane/Hoist Rope Rig")]
     [DisallowMultipleComponent]
     [ExecuteAlways]   // 에디터에서도 스프레더 따라 로프 갱신(Play 없이 확인 가능)
     public sealed class HoistRopeRig : MonoBehaviour

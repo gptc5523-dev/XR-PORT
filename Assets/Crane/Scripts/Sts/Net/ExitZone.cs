@@ -3,7 +3,7 @@ using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.XR;
 
-namespace Container.Crane.Sts.Net
+namespace AIXRCrane.Crane.Sts.Net
 {
     /// <summary>
     /// 부두 모서리 바닥의 **나가는 존** — 밟고 잠깐 서 있으면 세션을 끊고 시작 메뉴로 돌아간다.
@@ -23,7 +23,7 @@ namespace Container.Crane.Sts.Net
     /// 씬에 안 붙여도 <c>[RuntimeInitializeOnLoadMethod]</c> 로 자동 스폰 — Port.unity 를 건드리지 않는다
     /// (다른 세션도 같은 씬을 편집 중이라 씬 변경은 충돌 위험이 크다). 접속 중일 때만 보인다.
     /// </summary>
-    [AddComponentMenu("Container/Net/Exit Zone")]
+    [AddComponentMenu("AI-XR Crane/Net/Exit Zone")]
     [DisallowMultipleComponent]
     public sealed class ExitZone : MonoBehaviour
     {

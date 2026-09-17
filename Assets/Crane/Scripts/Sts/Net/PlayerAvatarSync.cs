@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using Unity.Netcode;
 using UnityEngine;
 
-namespace Container.Crane.Sts.Net
+namespace AIXRCrane.Crane.Sts.Net
 {
     /// <summary>
     /// 참가자 아바타 — 자기 XR 리그를 따라다니고, 남들에게 보인다.
@@ -21,7 +21,7 @@ namespace Container.Crane.Sts.Net
     /// 색 — GPU Resident Drawer 를 켠 뒤로 MaterialPropertyBlock 은 무시된다(6ac7949).
     ///   그래서 renderer.material(인스턴스)에 직접 색을 넣는다. 아바타는 최대 5개라 배칭 손실은 무시할 만하다.
     /// </summary>
-    [AddComponentMenu("Container/Net/Player Avatar Sync")]
+    [AddComponentMenu("AI-XR Crane/Net/Player Avatar Sync")]
     [DisallowMultipleComponent]
     public sealed class PlayerAvatarSync : NetworkBehaviour
     {

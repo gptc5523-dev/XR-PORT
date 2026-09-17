@@ -1,8 +1,8 @@
 using UnityEngine;
 using Procedural;
-using ContainerProject;   // ProceduralContainerMesh.Length40ft (베이 피치)
+using AIXRCrane;   // ProceduralContainerMesh.Length40ft (베이 피치)
 
-namespace Container.Ship
+namespace AIXRCrane.Ship
 {
     /// <summary>
     /// 컨테이너선 디테일 — 패스 1(라싱 브리지 + 마스트). 레퍼런스의 수직 실루엣 정의 요소.

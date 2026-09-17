@@ -1,4 +1,4 @@
-namespace Container.Crane.Sts
+namespace AIXRCrane.Crane.Sts
 {
     /// <summary>
     /// STS 크레인/부두/HUD 절차 생성물의 '정규 GameObject 이름' SSOT(Single Source Of Truth).
@@ -10,8 +10,8 @@ namespace Container.Crane.Sts
     ///   ★ 값은 현재 코드 문자열 그대로 — SSOT화는 동작을 바꾸지 않는다(리팩터링 only).
     ///
     /// 런타임 어셈블리(Assembly-CSharp)에 두어 에디터 생성기(Assembly-CSharp-Editor)·Container 도메인 모두에서
-    /// 참조 가능하다. Container.Crane.Sts 하위(.Net/.EditorTools)는 무수식 'StsPartNames'로,
-    /// 다른 네임스페이스(ContainerProject.* 등)는 정규명 'Container.Crane.Sts.StsPartNames'로 참조한다.
+    /// 참조 가능하다. AIXRCrane.Crane.Sts 하위(.Net/.EditorTools)는 무수식 'StsPartNames'로,
+    /// 다른 네임스페이스(AIXRCrane.* 등)는 정규명 'AIXRCrane.Crane.Sts.StsPartNames'로 참조한다.
     /// </summary>
     public static class StsPartNames
     {

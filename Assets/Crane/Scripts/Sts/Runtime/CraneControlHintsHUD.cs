@@ -2,7 +2,7 @@ using System.Text;
 using UnityEngine;
 using UnityEngine.UI;
 
-namespace Container.Crane.Sts
+namespace AIXRCrane.Crane.Sts
 {
     /// <summary>
     /// 현재 모드에 맞는 조작 안내(스틱 방향 화살표·버튼)를 HMD 하단에 고정 표시.
@@ -11,7 +11,7 @@ namespace Container.Crane.Sts
     ///   - head-locked: 카메라 자식으로 붙어 머리를 돌려도 하단에 따라옴
     /// 씬에 안 붙여도 [RuntimeInitializeOnLoadMethod]로 자동 스폰. 이미 있으면 스킵.
     /// </summary>
-    [AddComponentMenu("Container/STS Crane/Crane Control Hints HUD")]
+    [AddComponentMenu("AI-XR Crane/STS Crane/Crane Control Hints HUD")]
     [DisallowMultipleComponent]
     public sealed class CraneControlHintsHUD : MonoBehaviour
     {

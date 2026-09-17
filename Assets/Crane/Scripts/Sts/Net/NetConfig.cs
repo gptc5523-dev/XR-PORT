@@ -1,4 +1,4 @@
-namespace Container.Crane.Sts.Net
+namespace AIXRCrane.Crane.Sts.Net
 {
     /// <summary>
     /// LAN 멀티플레이 전역 설정의 단일 출처(SSOT, 외부 감사 H3).

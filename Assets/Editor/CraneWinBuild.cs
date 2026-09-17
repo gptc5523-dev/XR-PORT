@@ -4,13 +4,13 @@ using UnityEditor;
 using UnityEditor.Build.Reporting;
 using UnityEngine;
 
-namespace Container.EditorTools
+namespace AIXRCrane.EditorTools
 {
     /// <summary>
     /// 서버 배포용 Windows(Win64) 빌드 — 헤드리스 NVIDIA→Proton→WiVRn 경로.
     ///   ProjectSettings(Mono 백엔드·Vulkan 전용·Meta OpenXR 기능 OFF)는 이미 구성돼 있어 그대로 따른다.
     ///   산출물: <프로젝트>/Build/Win/Crane.exe  (서버 ~/CraneWin 으로 rsync/scp).
-    ///   CLI(에디터 닫고): Unity -quit -batchmode -projectPath . -executeMethod Container.EditorTools.CraneWinBuild.BuildWin64
+    ///   CLI(에디터 닫고): Unity -quit -batchmode -projectPath . -executeMethod AIXRCrane.EditorTools.CraneWinBuild.BuildWin64
     /// </summary>
     public static class CraneWinBuild
     {

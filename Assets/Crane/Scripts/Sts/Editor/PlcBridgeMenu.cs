@@ -2,10 +2,10 @@
 using System.IO;
 using UnityEditor;
 using UnityEngine;
-using Container.Crane.Sts;
-using Container.Crane.Sts.Plc;
+using AIXRCrane.Crane.Sts;
+using AIXRCrane.Crane.Sts.Plc;
 
-namespace Container.Crane.Sts.EditorTools
+namespace AIXRCrane.Crane.Sts.EditorTools
 {
     /// <summary>
     /// 가상 PLC 시연용 에디터 메뉴 — 씬의 StsCrane에 <see cref="PlcBridge"/>를 부착·구동/원복한다.

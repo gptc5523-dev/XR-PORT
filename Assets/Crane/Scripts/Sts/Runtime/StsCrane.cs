@@ -1,13 +1,13 @@
 using UnityEngine;
 
-namespace Container.Crane.Sts
+namespace AIXRCrane.Crane.Sts
 {
     /// <summary>
     /// STS Crane 컴포지션 루트.
     /// 각 부속(boom/trolley/spreader/attach)은 자체 책임을 가진 컴포넌트로 분리되어 있고,
     /// 이 클래스는 그들에 대한 참조를 모아 외부에 일관된 API를 노출만 한다(SRP + Facade).
     /// </summary>
-    [AddComponentMenu("Container/STS Crane/STS Crane (Root)")]
+    [AddComponentMenu("AI-XR Crane/STS Crane/STS Crane (Root)")]
     [DisallowMultipleComponent]
     public sealed class StsCrane : MonoBehaviour
     {

@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace ContainerProject
+namespace AIXRCrane
 {
     /// <summary>
     /// 컨테이너 색상 풀. 실제 항만에서 자주 보이는 선사 컬러 기반.

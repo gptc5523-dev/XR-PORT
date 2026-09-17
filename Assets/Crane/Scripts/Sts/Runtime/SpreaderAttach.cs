@@ -1,7 +1,7 @@
 using UnityEngine;
-using ContainerProject;
+using AIXRCrane;
 
-namespace Container.Crane.Sts
+namespace AIXRCrane.Crane.Sts
 {
     /// <summary>
     /// 스프레더에 컨테이너를 attach/detach.
@@ -9,7 +9,7 @@ namespace Container.Crane.Sts
     /// - Detach: 부모를 풀고 Rigidbody를 동적 상태로 복원, 옵션으로 새 부모 지정.
     /// 트위스트락 동작(0.4s 가정)은 즉시 처리. 추후 애니메이션이 필요하면 이벤트로 분리.
     /// </summary>
-    [AddComponentMenu("Container/STS Crane/Spreader Attach")]
+    [AddComponentMenu("AI-XR Crane/STS Crane/Spreader Attach")]
     [DisallowMultipleComponent]
     public sealed class SpreaderAttach : MonoBehaviour
     {

@@ -1,4 +1,4 @@
-namespace ContainerProject
+namespace AIXRCrane
 {
     /// <summary>
     /// 결정적(deterministic) FNV-1a 해시 단일 유틸 — 같은 입력 = 같은 출력(비트 단위 재현).

@@ -5,7 +5,7 @@ using Unity.Netcode;
 using Unity.Netcode.Transports.UTP;
 using UnityEngine;
 
-namespace Container.Crane.Sts.Net
+namespace AIXRCrane.Crane.Sts.Net
 {
     /// <summary>
     /// 같은 와이파이(LAN) 멀티플레이용 간단 접속 UI(IMGUI).
@@ -13,7 +13,7 @@ namespace Container.Crane.Sts.Net
     ///   - 관전자: 호스트 IP 입력 후 "참가". LanDiscovery가 있으면 IP가 자동 채워진다.
     /// 최대 인원 maxPlayers(기본 5, 호스트 포함) 초과 접속은 거부한다.
     /// </summary>
-    [AddComponentMenu("Container/Net/Net LAN UI")]
+    [AddComponentMenu("AI-XR Crane/Net/Net LAN UI")]
     [DisallowMultipleComponent]
     public sealed class NetLanUI : MonoBehaviour
     {

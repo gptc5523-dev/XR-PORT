@@ -1,4 +1,4 @@
-namespace Container.Crane.Sts
+namespace AIXRCrane.Crane.Sts
 {
     /// <summary>
     /// STS 크레인 전역 환산 상수의 단일 출처(SSOT).

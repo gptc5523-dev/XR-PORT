@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace ContainerProject
+namespace AIXRCrane
 {
     /// <summary>
     /// 컨테이너 프리팹을 일정 패턴으로 스폰. 각 인스턴스는 ISO 6346 랜덤 번호와 랜덤 색상이 적용된다.

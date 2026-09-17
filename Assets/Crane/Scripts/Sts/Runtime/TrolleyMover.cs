@@ -1,12 +1,12 @@
 using UnityEngine;
 
-namespace Container.Crane.Sts
+namespace AIXRCrane.Crane.Sts
 {
     /// <summary>
     /// 트롤리(Trolley)를 붐 위 레일을 따라 X축으로 슬라이딩.
     /// 스프레더는 트롤리의 X를 따라가야 하므로 호이스트 참조를 받아 동기화한다.
     /// </summary>
-    [AddComponentMenu("Container/STS Crane/Trolley Mover")]
+    [AddComponentMenu("AI-XR Crane/STS Crane/Trolley Mover")]
     [DisallowMultipleComponent]
     public sealed class TrolleyMover : AxisMoverBase
     {
@@ -86,7 +86,7 @@ namespace Container.Crane.Sts
                 // 컨테이너면 자유/고정 무관 장애물. ContainerInstance 단독 판정은 메뉴/씬의 테스트
                 //   컨테이너(ContainerInstance 미부착, Rigidbody+BoxCollider만)를 전부 놓쳐 감지가 무력화됐었다.
                 //   → ContainerInstance 또는 Rigidbody 보유면 컨테이너로 인정. 둘 다 없는 바닥·안벽·리그 등 정적 구조물만 무시.
-                if (hit.collider.GetComponentInParent<ContainerProject.ContainerInstance>() == null
+                if (hit.collider.GetComponentInParent<AIXRCrane.ContainerInstance>() == null
                     && hit.collider.attachedRigidbody == null) continue;
                 return true;
             }

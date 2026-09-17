@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 
-namespace Container.Crane.Sts
+namespace AIXRCrane.Crane.Sts
 {
     /// <summary>
     /// 크레인 HUD들이 공유하는 생성 유틸. 4개 HUD(상태/모드선택/조작안내/부위라벨)가

@@ -6,9 +6,9 @@ using Unity.Netcode;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
-using Container.Crane.Sts.Net;
+using AIXRCrane.Crane.Sts.Net;
 
-namespace Container.Crane.Sts.EditorTools
+namespace AIXRCrane.Crane.Sts.EditorTools
 {
     /// <summary>
     /// 배치 검사 — '호스트 시작'의 결과가 실제로 남는가(오너 2026-09-16 "호스트 참가가 안 된다").
@@ -23,7 +23,7 @@ namespace Container.Crane.Sts.EditorTools
     ///        동안은 타이머를 아예 안 쌓는다'(관전자가 나간 순간 즉시 종료 방지)는 이 검사 밖이다(c8 미검증 항목).
     /// 서버는 한 머신에 인스턴스 5개를 띄우므로 ①은 실제로 일어나는 상황이다(먼저 뜬 쪽이 포트를 쥠).
     /// UnityTransport 는 UDP 라 점유도 UdpClient 로 한다(TcpListener 로는 충돌하지 않는다).
-    ///   Unity -batchmode -nographics -projectPath . -executeMethod Container.Crane.Sts.EditorTools.HostStartProbe.Run -logFile host.log
+    ///   Unity -batchmode -nographics -projectPath . -executeMethod AIXRCrane.Crane.Sts.EditorTools.HostStartProbe.Run -logFile host.log
     ///   ※ -quit 금지 — EnterPlaymode 방식이라 주면 플레이에 못 들어가고 로그가 빈다.
     /// </summary>
     [InitializeOnLoad]

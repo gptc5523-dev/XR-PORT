@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace Container.Crane.Sts
+namespace AIXRCrane.Crane.Sts
 {
     /// <summary>크레인 운영상태 — 계획서/PLC 문서의 '운전 모드(운전·정지·이상)' 항목.
     /// PLC 실값 매핑은 ㈜엠비이 데이터 매핑 정의서에서 확정.</summary>
@@ -19,7 +19,7 @@ namespace Container.Crane.Sts
     /// </summary>
     // H4: 가속 측정은 축 구동(PlcBridge, order -100)이 끝난 뒤 — 같은 물리틱에서 최종 위치를 읽도록 늦게 실행.
     [DefaultExecutionOrder(100)]
-    [AddComponentMenu("Container/STS Crane/Crane Op Mode (운영상태)")]
+    [AddComponentMenu("AI-XR Crane/STS Crane/Crane Op Mode (운영상태)")]
     [RequireComponent(typeof(StsCrane))]
     [DisallowMultipleComponent]
     public sealed class CraneOpMode : MonoBehaviour

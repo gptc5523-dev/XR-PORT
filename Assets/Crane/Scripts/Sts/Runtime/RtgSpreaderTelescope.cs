@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace Container.Crane.Sts
+namespace AIXRCrane.Crane.Sts
 {
     /// <summary>
     /// RTG(FBX) 스프레더 텔레스코픽 — 20 / 40 / 45ft. STS <see cref="SpreaderTelescope"/>와 달리
@@ -14,7 +14,7 @@ namespace Container.Crane.Sts
     ///    단위(m/cm)·루트 스케일에 무관하게 정확.
     ///  • MainFrame(센터 슬리브)·EndBeam·트위스트락·플리퍼는 **직접 이동 금지**(TeleBeam만 움직임).
     /// </summary>
-    [AddComponentMenu("Container/STS Crane/RTG Spreader Telescope")]
+    [AddComponentMenu("AI-XR Crane/STS Crane/RTG Spreader Telescope")]
     [DisallowMultipleComponent]
     [ExecuteAlways]   // 에디터에서도 Size 토글 시 신축이 보이도록(Play 없이 확인 가능)
     public sealed class RtgSpreaderTelescope : MonoBehaviour

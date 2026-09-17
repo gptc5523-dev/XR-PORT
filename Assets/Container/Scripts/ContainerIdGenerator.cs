@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 
-namespace ContainerProject
+namespace AIXRCrane
 {
     /// <summary>
     /// ISO 6346 표준 컨테이너 식별 번호 생성기.

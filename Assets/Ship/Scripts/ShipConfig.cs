@@ -1,7 +1,7 @@
-using Container.Crane.Sts;   // StsConfig.ModelScale (미니어처 환산비 SSOT 공유)
-using ContainerProject;      // ProceduralContainerMesh.StdWidth (컨테이너 폭 SSOT 공유)
+using AIXRCrane.Crane.Sts;   // StsConfig.ModelScale (미니어처 환산비 SSOT 공유)
+using AIXRCrane;      // ProceduralContainerMesh.StdWidth (컨테이너 폭 SSOT 공유)
 
-namespace Container.Ship
+namespace AIXRCrane.Ship
 {
     /// <summary>
     /// 컨테이너선(Post-Panamax급) 전역 치수의 단일 출처(SSOT).

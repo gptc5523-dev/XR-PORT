@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.XR;
 
-namespace Container.Crane.Sts
+namespace AIXRCrane.Crane.Sts
 {
     /// <summary>
     /// Quest 고정 포비티드 렌더링(FFR) 활성화 — 시야 주변부의 셰이딩 해상도를 낮춰 GPU 부하를 줄인다.

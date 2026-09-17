@@ -2,7 +2,7 @@ using System.Text;
 using UnityEngine;
 using UnityEngine.UI;
 
-namespace Container.Crane.Sts
+namespace AIXRCrane.Crane.Sts
 {
     /// <summary>
     /// STS 크레인 상태를 VR HMD 시야 우상단에 고정 표시하는 world-space HUD.
@@ -11,7 +11,7 @@ namespace Container.Crane.Sts
     ///   - 매 프레임 StsCrane(트롤리/호이스트/갠트리, 적재 컨테이너) 상태를 텍스트로 업데이트
     /// 씬 어디든 한 곳에 컴포넌트 붙이면 됨. crane을 비워두면 씬에서 자동 탐색.
     /// </summary>
-    [AddComponentMenu("Container/STS Crane/Crane Status HUD")]
+    [AddComponentMenu("AI-XR Crane/STS Crane/Crane Status HUD")]
     [DisallowMultipleComponent]
     public sealed class CraneStatusHUD : MonoBehaviour
     {
@@ -252,9 +252,9 @@ namespace Container.Crane.Sts
                 float t = attach.AttachedMassKg / 1000f;
                 if (t > 0.05f)   // 하중(t) + 등급(정상/주의/이상) 색
                 {
-                    var g = ContainerProject.ContainerLoad.Grade(t);
-                    string hex = ColorUtility.ToHtmlStringRGB(ContainerProject.ContainerLoad.GradeColor(g));
-                    sb.Append($"  <color=#{hex}>{t:0.#} t — {ContainerProject.ContainerLoad.GradeLabel(g)}</color>");
+                    var g = AIXRCrane.ContainerLoad.Grade(t);
+                    string hex = ColorUtility.ToHtmlStringRGB(AIXRCrane.ContainerLoad.GradeColor(g));
+                    sb.Append($"  <color=#{hex}>{t:0.#} t — {AIXRCrane.ContainerLoad.GradeLabel(g)}</color>");
                 }
             }
             else sb.Append($"<color=#{CraneHud.Hex(CraneHud.HudColor.IdleDim)}>없음</color>");

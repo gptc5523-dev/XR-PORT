@@ -3,11 +3,11 @@ using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 
-namespace Container.Crane.Sts.EditorTools
+namespace AIXRCrane.Crane.Sts.EditorTools
 {
     /// <summary>
     /// 배치 스모크 — 시연 씬에서 RTG 를 VR 조종할 수 있는지(오너 2026-09-15 "RTG 크레인은 내가 조종이 불가능").
-    ///   Unity -batchmode -nographics -projectPath . -executeMethod Container.Crane.Sts.EditorTools.RtgControlSmoke.Run -logFile rtg.log
+    ///   Unity -batchmode -nographics -projectPath . -executeMethod AIXRCrane.Crane.Sts.EditorTools.RtgControlSmoke.Run -logFile rtg.log
     ///   오너 흐름 그대로: (호스트 접속) STS 조종 켬 → B 로 이동모드 → 걸어서 RTG 발치로.
     ///   PASS(종료 0) =
     ///     ① 걸어온 것만으로 그 RTG 가 조종기를 받고 조종 토글이 이어진다

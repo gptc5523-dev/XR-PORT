@@ -1,4 +1,4 @@
-namespace Container.Crane.Sts
+namespace AIXRCrane.Crane.Sts
 {
     /// <summary>
     /// STS 크레인 축(갠트리·트롤리·권상) 운동 프로파일의 단일 출처(SSOT) — 외부 감사 H5(정격 속도·가감속 하드코딩) 대응.

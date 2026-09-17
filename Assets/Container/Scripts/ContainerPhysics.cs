@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace ContainerProject
+namespace AIXRCrane
 {
     /// <summary>
     /// 컨테이너 적층 안정화(방식 A) — 1/24 미니어처라 PhysX 기본값(접촉 오프셋·솔버·마찰)이 실척 기준이라
@@ -63,7 +63,7 @@ namespace ContainerProject
     /// 이름에 "Container"가 들어가고 Rigidbody를 가진 오브젝트를 대상으로 한다(Yard_Container_*, Container_Procedural_* 등).
     /// 씬에 안 붙여도 [RuntimeInitializeOnLoadMethod]로 자동 스폰.
     /// </summary>
-    [AddComponentMenu("Container/Container Physics Stabilizer")]
+    [AddComponentMenu("AI-XR Crane/Container Physics Stabilizer")]
     [DisallowMultipleComponent]
     public sealed class ContainerPhysicsStabilizer : MonoBehaviour
     {
@@ -132,7 +132,7 @@ namespace ContainerProject
                 {
                     // 매달려 이송 중인 것만 제외 — 하강 한계는 스프레더 통과방지 클램프 소관이고, 여기서 같이
                     //   끌어올리면 스프레더와 서로 밀며 떤다. 매달리지 않았으면 kinematic 이어도 교정한다.
-                    if (rb.GetComponentInParent<Container.Crane.Sts.StsCrane>() != null) continue;
+                    if (rb.GetComponentInParent<AIXRCrane.Crane.Sts.StsCrane>() != null) continue;
 
                     var p = rb.position; p.y += penetration; rb.position = p;   // 밑면을 바닥 윗면까지 끌어올림
                     if (!rb.isKinematic) { var v = rb.linearVelocity; if (v.y < 0f) { v.y = 0f; rb.linearVelocity = v; } }
@@ -143,15 +143,15 @@ namespace ContainerProject
 
             // QA S-PHYS-3: 바닥가드 보정이 시작/종료된 순간만 한 줄(매틱 폭주 방지).
             //   PASS = 보정 시점 침투가 반높이(0.054) 미만 — 즉 매틱 잡아 깊은 관통을 안 허용(구버전 회귀 아님).
-            if (Container.Crane.Sts.QaLog.Enabled && anyCorr != qaGuardActive)
+            if (AIXRCrane.Crane.Sts.QaLog.Enabled && anyCorr != qaGuardActive)
             {
                 qaGuardActive = anyCorr;
                 if (anyCorr)
-                    Container.Crane.Sts.QaLog.Check("FLOOR", "guard", worstPen < QaHalfHeight,
+                    AIXRCrane.Crane.Sts.QaLog.Check("FLOOR", "guard", worstPen < QaHalfHeight,
                         $"body={worstName} floorTopY={_floorTopY:F3} penetration={worstPen:F3} " +
                         $"skin={FloorGuardSkin:F3} halfHeight={QaHalfHeight:F3} corrected=true");
                 else
-                    Container.Crane.Sts.QaLog.Info("FLOOR", "settle", "penetration<=skin corrected=false (정착)");
+                    AIXRCrane.Crane.Sts.QaLog.Info("FLOOR", "settle", "penetration<=skin corrected=false (정착)");
             }
         }
 

@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace Container.Crane.Sts
+namespace AIXRCrane.Crane.Sts
 {
     /// <summary>
     /// 붐 러핑(기립) 구동 — 바다측 붐을 힌지 피벗에서 Z축으로 회전시켜 세우고 내린다.
@@ -12,7 +12,7 @@ namespace Container.Crane.Sts
     /// 물리 무관 kinematic 회전(AxisMover/SpreaderHoist와 동일 규약) — 값을 넣으면 즉시 자세 반영.
     /// [ExecuteAlways]로 에디터에서도 자세 확인(Play 없이). Play 진입(도메인 리로드) 대비 [SerializeField] 유지.
     /// </summary>
-    [AddComponentMenu("Container/STS Crane/Boom Luff Mover")]
+    [AddComponentMenu("AI-XR Crane/STS Crane/Boom Luff Mover")]
     [DisallowMultipleComponent]
     [ExecuteAlways]
     public sealed class BoomLuffMover : MonoBehaviour

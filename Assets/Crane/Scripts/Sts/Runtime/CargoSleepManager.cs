@@ -1,8 +1,8 @@
 using System.Collections.Generic;
 using UnityEngine;
-using ContainerProject;   // ContainerPhysics
+using AIXRCrane;   // ContainerPhysics
 
-namespace Container.Crane.Sts
+namespace AIXRCrane.Crane.Sts
 {
     /// <summary>
     /// 근접 활성화(①) + 충돌·솔버 차등(②) — 화물 컨테이너 부하 절감.
@@ -21,7 +21,7 @@ namespace Container.Crane.Sts
     ///   · ContainerPhysicsStabilizer 바닥가드는 kinematic을 건너뛰므로(118행) 재운 것엔 자동으로 안 돈다.
     ///     깨운 것은 stabilizer가 이미 _bodies로 추적 중이라 바닥가드가 정상 작동.
     /// </summary>
-    [AddComponentMenu("Container/STS Crane/Cargo Sleep Manager")]
+    [AddComponentMenu("AI-XR Crane/STS Crane/Cargo Sleep Manager")]
     [DisallowMultipleComponent]
     public sealed class CargoSleepManager : MonoBehaviour
     {

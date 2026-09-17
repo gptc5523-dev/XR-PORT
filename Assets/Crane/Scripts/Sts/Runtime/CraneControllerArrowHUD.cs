@@ -1,7 +1,7 @@
 using UnityEngine;
 using UnityEngine.UI;
 
-namespace Container.Crane.Sts
+namespace AIXRCrane.Crane.Sts
 {
     /// <summary>
     /// 처음 잡는 사람을 위해 — 글자 설명 없이, 각 컨트롤러 '위에' 그 모드에서 스틱을 미는 방향을
@@ -17,7 +17,7 @@ namespace Container.Crane.Sts
     ///   - 관전자(순수 클라이언트)에겐 숨긴다 — 조종을 못 하니 의미가 없다.
     /// 씬에 안 붙여도 [RuntimeInitializeOnLoadMethod]로 자동 스폰. 이미 있으면 스킵.
     /// </summary>
-    [AddComponentMenu("Container/STS Crane/Crane Controller Arrow HUD")]
+    [AddComponentMenu("AI-XR Crane/STS Crane/Crane Controller Arrow HUD")]
     [DisallowMultipleComponent]
     public sealed class CraneControllerArrowHUD : MonoBehaviour
     {

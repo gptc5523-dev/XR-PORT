@@ -2,7 +2,7 @@
 using UnityEditor;
 using UnityEngine;
 
-namespace Container.Crane.Sts.EditorTools
+namespace AIXRCrane.Crane.Sts.EditorTools
 {
     /// <summary>
     /// 갠트리 주행범위 맞춤의 '에디터 진입점' — 부두 바닥 생성(StsQuayGroundCreator)·크레인 생성(StsCraneCreator)이

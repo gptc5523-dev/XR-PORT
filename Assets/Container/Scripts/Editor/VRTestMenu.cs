@@ -3,7 +3,7 @@ using UnityEditor;
 using UnityEngine;
 using UnityEngine.XR.Interaction.Toolkit.Interactables;
 
-namespace ContainerProject.EditorTools
+namespace AIXRCrane.EditorTools
 {
     /// <summary>
     /// 절차적(Procedural) 컨테이너 스폰 메뉴.

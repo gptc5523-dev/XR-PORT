@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace Container.Crane.Sts
+namespace AIXRCrane.Crane.Sts
 {
     /// <summary>
     /// 단일 축 무버 공통 베이스 — Gantry(Z)·Trolley(X)·SpreaderHoist(Y)가 공유.

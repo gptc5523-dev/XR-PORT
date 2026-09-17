@@ -1,7 +1,7 @@
 using UnityEngine;
 using UnityEngine.XR;   // InputDevices — Quest 컨트롤러 직접 읽기(조종 컨트롤러와 동일 방식)
 
-namespace Container.Crane.Sts
+namespace AIXRCrane.Crane.Sts
 {
     /// <summary>
     /// 시점 눈높이 조절(앉기/낮추기) — 오른손 검지 트리거를 누른 채 왼손 스틱 ↑↓.
@@ -14,7 +14,7 @@ namespace Container.Crane.Sts
     ///     높이 전용으로 양보(호이스트/갠트리 입력 무효화)하고 걷기를 잠시 멈춘다.
     /// 씬에 안 붙여도 [RuntimeInitializeOnLoadMethod]로 자동 스폰.
     /// </summary>
-    [AddComponentMenu("Container/STS Crane/Crane View Height Adjuster")]
+    [AddComponentMenu("AI-XR Crane/STS Crane/Crane View Height Adjuster")]
     [DisallowMultipleComponent]
     public sealed class CraneViewHeightAdjuster : MonoBehaviour
     {

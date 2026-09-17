@@ -1,7 +1,7 @@
 using System.Collections;
 using UnityEngine;
 
-namespace Container.Crane.Sts
+namespace AIXRCrane.Crane.Sts
 {
     /// <summary>
     /// **컨테이너 배치 → 잡기 → 들어올리기 → 내리기** 자동 검증 시나리오 (VR 없이 에디터 Play로 동작 확인).
@@ -12,7 +12,7 @@ namespace Container.Crane.Sts
     /// 콘솔 로그([컨테이너테스트]/[Crane])로 각 단계·잡힘 여부·스프레더 월드Y를 확인한다. 그랩버 debugLog가 집기 판정 로그도 찍음.
     /// 전제: 먼저 'RTG 크레인 생성' 실행(SpreaderHoist·Grabber·Attach를 자동 배선). 미배선 시 오류 로그 후 자동 비활성.
     /// </summary>
-    [AddComponentMenu("Container/STS Crane/컨테이너 잡기 테스트 (FBX)")]
+    [AddComponentMenu("AI-XR Crane/STS Crane/컨테이너 잡기 테스트 (FBX)")]
     [DisallowMultipleComponent]
     public sealed class ContainerLiftScenario : MonoBehaviour
     {

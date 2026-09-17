@@ -7,11 +7,11 @@ using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 
-namespace Container.Crane.Sts.EditorTools
+namespace AIXRCrane.Crane.Sts.EditorTools
 {
     /// <summary>
     /// 배치 스모크 — STS CSV 재생에 화물이 붙는지(배에 실린 컨테이너를 실제로 집는지).
-    ///   Unity -batchmode -nographics -projectPath . -executeMethod Container.Crane.Sts.EditorTools.PlcReplaySmoke.Run -logFile plc.log
+    ///   Unity -batchmode -nographics -projectPath . -executeMethod AIXRCrane.Crane.Sts.EditorTools.PlcReplaySmoke.Run -logFile plc.log
     ///   CSV = 환경변수 PLC_SMOKE_CSV, 없으면 PlcSim/output/S14/run_01.csv. 10배속으로 이력의 마지막 놓기 + 5초(게임)까지 돌린다.
     ///   PASS(종료 0) = 이력의 이동마다 집기·놓기가 나오고, 배(SHIP/)에서 집은 건 전부 씬 컨테이너(복제 박스 아님)이며
     ///   트위스트락↔윗면 중심 ≤ 0.36m(수동 잠금 허용 registerTolXZ 0.015u × 24), 재생 예외 0.

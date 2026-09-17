@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace Container.Crane.Sts
+namespace AIXRCrane.Crane.Sts
 {
     /// <summary>
     /// 스프레더 트위스트락 잠금/해제 모션 — **수직축 90° 회전 전용**(위치 불변).
@@ -11,7 +11,7 @@ namespace Container.Crane.Sts
     /// SpreaderGrabber가 SetLocked()를 호출한다.
     /// 스프레더 자식 중 이름이 Twistlock_Cone / Twistlock_Head(절차) 또는 Spreader_Twistlock_*(FBX)인 것들을 자동 수집.
     /// </summary>
-    [AddComponentMenu("Container/STS Crane/Spreader Lock Animator")]
+    [AddComponentMenu("AI-XR Crane/STS Crane/Spreader Lock Animator")]
     [DisallowMultipleComponent]
     [ExecuteAlways]   // 에디터 메뉴(잠그기/풀기)로 Play 없이 즉시 확인 가능하게
     public sealed class SpreaderLockAnimator : MonoBehaviour

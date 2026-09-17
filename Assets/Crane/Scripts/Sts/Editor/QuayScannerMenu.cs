@@ -2,7 +2,7 @@
 using UnityEditor;
 using UnityEngine;
 
-namespace Container.Crane.Sts.EditorTools
+namespace AIXRCrane.Crane.Sts.EditorTools
 {
     /// <summary>부두 컨테이너 인식을 에디트 모드에서 즉시 실행(Play 불필요). 스캐너가 없으면 만든다.</summary>
     public static class QuayScannerMenu

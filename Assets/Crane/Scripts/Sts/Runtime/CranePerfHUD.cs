@@ -2,7 +2,7 @@ using System.Text;
 using UnityEngine;
 using UnityEngine.UI;
 
-namespace Container.Crane.Sts
+namespace AIXRCrane.Crane.Sts
 {
     /// <summary>
     /// 성능 측정 도구(측정 전용). 출력 2가지 — ① 콘솔 [PERF] 한 줄 로그(기본, adb logcat), ② HMD 좌상단 HUD(옵션).
@@ -12,7 +12,7 @@ namespace Container.Crane.Sts
     /// 콘솔만 쓰면 showHud=off 권장(캔버스 리빌드 부하/관찰자효과 제거 → 측정 정확). 측정 끝나면 이 스크립트만 지우면 됨.
     /// CraneStatusHUD(우상단)와 같은 head-locked 패턴/헬퍼(CraneHud) 재사용.
     /// </summary>
-    [AddComponentMenu("Container/STS Crane/Crane Perf HUD")]
+    [AddComponentMenu("AI-XR Crane/STS Crane/Crane Perf HUD")]
     [DisallowMultipleComponent]
     public sealed class CranePerfHUD : MonoBehaviour
     {

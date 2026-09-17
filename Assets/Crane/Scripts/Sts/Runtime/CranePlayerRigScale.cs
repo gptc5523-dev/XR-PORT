@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace Container.Crane.Sts
+namespace AIXRCrane.Crane.Sts
 {
     /// <summary>
     /// 플레이어(XR Origin 리그)를 크레인과 같은 1/24로 축소 → 미니어처 크레인이 HMD엔 실물 크기로 보인다.
@@ -19,7 +19,7 @@ namespace Container.Crane.Sts
     ///
     /// enableScaling=false 면 실척 원복. [RuntimeInitializeOnLoadMethod]로 자동 스폰. 위치 배치와 독립(순서 무관).
     /// </summary>
-    [AddComponentMenu("Container/STS Crane/Crane Player Rig Scale")]
+    [AddComponentMenu("AI-XR Crane/STS Crane/Crane Player Rig Scale")]
     [DisallowMultipleComponent]
     public sealed class CranePlayerRigScale : MonoBehaviour
     {

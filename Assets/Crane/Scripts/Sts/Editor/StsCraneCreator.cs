@@ -4,7 +4,7 @@ using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 
-namespace Container.Crane.Sts.EditorTools
+namespace AIXRCrane.Crane.Sts.EditorTools
 {
     /// <summary>
     /// 메뉴에서 STS(Ship-To-Shore) Crane GameObject 계층을 자동 생성.
@@ -1934,7 +1934,7 @@ namespace Container.Crane.Sts.EditorTools
         ///   락 높이 = (숄더 평평 구간 상단) − (콘 끝). 평평 = 최대 반경의 <see cref="ShoulderFrac"/> 이상인 버킷.
         /// ★ FBX 는 축·스케일이 다를 수 있어 조용히 틀린 값이 나온다 — 그래서 절차 STS 를 대조군으로 같이 찍는다.
         ///   STS 는 정답을 알고 있다(노즈 52.8 + 숄더 24 = 락 76.8mm). STS 가 재현되지 않으면 RTG 수치도 믿지 말 것.
-        /// 배치: -executeMethod Container.Crane.Sts.EditorTools.StsCraneCreator.MeasureLockHeight</summary>
+        /// 배치: -executeMethod AIXRCrane.Crane.Sts.EditorTools.StsCraneCreator.MeasureLockHeight</summary>
         [MenuItem("Model/PG/크레인/트위스트락 락 높이 실측", false, 3)]
         public static void MeasureLockHeight()
         {
@@ -2018,7 +2018,7 @@ namespace Container.Crane.Sts.EditorTools
         ///   · 샤프트(`Twistlock_Body`) 밑단은 메시 정점이라 트랜스폼으로 못 옮기지만, 콘을 내려도 생기는 틈
         ///     (넥 상단 −0.0162 ~ 막대 밑단 −0.014)은 하단 플랜지(−0.019~−0.013) 안이라 보이지 않는다.
         ///     다음에 크레인을 새로 구울 때는 생성기가 둘을 이어서 만든다.
-        /// 배치에서도 부를 수 있다: -executeMethod Container.Crane.Sts.EditorTools.StsCraneCreator.SyncTwistlockExposure</summary>
+        /// 배치에서도 부를 수 있다: -executeMethod AIXRCrane.Crane.Sts.EditorTools.StsCraneCreator.SyncTwistlockExposure</summary>
         [MenuItem("Model/PG/크레인/트위스트락 노출 씬 동기화", false, 2)]
         public static void SyncTwistlockExposure()
         {
@@ -4215,14 +4215,14 @@ namespace Container.Crane.Sts.EditorTools
         static Vector3 FindContainerAnchor()
         {
             // 1) 실제 컨테이너 인스턴스 우선(가장 정확)
-            var instType = System.Type.GetType("ContainerProject.ContainerInstance, Assembly-CSharp");
+            var instType = System.Type.GetType("AIXRCrane.ContainerInstance, Assembly-CSharp");
             if (instType != null)
             {
                 var inst = Object.FindFirstObjectByType(instType) as Component;
                 if (inst != null) return inst.transform.position;
             }
             // 2) 스포너(보통 매니저 — 원점일 수 있음)
-            var spawnerType = System.Type.GetType("ContainerProject.ContainerSpawner, Assembly-CSharp");
+            var spawnerType = System.Type.GetType("AIXRCrane.ContainerSpawner, Assembly-CSharp");
             if (spawnerType != null)
             {
                 var spawner = Object.FindFirstObjectByType(spawnerType) as Component;

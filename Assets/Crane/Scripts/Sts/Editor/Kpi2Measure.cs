@@ -4,13 +4,13 @@ using System.Linq;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
-using Container.Crane.Sts.Plc;
+using AIXRCrane.Crane.Sts.Plc;
 
-namespace Container.Crane.Sts.EditorTools
+namespace AIXRCrane.Crane.Sts.EditorTools
 {
     /// <summary>
     /// 평가지표 2(위치·동작 정확도, 1차년도 비중 30%) **증빙 산출기** — 100회 시행을 배치로 돌려 CSV 한 장을 남긴다.
-    ///   Unity -batchmode -nographics -projectPath . -executeMethod Container.Crane.Sts.EditorTools.Kpi2Measure.Run -logFile kpi2.log
+    ///   Unity -batchmode -nographics -projectPath . -executeMethod AIXRCrane.Crane.Sts.EditorTools.Kpi2Measure.Run -logFile kpi2.log
     ///   재생 CSV = 환경변수 <c>KPI2_CSV</c>, 없으면 <c>PlcSim/output/S02/run_01.csv</c>.
     ///
     /// 측정 자체는 <see cref="Kpi2PositionAccuracy"/> 가 한다(지령↔렌더 위치 차, 3축 동시 판정).

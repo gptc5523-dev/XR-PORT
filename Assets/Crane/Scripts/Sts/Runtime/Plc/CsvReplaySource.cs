@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using System.Globalization;
 
-namespace Container.Crane.Sts.Plc
+namespace AIXRCrane.Crane.Sts.Plc
 {
     /// <summary>
     /// 기록 재생 PLC 소스 — PlcSim/generate.py가 만든 CSV(DB100 태그 시계열)를 <see cref="PlcSnapshot"/>로 재생한다.

@@ -4,7 +4,7 @@ using System.IO;
 using UnityEditor;
 using UnityEngine;
 
-namespace Container.Crane.Sts.EditorTools
+namespace AIXRCrane.Crane.Sts.EditorTools
 {
     /// <summary>
     /// Blender 임포트 크레인(<c>Assets/Crane/Models/RTG_Crane.fbx</c>)을 씬에 생성.

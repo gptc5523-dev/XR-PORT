@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace Container.Crane.Sts
+namespace AIXRCrane.Crane.Sts
 {
     /// <summary>
     /// RTG 보기(Bogie) 스티어링 — `Bogie_LF/LB/RF/RB` 를 킹핀 축 기준으로 0° ↔ 90° 회전.
@@ -16,7 +16,7 @@ namespace Container.Crane.Sts
     /// 주행축 전환은 **회전이 끝난 순간에만** 한다 — 꺾는 도중에 축을 바꾸면 타이어가 진행방향을
     /// 안 보는 채로 옆으로 미끄러진다. 꺾는 동안은 <see cref="GantryMover.TravelLocked"/>로 주행을 막는다.
     /// </summary>
-    [AddComponentMenu("Container/STS Crane/RTG Bogie Steering")]
+    [AddComponentMenu("AI-XR Crane/STS Crane/RTG Bogie Steering")]
     [DisallowMultipleComponent]
     [ExecuteAlways]   // 에디터 메뉴로 Play 없이 0°/90° 확인 가능하게
     public sealed class RtgBogieSteering : MonoBehaviour

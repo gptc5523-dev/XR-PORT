@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace Container.Crane.Sts
+namespace AIXRCrane.Crane.Sts
 {
     /// <summary>
     /// 갠트리 주행 — 크레인 루트를 안벽 방향(Z축)으로 슬라이딩.
@@ -10,7 +10,7 @@ namespace Container.Crane.Sts
     /// RTG는 고무 타이어라 <see cref="RtgBogieSteering"/>가 보기를 90° 꺾으면 주행축이 로컬 Z→X로 바뀐다(레인 이동).
     /// STS는 레일 위라 Z 고정 — 기본값이 Z이므로 STS 동작은 그대로다.
     /// </summary>
-    [AddComponentMenu("Container/STS Crane/Gantry Mover")]
+    [AddComponentMenu("AI-XR Crane/STS Crane/Gantry Mover")]
     [DisallowMultipleComponent]
     public sealed class GantryMover : AxisMoverBase
     {
@@ -151,7 +151,7 @@ namespace Container.Crane.Sts
                     // 컨테이너면 자유/고정 무관 장애물. ContainerInstance 단독 판정은 메뉴/씬의 테스트
                     //   컨테이너(ContainerInstance 미부착, Rigidbody+BoxCollider만)를 전부 놓쳐 감지가 무력화됐었다.
                     //   → ContainerInstance 또는 Rigidbody 보유면 컨테이너로 인정. 둘 다 없는 바닥/안벽/리그 등 정적 구조물만 무시.
-                    if (hit.collider.GetComponentInParent<ContainerProject.ContainerInstance>() == null
+                    if (hit.collider.GetComponentInParent<AIXRCrane.ContainerInstance>() == null
                         && hit.collider.attachedRigidbody == null) continue;
                     QaBlockEdge(true, target, hit.collider.name);   // QA S-PHYS-4: 막힘 검출(밀지 않음) — 엣지에서만
                     return true;

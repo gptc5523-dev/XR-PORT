@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace Container.Crane.Sts
+namespace AIXRCrane.Crane.Sts
 {
     /// <summary>
     /// 야드 칸(라인) 격자 — 놓을 자리를 <b>수식으로</b> 유도하는 한 곳. 오너 2026-09-16

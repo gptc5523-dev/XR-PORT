@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace Container.Crane.Sts
+namespace AIXRCrane.Crane.Sts
 {
     /// <summary>
     /// 폭풍 계류 결박 봉(Tiedown_Rod)을 갠트리 주행에 연동한다.
@@ -10,7 +10,7 @@ namespace Container.Crane.Sts
     /// 봉만 움직이고 러그(크레인쪽)·앵커(부두쪽)는 고정. 동작은 SmoothDamp로 부드럽게.
     /// 참조를 비워두면 Start에서 같은 오브젝트의 StsCrane + 자식 중 "Tiedown_Rod*"를 자동 수집한다.
     /// </summary>
-    [AddComponentMenu("Container/STS Crane/Tiedown Controller")]
+    [AddComponentMenu("AI-XR Crane/STS Crane/Tiedown Controller")]
     public sealed class TiedownController : MonoBehaviour
     {
         [Tooltip("결박 봉들(Tiedown_Rod). 비우면 Start에서 자식 중 이름으로 자동 수집.")]

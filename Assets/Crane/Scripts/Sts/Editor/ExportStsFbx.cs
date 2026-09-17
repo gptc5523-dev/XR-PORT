@@ -1,13 +1,13 @@
 // STS 크레인 → FBX 익스포트 (배치모드 전용) — Blender 이관용.
 // 실행: Unity -batchmode -nographics -projectPath <repo>
-//       -executeMethod Container.Crane.Sts.EditorTools.ExportStsFbx.Run
+//       -executeMethod AIXRCrane.Crane.Sts.EditorTools.ExportStsFbx.Run
 using System.IO;
 using UnityEngine;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEditor.Formats.Fbx.Exporter;
 
-namespace Container.Crane.Sts.EditorTools
+namespace AIXRCrane.Crane.Sts.EditorTools
 {
     public static class ExportStsFbx
     {

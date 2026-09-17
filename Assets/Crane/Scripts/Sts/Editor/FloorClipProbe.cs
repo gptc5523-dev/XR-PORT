@@ -2,13 +2,13 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
-using Container.Crane.Sts.Plc;
-using ContainerProject;
+using AIXRCrane.Crane.Sts.Plc;
+using AIXRCrane;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 
-namespace Container.Crane.Sts.EditorTools
+namespace AIXRCrane.Crane.Sts.EditorTools
 {
     /// <summary>
     /// 배치 검사 — 바닥(데크 y=0) 관통. 오너 2026-09-16 "컨테이너가 바닥을 뚫는다" 스크린샷 재현.
@@ -17,7 +17,7 @@ namespace Container.Crane.Sts.EditorTools
     ///   ② 복구: 이미 바닥 아래에 있는 컨테이너는 ContainerPhysicsStabilizer 바닥가드가 끌어올려야 한다.
     ///      런타임에 강체가 붙는(=Start 목록에 없는) kinematic 야드 컨테이너가 가드의 사각이었다.
     /// 판정은 바닥 y 하나로만 한다 — 콘 돌출·삽입 깊이 값에는 기대지 않는다(그 값은 재측정 중, xr-port-04 2026-09-16).
-    ///   Unity -batchmode -nographics -projectPath . -executeMethod Container.Crane.Sts.EditorTools.FloorClipProbe.Run -logFile floor.log
+    ///   Unity -batchmode -nographics -projectPath . -executeMethod AIXRCrane.Crane.Sts.EditorTools.FloorClipProbe.Run -logFile floor.log
     ///   ※ -quit 금지 — EnterPlaymode 방식이라 주면 플레이에 못 들어가고 로그가 빈다.
     /// </summary>
     [InitializeOnLoad]

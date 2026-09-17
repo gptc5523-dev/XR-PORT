@@ -4,7 +4,7 @@ using System.Text;
 using Unity.Netcode;
 using UnityEngine;
 
-namespace Container.Crane.Sts.Net
+namespace AIXRCrane.Crane.Sts.Net
 {
     /// <summary>
     /// (선택) 같은 와이파이에서 호스트를 자동으로 찾는 UDP 브로드캐스트 비콘.
@@ -12,7 +12,7 @@ namespace Container.Crane.Sts.Net
     ///   - 관전자: 비콘을 받으면 NetLanUI에 호스트 IP를 자동 입력(타이핑 불필요).
     /// 실패해도(특히 Quest/Android 브로드캐스트 제약) 게임에 영향 없도록 전부 try/catch. 안 되면 수동 IP 사용.
     /// </summary>
-    [AddComponentMenu("Container/Net/LAN Discovery")]
+    [AddComponentMenu("AI-XR Crane/Net/LAN Discovery")]
     [RequireComponent(typeof(NetLanUI))]
     [DisallowMultipleComponent]
     public sealed class LanDiscovery : MonoBehaviour

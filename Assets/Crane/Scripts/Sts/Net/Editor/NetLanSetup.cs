@@ -6,7 +6,7 @@ using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 
-namespace Container.Crane.Sts.Net.EditorTools
+namespace AIXRCrane.Crane.Sts.Net.EditorTools
 {
     /// <summary>
     /// LAN 멀티플레이 씬 배선을 한 번에 자동 구성:

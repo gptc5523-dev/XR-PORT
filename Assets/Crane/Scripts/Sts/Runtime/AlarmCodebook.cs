@@ -2,9 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
-using ContainerProject;
+using AIXRCrane;
 
-namespace Container.Crane.Sts
+namespace AIXRCrane.Crane.Sts
 {
     /// <summary>코드북 단일 항목(JSON 1행과 1:1). ㈜엠비이 코드북 MBE-DOC-2026-XR-002 #65.</summary>
     [Serializable]

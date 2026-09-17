@@ -4,7 +4,7 @@ using System.Text;
 using UnityEditor;
 using UnityEngine;
 
-namespace Container.Crane.Sts.EditorTools
+namespace AIXRCrane.Crane.Sts.EditorTools
 {
     /// <summary>
     /// 크레인 오브젝트 정밀 검사 — 렌더러 바운즈를 계산해 세 가지를 자동 탐지, 콘솔에 리스트로 출력한다.

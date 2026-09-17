@@ -3,9 +3,9 @@ using System.Text;
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.XR;          // InputDevices — Quest 컨트롤러 직접 읽기(기존 조종 컨트롤러와 동일 방식)
-using Container.Crane.Sts;     // CraneHud, StsCraneVRController
+using AIXRCrane.Crane.Sts;     // CraneHud, StsCraneVRController
 
-namespace Container.Crane.Sts.Net
+namespace AIXRCrane.Crane.Sts.Net
 {
     /// <summary>
     /// 접속 전, 사용자 눈앞에 뜨는 "시작 화면" — 호스트(조종) / 참가(관전)를 컨트롤러로 선택.
@@ -18,7 +18,7 @@ namespace Container.Crane.Sts.Net
     ///   - 접속되면(IsClient/IsServer) 메뉴를 숨기고, 호스트면 조종 컨트롤러를 다시 켠다(관전자는 꺼둔 채 유지)
     /// 씬에 안 붙여도 [RuntimeInitializeOnLoadMethod]로 자동 스폰. NetworkManager가 없으면 아무것도 안 한다.
     /// </summary>
-    [AddComponentMenu("Container/Net/Crane Net Menu HUD")]
+    [AddComponentMenu("AI-XR Crane/Net/Crane Net Menu HUD")]
     [DisallowMultipleComponent]
     public sealed class CraneNetMenuHUD : MonoBehaviour
     {

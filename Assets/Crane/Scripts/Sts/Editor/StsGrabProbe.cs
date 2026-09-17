@@ -5,13 +5,13 @@ using System.Text.RegularExpressions;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
-using Container.Crane.Sts.Plc;
+using AIXRCrane.Crane.Sts.Plc;
 
-namespace Container.Crane.Sts.EditorTools
+namespace AIXRCrane.Crane.Sts.EditorTools
 {
     /// <summary>
     /// 배치 검사 — 수동 집기(SpreaderGrabber.Grab, VR Y 버튼과 같은 경로)가 컨테이너를 제자리에서 그대로 매다는지.
-    ///   Unity -batchmode -nographics -projectPath . -executeMethod Container.Crane.Sts.EditorTools.StsGrabProbe.Run -logFile grab.log
+    ///   Unity -batchmode -nographics -projectPath . -executeMethod AIXRCrane.Crane.Sts.EditorTools.StsGrabProbe.Run -logFile grab.log
     /// 크레인마다 컨테이너 몇 개(STS = 위가 빈 배 컨테이너, RTG = 야드 40ft·20ft)에 트위스트락 중심을 윗면 중심에 맞추고 Grab() →
     ///   ① 그 컨테이너가 잡혔나 ② 잡는 순간 튀지 않았나(바운즈 중심 수평 이동 ≤ 0.015u, 윗면 높이 변화 ≤ 0.003u, 회전 변화 &lt; 1°)
     ///   ③ 트위스트락 중심 ↔ 바운즈 중심 수평 ≤ 0.015u ④ 들어 올린 뒤에도 ③·회전 유지. 전부 맞으면 종료 코드 0.

@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace Container.Crane.Sts
+namespace AIXRCrane.Crane.Sts
 {
     /// <summary>
     /// 붐호이스트 로프 — 정점 시브(고정)와 붐 브라이들(러핑 추종) 사이의 로프를 매 프레임 다시 그린다.
@@ -10,7 +10,7 @@ namespace Container.Crane.Sts
     /// 있으므로 '월드 좌표'를 공통 프레임으로 써서 실린더 로프를 두 점 사이로 배치한다.
     /// 물리 무관 kinematic 시각화(HoistRopeRig·TrolleyReevingRig와 동일 규약). [ExecuteAlways]로 에디터에서도 추종.
     /// </summary>
-    [AddComponentMenu("Container/STS Crane/Boom Hoist Rig")]
+    [AddComponentMenu("AI-XR Crane/STS Crane/Boom Hoist Rig")]
     [DisallowMultipleComponent]
     [ExecuteAlways]
     public sealed class BoomHoistRig : MonoBehaviour

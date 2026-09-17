@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace Container.Crane.Sts
+namespace AIXRCrane.Crane.Sts
 {
     /// <summary>
     /// 갠트리 주행범위(로컬 Z Min/Max)를 '씬의 부두 레일 + 크레인 바퀴 실측'으로 계산해 적용하는 런타임 SSOT.

@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace Container.Crane.Sts
+namespace AIXRCrane.Crane.Sts
 {
     /// <summary>
     /// 흔들림 물리 — 스프레더와 그 부모 사이에 노드(<see cref="NodeName"/>)를 끼우고 그 노드만 수평으로 옮긴다.

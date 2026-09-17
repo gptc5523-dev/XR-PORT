@@ -2,13 +2,13 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using Container.Ship;
-using ContainerProject;
-using ContainerProject.EditorTools;
+using AIXRCrane.Ship;
+using AIXRCrane;
+using AIXRCrane.EditorTools;
 using UnityEditor;
 using UnityEngine;
 
-namespace Container.Crane.Sts.EditorTools
+namespace AIXRCrane.Crane.Sts.EditorTools
 {
     /// <summary>
     /// 항구 부재 FBX 배치 — 블렌더에서 만든 부재를 씬에 깐다.
@@ -101,14 +101,14 @@ namespace Container.Crane.Sts.EditorTools
         const float  PawnHeightM   = 2.0f;    // 사람 키 — 멀리서도 자리가 보이게. Blender 빌드 스크립트 H 와 쌍이었다(스크립트는 현재 없음)
         const string ExitPawnName  = "ExitMarker_Pawn";
 
-        /// <summary>'나가는 존'(<see cref="Container.Crane.Sts.Net.ExitZone"/>) 자리를 빨간 체스말(폰 2m)로 표시 — 임시. 오너 요청 2026-09-16.
+        /// <summary>'나가는 존'(<see cref="AIXRCrane.Crane.Sts.Net.ExitZone"/>) 자리를 빨간 체스말(폰 2m)로 표시 — 임시. 오너 요청 2026-09-16.
         /// 자리는 런타임 존과 <b>같은 계산</b>을 쓴다 — 눈으로 본 자리와 실제 나가는 자리가 어긋나면 표시가 무의미하다.
         /// EditorOnly 태그라 빌드엔 안 들어간다(존 자체는 런타임에 자동 생성된다). 다시 누르면 교체, 치우려면 씬에서 지운다.</summary>
         [MenuItem("Model/FBX/항구/나가는 존 체스말 (임시)", false, 8)]
         static void PlaceExitPawn()
         {
-            if (!Container.Crane.Sts.Net.ExitZone.TryComputeCenter(
-                    Container.Crane.Sts.Net.ExitZone.DefaultInsetMeters, out Vector3 c))
+            if (!AIXRCrane.Crane.Sts.Net.ExitZone.TryComputeCenter(
+                    AIXRCrane.Crane.Sts.Net.ExitZone.DefaultInsetMeters, out Vector3 c))
             {
                 EditorUtility.DisplayDialog("나가는 존 체스말",
                     "걷는 땅(부두)을 못 찾았습니다.\n안벽·야드를 먼저 배치하세요.", "확인");
@@ -149,7 +149,7 @@ namespace Container.Crane.Sts.EditorTools
         [MenuItem("Model/FBX/항구/리스폰 지점 체스말 (임시)", false, 9)]
         static void PlaceSpawnPawn()
         {
-            if (!Container.Crane.Sts.CranePlayerStartPlacer.TryComputeSpawnXZ(out Vector3 xz))
+            if (!AIXRCrane.Crane.Sts.CranePlayerStartPlacer.TryComputeSpawnXZ(out Vector3 xz))
             {
                 EditorUtility.DisplayDialog("리스폰 지점 체스말",
                     "시작 지점을 못 잡았습니다.\n시작 마커(CranePlayerStartPoint)도 걷는 땅(부두)도 없습니다.\n" +
@@ -196,7 +196,7 @@ namespace Container.Crane.Sts.EditorTools
                     "먼저 [리스폰 지점 체스말 (임시)] 로 체스말을 세운 뒤\n원하는 자리로 옮기고 다시 누르세요.", "확인");
                 return;
             }
-            var marker = Object.FindAnyObjectByType<Container.Crane.Sts.CranePlayerStartPoint>(FindObjectsInactive.Include);
+            var marker = Object.FindAnyObjectByType<AIXRCrane.Crane.Sts.CranePlayerStartPoint>(FindObjectsInactive.Include);
             GameObject mgo = marker != null ? marker.gameObject : GameObject.Find(StsPartNames.PlayerStartPoint);
             if (mgo == null)
             {

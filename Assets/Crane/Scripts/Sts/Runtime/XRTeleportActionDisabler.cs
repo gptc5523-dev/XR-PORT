@@ -3,7 +3,7 @@ using System;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
-namespace Container.Crane.Sts
+namespace AIXRCrane.Crane.Sts
 {
     /// <summary>
     /// XR 텔레포트 InputAction(이름에 "Teleport" 포함)을 Play 진입 시 자동 비활성화.

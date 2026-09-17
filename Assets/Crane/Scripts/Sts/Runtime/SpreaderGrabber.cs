@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace Container.Crane.Sts
+namespace AIXRCrane.Crane.Sts
 {
     /// <summary>
     /// 크레인 외부의 Rigidbody(=집을 수 있는 화물/컨테이너)를 트위스트락 콘 위치 기준으로 잡고/놓고,
@@ -14,7 +14,7 @@ namespace Container.Crane.Sts
     //   최악 1틱(0.02s) 어긋남이 생긴다. 계산상 그 진폭(공하 0.00225m, 운전실 시점 각크기 ~7.7~25.8 arcmin)이
     //   시각 인지 임계(1 arcmin)를 크게 초과해 떨림으로 보일 수 있으므로, order를 늦춰(50) 어긋남을 0으로 만든다.
     [DefaultExecutionOrder(50)]
-    [AddComponentMenu("Container/STS Crane/Spreader Grabber")]
+    [AddComponentMenu("AI-XR Crane/STS Crane/Spreader Grabber")]
     [RequireComponent(typeof(StsCrane))]
     [DisallowMultipleComponent]
     public sealed class SpreaderGrabber : MonoBehaviour
@@ -185,7 +185,7 @@ namespace Container.Crane.Sts
 
         void Start()
         {
-            floorTopY = ContainerProject.ContainerPhysicsStabilizer.FindFloorTopY(out _);
+            floorTopY = AIXRCrane.ContainerPhysicsStabilizer.FindFloorTopY(out _);
             CreateSpreaderPusher();   // 물리 충돌용 kinematic 콜라이더 부착(컨테이너 밀림/토플)
             // 이 줄이 Play 시 Console에 안 보이면 = SpreaderGrabber가 안 돌고 있는 것(컴파일/재생성 문제)
             if (debugLog)

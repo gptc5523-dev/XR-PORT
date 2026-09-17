@@ -1,4 +1,4 @@
-namespace Container.Crane.Sts.Plc
+namespace AIXRCrane.Crane.Sts.Plc
 {
     /// <summary>
     /// 가상 PLC(stopgap) — ㈜엠비이 PLCSIM Advanced(사양서 §7.1, 도착 대기) 전까지 동일 계약(<see cref="PlcSnapshot"/>)을

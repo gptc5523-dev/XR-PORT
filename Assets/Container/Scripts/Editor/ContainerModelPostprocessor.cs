@@ -3,7 +3,7 @@ using UnityEditor;
 using UnityEngine;
 // (StsConfig.ModelScale 은 더 이상 쓰지 않는다 — 1/24 는 Blender 익스포트에서 이미 적용됨)
 
-namespace ContainerProject.EditorTools
+namespace AIXRCrane.EditorTools
 {
     /// <summary>
     /// final_4 컨테이너 FBX·텍스처 임포트 규약을 코드로 고정한다.

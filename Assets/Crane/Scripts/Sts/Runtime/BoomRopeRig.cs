@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace Container.Crane.Sts
+namespace AIXRCrane.Crane.Sts
 {
     /// <summary>
     /// 호이스트 윗구간(트롤리 뒷면 ↔ 백리치 고정 앵커)을 매 프레임 갱신한다.
@@ -12,7 +12,7 @@ namespace Container.Crane.Sts
     ///
     /// 좌표계: 세그먼트·노드는 boom 로컬. boom-로컬 트롤리 앵커 = trolley.localPosition + trolleyLocal[f].
     /// </summary>
-    [AddComponentMenu("Container/STS Crane/Boom Rope Rig")]
+    [AddComponentMenu("AI-XR Crane/STS Crane/Boom Rope Rig")]
     [DisallowMultipleComponent]
     [ExecuteAlways]
     public sealed class BoomRopeRig : MonoBehaviour

@@ -1,9 +1,9 @@
 using System.Collections.Generic;
 using UnityEngine;
 using Procedural;
-using ContainerProject;   // ProceduralContainerMesh.Length40ft
+using AIXRCrane;   // ProceduralContainerMesh.Length40ft
 
-namespace Container.Ship
+namespace AIXRCrane.Ship
 {
     /// <summary>
     /// 컨테이너선 상부구조 절차 생성 — 2~4단계(솔리드 마스, 미세 디테일은 6단계).

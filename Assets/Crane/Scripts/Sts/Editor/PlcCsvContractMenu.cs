@@ -6,9 +6,9 @@ using System.Text;
 using System.Text.RegularExpressions;
 using UnityEditor;
 using UnityEngine;
-using Container.Crane.Sts;
+using AIXRCrane.Crane.Sts;
 
-namespace Container.Crane.Sts.EditorTools
+namespace AIXRCrane.Crane.Sts.EditorTools
 {
     /// <summary>
     /// PLC CSV 스키마 계약 검사 — Python 생성기와 C# 소비자 사이의 컬럼명 계약을 대조한다.

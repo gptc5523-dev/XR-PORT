@@ -2,7 +2,7 @@ using System.Text;
 using UnityEngine;
 using UnityEngine.UI;
 
-namespace Container.Crane.Sts
+namespace AIXRCrane.Crane.Sts
 {
     /// <summary>
     /// 모드 선택 패널 — HMD 시야 '우하단'에 고정되는 head-locked HUD.
@@ -12,7 +12,7 @@ namespace Container.Crane.Sts
     ///     두기 위해 카메라(HMD) 자식 '우하단' 고정으로 전환. StatusHUD/ControlHintsHUD와 동일한 패턴.
     /// 씬에 안 붙여도 [RuntimeInitializeOnLoadMethod]로 자동 스폰. 이미 있으면 스킵.
     /// </summary>
-    [AddComponentMenu("Container/STS Crane/Crane Mode Selector HUD")]
+    [AddComponentMenu("AI-XR Crane/STS Crane/Crane Mode Selector HUD")]
     [DisallowMultipleComponent]
     public sealed class CraneModeSelectorHUD : MonoBehaviour
     {

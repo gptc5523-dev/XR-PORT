@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace Container.Crane.Sts
+namespace AIXRCrane.Crane.Sts
 {
     /// <summary>
     /// 시작 위치 마커 — 이 오브젝트의 '위치'와 '바라보는 방향(파란 Z축, forward)'을 CranePlayerStartPlacer가
@@ -9,7 +9,7 @@ namespace Container.Crane.Sts
     ///   (좌표를 코드에 박지 않고 디자이너가 씬에서 직접 보고 맞추는 WYSIWYG 방식)
     /// 런타임에는 아무 일도 안 한다 — 순수 마커. 에디터에서만 기즈모로 보인다.
     /// </summary>
-    [AddComponentMenu("Container/STS Crane/Crane Player Start Point")]
+    [AddComponentMenu("AI-XR Crane/STS Crane/Crane Player Start Point")]
     [DisallowMultipleComponent]    public sealed class CranePlayerStartPoint : MonoBehaviour
     {
 #if UNITY_EDITOR

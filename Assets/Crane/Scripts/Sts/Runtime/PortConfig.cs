@@ -1,8 +1,8 @@
 using UnityEngine;
-using Container.Ship;
-using ContainerProject;
+using AIXRCrane.Ship;
+using AIXRCrane;
 
-namespace Container.Crane.Sts
+namespace AIXRCrane.Crane.Sts
 {
     /// <summary>
     /// 항구 치수 SSOT — 오너 확정 2026-09-07 "파나마스급 1선석".

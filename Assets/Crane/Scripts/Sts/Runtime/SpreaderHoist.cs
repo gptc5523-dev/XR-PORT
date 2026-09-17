@@ -1,12 +1,12 @@
 using UnityEngine;
 
-namespace Container.Crane.Sts
+namespace AIXRCrane.Crane.Sts
 {
     /// <summary>
     /// 스프레더(Spreader) Y축 호이스트 — 케이블을 감거나 풀어 상하 이동.
     /// X/Z는 TrolleyMover가 동기화하므로 여기서는 건드리지 않는다.
     /// </summary>
-    [AddComponentMenu("Container/STS Crane/Spreader Hoist")]
+    [AddComponentMenu("AI-XR Crane/STS Crane/Spreader Hoist")]
     [DisallowMultipleComponent]
     public sealed class SpreaderHoist : AxisMoverBase
     {

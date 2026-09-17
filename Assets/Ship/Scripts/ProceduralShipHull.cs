@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using Procedural;   // 공유 MeshBuilder (크레인·컨테이너와 동일 빌더)
 
-namespace Container.Ship
+namespace AIXRCrane.Ship
 {
     /// <summary>
     /// Post-Panamax 컨테이너선 '선체(Hull)' 절차적 메시 생성기 — 1단계(솔리드 우선).

@@ -2,9 +2,9 @@ using System.Collections.Generic;
 using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.XR.Interaction.Toolkit.Interactables;
-using Container.Crane.Sts;
+using AIXRCrane.Crane.Sts;
 
-namespace Container.Crane.Sts.Net
+namespace AIXRCrane.Crane.Sts.Net
 {
     /// <summary>
     /// STS 크레인 상태를 호스트(=조종자) → 모든 클라이언트(=관전자)로 단방향 동기화.
@@ -18,7 +18,7 @@ namespace Container.Crane.Sts.Net
     /// FindObjectOfType로 각 기기에서 자기 크레인을 찾으므로 무방). 같은 씬을 모두 로드하므로 씬 NetworkObject는
     /// 호스트 시작 시 자동 스폰된다.
     /// </summary>
-    [AddComponentMenu("Container/Net/Crane Net Sync")]
+    [AddComponentMenu("AI-XR Crane/Net/Crane Net Sync")]
     [DisallowMultipleComponent]
     public sealed class CraneNetSync : NetworkBehaviour
     {

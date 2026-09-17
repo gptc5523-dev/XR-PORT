@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace Container.Crane.Sts
+namespace AIXRCrane.Crane.Sts
 {
     /// <summary>
     /// **월드좌표 기반 동적 권상 로프** — 각 로프를 매 프레임(LateUpdate) 상단 앵커와 시브 **접선점** 사이에 실린더로 배치.
@@ -13,7 +13,7 @@ namespace Container.Crane.Sts
     /// top(앵커)은 트롤리 자식이라 횡행 추종, bottom(시브)은 스프레더 자식이라 권상 추종.
     /// 로컬축 가정 없음(월드좌표만) → bakeAxisConversion 임포트 프레임 무관. [ExecuteAlways].
     /// </summary>
-    [AddComponentMenu("Container/STS Crane/RTG Rope Dynamic")]
+    [AddComponentMenu("AI-XR Crane/STS Crane/RTG Rope Dynamic")]
     [ExecuteAlways]
     [DisallowMultipleComponent]
     public sealed class RtgRopeDynamic : MonoBehaviour

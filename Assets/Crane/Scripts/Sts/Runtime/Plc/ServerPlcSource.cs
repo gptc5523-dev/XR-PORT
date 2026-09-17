@@ -4,7 +4,7 @@ using System.Net.Http;
 using System.Threading;
 using UnityEngine;
 
-namespace Container.Crane.Sts.Plc
+namespace AIXRCrane.Crane.Sts.Plc
 {
     /// <summary>
     /// 통합서버 PLC 소스 — 서버(Server/xrcrane_db.py)에 쌓이는 스냅샷을 읽어 크레인을 움직인다.

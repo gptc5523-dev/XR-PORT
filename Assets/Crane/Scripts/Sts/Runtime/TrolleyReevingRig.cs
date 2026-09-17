@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace Container.Crane.Sts
+namespace AIXRCrane.Crane.Sts
 {
     /// <summary>
     /// 트롤리 추종 '리빙(reeving)' 케이블 — 트롤리가 붐을 주행하면 트롤리↔시브 구간과 시브 감김(wrap)을
@@ -14,7 +14,7 @@ namespace Container.Crane.Sts
     ///
     /// 좌표계: 모든 좌표·세그먼트는 boom 로컬. 가닥은 단일 z평면(트롤리는 X만 주행 → A.z=C.z 유지).
     /// </summary>
-    [AddComponentMenu("Container/STS Crane/Trolley Reeving Rig")]
+    [AddComponentMenu("AI-XR Crane/STS Crane/Trolley Reeving Rig")]
     [DisallowMultipleComponent]
     [ExecuteAlways]
     public sealed class TrolleyReevingRig : MonoBehaviour

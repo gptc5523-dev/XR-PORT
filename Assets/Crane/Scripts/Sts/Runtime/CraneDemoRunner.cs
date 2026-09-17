@@ -2,7 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace Container.Crane.Sts
+namespace AIXRCrane.Crane.Sts
 {
     /// <summary>
     /// 크레인 한 대의 시연 시나리오 — 컨테이너 5개를 옮기고, 다 옮기면 역순으로 제자리에 되돌리고, 반복한다.

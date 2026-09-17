@@ -1,8 +1,8 @@
 using UnityEngine;
 using UnityEditor;
-using Container.Crane.Sts;              // StsConfig, StsPartNames, TrolleyMover
+using AIXRCrane.Crane.Sts;              // StsConfig, StsPartNames, TrolleyMover
 
-namespace Container.Ship.EditorTools
+namespace AIXRCrane.Ship.EditorTools
 {
     /// <summary>
     /// 컨테이너선(ContainerShip)을 기존 STS 크레인·부두 안벽에 접안 정렬한다(오너 지시 2026-06-19, 방법 A).

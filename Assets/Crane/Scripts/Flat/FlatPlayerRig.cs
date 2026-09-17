@@ -1,7 +1,7 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
 
-namespace Container.Crane.Flat
+namespace AIXRCrane.Crane.Flat
 {
     /// <summary>
     /// 평면 모드 플레이어 리그 — VR의 XR Origin 자리를 대신한다(게임패드 이동·시선).
@@ -15,7 +15,7 @@ namespace Container.Crane.Flat
     /// [조작] 왼쪽 스틱 = 이동, 오른쪽 스틱 = 시선, LB/RB = 하강/상승, 왼쪽 스틱 누름 = 가속.
     ///   게임패드가 없을 때를 대비해 키보드 폴백(WASD·방향키·Q/E·Shift)도 둔다 — PC 검증용.
     /// </summary>
-    [AddComponentMenu("Container/Flat Mode/Flat Player Rig")]
+    [AddComponentMenu("AI-XR Crane/Flat Mode/Flat Player Rig")]
     [DisallowMultipleComponent]
     public sealed class FlatPlayerRig : MonoBehaviour
     {

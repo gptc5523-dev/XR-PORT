@@ -5,7 +5,7 @@ using UnityEditor;
 using UnityEngine;
 using UnityEngine.ProBuilder;
 
-namespace Container.Crane.Sts.EditorTools
+namespace AIXRCrane.Crane.Sts.EditorTools
 {
     /// <summary>
     /// 메뉴에서 RTG(Rubber-Tyred Gantry) 크레인 GameObject 계층을 자동 생성.

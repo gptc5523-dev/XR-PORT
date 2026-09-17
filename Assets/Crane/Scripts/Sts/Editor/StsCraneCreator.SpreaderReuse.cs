@@ -1,7 +1,7 @@
 #if UNITY_EDITOR
 using UnityEngine;
 
-namespace Container.Crane.Sts.EditorTools
+namespace AIXRCrane.Crane.Sts.EditorTools
 {
     /// <summary>
     /// STS 스프레더를 RTG 등 다른 크리에이터가 '그대로 복사(재사용)'하기 위한 공개 진입점.

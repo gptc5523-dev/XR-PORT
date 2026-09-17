@@ -1,8 +1,8 @@
 using UnityEngine;
 using UnityEngine.UI;
-using Container.Crane.Sts.Net;   // CraneNetSync(자식 네임스페이스) 참조
+using AIXRCrane.Crane.Sts.Net;   // CraneNetSync(자식 네임스페이스) 참조
 
-namespace Container.Crane.Sts
+namespace AIXRCrane.Crane.Sts
 {
     /// <summary>
     /// 크레인 활성 알람을 시야 '상단 중앙'에 크게 띄우는 공유 경보 배너.
@@ -14,7 +14,7 @@ namespace Container.Crane.Sts
     /// HMD 카메라 자식으로 붙어 머리를 돌려도 정면 상단에 고정(head-locked). 발생 시 심각도색 배경 + 펄스로 주의를 끈다.
     /// 씬 어디든 한 곳에 붙이면 됨(없으면 자동 스폰). crane을 비우면 자동 탐색.
     /// </summary>
-    [AddComponentMenu("Container/STS Crane/Crane Alarm HUD")]
+    [AddComponentMenu("AI-XR Crane/STS Crane/Crane Alarm HUD")]
     [DisallowMultipleComponent]
     public sealed class CraneAlarmHUD : MonoBehaviour
     {

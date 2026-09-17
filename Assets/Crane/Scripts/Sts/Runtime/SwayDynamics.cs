@@ -1,6 +1,6 @@
 using System;
 
-namespace Container.Crane.Sts
+namespace AIXRCrane.Crane.Sts
 {
     /// <summary>
     /// 매달린 화물(스프레더 + 컨테이너)의 흔들림 — 수평 두 축을 각각 작은 각 진자로 푼다. 실척 SI 단위.

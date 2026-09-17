@@ -1,13 +1,13 @@
 #if UNITY_EDITOR
 using System.Collections.Generic;
 using System.Linq;
-using ContainerProject.EditorTools;
+using AIXRCrane.EditorTools;
 using UnityEditor;
 using UnityEngine;
-using ContainerProject;                                       // ProceduralContainerMesh, ContainerPhysics
+using AIXRCrane;                                       // ProceduralContainerMesh, ContainerPhysics
 using UnityEngine.XR.Interaction.Toolkit.Interactables;       // XRGrabInteractable
 
-namespace Container.Ship.EditorTools
+namespace AIXRCrane.Ship.EditorTools
 {
     /// <summary>
     /// 컨테이너선 생성 에디터 메뉴 — 선체(1) + 해치(2) + 선수루(3) + 거주구·펀넬(4).
@@ -152,10 +152,10 @@ namespace Container.Ship.EditorTools
             // 프로브도 실제 배치와 '같은 보정'을 걸어 재야 한다 — 안 그러면 로그가 24배로 나와
             //   나중에 크기 오진을 부른다(2026-09-08 실측: 292.56m 로 찍혔다).
             var probe = (GameObject)PrefabUtility.InstantiatePrefab(src);
-            float pm = Container.Crane.Sts.EditorTools.RtgCraneFbxPlacer.CombinedBounds(probe).size.y;
+            float pm = AIXRCrane.Crane.Sts.EditorTools.RtgCraneFbxPlacer.CombinedBounds(probe).size.y;
             float pt = ProceduralContainerMesh.HeightStd * ShipConfig.ModelScale;
             if (pm > 1e-6f) probe.transform.localScale *= pt / pm;
-            var pb = Container.Crane.Sts.EditorTools.RtgCraneFbxPlacer.CombinedBounds(probe);
+            var pb = AIXRCrane.Crane.Sts.EditorTools.RtgCraneFbxPlacer.CombinedBounds(probe);
             Object.DestroyImmediate(probe);
 
             float ms = ShipConfig.ModelScale;
@@ -256,7 +256,7 @@ namespace Container.Ship.EditorTools
             var go = (GameObject)PrefabUtility.InstantiatePrefab(src);
             go.name = name;
             go.transform.SetParent(parent, false);
-            float m = Container.Crane.Sts.EditorTools.RtgCraneFbxPlacer.CombinedBounds(go).size.y;
+            float m = AIXRCrane.Crane.Sts.EditorTools.RtgCraneFbxPlacer.CombinedBounds(go).size.y;
             float t = ProceduralContainerMesh.HeightStd * ms;
             if (m > 1e-6f) go.transform.localScale *= t / m;
 
@@ -267,7 +267,7 @@ namespace Container.Ship.EditorTools
             //   반 통(2.591/2 = 1.296m) 만큼 떠오른다. LOD 가 바뀌는 순간 컨테이너가 튀어오른다.
             //   피봇을 바운즈 중앙으로 통일하면 어느 규약이든 같은 자리에 앉는다.
             go.transform.position += parent.position
-                - Container.Crane.Sts.EditorTools.RtgCraneFbxPlacer.CombinedBounds(go).center;
+                - AIXRCrane.Crane.Sts.EditorTools.RtgCraneFbxPlacer.CombinedBounds(go).center;
             return go;
         }
 

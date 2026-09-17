@@ -3,7 +3,7 @@ using System.Text;
 using UnityEngine;
 using UnityEngine.UI;
 
-namespace Container.Crane.Sts
+namespace AIXRCrane.Crane.Sts
 {
     /// <summary>
     /// 크레인 부품을 가리키는 3D 월드 말풍선(빌보드 + 지시선 callout).
@@ -14,7 +14,7 @@ namespace Container.Crane.Sts
     ///   - 스프레더: 적재/하중(t)/잠금 · 트롤리·갠트리: 위치%/속도(m/min) · 고정: 이름+역할
     /// 씬에 안 붙여도 [RuntimeInitializeOnLoadMethod]로 자동 스폰. 이미 있으면 스킵.
     /// </summary>
-    [AddComponentMenu("Container/STS Crane/Crane Part Labels")]
+    [AddComponentMenu("AI-XR Crane/STS Crane/Crane Part Labels")]
     [DisallowMultipleComponent]
     public sealed class CranePartLabels : MonoBehaviour
     {
@@ -256,9 +256,9 @@ namespace Container.Crane.Sts
                         float t = attach.AttachedMassKg / 1000f;
                         if (t > 0.05f)
                         {
-                            var g = ContainerProject.ContainerLoad.Grade(t);
-                            string hex = ColorUtility.ToHtmlStringRGB(ContainerProject.ContainerLoad.GradeColor(g));
-                            sb.AppendLine($"하중 <color=#{hex}>{t:0.#} t — {ContainerProject.ContainerLoad.GradeLabel(g)}</color>");
+                            var g = AIXRCrane.ContainerLoad.Grade(t);
+                            string hex = ColorUtility.ToHtmlStringRGB(AIXRCrane.ContainerLoad.GradeColor(g));
+                            sb.AppendLine($"하중 <color=#{hex}>{t:0.#} t — {AIXRCrane.ContainerLoad.GradeLabel(g)}</color>");
                         }
                         else sb.AppendLine("<color=#7FFF7F>적재 중</color>");
                         // 잠금 상태는 애니메이터(지령값)로만 판정. 없으면 '불명(--)' — 컨테이너 유무로 추정 금지(미체결을 OK로 오표시→안전 위험).

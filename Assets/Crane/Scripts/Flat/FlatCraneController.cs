@@ -1,8 +1,8 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
-using Container.Crane.Sts;
+using AIXRCrane.Crane.Sts;
 
-namespace Container.Crane.Flat
+namespace AIXRCrane.Crane.Flat
 {
     /// <summary>
     /// 평면 모드 크레인 조작 — 게임패드로 트롤리·호이스트·갠트리를 움직이고 집기/놓기를 한다.
@@ -22,7 +22,7 @@ namespace Container.Crane.Flat
     ///   SpreaderGrabber 의 통과방지 클램프(DefaultExecutionOrder 50)와 같은 박자여야 한다.
     ///   입력 샘플링은 Update, 운전실 시점 추종은 LateUpdate(한 프레임 어긋남 방지) — VR 쪽과 동일한 규약.
     /// </summary>
-    [AddComponentMenu("Container/Flat Mode/Flat Crane Controller")]
+    [AddComponentMenu("AI-XR Crane/Flat Mode/Flat Crane Controller")]
     [DisallowMultipleComponent]
     public sealed class FlatCraneController : MonoBehaviour
     {

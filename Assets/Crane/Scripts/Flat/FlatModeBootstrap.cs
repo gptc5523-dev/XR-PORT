@@ -1,9 +1,9 @@
 using System.Collections;
 using UnityEngine;
 using UnityEngine.XR;
-using Container.Crane.Sts;
+using AIXRCrane.Crane.Sts;
 
-namespace Container.Crane.Flat
+namespace AIXRCrane.Crane.Flat
 {
     /// <summary>
     /// 평면(비-VR) 모드 부팅 분기 — XREAL One Pro 등 '대형 화면'으로 볼 때 쓰는 경로.
@@ -16,13 +16,13 @@ namespace Container.Crane.Flat
     /// [판정] XR 로더가 실제로 물려 있으면(헤드셋 연결) 아무 것도 하지 않고 VR 경로를 그대로 둔다.
     ///   XR이 안 뜨면(PC·전용폰에서 안경만 연결) 평면 리그를 띄운다. 강제 지정도 가능:
     ///     실행 인자  -flat / -vr        (빌드·에디터 공통)
-    ///     PlayerPrefs "Container.FlatMode.Force"  0=자동 1=평면강제 2=VR강제
+    ///     PlayerPrefs "AIXRCrane.FlatMode.Force"  0=자동 1=평면강제 2=VR강제
     ///
     /// [기존 시스템과의 접합] 평면 리그의 카메라에 MainCamera 태그를 달고 리그 루트를 최상위에 둔다.
     ///   그러면 CranePlayerStartPlacer(부두 안 배치)·CranePlayerRigScale(1/24 축소)이
     ///   Camera.main.transform.root 를 통해 평면 리그를 '그냥' 인식한다 — 그쪽 코드 수정 불필요.
     /// </summary>
-    [AddComponentMenu("Container/Flat Mode/Flat Mode Bootstrap")]
+    [AddComponentMenu("AI-XR Crane/Flat Mode/Flat Mode Bootstrap")]
     [DisallowMultipleComponent]
     public sealed class FlatModeBootstrap : MonoBehaviour
     {
@@ -30,7 +30,7 @@ namespace Container.Crane.Flat
         public static bool Active { get; private set; }
 
         /// <summary>강제 모드 PlayerPrefs 키 — 0=자동, 1=평면 강제, 2=VR 강제. 에디터 메뉴가 이 값을 쓴다.</summary>
-        public const string ForcePrefKey = "Container.FlatMode.Force";
+        public const string ForcePrefKey = "AIXRCrane.FlatMode.Force";
 
         [Tooltip("XR(헤드셋)이 늦게 올라올 수 있어, 이 프레임 수만큼 기다렸다가 없으면 평면으로 판정한다.")]
         [SerializeField] int xrWaitFrames = 60;

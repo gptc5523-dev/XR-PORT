@@ -1,16 +1,16 @@
 using System.Collections.Generic;
 using System.Text;
 using UnityEngine;
-using ContainerProject;
+using AIXRCrane;
 
-namespace Container.Crane.Sts
+namespace AIXRCrane.Crane.Sts
 {
     /// <summary>
     /// 부두 컨테이너 인식 — 가상 PLC 1단계(인식만, 구동 없음).
     /// 씬의 '집을 수 있는' 자유 강체(컨테이너)를 스캔해 위치·규격(20/40ft)·무게·등급·ID를 인식·보고한다.
     /// 크레인 부속(차체·스프레더 등)은 제외. PLC가 작업 전 "무엇이 어디에 있는지" 파악하는 단계에 해당.
     /// </summary>
-    [AddComponentMenu("Container/STS Crane/Quay Container Scanner (부두 인식)")]
+    [AddComponentMenu("AI-XR Crane/STS Crane/Quay Container Scanner (부두 인식)")]
     [DisallowMultipleComponent]
     public sealed class QuayContainerScanner : MonoBehaviour
     {

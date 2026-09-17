@@ -2,9 +2,9 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
 using UnityEngine;
-using Container.Crane.Sts.Plc;
+using AIXRCrane.Crane.Sts.Plc;
 
-namespace Container.Crane.Sts
+namespace AIXRCrane.Crane.Sts
 {
     /// <summary>
     /// 시연 시나리오 총괄 — 오너 지시 2026-09-14: "서버에 처음 접속할 때 크레인들이 움직여야 됨. RTG·STS 가 각 컨테이너

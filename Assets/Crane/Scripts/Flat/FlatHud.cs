@@ -1,8 +1,8 @@
 using UnityEngine;
 using UnityEngine.UI;
-using Container.Crane.Sts;
+using AIXRCrane.Crane.Sts;
 
-namespace Container.Crane.Flat
+namespace AIXRCrane.Crane.Flat
 {
     /// <summary>
     /// 평면 모드 HUD — 화면 고정(Screen Space Overlay).
@@ -16,7 +16,7 @@ namespace Container.Crane.Flat
     /// 갱신은 CraneHud.TextHz(8Hz)로 스로틀하고, 문자열이 바뀔 때만 대입해 캔버스 리빌드를 줄인다
     /// (VR HUD들과 같은 규약).
     /// </summary>
-    [AddComponentMenu("Container/Flat Mode/Flat HUD")]
+    [AddComponentMenu("AI-XR Crane/Flat Mode/Flat HUD")]
     [DisallowMultipleComponent]
     public sealed class FlatHud : MonoBehaviour
     {

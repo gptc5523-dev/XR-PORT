@@ -1,8 +1,8 @@
 using UnityEditor;
 using UnityEngine;
-using Container.Crane.Flat;
+using AIXRCrane.Crane.Flat;
 
-namespace Container.Crane.Flat.EditorTools
+namespace AIXRCrane.Crane.Flat.EditorTools
 {
     /// <summary>
     /// 평면 모드(XREAL One Pro·모니터) 강제 지정 메뉴 — 기본은 '자동'(헤드셋이 붙어 있으면 VR).

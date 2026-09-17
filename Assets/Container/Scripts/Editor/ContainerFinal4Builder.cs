@@ -4,7 +4,7 @@ using System.IO;
 using UnityEditor;
 using UnityEngine;
 
-namespace ContainerProject.EditorTools
+namespace AIXRCrane.EditorTools
 {
     /// <summary>
     /// New Final 4종(20ft · 40ft · 40ftHC · 45ftHC) FBX 를 씬에 꺼내 쓰는 메뉴.
@@ -68,7 +68,7 @@ namespace ContainerProject.EditorTools
             if (sv != null) sv.FrameSelected();
 
             var b = Bound(go);
-            float inv = 1f / Container.Crane.Sts.StsConfig.ModelScale;   // 모델 단위 → 실척 m
+            float inv = 1f / AIXRCrane.Crane.Sts.StsConfig.ModelScale;   // 모델 단위 → 실척 m
             int missing = 0;
             foreach (var r in go.GetComponentsInChildren<MeshRenderer>(true))
                 foreach (var m in r.sharedMaterials)

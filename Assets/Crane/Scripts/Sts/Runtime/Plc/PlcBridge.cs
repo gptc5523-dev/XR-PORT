@@ -1,7 +1,7 @@
 using System.IO;
 using UnityEngine;
 
-namespace Container.Crane.Sts.Plc
+namespace AIXRCrane.Crane.Sts.Plc
 {
     /// <summary>
     /// PLC ↔ 크레인 다리(문서/PLC.md §5.2) — <see cref="IPlcSource"/>의 스냅샷을 기존 교체 지점에 흘려보낸다.
@@ -15,7 +15,7 @@ namespace Container.Crane.Sts.Plc
     /// </summary>
     // H4: PLC 출력(축 구동)은 가속 측정(CraneOpMode)보다 먼저 실행돼야 같은 입력이 같은 가속·알람을 낸다.
     [DefaultExecutionOrder(-100)]
-    [AddComponentMenu("Container/STS Crane/PLC Bridge (가상·실 PLC 시임)")]
+    [AddComponentMenu("AI-XR Crane/STS Crane/PLC Bridge (가상·실 PLC 시임)")]
     [RequireComponent(typeof(StsCrane))]
     [DisallowMultipleComponent]
     public sealed class PlcBridge : MonoBehaviour

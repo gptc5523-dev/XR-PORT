@@ -1,7 +1,7 @@
 using System.Text;
 using UnityEngine;
 
-namespace Container.Crane.Sts
+namespace AIXRCrane.Crane.Sts
 {
     /// <summary>
     /// QA 판정용 콘솔 로그 단일 포맷기 — 외부 QA 팀 시나리오(문서/QA_테스트시나리오.md) 검증용.

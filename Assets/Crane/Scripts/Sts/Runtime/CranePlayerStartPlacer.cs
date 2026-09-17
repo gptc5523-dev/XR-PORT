@@ -1,7 +1,7 @@
 using UnityEngine;
 using Unity.Netcode;   // 접속 완료 후 1회 재배치(클라이언트가 원점에 방치되는 것 방지). Assembly-CSharp가 Netcode를 참조하므로 사용 가능.
 
-namespace Container.Crane.Sts
+namespace AIXRCrane.Crane.Sts
 {
     /// <summary>
     /// 시작 위치 배치 — 씬 진입 시(그리고 네트워크 접속 직후) 로컬 플레이어 리그(XR Origin)를 시작 지점으로 옮긴다.
@@ -19,7 +19,7 @@ namespace Container.Crane.Sts
     /// 마커는 'Container > Create Player Start Point' 메뉴로 만들어 씬에 두면 된다.
     /// 씬에 안 붙여도 [RuntimeInitializeOnLoadMethod]로 자동 스폰.
     /// </summary>
-    [AddComponentMenu("Container/STS Crane/Crane Player Start Placer")]
+    [AddComponentMenu("AI-XR Crane/STS Crane/Crane Player Start Placer")]
     [DisallowMultipleComponent]
     public sealed class CranePlayerStartPlacer : MonoBehaviour
     {
@@ -43,7 +43,7 @@ namespace Container.Crane.Sts
 
         // 이탈 차단(LateUpdate) 캐시 — 매 프레임 GameObject.Find/FindAnyObjectByType 을 돌지 않게 보관.
         Bounds landCache; bool haveLand;   // 땅은 런타임에 안 움직인다 — 한 번 구하면 끝
-        Container.Crane.Flat.FlatPlayerRig flatCache;
+        AIXRCrane.Crane.Flat.FlatPlayerRig flatCache;
         float nextRefind;           // 캐시가 비었을 때만 이 시각 이후 재탐색.
         bool clampActive;           // 이탈 차단 중 — 엣지에서만 로그(매 프레임 스팸 방지).
 
@@ -104,7 +104,7 @@ namespace Container.Crane.Sts
             if (Time.unscaledTime < nextRefind) return;
             nextRefind = Time.unscaledTime + 1f;
             if (!haveLand) haveLand = TryGetLand(out landCache);
-            if (flatCache == null) flatCache = FindAnyObjectByType<Container.Crane.Flat.FlatPlayerRig>();
+            if (flatCache == null) flatCache = FindAnyObjectByType<AIXRCrane.Crane.Flat.FlatPlayerRig>();
         }
 
         void Update()

@@ -3,7 +3,7 @@ using System.Globalization;
 using System.IO;
 using UnityEngine;
 
-namespace Container.Crane.Sts.Plc
+namespace AIXRCrane.Crane.Sts.Plc
 {
     /// <summary>
     /// PLC 재생에 화물을 붙인다 — PlcBridge 는 축만 움직여서 스프레더가 빈손으로 오갔다.
@@ -27,7 +27,7 @@ namespace Container.Crane.Sts.Plc
     ///   이 컴포넌트는 PlcBridge 가 CSV 재생일 때 스스로 붙인다 — 씬에 저장돼 있지 않아도 된다.
     /// </summary>
     [DefaultExecutionOrder(-90)]   // PlcBridge(-100)가 축을 옮긴 뒤 · SpreaderGrabber(50) 클램프 전
-    [AddComponentMenu("Container/STS Crane/PLC 화물 재생 (작업 이력)")]
+    [AddComponentMenu("AI-XR Crane/STS Crane/PLC 화물 재생 (작업 이력)")]
     [RequireComponent(typeof(PlcBridge))]
     [DisallowMultipleComponent]
     public sealed class PlcCargoReplay : MonoBehaviour

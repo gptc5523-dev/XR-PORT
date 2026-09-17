@@ -6,11 +6,11 @@ using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 
-namespace Container.Crane.Sts.EditorTools
+namespace AIXRCrane.Crane.Sts.EditorTools
 {
     /// <summary>
     /// 야드 칸(라인) 정렬 실측 — 오너 2026-09-16 "컨테이너 내릴 때 바닥 라인 안 지키고 그냥 내려놓는다. 수식으로 계산해서 수정".
-    ///   Unity -batchmode -nographics -projectPath &lt;클론&gt; -executeMethod Container.Crane.Sts.EditorTools.YardSnapProbe.Run -logFile &lt;log&gt;
+    ///   Unity -batchmode -nographics -projectPath &lt;클론&gt; -executeMethod AIXRCrane.Crane.Sts.EditorTools.YardSnapProbe.Run -logFile &lt;log&gt;
     ///
     /// 두 가지를 잰다(플레이 모드 없이 씬만 열어서 — 몇 초).
     ///   ① 씬에 실제로 놓인 야드 컨테이너가 <b>PortConfig 수식으로 유도한 칸 격자</b> 위에 있는가.

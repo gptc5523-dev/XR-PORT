@@ -2,7 +2,7 @@
 using UnityEditor;
 using UnityEngine;
 
-namespace ContainerProject.EditorTools
+namespace AIXRCrane.EditorTools
 {
     /// <summary>
     /// Unity 에디터는 보안상 Android 키스토어/키 비밀번호를 프로젝트에 저장하지 않아

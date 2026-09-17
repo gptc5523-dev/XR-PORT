@@ -1,8 +1,8 @@
-namespace Container.Crane.Sts.Plc
+namespace AIXRCrane.Crane.Sts.Plc
 {
     /// <summary>PLC <b>제어모드</b> — ㈜엠비이 데이터포인트리스트 OP_Mode 태그(DB100.DBW130)의 값(수동/반자동/자동/정비).
     /// ※ 명칭 주의: 이건 '제어모드'다. 크레인 <b>운영상태</b>(운전/정지/이상)는 별개 타입
-    ///   <see cref="Container.Crane.Sts.OpMode"/>(컴포넌트 CraneOpMode)이며 혼동 금지 — 과거 둘 다 'OpMode'라 꼬였음.
+    ///   <see cref="AIXRCrane.Crane.Sts.OpMode"/>(컴포넌트 CraneOpMode)이며 혼동 금지 — 과거 둘 다 'OpMode'라 꼬였음.
     ///   CSV/PLC 태그명은 벤더 사양이라 OP_Mode를 유지하고, C# 명칭만 ControlMode로 분리한다.</summary>
     public enum PlcControlMode { Manual = 0, Semi = 1, Auto = 2, Maintenance = 3 }
 

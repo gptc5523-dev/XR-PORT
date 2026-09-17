@@ -2,7 +2,7 @@
 using UnityEditor;
 using UnityEngine;
 
-namespace Container.Crane.Sts.EditorTools
+namespace AIXRCrane.Crane.Sts.EditorTools
 {
     /// <summary>
     /// 시작 위치 마커(CranePlayerStartPoint)를 만들거나 선택해 주는 메뉴.

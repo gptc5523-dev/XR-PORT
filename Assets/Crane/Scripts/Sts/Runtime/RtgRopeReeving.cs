@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace Container.Crane.Sts
+namespace AIXRCrane.Crane.Sts
 {
     /// <summary>
     /// **곡선 포함 동적 권상 리빙** — 코너마다 로프를 LineRenderer로 매 프레임 그린다.
@@ -13,7 +13,7 @@ namespace Container.Crane.Sts
     /// (회전축 = 시브 로컬 X)에서 두 접선점을 **긴 쪽(바닥 통과)** 으로 잇는 원호. 시브(스프레더)에
     /// 붙어 권상 시 두 직선 다리가 늘어나고 호는 시브 따라 이동. 월드좌표라 임포트 프레임 무관.
     /// </summary>
-    [AddComponentMenu("Container/STS Crane/RTG Rope Reeving")]
+    [AddComponentMenu("AI-XR Crane/STS Crane/RTG Rope Reeving")]
     [ExecuteAlways]
     [DisallowMultipleComponent]
     public sealed class RtgRopeReeving : MonoBehaviour

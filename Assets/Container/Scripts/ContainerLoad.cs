@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace ContainerProject
+namespace AIXRCrane
 {
     /// <summary>컨테이너 하중 상태 등급(정상/주의/이상).</summary>
     public enum LoadGrade { Normal, Caution, Over }

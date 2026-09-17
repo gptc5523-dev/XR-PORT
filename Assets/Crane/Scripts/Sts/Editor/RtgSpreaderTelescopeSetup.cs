@@ -2,14 +2,14 @@
 using UnityEditor;
 using UnityEngine;
 
-namespace Container.Crane.Sts.EditorTools
+namespace AIXRCrane.Crane.Sts.EditorTools
 {
     /// <summary>
     /// FBX RTG 크레인 스프레더에 **텔레스코픽 신축(20/40/45ft) 드라이버**를 붙이고 배선한다.
     /// 「Model ▸ FBX ▸ 크레인 ▸ RTG 크레인 생성」이 자동 호출한다(수동 메뉴 없음).
     ///
     /// 빔을 스케일하지 않고 TeleBeam_F/B를 신축축으로 슬라이드(끝빔·트위스트락·플리퍼는 자식이라 자동 추종).
-    /// 신축축·스케일은 <see cref="Container.Crane.Sts.RtgSpreaderTelescope"/>가 빔 위치에서 자동 산출하므로
+    /// 신축축·스케일은 <see cref="AIXRCrane.Crane.Sts.RtgSpreaderTelescope"/>가 빔 위치에서 자동 산출하므로
     /// 하드코딩 없음. 배선 후 「스프레더 20ft로 줄이기 / 40ft로 늘이기」 메뉴나 스프레더의 RtgSpreaderTelescope에서
     /// Size를 바꿔(컨텍스트메뉴 'Cycle') 20↔40↔45 신축을 **반드시 눈으로 확인**한다 — 자동배선이어도 검증은 남는다.
     /// </summary>
@@ -94,7 +94,7 @@ namespace Container.Crane.Sts.EditorTools
             if (crane == null || FindDeep(crane.transform, "Spreader") == null)
                 crane = GameObject.Find(CraneName);
             var spreader = crane != null ? FindDeep(crane.transform, "Spreader") : null;
-            var la = spreader != null ? spreader.GetComponent<Container.Crane.Sts.SpreaderLockAnimator>() : null;
+            var la = spreader != null ? spreader.GetComponent<AIXRCrane.Crane.Sts.SpreaderLockAnimator>() : null;
             if (la == null)
             {
                 Dialog("먼저 'RTG 크레인 생성'을 실행하세요. (SpreaderLockAnimator 미배선)");

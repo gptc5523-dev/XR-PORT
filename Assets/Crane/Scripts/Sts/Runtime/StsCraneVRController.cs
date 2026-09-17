@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.XR;            // InputDevices — Quest 컨트롤러 직접 읽기(OpenXR 액션 에셋 비의존)
 
-namespace Container.Crane.Sts
+namespace AIXRCrane.Crane.Sts
 {
     /// <summary>
     /// VR 컨트롤러(Quest)로 STS 크레인을 수동 조종. 입력은 UnityEngine.XR.InputDevices로 직접 읽음
@@ -20,7 +20,7 @@ namespace Container.Crane.Sts
     /// A 버튼(오른손 주): 운전/갠트리 모드일 때 운전실 시점(운전실 좌석 눈높이로 이동·스프레더 향, 고개 숙여 내려다봄) 토글.
     /// 운전/갠트리 모드일 때만 씬의 XR 로코모션을 끄고, 이동모드면 복구한다.
     /// </summary>
-    [AddComponentMenu("Container/STS Crane/STS Crane VR Controller")]
+    [AddComponentMenu("AI-XR Crane/STS Crane/STS Crane VR Controller")]
     [RequireComponent(typeof(StsCrane))]
     [DisallowMultipleComponent]
     public sealed class StsCraneVRController : MonoBehaviour

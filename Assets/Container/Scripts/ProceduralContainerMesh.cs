@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using Procedural;   // 공유 MeshBuilder (ProceduralCraneMesh와 중복이던 것을 합침)
 
-namespace ContainerProject
+namespace AIXRCrane
 {
     /// <summary>
     /// 20ft Dry 컨테이너 절차적 메시 생성기.

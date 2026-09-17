@@ -2,7 +2,7 @@
 using UnityEditor;
 using UnityEngine;
 
-namespace Container.Crane.Sts.EditorTools
+namespace AIXRCrane.Crane.Sts.EditorTools
 {
     /// <summary>
     /// Blender 임포트 RTG 크레인("RTG 크레인")에 **핵심 구동 무버**를 붙이고 배선한다.

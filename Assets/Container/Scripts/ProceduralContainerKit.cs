@@ -2,7 +2,7 @@ using System;
 using UnityEngine;
 using Procedural;   // 공유 MeshBuilder
 
-namespace ContainerProject
+namespace AIXRCrane
 {
     /// <summary>
     /// 분해형(파트 분리) 20ft 컨테이너 생성기.

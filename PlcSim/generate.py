@@ -133,7 +133,7 @@ class Axis:
 
 def iso6346(owner, serial):
     """ISO 6346 컨테이너 번호 = 소유자코드 4자 + 일련번호 6자리 + 검사숫자.
-    문자값은 A=10 부터 11의 배수(11·22·33)를 건너뛴다. 소유자코드 XRPU 는 가상(XR PORT)."""
+    문자값은 A=10 부터 11의 배수(11·22·33)를 건너뛴다. 소유자코드 XRPU 는 가상(AI-XR Crane)."""
     code = f"{owner}{serial:06d}"
     letters = [v for v in range(10, 39) if v % 11]
     s = sum((int(c) if c.isdigit() else letters[ord(c) - 65]) << i for i, c in enumerate(code))

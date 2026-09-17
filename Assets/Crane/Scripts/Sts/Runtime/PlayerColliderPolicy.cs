@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace Container.Crane.Sts
+namespace AIXRCrane.Crane.Sts
 {
     /// <summary>
     /// 플레이어(로컬 XR 리그)가 야드 컨테이너·크레인을 물리적으로 밀지 않게 한다.
@@ -19,7 +19,7 @@ namespace Container.Crane.Sts
     ///     원격 플레이어는 시각 아바타가 없어(제거됨) 남의 표현이 내 씬 물리에 개입하지 않음.
     ///   ※ 트리거는 안 건드림(끄면 손 집기/포크 UI가 깨짐). 솔리드만 끈다.
     /// </summary>
-    [AddComponentMenu("Container/STS Crane/Player Collider Policy")]
+    [AddComponentMenu("AI-XR Crane/STS Crane/Player Collider Policy")]
     [DisallowMultipleComponent]
     public sealed class PlayerColliderPolicy : MonoBehaviour
     {

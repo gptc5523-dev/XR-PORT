@@ -1,7 +1,7 @@
 using TMPro;
 using UnityEngine;
 
-namespace ContainerProject
+namespace AIXRCrane
 {
     /// <summary>
     /// 컨테이너 프리팹 인스턴스. 스폰 시점에 번호·색상을 적용한다.

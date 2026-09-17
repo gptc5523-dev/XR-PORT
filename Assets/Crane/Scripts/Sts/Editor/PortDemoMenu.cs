@@ -4,13 +4,13 @@ using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 
-namespace Container.Crane.Sts.EditorTools
+namespace AIXRCrane.Crane.Sts.EditorTools
 {
     /// <summary>
     /// 시연 시나리오(<see cref="PortDemoDirector"/>) 에디터 스위치 + 배치모드 스모크 실행기.
     ///   메뉴를 체크하면 에디터 ▶Play 에서도 시나리오가 돈다(빌드는 항상). 끄면 PLC·KPI 작업 그대로.
     ///   스모크(에디터 닫고):
-    ///     Unity -batchmode -nographics -projectPath . -executeMethod Container.Crane.Sts.EditorTools.PortDemoMenu.SmokeRun -logFile smoke.log
+    ///     Unity -batchmode -nographics -projectPath . -executeMethod AIXRCrane.Crane.Sts.EditorTools.PortDemoMenu.SmokeRun -logFile smoke.log
     ///     Port 씬을 10배속으로 돌려, 계획이 선 크레인마다 '놓기' 10회(옮기고 되돌리기)가 나오고 러너의 수식 검증
     ///     (CraneDemoRunner.Violations — 집기 정렬·안착·겹침·축 한계) 위반이 0 이면 0, 아니면·시간 초과·시나리오 예외면 1 로 종료.
     /// </summary>

@@ -2,7 +2,7 @@ using System.IO;
 using System.Text;
 using UnityEngine;
 
-namespace Container.Crane.Sts.Plc
+namespace AIXRCrane.Crane.Sts.Plc
 {
     /// <summary>
     /// 평가지표 2 — "XR 3D 위치·동작 표시 정확도" 측정 하니스 (1차년도 비중 30%).
@@ -31,7 +31,7 @@ namespace Container.Crane.Sts.Plc
     /// </summary>
     // PlcBridge(-100)가 축을 구동한 뒤에 읽어야 같은 틱의 지령↔결과가 짝이 맞는다.
     [DefaultExecutionOrder(100)]
-    [AddComponentMenu("Container/STS Crane/KPI 지표2 (위치·동작 정확도)")]
+    [AddComponentMenu("AI-XR Crane/STS Crane/KPI 지표2 (위치·동작 정확도)")]
     [RequireComponent(typeof(PlcBridge))]
     [DisallowMultipleComponent]
     public sealed class Kpi2PositionAccuracy : MonoBehaviour

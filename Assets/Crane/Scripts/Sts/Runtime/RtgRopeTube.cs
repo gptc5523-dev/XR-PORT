@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace Container.Crane.Sts
+namespace AIXRCrane.Crane.Sts
 {
     /// <summary>
     /// **모양 유지 + 동적 신축 권상 로프** — Blender에서 모델링한 로프(Hoist_Rope_*)의 실측 굵기(Ø53mm=반경 0.0265m,
@@ -18,7 +18,7 @@ namespace Container.Crane.Sts
     /// 좌표계: 호스트(Reeving 그룹)의 월드 스케일이 1이 되도록(크레인 스케일 상쇄) 배치되어, 월드 반경이 정확히
     /// 보존된다. 정점은 월드에서 계산 후 <see cref="Transform.InverseTransformPoint"/>로 그룹 로컬로 변환한다.
     /// </summary>
-    [AddComponentMenu("Container/STS Crane/RTG Rope Tube")]
+    [AddComponentMenu("AI-XR Crane/STS Crane/RTG Rope Tube")]
     [ExecuteAlways]
     [DisallowMultipleComponent]
     public sealed class RtgRopeTube : MonoBehaviour
