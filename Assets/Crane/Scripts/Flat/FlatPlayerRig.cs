@@ -125,7 +125,13 @@ namespace AIXRCrane.Crane.Flat
         {
             transform.rotation = Quaternion.Euler(0f, yaw, 0f);
             appliedYaw = yaw;
-            if (cam != null) cam.transform.localRotation = Quaternion.Euler(pitch, 0f, 0f);
+            if (cam == null) return;
+            // 안경 고개 방향은 카메라에만 — VR 처럼 몸(리그 yaw·이동 방향)과 머리를 나눈다.
+            //   공간 마우스 비행은 카메라 광선을 따르므로 보는 쪽으로 난다. 안경이 없으면 0 이라 예전과 같다.
+            var head = XrealHeadTracker.Instance;
+            float hy = 0f, hp = 0f;
+            if (head != null && head.Connected) { hy = head.YawRightDeg; hp = head.PitchUpDeg; }
+            cam.transform.localRotation = Quaternion.Euler(0f, hy, 0f) * Quaternion.Euler(Mathf.Clamp(pitch - hp, -89f, 89f), 0f, 0f);
         }
 
         /// <summary>시점 버튼 — 카메라 눈이 eye 에 와서 lookAt 을 보도록 부드럽게 옮긴다.

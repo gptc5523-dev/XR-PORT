@@ -82,6 +82,9 @@ namespace AIXRCrane.Crane.Flat
             var rigGo = new GameObject("FlatPlayerRig");
             var rig = rigGo.AddComponent<FlatPlayerRig>();
 
+            // 안경이 이 기기에 꽂혀 있으면 고개로 둘러본다(없으면 조용히 기다림) — 평면·모바일 공통.
+            new GameObject("XrealHeadTracker").AddComponent<XrealHeadTracker>();
+
             Mobile = ResolveMobile();
             if (Mobile)
             {
