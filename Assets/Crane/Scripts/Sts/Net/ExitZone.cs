@@ -64,10 +64,14 @@ namespace AIXRCrane.Crane.Sts.Net
         ///   ★ <b>눈으로 맞추는 값</b>이라 손잡이로 남긴다 — 헤드셋에서 보고 이 숫자만 고치면 된다.</summary>
         const float SignScale = 30f;
 
-        /// <summary>표지판 방향 보정(도, 월드 Y 축). 오너 지시 2026-09-17 "표지판 90도로 돌리고".
-        ///   ★ <b>부호는 계산으로 못 정한다</b> — 어느 쪽에서 걸어와 보는지는 사람이 본다.
-        ///     반대로 돌아 있으면 −90 으로 바꾸면 끝나게 손잡이로 뺐다.</summary>
-        const float SignYawOffset = 90f;
+        /// <summary>표지판 방향 보정(도, 월드 Y 축) — 바라볼 곳을 정한 뒤 남는 미세 조정용 손잡이.
+        ///   ★ 2026-09-18 <b>90f → 0f</b>. 옛 값 90 은 "정면축을 모르니 사람이 보고 정한다"는 전제로 넣은
+        ///     것인데, 정면축은 <b>잴 수 있었다</b>: 블렌더 앞면 −Y 가 축 보정 Rx(−90) 뒤 유니티 <b>+Z</b> 가 되고
+        ///     (국소 (0,−1,0) → (x, z, −y) = (0,0,+1)), 그건 LookRotation 의 forward 와 같은 축이다.
+        ///     즉 보정 0 이라야 바라보는 곳을 정면으로 본다. 90 을 더한 탓에 표지판은 목표에서 <b>90° 빗나가</b>
+        ///     서 있었고(실측: 리스폰이 +X 인데 야우 180°, 정면 −Z), 오너가 "돌려"라고 말할 때까지 남아 있었다.
+        ///   ★ 손잡이는 남긴다 — 반대로 보이면 180 을, 옆으로 보이면 ±90 을 넣으면 끝난다.</summary>
+        const float SignYawOffset = 0f;   // 옛값 90f — 위 주석 참조
 
         /// <summary>표지판 실척 높이(m) — 표시판_빌드.py 의 H_TOTAL 과 같은 값.
         ///   ★ 이 값은 <b>목표</b>일 뿐 FBX 단위계를 가정하지 않는다. 실제 배율은 BuildSign 이 프리팹을
@@ -313,15 +317,17 @@ namespace AIXRCrane.Crane.Sts.Net
             float targetWorld = SignRealHeightMeters * SignScale * StsConfig.ModelScale;
             sign.transform.localScale = Vector3.one * (h > 1e-6f ? targetWorld / h : StsConfig.ModelScale);
 
-            // 리스폰 지점 쪽을 바라보게 — 걸어오는 사람 정면에 글자가 온다.
+            // RTG 크레인(야드 블록) 쪽을 바라보게 — 오너 지시 2026-09-18 "돌려 EXIT RTG 크레인을 보는 방향으로".
             //   블렌더 앞면은 −Y(FACE_F)고 축 보정 뒤 유니티 +Z 가 되므로 LookRotation 의 forward 와 맞는다.
-            if (CranePlayerStartPlacer.TryComputeSpawnXZ(out Vector3 spawn))
-            {
-                Vector3 look = new Vector3(spawn.x - center.x, 0f, spawn.z - center.z);
-                if (look.sqrMagnitude > 1e-6f)
-                    sign.transform.rotation = Quaternion.AngleAxis(SignYawOffset, Vector3.up)
-                                            * Quaternion.LookRotation(look.normalized, Vector3.up) * axisFix;
-            }
+            //   ★ 씬에서 RTG 를 <b>찾지 않는다</b>. 이름이 "RTG 크레인_1"(한글·공백)이라 코드의 "RTG_Crane_N"
+            //     로는 안 걸리고, 대수·이름은 언제든 바뀐다. RTG 가 서는 자리는 야드 블록이고 그 중심은
+            //     PortConfig 가 수식으로 갖고 있다 — 씬 탐색 없이 SSOT 에서 바로 나온다.
+            //     Z 는 블록이 안벽 중앙 기준 대칭이라 0(씬 실측: 블록 두 개가 z ±3.5313 에 있다).
+            float yardX = PortConfig.YardBlockCenterX(PortConfig.YardLaneStart) * StsConfig.ModelScale;
+            Vector3 look = new Vector3(yardX - center.x, 0f, -center.z);
+            if (look.sqrMagnitude > 1e-6f)
+                sign.transform.rotation = Quaternion.AngleAxis(SignYawOffset, Vector3.up)
+                                        * Quaternion.LookRotation(look.normalized, Vector3.up) * axisFix;
 
             // 진단 — '섰나 누웠나'를 로그 한 줄로 끝낸다. 모델이 높이 2.2m · 폭 1.8m · 두께 0.29m 라
             //   월드 바운즈에서 <b>Y 가 가장 길면 서 있는 것</b>이고, 아니면 누운 것이다(야우로는 X·Z 만 섞인다).
