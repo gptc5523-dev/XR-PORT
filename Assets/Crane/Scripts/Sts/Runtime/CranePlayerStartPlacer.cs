@@ -24,6 +24,7 @@ namespace AIXRCrane.Crane.Sts
         const string QuayName = StsPartNames.QuayGround;
 
         bool pending = true;        // 처리할 배치 요청이 남았는가(시작 시 1건).
+        Transform placedRig;        // 마지막으로 세운 리그 — 리그가 바뀌면(평면 모드) 새 리그도 세운다.
         int attempts;               // 현재 요청에 대한 재시도 프레임 수.
         bool warned;
 
@@ -86,6 +87,15 @@ namespace AIXRCrane.Crane.Sts
         {
             EnsureNetHook();   // NetworkManager가 뜨면 접속 콜백 구독(접속 후 재배치용). 콜백이 늦게 올 수 있어 Update는 끄지 않는다.
 
+            // 리그가 바뀌었으면 새 리그도 시작 지점에 세운다 — 평면 모드는 XR 을 60프레임 기다린 뒤 XR Origin 을 끄고
+            //   새 리그를 원점(0,0,0)에 만든다. 시작 배치는 이미 XR Origin 에 한 번 쓰고 끝나 있어, 새 리그는 원점에 남아
+            //   VR 과 시작 자리가 달랐다(2026-09-18 오너 "처음 시작위치가 VR 이랑 많이 다른데"). `-flat` 강제는 첫 프레임에
+            //   리그가 바뀌어 이 순서에 안 걸렸다. 축척(CranePlayerRigScale)도 같은 이유로 새 리그를 놓쳤다.
+            if (!pending && placedRig != null)
+            {
+                var cam = Camera.main;
+                if (cam != null && cam.transform.root != placedRig) { pending = true; attempts = 0; }
+            }
             if (!pending) return;   // 처리할 배치 없음 — 사실상 무비용.
 
             if (TryPlaceRig()) { pending = false; attempts = 0; }
@@ -150,6 +160,7 @@ namespace AIXRCrane.Crane.Sts
             Vector3 pos = new Vector3(xz.x, floorY + floorClearance, xz.z);
 
             rig.SetPositionAndRotation(pos, Quaternion.LookRotation(faceDir, Vector3.up));
+            placedRig = rig;
             if (debugLog)
             {
                 // 좌표는 실척(m)을 앞에 찍는다 — 모델 단위(1u=24m)는 숫자가 눌려 사람이 못 읽는다.
