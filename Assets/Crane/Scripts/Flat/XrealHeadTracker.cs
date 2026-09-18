@@ -115,7 +115,13 @@ namespace AIXRCrane.Crane.Flat
                         ReadLoop(c.GetStream());
                     }
                 }
-                catch (Exception e) { if (running) Debug.Log($"[HeadTracker] 끊김: {e.Message}"); }
+                catch (Exception e)
+                {
+                    // 안경이 없는 기기(서버 등)는 연결 자체가 예외로 실패한다 — 3초마다 로그가 쌓이지 않게 '없음'은 한 번만.
+                    if (!running) { }
+                    else if (Connected) Debug.Log($"[HeadTracker] 끊김: {e.Message}");
+                    else if (!loggedMissing) { loggedMissing = true; Debug.Log($"[HeadTracker] 안경(169.254.2.1) 없음 — 3초마다 다시 봅니다. ({e.Message})"); }
+                }
                 Interlocked.Exchange(ref ready, 0);
                 Sleep3();
             }
