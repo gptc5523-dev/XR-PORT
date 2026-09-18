@@ -323,7 +323,17 @@ namespace AIXRCrane.Crane.Sts.Net
             //     PortConfig 가 수식으로 갖고 있다 — 씬 탐색 없이 SSOT 에서 바로 나온다.
             //     Z 는 블록이 안벽 중앙 기준 대칭이라 0(씬 실측: 블록 두 개가 z ±3.5313 에 있다).
             float yardX = PortConfig.YardBlockCenterX(PortConfig.YardLaneStart) * StsConfig.ModelScale;
-            Vector3 look = new Vector3(yardX - center.x, 0f, -center.z);
+            Vector3 look = new Vector3(yardX - center.x, 0f, -center.z).normalized;
+            // STS 쪽으로 더 — 오너 2026-09-18 "STS 보는 방향으로 조금 더 돌려줘 사람들이 보기 편하게".
+            //   사람은 RTG 와 STS 두 곳에서 일한다. 두 방향 단위벡터의 합 = <b>이등분선</b>이라 양쪽에서
+            //   같은 각도로 읽힌다(각도를 손으로 적으면 존·야드가 옮겨질 때 조용히 틀어진다).
+            //   STS 는 부두를 주행하므로 메뉴를 누른 순간의 위치를 쓴다. 없으면 RTG 쪽만 본다.
+            var sts = GameObject.Find(StsPartNames.StsCraneRoot);
+            if (sts != null)
+            {
+                Vector3 p = sts.transform.position;
+                look += new Vector3(p.x - center.x, 0f, p.z - center.z).normalized;
+            }
             if (look.sqrMagnitude > 1e-6f)
                 sign.transform.rotation = Quaternion.AngleAxis(SignYawOffset, Vector3.up)
                                         * Quaternion.LookRotation(look.normalized, Vector3.up) * axisFix;
