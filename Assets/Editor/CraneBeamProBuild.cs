@@ -37,6 +37,7 @@ namespace AIXRCrane.EditorTools
             bool initOnStart = xr != null && xr.InitManagerOnStart;
             bool forceNet = PlayerSettings.Android.forceInternetPermission;
             bool aab = EditorUserBuildSettings.buildAppBundle;
+            bool customKey = PlayerSettings.Android.useCustomKeystore;
 
             BuildReport report;
             try
@@ -45,6 +46,9 @@ namespace AIXRCrane.EditorTools
                 if (xr != null) xr.InitManagerOnStart = false;
                 PlayerSettings.Android.forceInternetPermission = true;   // 서버 세션(Netcode)·안경 IMU(TCP)
                 EditorUserBuildSettings.buildAppBundle = false;          // adb 로 까는 apk
+                // 시험 설치는 디버그 키로 — 프로젝트의 user.keystore(Quest 배포용)는 비밀번호가 설정에 안 남아
+                //   배치 빌드가 "Can not sign the application" 으로 1초 만에 멈췄다(2026-09-18).
+                PlayerSettings.Android.useCustomKeystore = false;
 
                 Debug.Log($"[BeamProBuild] 빌드 시작 — 씬 {scenes.Length}개 → {OutPath} (OpenXR 로더 {(hadOpenXr ? "잠시 뺌" : "원래 없음")})");
                 report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
@@ -62,6 +66,7 @@ namespace AIXRCrane.EditorTools
                 if (xr != null) xr.InitManagerOnStart = initOnStart;
                 PlayerSettings.Android.forceInternetPermission = forceNet;
                 EditorUserBuildSettings.buildAppBundle = aab;
+                PlayerSettings.Android.useCustomKeystore = customKey;
                 AssetDatabase.SaveAssets();
             }
 
