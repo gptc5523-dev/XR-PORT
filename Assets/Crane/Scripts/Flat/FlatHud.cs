@@ -141,10 +141,16 @@ namespace AIXRCrane.Crane.Flat
         {
             if (axis == null)
                 return $"{label}   <color=#{CraneHud.Hex(CraneHud.HudColor.IdleDim)}>없음</color>\n";
-            float span = axis.Max - axis.Min;
-            float pct = span > 1e-6f ? Mathf.Clamp01((axis.Current - axis.Min) / span) * 100f : 0f;
+            float pct = Percent(axis);
             float meters = axis.Current * axis.WorldPerUnit * StsConfig.InvModelScale;
             return $"{label}   {pct,5:0.0}%   ({meters,7:0.00} m)\n";
+        }
+
+        /// <summary>가동범위 안의 위치(%) — 평면·모바일 HUD 가 같이 쓴다.</summary>
+        internal static float Percent(IAxisMover axis)
+        {
+            float span = axis.Max - axis.Min;
+            return span > 1e-6f ? Mathf.Clamp01((axis.Current - axis.Min) / span) * 100f : 0f;
         }
 
         static string HelpBody() =>

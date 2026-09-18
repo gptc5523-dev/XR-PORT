@@ -68,6 +68,15 @@ namespace AIXRCrane.Crane.Sts.Net
             var nm = NetworkManager.Singleton;
             if (nm == null || Transport == null) return;
 
+            // 모바일(안경·폰 관전 화면)은 호스트가 될 수 없다 — 오너 2026-09-18 "모바일은 호스트가 절대로 될 수가 없어".
+            //   호스트를 여는 길은 여기 하나뿐이라 여기서 막으면 어느 호출자든(메뉴·스모크·향후 코드) 다 걸린다.
+            if (AIXRCrane.Crane.Flat.FlatModeBootstrap.Mobile)
+            {
+                Debug.LogWarning("[NetLanUI] 모바일은 호스트가 될 수 없습니다 — 참가자로만 접속합니다.");
+                hostFailed = true;
+                return;
+            }
+
             // 최대 인원 제한 — 승인 콜백(서버에서 실행). 정원 초과 시 거부.
             nm.NetworkConfig.ConnectionApproval = true;
             pendingApprovals.Clear();

@@ -14,6 +14,10 @@ namespace AIXRCrane.Crane.Flat
         /// <summary>평면 모드로 부팅됐는가. HUD·컨트롤러가 자기 활성 여부 판단에 참조.</summary>
         public static bool Active { get; private set; }
 
+        /// <summary>평면 모드 안에서 '모바일 관전 화면'으로 떴는가 — 안드로이드 기기·에디터 휴대폰 시뮬레이터·`-mobile` 인자.
+        ///   오너 2026-09-18 "VR 이랑 모바일이랑 화면이 다르게". VR·PC 평면 모드(모니터+패드)는 그대로다.</summary>
+        public static bool Mobile { get; private set; }
+
         /// <summary>강제 모드 PlayerPrefs 키 — 0=자동, 1=평면 강제, 2=VR 강제. 에디터 메뉴가 이 값을 쓴다.</summary>
         public const string ForcePrefKey = "AIXRCrane.FlatMode.Force";
 
@@ -78,11 +82,21 @@ namespace AIXRCrane.Crane.Flat
             var rigGo = new GameObject("FlatPlayerRig");
             var rig = rigGo.AddComponent<FlatPlayerRig>();
 
-            var ctrlGo = new GameObject("FlatCraneController");
-            ctrlGo.AddComponent<FlatCraneController>();
+            Mobile = ResolveMobile();
+            if (Mobile)
+            {
+                // 모바일 = 관전 먼저. 패드 조종기·PC HUD 는 안 만들고, 공간 마우스(커서+누르기)로 돌아다닌다.
+                rig.PointerNav = true;
+                new GameObject("MobileSpectatorHud").AddComponent<MobileSpectatorHud>();
+            }
+            else
+            {
+                var ctrlGo = new GameObject("FlatCraneController");
+                ctrlGo.AddComponent<FlatCraneController>();
 
-            var hudGo = new GameObject("FlatHud");
-            hudGo.AddComponent<FlatHud>();
+                var hudGo = new GameObject("FlatHud");
+                hudGo.AddComponent<FlatHud>();
+            }
 
             if (debugLog)
                 Debug.Log($"[FlatMode] 평면 모드 진입 — XR 리그 {disabled}개·기존 MainCamera {camsOff}개 비활성, " +
@@ -127,6 +141,15 @@ namespace AIXRCrane.Crane.Flat
                 n++;
             }
             return n;
+        }
+
+        // 모바일 관전 화면인가. ★ UnityEngine.Device 를 쓴다 — 에디터 휴대폰 시뮬레이터(Device Simulator)는
+        //   이쪽 값만 바꾼다(UnityEngine.Application 은 맥을 본다). 서버 관전 인스턴스(윈도 빌드)는 `-mobile` 로 켠다.
+        static bool ResolveMobile()
+        {
+            foreach (var a in System.Environment.GetCommandLineArgs())
+                if (string.Equals(a, "-mobile", System.StringComparison.OrdinalIgnoreCase)) return true;
+            return UnityEngine.Device.Application.isMobilePlatform;
         }
 
         // -1=자동, 0=VR 강제, 1=평면 강제. 실행 인자가 PlayerPrefs 보다 우선.
