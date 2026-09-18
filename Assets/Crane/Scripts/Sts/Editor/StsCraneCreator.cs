@@ -1471,7 +1471,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             // 바닥: 전방 lookdown 개구(X∈[gfBackX,frontX], Z∈±(hz-rim)) 둘러싼 프레임(좌석부 솔리드 + 측면 림)
             float gfz = hz - rim;                          // 0.036
             float rearW = gfBackX - backX;
-            PbBox(cab, "Cab_Fb_FloorRear", new Vector3((backX + gfBackX) * 0.5f, Yfp, 0f), new Vector3(rearW, tf, 2f * Zs), bodyC);
+            PbBox(cab, StsPartNames.CabFloorRear, new Vector3((backX + gfBackX) * 0.5f, Yfp, 0f), new Vector3(rearW, tf, 2f * Zs), bodyC);
             for (int sz = -1; sz <= 1; sz += 2)
                 PbBox(cab, "Cab_Fb_FloorRim", new Vector3((gfBackX + frontX) * 0.5f, Yfp, sz * (Zs + gfz) * 0.5f), new Vector3(frontX - gfBackX, tf, Zs - gfz), bodyC);
 
