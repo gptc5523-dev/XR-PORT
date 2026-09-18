@@ -11,7 +11,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
         /// 메뉴에서 빠졌고(크레인 생성 시 자동 실행), 다른 에디터 코드에서 호출 가능하도록 public.</summary>
         public static int ScanNow(bool select = true)
         {
-            var scanner = Object.FindFirstObjectByType<QuayContainerScanner>();
+            var scanner = Object.FindAnyObjectByType<QuayContainerScanner>();
             if (scanner == null)
             {
                 var go = new GameObject("QuayContainerScanner");

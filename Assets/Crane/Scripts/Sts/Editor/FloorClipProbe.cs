@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
 using AIXRCrane.Crane.Sts.Plc;
-using AIXRCrane;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -23,7 +22,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
     [InitializeOnLoad]
     public static class FloorClipProbe
     {
-        const string Key = "FloorClipProbe", PrevKey = "FloorClipProbe.Prev", ScenePath = "Assets/Scenes/Port.unity";
+        const string Key = "FloorClipProbe", PrevKey = "FloorClipProbe.Prev", ScenePath = StsPartNames.PortScenePath;
         const float LiftU = 0.15f;      // 잡은 뒤 들어 올리는 높이(모델 단위) — 빈 자리로 옮기는 동안 받침에 안 걸리게
         const float SinkU = 0.30f;      // ② 바닥 아래로 내려 두는 깊이 — 컨테이너 반높이(≈0.054)보다 훨씬 깊게
         const float TolU = 0.010f;      // 허용 침투 — 가드 스킨(0.004) + 여유. 이보다 깊으면 관통으로 본다
@@ -165,7 +164,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
         //   판정 집합은 통과방지 클램프와 같다 — 크레인 자식(스프레더·든 화물)을 뺀 모든 강체.
         static bool MoveToBareSpot(Case c, Bounds held)
         {
-            var others = Object.FindObjectsByType<Rigidbody>(FindObjectsInactive.Exclude, FindObjectsSortMode.None)
+            var others = Object.FindObjectsByType<Rigidbody>(FindObjectsInactive.Exclude)
                 .Where(rb => rb != null && !rb.transform.IsChildOf(c.crane.transform))
                 .Select(rb => CraneDemoRunner.TryBounds(rb.transform, out var ob) ? (Bounds?)ob : null)
                 .Where(ob => ob.HasValue).Select(ob => ob.Value).ToList();
@@ -213,13 +212,13 @@ namespace AIXRCrane.Crane.Sts.EditorTools
 
         static void Setup()
         {
-            foreach (var b in Object.FindObjectsByType<PlcBridge>(FindObjectsSortMode.None)) b.enabled = false;   // PLC 재생이 축을 잡지 않게
+            foreach (var b in Object.FindObjectsByType<PlcBridge>()) b.enabled = false;   // PLC 재생이 축을 잡지 않게
             floorTop = ContainerPhysicsStabilizer.FindFloorTopY(out bool hasFloor);
 
             var yardRx = new Regex(@"^Cont(20|40)_\d+$");
             boxes.Clear();
-            boxes.AddRange(Object.FindObjectsByType<LODGroup>(FindObjectsSortMode.None).Select(l => l.transform)
-                .Where(t => t.name.StartsWith("ShipContainer") || yardRx.IsMatch(t.name))
+            boxes.AddRange(Object.FindObjectsByType<LODGroup>().Select(l => l.transform)
+                .Where(t => t.name.StartsWith(StsPartNames.ShipContainer) || yardRx.IsMatch(t.name))
                 .OrderBy(t => t.name));
 
             // 야드 컨테이너에 콜라이더·강체를 붙인다 — PortDemoDirector.MakeGrabbable 과 같은 구성이고,
@@ -238,7 +237,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
                 rb.isKinematic = true; rb.useGravity = false;
             }
 
-            foreach (var crane in Object.FindObjectsByType<StsCrane>(FindObjectsSortMode.None).OrderBy(c => c.name))
+            foreach (var crane in Object.FindObjectsByType<StsCrane>().OrderBy(c => c.name))
             {
                 var g = crane.GetComponent<SpreaderGrabber>();
                 if (g == null || crane.Attach == null || crane.Spreader == null) continue;
@@ -246,7 +245,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
                 if (crane.Gantry is GantryMover gm) gm.StopOnObstacle = false;
                 bool rtg = crane.GetComponent<RtgBogieSteering>() != null;
                 Vector3 me = crane.Gantry is Component gc ? gc.transform.position : crane.transform.position;
-                var box = boxes.Where(t => rtg ? yardRx.IsMatch(t.name) : t.name.StartsWith("ShipContainer"))
+                var box = boxes.Where(t => rtg ? yardRx.IsMatch(t.name) : t.name.StartsWith(StsPartNames.ShipContainer))
                     .Where(t => CraneDemoRunner.TryBounds(t, out _))
                     .OrderBy(t => { CraneDemoRunner.TryBounds(t, out var bb); return (bb.center - me).sqrMagnitude; })
                     .FirstOrDefault();

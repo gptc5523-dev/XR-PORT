@@ -28,7 +28,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
     /// </summary>
     public static class RtgCraneFbxRopeSetup
     {
-        const string CraneName = "RTG 크레인";
+        const string CraneName = StsPartNames.RtgCraneRoot;
         const string GroupName = "Reeving";
         static readonly string[] Corners = { "FL", "FR", "BL", "BR" };
 

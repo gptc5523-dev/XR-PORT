@@ -7,7 +7,7 @@ namespace AIXRCrane.Crane.Sts
     /// 크레인 외부의 Rigidbody(=집을 수 있는 화물/컨테이너)를 트위스트락 콘 위치 기준으로 잡고/놓고,
     /// 빈 스프레더가 컨테이너 윗면을 통과하지 못하게 호이스트를 클램프한다(게임 동작).
     /// 컨테이너 식별은 특정 컴포넌트(ContainerInstance 등)에 의존하지 않는다 — Rigidbody가 달린
-    /// 자유 강체면 절차적 스폰(VRTestMenu)이든 프리팹이든 모두 잡힌다. VR 컨트롤러가 ToggleGrab()을 호출한다.
+    /// 자유 강체면 절차적 스폰(VRTestMenu)이든 프리팹이든 모두 잡힌다. VR 컨트롤러가 Grab()/Release()를 호출한다.
     /// </summary>
     // 실행 순서 고정(중요): 통과방지 클램프는 VRController의 축 이동(호이스트 하강, 기본 order 0) '뒤'에
     //   돌아야 한 틱 침투를 즉시 복원한다. 둘 다 FixedUpdate이고 order가 같으면 순서가 불확정이라
@@ -165,7 +165,7 @@ namespace AIXRCrane.Crane.Sts
             {
                 // 절차 크레인: 'Twistlock_Cone'(BaseName). FBX 크레인: 'Spreader_Twistlock_F_L' 등(콘 4개).
                 if (CraneHud.BaseName(t.name) == StsPartNames.TwistlockCone
-                    || t.name.StartsWith("Spreader_Twistlock_"))
+                    || t.name.StartsWith(StsPartNames.SpreaderTwistlockPrefix))
                     list.Add(t);
             }
             twistlocks = list.ToArray();
@@ -201,7 +201,7 @@ namespace AIXRCrane.Crane.Sts
             //     2026-09-16 StsGrabProbe 실측: 과하강 케이스 8건 중 3건이 삽입 40mm 에서 안 멈추고 200mm 까지 내려갔고,
             //     그 구간엔 PASS/clamp 엣지가 아예 없었다(over=false). 재생·시연이 방금 놓은 컨테이너에도 같은 구멍이 생긴다.
             // 버퍼(bodies)를 비우고 다시 채워 매 갱신 새 List/배열 할당을 피한다(주기적 GC 절감).
-            var all = FindObjectsByType<Rigidbody>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
+            var all = FindObjectsByType<Rigidbody>(FindObjectsInactive.Exclude);
             bodies.Clear();
             foreach (var rb in all)
                 if (rb != null) bodies.Add(rb);
@@ -414,14 +414,6 @@ namespace AIXRCrane.Crane.Sts
             c.position += delta;
             if (debugLog)
                 Debug.Log($"[Crane] 야드 칸 정렬 — 중심 x {nb.center.x:F4}→{cell.x:F4}, z {nb.center.z:F4}→{cell.z:F4}, yaw {yaw:F0}°");
-        }
-
-        /// <summary>잡고 있으면 놓고, 아니면 잡는다(토글). 단일 버튼 매핑용 — 현재 컨트롤러는 Grab/Release를 직접 호출.</summary>
-        public void ToggleGrab()
-        {
-            var attach = crane != null ? crane.Attach : null;
-            if (attach != null && attach.HasContainer) Release();
-            else Grab();
         }
 
         /// <summary>스프레더 물리 푸셔(SpreaderPusher) 콜라이더 on/off. 자동 시나리오가 잡으러 하강할 때

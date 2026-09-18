@@ -1,5 +1,4 @@
 using UnityEngine;
-using AIXRCrane;
 
 namespace AIXRCrane.Crane.Sts
 {

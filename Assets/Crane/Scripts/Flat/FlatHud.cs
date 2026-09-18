@@ -28,7 +28,7 @@ namespace AIXRCrane.Crane.Flat
 
         Canvas canvas;
         Text statusText, helpText;
-        string lastStatus, lastHelp;
+        string lastStatus;
         float nextRefresh;
 
         FlatCraneController controller;
@@ -67,7 +67,7 @@ namespace AIXRCrane.Crane.Flat
                 anchor: new Vector2(0f, 0f), pivot: new Vector2(0f, 0f), align: TextAnchor.LowerLeft,
                 size: new Vector2(720f, 260f));
 
-            helpText.text = lastHelp = HelpBody();
+            helpText.text = HelpBody();
         }
 
         // 반투명 배경 + 텍스트 1개짜리 패널. 앵커 모서리에서 safeInset 만큼 안쪽으로 들인다.

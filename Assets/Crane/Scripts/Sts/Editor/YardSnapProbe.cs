@@ -24,7 +24,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
     /// </summary>
     public static class YardSnapProbe
     {
-        const string ScenePath = "Assets/Scenes/Port.unity";
+        const string ScenePath = StsPartNames.PortScenePath;
 
         // 판정 허용(실척 m). 행 간 틈이 RowGapM 0.4m 라, 칸 중심에서 0.2m 를 넘으면 틈을 먹기 시작한다 = 라인 침범.
         const float TolM = 0.2f;
@@ -35,7 +35,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             EditorSceneManager.OpenScene(ScenePath);
 
             var cells = CellsU();
-            var boxes = Object.FindObjectsByType<LODGroup>(FindObjectsInactive.Exclude, FindObjectsSortMode.None)
+            var boxes = Object.FindObjectsByType<LODGroup>(FindObjectsInactive.Exclude)
                 .Select(l => l.transform)
                 .Where(t => Regex.IsMatch(t.name, @"^Cont(20|40)_\d+$"))
                 .ToList();

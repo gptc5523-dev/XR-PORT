@@ -164,7 +164,7 @@ namespace AIXRCrane.Crane.Sts
         static string Candidates(string side)
         {
             var s = new System.Text.StringBuilder();
-            foreach (var t in FindObjectsByType<Transform>(FindObjectsInactive.Exclude, FindObjectsSortMode.None))
+            foreach (var t in FindObjectsByType<Transform>(FindObjectsInactive.Exclude))
                 if (Has(t.name, side) || Has(t.name, StsPartNames.ControllerNameHint))
                     s.Append($"{t.name}@{t.position}  ·  ");
             return s.Length > 0 ? s.ToString() : "(없음)";

@@ -1,7 +1,6 @@
 using System.Collections.Generic;
 using System.Text;
 using UnityEngine;
-using AIXRCrane;
 
 namespace AIXRCrane.Crane.Sts
 {

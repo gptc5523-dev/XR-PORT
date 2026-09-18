@@ -20,7 +20,7 @@ namespace AIXRCrane.Ship.EditorTools
     /// </summary>
     public static class ShipBerthMenu
     {
-        const string CraneName = "STS_Crane";
+        const string CraneName = StsPartNames.StsCraneRoot;
 
         /// <summary>배 현측 ↔ 안벽 전면 틈(실척 m) — 방충재(펜더) 압축 여유.</summary>
         const float FenderClearanceM = 1.5f;
@@ -50,7 +50,7 @@ namespace AIXRCrane.Ship.EditorTools
             //      ③ 크레인 위치 + 게이지(실척)        ← 최후 폴백
             //   ★ 종전엔 크레인이 없으면 바로 return false 라 배가 원점에 남았고, 원점은 슬래브 한가운데(육지)라
             //     "컨테이너선 생성하면 육지로 출력된다"가 됐다(오너 지적 2026-08-10). 부두 기준으로 바꿔 해소.
-            float waterRailX; float quayCenterZ = 0f; bool haveQuay;
+            float waterRailX; float quayCenterZ; bool haveQuay;
             string anchor;
             haveQuay = TryQuayBerthAnchor(out waterRailX, out quayCenterZ);
             if (haveQuay) anchor = $"부두 '{StsPartNames.QuayGround}'의 바다측 {StsPartNames.QuayRail}";

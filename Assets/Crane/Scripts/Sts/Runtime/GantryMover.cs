@@ -81,7 +81,7 @@ namespace AIXRCrane.Crane.Sts
         {
             if (others != null && Time.unscaledTime < nextOtherResolve) return;
             nextOtherResolve = Time.unscaledTime + 1f;
-            var all = FindObjectsByType<GantryMover>(FindObjectsSortMode.None);
+            var all = FindObjectsByType<GantryMover>();
             var list = new List<GantryMover>();
             foreach (var g in all) if (g != null && g != this) list.Add(g);
             others = list.ToArray();

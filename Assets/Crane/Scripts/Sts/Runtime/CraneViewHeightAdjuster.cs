@@ -167,7 +167,7 @@ namespace AIXRCrane.Crane.Sts
             var t = LocoProviderType;
             if (t == null) return;
             suppressedLoco.Clear();
-            foreach (var o in FindObjectsByType(t, FindObjectsInactive.Exclude, FindObjectsSortMode.None))
+            foreach (var o in FindObjectsByType(t, FindObjectsInactive.Exclude))
                 if (o is Behaviour b && b.enabled) { b.enabled = false; suppressedLoco.Add(b); }
             if (suppressedLoco.Count > 0)
                 Debug.Log($"[ViewHeight] 관전자 — 높이조절 중 XR 로코모션 {suppressedLoco.Count}개 끔(수평 이동 방지 → 수직만).");

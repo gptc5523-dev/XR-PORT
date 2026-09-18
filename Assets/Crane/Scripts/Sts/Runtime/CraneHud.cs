@@ -337,7 +337,7 @@ namespace AIXRCrane.Crane.Sts
         static Transform PickController(string side, bool requireHandless, Transform scope)
         {
             Transform best = null;
-            foreach (var t in Object.FindObjectsByType<Transform>(FindObjectsInactive.Exclude, FindObjectsSortMode.None))
+            foreach (var t in Object.FindObjectsByType<Transform>(FindObjectsInactive.Exclude))
             {
                 if (!NameHas(t.name, side)) continue;
                 // 'controller' 또는 손 추적 앵커('Left Hand'/'Right Hand' 리그) 둘 다 컨트롤러 후보로 인정.

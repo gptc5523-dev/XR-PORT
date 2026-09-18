@@ -3,7 +3,6 @@ using System.Text;
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.XR;          // InputDevices — Quest 컨트롤러 직접 읽기(기존 조종 컨트롤러와 동일 방식)
-using AIXRCrane.Crane.Sts;     // CraneHud, StsCraneVRController
 
 namespace AIXRCrane.Crane.Sts.Net
 {
@@ -129,8 +128,7 @@ namespace AIXRCrane.Crane.Sts.Net
             var right = InputDevices.GetDeviceAtXRNode(XRNode.RightHand);
             if (!right.isValid) return;
 
-            Vector2 rs = Vector2.zero;
-            right.TryGetFeatureValue(CommonUsages.primary2DAxis, out rs);
+            right.TryGetFeatureValue(CommonUsages.primary2DAxis, out Vector2 rs);
             bool aNow = right.TryGetFeatureValue(CommonUsages.primaryButton, out bool a) && a;
             bool bNow = right.TryGetFeatureValue(CommonUsages.secondaryButton, out bool b) && b;
 
@@ -224,7 +222,7 @@ namespace AIXRCrane.Crane.Sts.Net
             if (lockedLoco.Count > 0) return;   // 이미 잠금 상태면 재스캔 불필요
             var locoType = LocomotionProviderType;
             if (locoType == null) return;
-            foreach (var o in FindObjectsByType(locoType, FindObjectsInactive.Exclude, FindObjectsSortMode.None))
+            foreach (var o in FindObjectsByType(locoType, FindObjectsInactive.Exclude))
                 if (o is Behaviour b && b.enabled) { b.enabled = false; lockedLoco.Add(b); }
         }
 

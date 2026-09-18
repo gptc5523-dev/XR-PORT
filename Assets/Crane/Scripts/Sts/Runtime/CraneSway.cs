@@ -60,7 +60,7 @@ namespace AIXRCrane.Crane.Sts
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void Boot()
         {
-            foreach (var c in FindObjectsByType<StsCrane>(FindObjectsSortMode.None))
+            foreach (var c in FindObjectsByType<StsCrane>())
                 if (c.GetComponent<CraneSway>() == null) c.gameObject.AddComponent<CraneSway>();
         }
 

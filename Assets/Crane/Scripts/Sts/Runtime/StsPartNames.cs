@@ -42,6 +42,8 @@ namespace AIXRCrane.Crane.Sts
         public const string TwistlockCone = "Twistlock_Cone";
         /// <summary>트위스트락 헤드(Numbered 접미사 → BaseName 비교).</summary>
         public const string TwistlockHead = "Twistlock_Head";
+        /// <summary>RTG(Blender FBX) 스프레더 트위스트락 이름 접두.</summary>
+        public const string SpreaderTwistlockPrefix = "Spreader_Twistlock_";
 
         // 결박(타이다운)
         /// <summary>결박 봉 이름 접두사. TiedownController가 StartsWith로 수집(여러 개).</summary>
@@ -89,6 +91,12 @@ namespace AIXRCrane.Crane.Sts
 
         /// <summary>STS 크레인 씬 루트. 생산부 StsCraneCreator.RootName. 나가는 존 표지판이 이쪽으로 고개를 돌린다.</summary>
         public const string StsCraneRoot = "STS_Crane";
+        /// <summary>RTG(Blender FBX) 크레인 씬 루트 접두. 여러 대면 "RTG 크레인_1" 식.</summary>
+        public const string RtgCraneRoot = "RTG 크레인";
+        /// <summary>선박 적재 컨테이너. ShipCreator 가 만들고 잡기·수면 관리가 StartsWith 로 찾는다.</summary>
+        public const string ShipContainer = "ShipContainer";
+        /// <summary>시연 씬 경로. 배치 스모크·프로브가 연다.</summary>
+        public const string PortScenePath = "Assets/Scenes/Port.unity";
 
         /// <summary>나가는 존 지정 마커. 있으면 ExitZone 이 모서리 계산 대신 이 자리를 쓴다(리스폰의 PlayerStartPoint 와 같은 규칙).</summary>
         public const string ExitZonePoint = "ExitZonePoint";

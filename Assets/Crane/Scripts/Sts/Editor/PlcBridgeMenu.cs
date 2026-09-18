@@ -2,7 +2,6 @@
 using System.IO;
 using UnityEditor;
 using UnityEngine;
-using AIXRCrane.Crane.Sts;
 using AIXRCrane.Crane.Sts.Plc;
 
 namespace AIXRCrane.Crane.Sts.EditorTools
@@ -119,8 +118,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
                 return;
             }
 
-            var kpi = crane.GetComponent<Kpi2PositionAccuracy>();
-            if (kpi == null) kpi = Undo.AddComponent<Kpi2PositionAccuracy>(crane.gameObject);
+            if (crane.GetComponent<Kpi2PositionAccuracy>() == null) Undo.AddComponent<Kpi2PositionAccuracy>(crane.gameObject);
 
             Selection.activeGameObject = crane.gameObject;
             Debug.Log("[PlcBridgeMenu] 지표2 하니스 부착. ▶Play → 0.5초마다 1시행, 100시행에서 자동 종료하고 " +

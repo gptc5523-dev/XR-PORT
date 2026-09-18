@@ -166,7 +166,7 @@ namespace AIXRCrane.Crane.Sts
 
         void ScanRigidbodies()
         {
-            var bodies = FindObjectsByType<Rigidbody>(FindObjectsSortMode.None);   // 1초마다만 — 풀 씬 스캔 비용 분산
+            var bodies = FindObjectsByType<Rigidbody>();   // 1초마다만 — 풀 씬 스캔 비용 분산
             rbTotal = bodies.Length;
             rbDynamic = 0;
             for (int i = 0; i < bodies.Length; i++)

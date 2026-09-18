@@ -47,7 +47,7 @@ namespace AIXRCrane.Crane.Sts
 
                 // 비활성 오브젝트까지 포함해 모두 끔
                 foreach (var o in UnityEngine.Object.FindObjectsByType(
-                             t, FindObjectsInactive.Include, FindObjectsSortMode.None))
+                             t, FindObjectsInactive.Include))
                 {
                     prop.SetValue(o, false);
                     n++;

@@ -49,7 +49,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             SessionState.SetBool(Key, true);
             SessionState.SetBool(PrevKey, EditorPrefs.GetBool(PortDemoDirector.EditorPrefKey, false));
             EditorPrefs.SetBool(PortDemoDirector.EditorPrefKey, true);   // 시연 감독이 크레인마다 조종기를 붙이고 가까운 한 대만 켠다
-            EditorSceneManager.OpenScene("Assets/Scenes/Port.unity");
+            EditorSceneManager.OpenScene(StsPartNames.PortScenePath);
             EditorApplication.playModeStateChanged -= OnPlayMode;
             EditorApplication.playModeStateChanged += OnPlayMode;
             EditorApplication.EnterPlaymode();
@@ -72,10 +72,10 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             {
                 case 0:   // 감독 Start·계획이 끝날 때까지
                     if (Wall < 4f) return;
-                    foreach (var c in Object.FindObjectsByType<StsCrane>(FindObjectsSortMode.InstanceID))
+                    foreach (var c in Object.FindObjectsByType<StsCrane>())
                     {
                         bool isRtg = c.GetComponent<RtgBogieSteering>() != null;
-                        if (!isRtg && sts == null) sts = c;
+                        if (!isRtg && (sts == null || string.CompareOrdinal(c.name, sts.name) < 0)) sts = c;
                         if (isRtg && (rtg == null || string.CompareOrdinal(c.name, rtg.name) < 0)) rtg = c;
                     }
                     if (sts == null || rtg == null) { Log("STS/RTG 못 찾음"); fail = true; Finish(); return; }
@@ -83,7 +83,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
                     rtgCtrl = rtg.GetComponent<StsCraneVRController>();
                     if (stsCtrl == null || rtgCtrl == null) { Log($"조종기 없음 — STS {stsCtrl != null}, {rtg.name} {rtgCtrl != null}"); fail = true; Finish(); return; }
                     // 호스트 접속 상태로 — 배치엔 네트워크가 없어 넷 메뉴(CraneNetMenuHUD)가 조종기를 계속 막는다. 접속 순간과 같게 되살리고 뗀다.
-                    foreach (var mb in Object.FindObjectsByType<MonoBehaviour>(FindObjectsSortMode.None))
+                    foreach (var mb in Object.FindObjectsByType<MonoBehaviour>())
                         if (mb.GetType().Name == "CraneNetMenuHUD")
                         {
                             mb.enabled = false;   // 먼저 끈다 — Destroy 는 프레임 끝이라 그 사이 Update 가 한 번 더 막았다(시작 HUD 판정 오염)
@@ -99,7 +99,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
                 case 1:   // 걸어서 RTG 발치로
                     if (Wall - stepAt < 1f) return;
                     int on = 0;
-                    foreach (var vc in Object.FindObjectsByType<StsCraneVRController>(FindObjectsInactive.Include, FindObjectsSortMode.None)) if (vc.enabled) on++;
+                    foreach (var vc in Object.FindObjectsByType<StsCraneVRController>(FindObjectsInactive.Include)) if (vc.enabled) on++;
                     hudSts = HudCrane() == sts && StsCraneVRController.Active == stsCtrl && on == 1;   // 켜진 조종기는 STS 한 대
                     Log($"접속 직후 — 켜진 조종기 {on}대(=1), Active {Name(StsCraneVRController.Active)}, 상태 HUD {Name(HudCrane())} ({(hudSts ? "OK" : "FAIL")})");
                     var cam = Camera.main;

@@ -26,7 +26,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
     public static class Kpi2Measure
     {
         const string Key = "Kpi2Measure", PrevKey = "Kpi2Measure.Prev", StartKey = "Kpi2Measure.Start";
-        const string ScenePath = "Assets/Scenes/Port.unity", Crane = "STS_Crane";
+        const string ScenePath = StsPartNames.PortScenePath, Crane = StsPartNames.StsCraneRoot;
         // 벽시계 한도 — 100시행 × 0.5초 = 게임 50초. 물리 부하로 벽이 더 걸려도 10분이면 충분히 넉넉하다.
         const float WallLimitS = 600f;
         const float TargetPercent = 90f;   // 1차년도 내부목표(2차 KOLAS 는 95). Kpi2PositionAccuracy 기본값과 같다.

@@ -1,5 +1,4 @@
 using AIXRCrane.Crane.Sts;   // StsConfig.ModelScale (미니어처 환산비 SSOT 공유)
-using AIXRCrane;      // ProceduralContainerMesh.StdWidth (컨테이너 폭 SSOT 공유)
 
 namespace AIXRCrane.Ship
 {

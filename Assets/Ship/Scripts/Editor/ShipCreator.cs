@@ -4,7 +4,7 @@ using System.Linq;
 using AIXRCrane.EditorTools;
 using UnityEditor;
 using UnityEngine;
-using AIXRCrane;                                       // ProceduralContainerMesh, ContainerPhysics
+using AIXRCrane.Crane.Sts;                             // StsPartNames
 using UnityEngine.XR.Interaction.Toolkit.Interactables;       // XRGrabInteractable
 
 namespace AIXRCrane.Ship.EditorTools
@@ -50,12 +50,6 @@ namespace AIXRCrane.Ship.EditorTools
         static readonly Color CDark    = new Color(0.12f, 0.12f, 0.13f);   // 앵커·드럼·계선주·방향타 캐스트강(차콜)
         static readonly Color CBoat    = new Color(0.92f, 0.42f, 0.05f);   // 구명정(국제 오렌지)
         static readonly Color CProp    = new Color(0.62f, 0.46f, 0.22f);   // 프로펠러(청동)
-        // 갑판 적재 컨테이너 색 팔레트(8종 — 서브메시 0~7)
-        static readonly Color[] CCargo = {
-            new Color(0.55f, 0.18f, 0.15f), new Color(0.16f, 0.30f, 0.45f), new Color(0.20f, 0.42f, 0.26f),
-            new Color(0.62f, 0.52f, 0.22f), new Color(0.46f, 0.47f, 0.49f), new Color(0.72f, 0.41f, 0.12f),
-            new Color(0.78f, 0.78f, 0.75f), new Color(0.32f, 0.13f, 0.13f),
-        };
 
         [MenuItem("Model/PG/선박/컨테이너선 생성 (선체+상부구조)", false, 10)]
         public static void CreateShip()
@@ -215,7 +209,7 @@ namespace AIXRCrane.Ship.EditorTools
             foreach (var sl in picked)
             {
                 // 이름에 'Container' 포함 → ContainerPhysicsStabilizer·바닥가드 대상에 포함.
-                var g = new GameObject("ShipContainer");
+                var g = new GameObject(StsPartNames.ShipContainer);
                 g.transform.SetParent(parent.transform, false);
                 g.transform.localPosition = new Vector3(sl.x, sl.y, sl.z) * ms;
 

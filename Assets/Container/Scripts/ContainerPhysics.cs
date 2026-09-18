@@ -182,7 +182,7 @@ namespace AIXRCrane
         public static int TuneAllInScene(List<Rigidbody> collect)
         {
             int n = 0;
-            foreach (var rb in FindObjectsByType<Rigidbody>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+            foreach (var rb in FindObjectsByType<Rigidbody>(FindObjectsInactive.Include))
             {
                 if (!IsContainerName(rb.name)) continue;
                 ContainerPhysics.Apply(rb, rb.GetComponent<Collider>());

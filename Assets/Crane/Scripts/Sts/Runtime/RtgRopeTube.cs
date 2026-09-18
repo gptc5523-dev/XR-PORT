@@ -7,7 +7,7 @@ namespace AIXRCrane.Crane.Sts
     /// **모양 유지 + 동적 신축 권상 로프** — Blender에서 모델링한 로프(Hoist_Rope_*)의 실측 굵기(Ø53mm=반경 0.0265m,
     /// 32각 단면)를 그대로 재현하되, 정적 메시가 아니라 리빙 경로를 따라 매 프레임 **튜브 메시를 재생성**해 권상 시 신축한다.
     ///
-    /// 경로(코너별, <see cref="RtgRopeReeving"/>과 동일): 드럼출구(트롤리 고정) → [직선 낙차] → 드럼쪽 시브 접선점
+    /// 경로(코너별,): 드럼출구(트롤리 고정) → [직선 낙차] → 드럼쪽 시브 접선점
     ///   → [시브 하부 감김 원호] → 앵커쪽 시브 접선점 → [직선 낙차] → 앵커(트롤리 고정).
     /// 시브(스프레더)가 내려가면 두 직선 낙차가 늘어나고 감김 호는 시브 따라 이동 → 실물처럼 신축.
     ///
@@ -198,7 +198,6 @@ namespace AIXRCrane.Crane.Sts
             Vector3 nrm = Vector3.Cross(tan, Vector3.up);
             if (nrm.sqrMagnitude < 1e-8f) nrm = Vector3.Cross(tan, Vector3.right);
             nrm.Normalize();
-            Vector3 bin = Vector3.Cross(tan, nrm).normalized;
 
             for (int i = 0; i < m; i++)
             {
@@ -210,7 +209,7 @@ namespace AIXRCrane.Crane.Sts
                 // 평행이동: 이전 프레임을 새 접선으로 회전
                 Quaternion q = Quaternion.FromToRotation(tan, ti);
                 nrm = (q * nrm).normalized;
-                bin = Vector3.Cross(ti, nrm).normalized;
+                Vector3 bin = Vector3.Cross(ti, nrm).normalized;
                 nrm = Vector3.Cross(bin, ti).normalized;
                 tan = ti;
 

@@ -78,7 +78,6 @@ namespace AIXRCrane.Crane.Sts.Net
         ///     표지판이 틀린 크기로 서는 게 아니라 '목표가 바뀌는' 것뿐이라 조용히 깨지지 않는다.</summary>
         const float SignRealHeightMeters = 2.2f;
 
-        GameObject sign;
         LineRenderer band;
         NetLanUI ui;
         Vector3 center;
@@ -247,12 +246,6 @@ namespace AIXRCrane.Crane.Sts.Net
 
             transform.position = center;
             BuildBand();
-            // ★ 표지판은 오너 지시 2026-09-18 "유니티에 있는 표지판을 일단 삭제해" 로 <b>띄우지 않는다</b>.
-            //   '일단' 이라 되돌리기 쉽게 호출만 막는다 — BuildSign 본문·ExitSign.fbx·표시판_빌드.py 는 그대로 둔다.
-            //   되살리려면 아래 한 줄의 주석만 풀면 된다.
-            //   ★ 씬에 심은 오브젝트는 애초에 없다(Port.unity 의 ExitSign 0개) — 표지판은 접속 중에만 생기는
-            //     런타임 생성물이라, '유니티에서 지운다' 는 곧 이 호출을 막는 것이다.
-            // BuildSign();
             placed = true;
             // 좌표는 실척(m)을 앞에 찍는다 — 오너 지시 2026-09-17 "실척 좌표로 해줘".
             //   모델 단위는 1 unit = 24 m 라 숫자가 1/24 로 눌려 사람이 못 읽는다(−0.25 vs −6.00m).
@@ -262,26 +255,6 @@ namespace AIXRCrane.Crane.Sts.Net
                       $"반경 실척 {radiusMeters:0.#}m · {dwellSeconds:0}초 머물면 종료 · " +
                       $"헤드셋 이탈 {headsetLostGraceSeconds:0}초면 자동 종료");
             return true;
-        }
-
-        /// <summary>존 가운데에 '나가는 문' 표지판을 세운다 — 오너 지시 2026-09-17.
-        ///
-        /// ★ 지금은 <b>호출이 막혀 있다</b>(TryPlace 참조). 표지판은 2026-09-18 오너 지시로 씬에 심는 쪽으로
-        ///   옮겼다 — "Scene 를 서버쪽이랑 똑같이 만들어줘". 런타임 생성과 씬 배치가 <b>겹치면 표지판이 둘</b>
-        ///   서므로, 되살릴 땐 씬에 심은 ExitSign 을 먼저 지울 것.
-        /// ★ 자리·자세·배율은 <see cref="FitSign"/> 한 곳에서 나온다 — 에디터 배치와 같은 식이다.
-        /// ★ 리소스가 없으면 띠만 남기고 조용히 넘어간다 — 표지판 때문에 존이 동작을 멈추면 안 된다.</summary>
-        void BuildSign()
-        {
-            if (sign != null) return;
-            var prefab = Resources.Load<GameObject>(SignResourcePath);
-            if (prefab == null) return;
-
-            sign = Instantiate(prefab, transform);
-            sign.name = "ExitSign";
-            sign.transform.localPosition = Vector3.zero;   // 존 중심 = 부모 원점
-
-            FitSign(sign, prefab.transform.localRotation, center);
         }
 
         /// <summary>표지판의 <b>자세·배율</b>. 런타임(ExitZone.BuildSign)과 에디터 배치
@@ -409,7 +382,6 @@ namespace AIXRCrane.Crane.Sts.Net
         void SetVisible(bool v)
         {
             if (band != null && band.enabled != v) band.enabled = v;
-            if (sign != null && sign.activeSelf != v) sign.SetActive(v);
         }
     }
 }

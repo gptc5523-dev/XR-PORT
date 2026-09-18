@@ -95,7 +95,7 @@ class Axis:
 
     def step(self, dt, vmax, amax):
         d = self.target - self.pos
-        dist = abs(d); vabs = abs(self.vel); v0 = self.vel
+        dist = abs(d); vabs = abs(self.vel)
         stop = (vabs * vabs) / (2 * amax) if amax > 0 else 0.0
         if dist <= stop + 1e-4:
             a = (-1.0 if self.vel > 0 else (1.0 if self.vel < 0 else 0.0)) * amax

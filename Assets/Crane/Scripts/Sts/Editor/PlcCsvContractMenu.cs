@@ -6,7 +6,6 @@ using System.Text;
 using System.Text.RegularExpressions;
 using UnityEditor;
 using UnityEngine;
-using AIXRCrane.Crane.Sts;
 
 namespace AIXRCrane.Crane.Sts.EditorTools
 {

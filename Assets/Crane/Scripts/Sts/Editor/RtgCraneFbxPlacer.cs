@@ -23,7 +23,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
     {
         const string Fbx       = "Assets/Crane/Models/RTG_Crane.fbx";
         const string MatDir    = "Assets/Crane/Materials/RTG";
-        const string CraneName = "RTG 크레인";
+        const string CraneName = StsPartNames.RtgCraneRoot;
         const float  RealCraneHeightM = 25.042f;  // Blender 실측 RTG 총높이(m, 2026-07-15 재측정). 목표 크기 = ×ModelScale(1/24)로 절차 크레인과 동일.
 
         // name, r, g, b, metallic, smoothness(=1-rough), alpha(<1 → 투명), emis(발광 강도, 0=없음)  ── Blender Principled 실측값
@@ -68,7 +68,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
         static void ClearExistingRtgs()
         {
             int killed = 0;
-            foreach (var t in Object.FindObjectsByType<Transform>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+            foreach (var t in Object.FindObjectsByType<Transform>(FindObjectsInactive.Include))
             {
                 if (t == null || t.parent != null) continue;                 // 루트만
                 string n = t.gameObject.name;
@@ -84,7 +84,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             var ground = GameObject.Find(StsPartNames.QuayGround);
             if (ground == null) return new System.Collections.Generic.List<Renderer>();
             return ground.GetComponentsInChildren<Renderer>()
-                         .Where(r => r.gameObject.name.StartsWith("YardBlock_Zone"))
+                         .Where(r => r.gameObject.name.StartsWith(StsPartNames.YardBlockZone))
                          .OrderBy(r => Mathf.Abs(r.bounds.center.x))
                          .ThenBy(r => r.bounds.center.z)
                          .ToList();
@@ -183,7 +183,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             var ground = GameObject.Find(StsPartNames.QuayGround);
             if (ground == null) return null;
             return ground.GetComponentsInChildren<Renderer>()
-                         .Where(r => r.gameObject.name.StartsWith("YardBlock_Zone"))
+                         .Where(r => r.gameObject.name.StartsWith(StsPartNames.YardBlockZone))
                          .OrderBy(r => Mathf.Abs(r.bounds.center.x)).FirstOrDefault();
         }
 
@@ -207,7 +207,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             if (best == null)
             {
                 float bestArea = 0f;
-                foreach (var r in Object.FindObjectsByType<Renderer>(FindObjectsSortMode.None))
+                foreach (var r in Object.FindObjectsByType<Renderer>())
                 {
                     if (StsPartNames.IsSeaName(r.gameObject.name)) continue;
                     var s = r.bounds.size;
@@ -241,7 +241,6 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             mi.importTangents     = ModelImporterTangents.CalculateMikk;
             mi.weldVertices       = true;
             mi.materialImportMode = ModelImporterMaterialImportMode.ImportStandard;
-            mi.materialLocation   = ModelImporterMaterialLocation.External;
 
             if (!Directory.Exists(MatDir)) { Directory.CreateDirectory(MatDir); AssetDatabase.Refresh(); }
             foreach (var d in Mats)

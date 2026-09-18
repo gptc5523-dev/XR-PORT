@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using AIXRCrane.Ship;
-using AIXRCrane;
 using AIXRCrane.EditorTools;
 using AIXRCrane.Crane.Sts.Net;
 using UnityEditor;
@@ -700,7 +699,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             int n = 0;
             for (int i = PortConfig.YardLaneStart; i < PortConfig.YardLanes; i++)
                 for (int j = 0; j < PortConfig.YardBlocksPerLane; j++, n++)
-                    Place(block, bRoot, "YardBlock_Zone",
+                    Place(block, bRoot, StsPartNames.YardBlockZone,
                           new Vector3(PortConfig.YardBlockCenterX(i) * StsConfig.ModelScale, 0f,
                                       PortConfig.YardBlockCenterZ(j) * StsConfig.ModelScale), bScale);
 
@@ -800,7 +799,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
         static void EnableInstancingAll()
         {
             var mats = new HashSet<Material>();
-            foreach (var r in Object.FindObjectsByType<MeshRenderer>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+            foreach (var r in Object.FindObjectsByType<MeshRenderer>(FindObjectsInactive.Include))
                 foreach (var m in r.sharedMaterials)
                     if (m != null) mats.Add(m);
 
@@ -817,7 +816,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             // 드로우콜 근사 = (메시, 머티리얼) 고유 조합 수. 인스턴싱이 이 단위로 묶는다.
             var combos = new HashSet<(Mesh, Material)>();
             int renderers = 0;
-            foreach (var r in Object.FindObjectsByType<MeshRenderer>(FindObjectsInactive.Exclude, FindObjectsSortMode.None))
+            foreach (var r in Object.FindObjectsByType<MeshRenderer>(FindObjectsInactive.Exclude))
             {
                 var mf = r.GetComponent<MeshFilter>();
                 if (mf == null || mf.sharedMesh == null) continue;

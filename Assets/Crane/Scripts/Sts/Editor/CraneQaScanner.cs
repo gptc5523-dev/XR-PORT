@@ -22,7 +22,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
         [MenuItem("Tool/크레인 정밀 검사 (겹침·부양·중복)", false, 20)]
         static void Scan()
         {
-            var crane = GameObject.Find("STS_Crane");
+            var crane = GameObject.Find(StsPartNames.StsCraneRoot);
             if (crane == null) { Debug.LogWarning("[CraneQA] 씬에 'STS_Crane'이 없습니다."); return; }
 
             var rends = crane.GetComponentsInChildren<MeshRenderer>(false);

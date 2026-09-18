@@ -41,7 +41,6 @@ namespace AIXRCrane.Crane.Sts.Net
         readonly List<Renderer> rends = new();
         Transform rig;
         Camera cam;
-        bool visible = true;
 
         /// <summary>이 아바타의 식별색 — HUD·이름표에서 같은 색을 쓰고 싶을 때.</summary>
         public Color TintColor =>
@@ -53,14 +52,6 @@ namespace AIXRCrane.Crane.Sts.Net
             ApplyTint();
             // 자기 아바타는 1인칭이라 숨긴다. 남의 아바타는 보여야 한다.
             SetVisible(!IsOwner);
-        }
-
-        /// <summary>메시를 나중에 붙였을 때 렌더러 목록·색·표시상태를 다시 적용한다.</summary>
-        public void Reapply()
-        {
-            CollectRenderers();
-            ApplyTint();
-            SetVisible(visible);
         }
 
         void CollectRenderers()
@@ -85,7 +76,6 @@ namespace AIXRCrane.Crane.Sts.Net
 
         void SetVisible(bool on)
         {
-            visible = on;
             foreach (var r in rends)
                 if (r != null) r.enabled = on;
         }

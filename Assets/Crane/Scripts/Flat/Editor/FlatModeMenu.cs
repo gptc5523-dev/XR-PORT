@@ -1,6 +1,5 @@
 using UnityEditor;
 using UnityEngine;
-using AIXRCrane.Crane.Flat;
 
 namespace AIXRCrane.Crane.Flat.EditorTools
 {

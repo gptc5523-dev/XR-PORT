@@ -1,6 +1,4 @@
-using System;
 using System.Collections.Generic;
-using System.Text;
 
 namespace AIXRCrane
 {
@@ -77,14 +75,5 @@ namespace AIXRCrane
             return check == 10 ? 0 : check;
         }
 
-        /// <summary>주어진 번호가 ISO 6346 체크디지트를 만족하는지 검증.</summary>
-        public static bool Validate(string id)
-        {
-            if (string.IsNullOrEmpty(id) || id.Length != 11) return false;
-            string owner = id.Substring(0, 4);
-            string serial = id.Substring(4, 6);
-            if (!int.TryParse(id.Substring(10, 1), out int actual)) return false;
-            return CalculateCheckDigit(owner, serial) == actual;
-        }
     }
 }

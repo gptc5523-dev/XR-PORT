@@ -47,7 +47,7 @@ namespace AIXRCrane.Crane.Sts.Net.EditorTools
         // NetworkManager
         static NetworkManager SetupNetworkManager(GameObject avatarPrefab)
         {
-            var nm = Object.FindFirstObjectByType<NetworkManager>();
+            var nm = Object.FindAnyObjectByType<NetworkManager>();
             if (nm == null)
             {
                 var go = new GameObject("NetworkManager");
@@ -110,7 +110,7 @@ namespace AIXRCrane.Crane.Sts.Net.EditorTools
         // CraneNetSync
         static void SetupCraneSync()
         {
-            if (Object.FindFirstObjectByType<CraneNetSync>() != null) return;
+            if (Object.FindAnyObjectByType<CraneNetSync>() != null) return;
             var go = new GameObject("CraneNetSync");
             go.AddComponent<NetworkObject>();
             go.AddComponent<CraneNetSync>();

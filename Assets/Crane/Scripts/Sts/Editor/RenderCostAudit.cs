@@ -19,11 +19,11 @@ namespace AIXRCrane.Crane.Sts.EditorTools
         [MenuItem("Model/FBX/항구/렌더 비용 측정", priority = 30)]
         static void Run()
         {
-            var all = Object.FindObjectsByType<Renderer>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
+            var all = Object.FindObjectsByType<Renderer>(FindObjectsInactive.Exclude);
 
             // LODGroup 이 관리하는 렌더러는 어느 단계인지 표시해 둔다.
             var lodLevel = new Dictionary<Renderer, int>();
-            var groups = Object.FindObjectsByType<LODGroup>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
+            var groups = Object.FindObjectsByType<LODGroup>(FindObjectsInactive.Exclude);
             foreach (var g in groups)
             {
                 var lods = g.GetLODs();

@@ -78,7 +78,6 @@ namespace AIXRCrane.Crane.Sts.EditorTools
         const float BackSheaveY   = 0.02f;               // 시브 중심 Y — 데크(0.068) 밑으로 내려 매닮(행어로 현수)
         const float BackSheaveR   = 0.011f;              // 시브 외경 — 축소(끝단 브레이스 관통 회피)
         const float BackSheaveHZ  = 0.016f;              // 시브 반폭(Z) — side당 2폴(z=sz±0.008) 더블그루브 수용
-        const float BackSheaveSeat = 0.008f;             // 로프가 앉는 V홈 바닥 반경(=R-grooveDepth) — 리브·접선 공유
 
         // 기계실 — 거더 백리치 연장과 무관하게 고정 위치. 백스테이가 기계실을 안 뚫게 앞(바다쪽)으로 MHForward만큼 당김.
         const float MHForward        = 0.12f;
@@ -126,10 +125,8 @@ namespace AIXRCrane.Crane.Sts.EditorTools
         static readonly Color CGlass   = new Color(0.25f, 0.55f, 0.70f); // 운전실 창
         static readonly Color CLight   = new Color(1.00f, 0.95f, 0.70f); // 작업등 렌즈
         static readonly Color CWarn    = new Color(0.90f, 0.10f, 0.10f); // 항공장애등(적색)
-        static readonly Color CTemp    = new Color(0.90f, 0.10f, 0.85f); // ★임시 변경표시색(마젠타) — 이번 작업 부위 식별용. 승인 후 원색(CStruct)으로 환원.
-        static readonly Color CMark    = new Color(0.10f, 0.45f, 1.00f); // ★작업 대상 표시색(파랑) — 수정 예정 부위(형상 미수정) 식별용. 확정 후 CCable로 환원.
 
-        const string RootName = "STS_Crane";
+        const string RootName = StsPartNames.StsCraneRoot;
 
         // 같은 색은 머티리얼 1개를 재사용(빌드 1회 한정)
         static Dictionary<Color, Material> _matCache;
@@ -277,7 +274,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             luffPivot.transform.SetParent(boom.transform, worldPositionStays: false);
             luffPivot.transform.localPosition = new Vector3(WaterLegX, GirderCenterY, 0f);
             BuildBoomHinge(boom.transform, luffPivot.transform);          // 힌지 관절(클레비스+텅+핀) — 스윕 이후(직접 부모 지정)
-            BuildBoomHoistReeving(root.transform, boom.transform, luffPivot.transform);   // 붐호이스트 리빙(정점 시브↔브라이들 동적)
+            BuildBoomHoistReeving(root.transform, luffPivot.transform);   // 붐호이스트 리빙(정점 시브↔브라이들 동적)
 
             // A-프레임 + 스테이 케이블 (루트 레벨)
             BuildApexAndStays(root.transform, luffPivot.transform);
@@ -1656,7 +1653,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             cutC.Add(new Vector3(gfCx - 0.001f, floorY + 0.0025f, 0f));        // 4) 바닥 lookdown 개구
             cutS.Add(new Vector3(gfW - 0.002f, wt * 4f, 2f * (hz - rim)));
 
-            GameObject shell = null;
+            GameObject shell;
             try
             {
                 shell = CabCsgShell(cab,
@@ -1938,14 +1935,14 @@ namespace AIXRCrane.Crane.Sts.EditorTools
         [MenuItem("Model/PG/크레인/트위스트락 락 높이 실측", false, 3)]
         public static void MeasureLockHeight()
         {
-            if (Application.isBatchMode) EditorSceneManager.OpenScene("Assets/Scenes/Port.unity");
-            foreach (var crane in Object.FindObjectsByType<StsCrane>(FindObjectsSortMode.None))
+            if (Application.isBatchMode) EditorSceneManager.OpenScene(StsPartNames.PortScenePath);
+            foreach (var crane in Object.FindObjectsByType<StsCrane>())
             {
                 Transform body = crane.Spreader is Component sc ? sc.transform : null;
                 // ★ 콘은 4개 전부 모은다 — 하나만 제외하면 '본체 최저면'에 나머지 콘이 잡혀 노출이 0 으로 나온다(2026-09-16 실측 오류).
                 var cones = new List<Transform>();
                 foreach (var t in crane.GetComponentsInChildren<Transform>(true))
-                    if (t.name.StartsWith(StsPartNames.TwistlockCone) || t.name.StartsWith("Spreader_Twistlock_")) cones.Add(t);
+                    if (t.name.StartsWith(StsPartNames.TwistlockCone) || t.name.StartsWith(StsPartNames.SpreaderTwistlockPrefix)) cones.Add(t);
                 Transform cone = cones.Count > 0 ? cones[0] : null;
                 if (cone == null || body == null) { Debug.Log($"[락높이] {crane.name} — 콘 미탐색"); continue; }
 
@@ -2022,9 +2019,9 @@ namespace AIXRCrane.Crane.Sts.EditorTools
         [MenuItem("Model/PG/크레인/트위스트락 노출 씬 동기화", false, 2)]
         public static void SyncTwistlockExposure()
         {
-            if (Application.isBatchMode) EditorSceneManager.OpenScene("Assets/Scenes/Port.unity");
+            if (Application.isBatchMode) EditorSceneManager.OpenScene(StsPartNames.PortScenePath);
             int moved = 0, already = 0;
-            foreach (var t in Object.FindObjectsByType<Transform>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+            foreach (var t in Object.FindObjectsByType<Transform>(FindObjectsInactive.Include))
             {
                 // 이름 규약은 StsGrabProbe·SpreaderGrabber 와 같다 — 절차 STS 는 'Twistlock_Cone'(+번호), FBX RTG 는 'Spreader_Twistlock_'(제외).
                 if (!t.name.StartsWith(StsPartNames.TwistlockCone)) continue;
@@ -2147,7 +2144,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
                           topAnchors.ToArray(), botAnchors.ToArray(), radius);
         }
 
-        // 호이스트 윗구간(트롤리 뒷면 → 백리치 고정 앵커) — 동적(BoomRopeRig).
+        // 호이스트 윗구간(트롤리 뒷면 → 백리치 고정 앵커) — 동적.
         //   고정 앵커를 백리치 끝(Stay_Anchor 부근 x≈-0.537)에 둠 — 트롤리 backmost(-0.345)보다
         //   더 뒤라, 트롤리가 어디 있든 케이블이 항상 뒤로 향함(기계실 앞면이면 트롤리가 지나쳐 버려 NG).
         //   경로는 트롤리 뒷면(x-0.062)에서 곧장 -X, 붐 밑(y-0.02)으로 주행 → 거더/brace/cross(전부 y0.015 위)·본체 회피.
@@ -3905,76 +3902,6 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             return go;
         }
 
-        // 분절(세그먼트) 케이블 — 카테너리 포물선을 따라 짧은 원통 토막을 이어 붙임. 스플라인 튜브(CableCatenary)가
-        //   '딱딱'해 보일 때, 토막 이음새가 미세하게 꺾여 실제 와이어로프처럼 늘어져 보이게 한다. 토막↑ = 매끈.
-        static void CableSegmented(Transform parent, string name, Vector3 a, Vector3 b,
-                                   float sag, float radius, Color color, int segCount = 14)
-        {
-            segCount = Mathf.Max(2, segCount);
-            Vector3 prev = a;
-            for (int i = 1; i <= segCount; i++)
-            {
-                float t = i / (float)segCount;
-                Vector3 p = Vector3.Lerp(a, b, t);
-                p.y -= 4f * sag * t * (1f - t);   // 포물선 처짐(중앙 최대) — 카테너리 근사
-                Rod(parent, name, prev, p, radius, color);
-                prev = p;
-            }
-        }
-
-        // 시브 홈을 감는 분절 로프 — 중심 center, 시트 반경 rseat의 원(X-Y 평면)을 따라 startDeg에서 sweepDeg만큼
-        //   짧은 원통 토막으로 잇는다. 양 끝각은 두 로프 암(트롤리/기계실)의 접선점과 맞물려 연속. 감김각이 커질수록
-        //   '도르래에 둘러 감긴' 무거운 리브로 보인다(0°=+X, 90°=+Y 위; sweep 음수=시계방향).
-        static void SheaveReeve(Transform parent, string name, Vector3 center, float rseat,
-                                float startDeg, float sweepDeg, float ropeR, Color color, int segCount = 22)
-        {
-            segCount = Mathf.Max(3, segCount);
-            Vector3 Pt(float deg)
-            {
-                float r = deg * Mathf.Deg2Rad;
-                return center + new Vector3(Mathf.Cos(r) * rseat, Mathf.Sin(r) * rseat, 0f);
-            }
-            // [도관 표준] 곡선을 짧은 원통으로 그리면 절점마다 원통 끝이 호의 현이라 꺾여 틈/킹크가 생긴다.
-            //   전 절점(시작 포함)에 로프 굵기(지름=2·ropeR) 구를 넣어 메움 → 부풀지 않고 매끈한 곡선.
-            Vector3 prev = Pt(startDeg);
-            Ball(parent, name + "_Node", prev, new Vector3(2f * ropeR, 2f * ropeR, 2f * ropeR), color);  // 시작 절점(인접 로프 이음부) 메움
-            for (int i = 1; i <= segCount; i++)
-            {
-                Vector3 p = Pt(startDeg + sweepDeg * (i / (float)segCount));
-                Rod(parent, name, prev, p, ropeR, color);
-                Ball(parent, name + "_Node", p, new Vector3(2f * ropeR, 2f * ropeR, 2f * ropeR), color);  // 절점 메움(틈/킹크 제거)
-                prev = p;
-            }
-        }
-
-        // 시브를 감는 호이스트 로프 — 뒤(-X, 기계실 윗구간)에서 와서 시브 위를 넘어 앞·아래(스프레더)로 강하.
-        //   양 끝을 시브 치크판(±0.016) 밖으로 빼서 앞(아래)·뒤 둘 다 보이게. Splines 곡선 튜브.
-        static void SheaveWrap(Transform parent, Vector3 center, float sheaveR, float ropeRadius, Color color)
-        {
-            // 시브를 크라운(정상)으로 감고 '양 끝이 모두 아래로' 강하하는 리빙:
-            //   −X측 접선 = 뒤·아래로 → 백 페어리드(기계실 윗구간), +X측 접선 = 곧장 아래 → 스프레더(Hoist_Rope).
-            //   스프레더 강하를 더 길게(지배적) 둬 로프가 '바닥/스프레더'를 향하게(기계실 쪽으로 눕지 않게).
-            var spline = new UnityEngine.Splines.Spline();
-            Vector3[] pts = {
-                center + new Vector3(-sheaveR,        -0.028f,         0f),  // −X측 접선, 뒤·아래 → 백 페어리드(기계실 윗구간)
-                center + new Vector3(-sheaveR * 0.9f,  sheaveR * 0.4f, 0f),  // −X 상부
-                center + new Vector3( 0.000f,          sheaveR,        0f),  // 시브 정상(크라운, 홈)
-                center + new Vector3( sheaveR * 0.9f,  sheaveR * 0.4f, 0f),  // +X 상부
-                center + new Vector3( sheaveR,        -0.044f,         0f),  // +X측 접선, 곧장 아래 → 스프레더(지배적 강하)
-            };
-            foreach (var p in pts)
-                spline.Add(new Unity.Mathematics.float3(p.x, p.y, p.z),
-                           UnityEngine.Splines.TangentMode.AutoSmooth);
-            var mesh = new Mesh { name = "Sheave_Rope_Mesh" };
-            // Extrude(spline, mesh, radius, sides, segments): sides=단면 각수.
-            //   기존 5 = 5각 각기둥이라 평평한 면이 옆을 향해 '기울어진 리본'처럼 보였음 → 12각으로 둥근 로프.
-            UnityEngine.Splines.SplineMesh.Extrude(spline, mesh, ropeRadius, 12, 16);
-            var go = new GameObject(Numbered("Sheave_Rope"));
-            go.transform.SetParent(parent, worldPositionStays: false);
-            go.AddComponent<MeshFilter>().sharedMesh = mesh;
-            go.AddComponent<MeshRenderer>().sharedMaterial = GetMaterial(color);
-        }
-
         // ProBuilder 편집형 박스 — CreatePrimitive 대신 ProBuilder 메시로 생성. 디자이너가 ProBuilderize 없이
         //   바로 ProBuilder(베벨·면 분할)·Polybrush(스컬프팅)로 다듬을 수 있다. (디자인 워크플로용 — 신규/재설계 부품에 사용)
         //   euler 주면 회전. 콜라이더는 시각 전용으로 제거(기존 부품과 통일).
@@ -4214,24 +4141,10 @@ namespace AIXRCrane.Crane.Sts.EditorTools
 
         static Vector3 FindContainerAnchor()
         {
-            // 1) 실제 컨테이너 인스턴스 우선(가장 정확)
-            var instType = System.Type.GetType("AIXRCrane.ContainerInstance, Assembly-CSharp");
-            if (instType != null)
-            {
-                var inst = Object.FindFirstObjectByType(instType) as Component;
-                if (inst != null) return inst.transform.position;
-            }
-            // 2) 스포너(보통 매니저 — 원점일 수 있음)
-            var spawnerType = System.Type.GetType("AIXRCrane.ContainerSpawner, Assembly-CSharp");
-            if (spawnerType != null)
-            {
-                var spawner = Object.FindFirstObjectByType(spawnerType) as Component;
-                if (spawner != null) return spawner.transform.position;
-            }
-            // 3) 이름으로
+            var inst = Object.FindAnyObjectByType<AIXRCrane.ContainerInstance>();
+            if (inst != null) return inst.transform.position;
             var named = GameObject.Find("Container_Procedural");
-            if (named != null) return named.transform.position;
-            return Vector3.zero;
+            return named != null ? named.transform.position : Vector3.zero;
         }
 
         /// <summary>씬에 이미 있는 Quay_Ground의 '육지측' QuayRail 월드 X를 반환.
@@ -4257,7 +4170,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
         /// <summary>붐호이스트 리빙 — 정점 시브(고정)↔붐 브라이들(러핑) 로프를 BoomHoistRig로 동적 연결.
         /// 붐 기립 시 브라이들이 회전해 올라가 로프가 신축(붐을 세우는 로프계 시각화). 브라이들 마스트는 luffPivot 하위(추종),
         /// 정점 접점 마커는 root 하위(고정). z=±거더간격 2줄(트윈 거더·2 시브 대응).</summary>
-        static void BuildBoomHoistReeving(Transform root, Transform boom, Transform luffPivot)
+        static void BuildBoomHoistReeving(Transform root, Transform luffPivot)
         {
             float apexY   = RailH + ApexH;
             float sheaveY = apexY - 0.042f;                      // 정점 붐호이스트 시브 Y(Apex_BoomHoistSheave와 동일 SSOT)

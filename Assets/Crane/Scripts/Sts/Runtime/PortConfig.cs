@@ -1,6 +1,5 @@
 using UnityEngine;
 using AIXRCrane.Ship;
-using AIXRCrane;
 
 namespace AIXRCrane.Crane.Sts
 {

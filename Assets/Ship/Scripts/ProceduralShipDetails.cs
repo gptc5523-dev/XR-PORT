@@ -1,6 +1,5 @@
 using UnityEngine;
 using Procedural;
-using AIXRCrane;   // ProceduralContainerMesh.Length40ft (베이 피치)
 
 namespace AIXRCrane.Ship
 {

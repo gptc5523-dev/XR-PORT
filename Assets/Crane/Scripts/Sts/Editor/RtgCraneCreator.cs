@@ -158,7 +158,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             // 블록 존 — 종전엔 부두 절차 생성기가 그린 YardBlock_Zone 렌더러가 SSOT였다. 생성기 삭제
             //   (오너 지시 2026-09-07 "코드를 전부 지워")로 그 SSOT가 없어졌다. 부두 FBX가 존을 갖고 오면 읽는다.
             var zones = groundGo.GetComponentsInChildren<Renderer>()
-                                .Where(r => r.gameObject.name.StartsWith("YardBlock_Zone"))
+                                .Where(r => r.gameObject.name.StartsWith(StsPartNames.YardBlockZone))
                                 .OrderBy(r => Mathf.Abs(r.bounds.center.x)).ToList();
             if (zones.Count == 0)
             {
@@ -926,7 +926,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             pos = Vector3.zero;
             var pivot = SceneViewPivot();
             Renderer best = null; float bestSq = float.PositiveInfinity;
-            foreach (var r in Object.FindObjectsByType<Renderer>(FindObjectsInactive.Exclude, FindObjectsSortMode.None))
+            foreach (var r in Object.FindObjectsByType<Renderer>(FindObjectsInactive.Exclude))
             {
                 if (r.gameObject.name != StsPartNames.YardBlockZone) continue;
                 var c = r.bounds.center;
@@ -965,7 +965,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
         {
             // 부두가 아예 없는 씬 → 평평한 것 중 면적 최대(바다 계열은 제외).
             Renderer best = null; float bestArea = 0f;
-            foreach (var r in Object.FindObjectsByType<Renderer>(FindObjectsInactive.Exclude, FindObjectsSortMode.None))
+            foreach (var r in Object.FindObjectsByType<Renderer>(FindObjectsInactive.Exclude))
             {
                 if (StsPartNames.IsSeaName(r.gameObject.name)) continue;
                 var e = r.bounds.size;
@@ -980,7 +980,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
         {
             cx = cz = 0f;
             bool any = false; Bounds b = default;
-            foreach (var r in Object.FindObjectsByType<Renderer>(FindObjectsInactive.Exclude, FindObjectsSortMode.None))
+            foreach (var r in Object.FindObjectsByType<Renderer>(FindObjectsInactive.Exclude))
             {
                 if (!IsUnderYard(r.transform)) continue;
                 if (!any) { b = r.bounds; any = true; } else b.Encapsulate(r.bounds);

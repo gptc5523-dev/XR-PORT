@@ -120,28 +120,6 @@ namespace AIXRCrane
         }
 
         /// <summary>
-        /// 감축 단계를 지정해 빌드. <see cref="BuildSized"/> 와 같은 방식으로 정적 상태를 복구한다.
-        /// </summary>
-        public static Mesh BuildSizedLod(
-            float length, float width, float height, int lodLevel,
-            string meshName = "Container_Procedural_LOD",
-            float scale = DefaultMiniatureScale,
-            bool centerPivot = true,
-            bool xIsLength = true)
-        {
-            int saved = LodLevel;
-            LodLevel = lodLevel;
-            try
-            {
-                return BuildSized(length, width, height, meshName, scale, centerPivot, xIsLength);
-            }
-            finally
-            {
-                LodLevel = saved;
-            }
-        }
-
-        /// <summary>
         /// 임의 사이즈로 컨테이너 빌드. 표준 사이즈는 Length20ft/Length40ft, HeightStd/HeightHC 상수 사용.
         /// 내부적으로 정적 Length/Width/Height 를 잠시 바꿔서 Build() 호출 후 복구.
         /// </summary>

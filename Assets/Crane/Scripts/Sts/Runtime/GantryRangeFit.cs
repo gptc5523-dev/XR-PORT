@@ -16,24 +16,6 @@ namespace AIXRCrane.Crane.Sts
     /// </summary>
     public static class GantryRangeFit
     {
-        const string CraneName = "STS_Crane";
-
-        /// <summary>씬에서 STS_Crane(또는 첫 StsCrane)과 GantryMover를 찾아 주행범위를 맞춘다. 적용 여부 반환.</summary>
-        public static bool TryFitInScene(out string msg)
-        {
-            msg = "";
-            var go = GameObject.Find(CraneName);
-            if (go == null)
-            {
-                var c = Object.FindFirstObjectByType<StsCrane>();
-                go = c != null ? c.gameObject : null;
-            }
-            if (go == null) { msg = $"'{CraneName}'(StsCrane)를 못 찾음."; return false; }
-            var gantry = go.GetComponent<GantryMover>();
-            if (gantry == null) { msg = $"'{go.name}'에 GantryMover가 없음."; return false; }
-            return Apply(go, gantry, out msg);
-        }
-
         /// <summary>
         /// 크레인 바퀴가 레일을 안 벗어나는 '최대 대칭 주행범위'를 계산해 GantryMover.Configure로 적용. 성공 시 true.
         /// 크레인/부두/플레이어를 재생성·이동하지 않고 GantryMover의 Min/Max만 바꾼다. (에디터/런타임 공용)

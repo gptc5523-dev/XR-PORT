@@ -22,7 +22,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
     {
         const string Key = "PlcReplaySmoke", StartKey = "PlcReplaySmoke.Start", EndKey = "PlcReplaySmoke.End",
                      MovesKey = "PlcReplaySmoke.Moves", PrevKey = "PlcReplaySmoke.Prev";
-        const string ScenePath = "Assets/Scenes/Port.unity", Crane = "STS_Crane";
+        const string ScenePath = StsPartNames.PortScenePath, Crane = StsPartNames.StsCraneRoot;
         // 벽시계 한도 — ×10 을 걸어도 재생 스캔·물리 부하로 실측 ×3.6 이었다(2026-09-15, 게임 1072초 = 벽 301초). S14 전량 1732초 ≈ 480초.
         const float TimeScale = 10f, WallLimitS = 900f, PickTolM = 0.36f;
 

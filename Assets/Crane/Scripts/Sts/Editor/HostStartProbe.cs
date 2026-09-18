@@ -29,7 +29,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
     [InitializeOnLoad]
     public static class HostStartProbe
     {
-        const string Key = "HostStartProbe", PrevKey = "HostStartProbe.Prev", ScenePath = "Assets/Scenes/Port.unity";
+        const string Key = "HostStartProbe", PrevKey = "HostStartProbe.Prev", ScenePath = StsPartNames.PortScenePath;
 
         static int phase, fails, measured;
         static float waitUntil, downDeadline;

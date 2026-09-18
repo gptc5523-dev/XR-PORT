@@ -2,7 +2,6 @@ using System.Collections.Generic;
 using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.XR.Interaction.Toolkit.Interactables;
-using AIXRCrane.Crane.Sts;
 
 namespace AIXRCrane.Crane.Sts.Net
 {
@@ -179,7 +178,7 @@ namespace AIXRCrane.Crane.Sts.Net
 
         void EnsureRefs()
         {
-            if (crane == null) crane = FindFirstObjectByType<StsCrane>();
+            if (crane == null) crane = FindAnyObjectByType<StsCrane>();
             if (crane == null) return;
             hoist     = crane.Spreader as SpreaderHoist;
             attach    = crane.Attach;
@@ -325,7 +324,7 @@ namespace AIXRCrane.Crane.Sts.Net
         Transform FindNearestRigidbody(Vector3 world, float maxDist)
         {
             Transform best = null; float bestD = maxDist;
-            foreach (var rb in FindObjectsByType<Rigidbody>(FindObjectsInactive.Exclude, FindObjectsSortMode.None))
+            foreach (var rb in FindObjectsByType<Rigidbody>(FindObjectsInactive.Exclude))
             {
                 if (rb == null) continue;
                 if (crane != null && rb.transform.IsChildOf(crane.transform)) continue;
@@ -343,7 +342,7 @@ namespace AIXRCrane.Crane.Sts.Net
         List<Transform> BuildContainerList()
         {
             _containerBuf.Clear();
-            foreach (var rb in FindObjectsByType<Rigidbody>(FindObjectsInactive.Exclude, FindObjectsSortMode.None))
+            foreach (var rb in FindObjectsByType<Rigidbody>(FindObjectsInactive.Exclude))
             {
                 if (rb == null) continue;
                 if (rb.name.IndexOf("Container", System.StringComparison.OrdinalIgnoreCase) < 0) continue;
@@ -376,7 +375,7 @@ namespace AIXRCrane.Crane.Sts.Net
         void SubscribeContainers()
         {
             var found = new List<Transform>();
-            foreach (var rb in FindObjectsByType<Rigidbody>(FindObjectsInactive.Exclude, FindObjectsSortMode.None))
+            foreach (var rb in FindObjectsByType<Rigidbody>(FindObjectsInactive.Exclude))
             {
                 if (rb == null) continue;
                 if (rb.name.IndexOf("Container", System.StringComparison.OrdinalIgnoreCase) < 0) continue;

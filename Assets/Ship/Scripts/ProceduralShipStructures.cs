@@ -1,7 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
 using Procedural;
-using AIXRCrane;   // ProceduralContainerMesh.Length40ft
 
 namespace AIXRCrane.Ship
 {

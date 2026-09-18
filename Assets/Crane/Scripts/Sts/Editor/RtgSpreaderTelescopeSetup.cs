@@ -15,7 +15,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
     /// </summary>
     public static class RtgSpreaderTelescopeSetup
     {
-        const string CraneName = "RTG 크레인";
+        const string CraneName = StsPartNames.RtgCraneRoot;
         const string BeamF = "Spreader_TeleBeam_F";
         const string BeamB = "Spreader_TeleBeam_B";
 

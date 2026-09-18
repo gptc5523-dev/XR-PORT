@@ -510,7 +510,7 @@ namespace AIXRCrane.Crane.Sts
             var locoType = LocomotionProviderType;
             if (locoType == null) { locoCached = true; return; }   // XRI 없음 — 더 안 찾음
             var snapType = SnapTurnProviderType;
-            foreach (var o in FindObjectsByType(locoType, FindObjectsInactive.Include, FindObjectsSortMode.None))
+            foreach (var o in FindObjectsByType(locoType, FindObjectsInactive.Include))
             {
                 if (o is not Behaviour b) continue;
                 // SnapTurn(45° 점프 + 0.5s debounce)은 '딱딱 끊기는' 회전이라 항상 끄고 토글 목록에서도 제외.
@@ -547,7 +547,7 @@ namespace AIXRCrane.Crane.Sts
             //   → moveSpeed에는 원하는 '체감' 속도(walkSpeed)를 그대로 넣고, 월드 축소 반영은 XRI에 맡긴다.
             float effective = walkSpeed;
             int n = 0;
-            foreach (var o in FindObjectsByType(locoType, FindObjectsInactive.Exclude, FindObjectsSortMode.None))
+            foreach (var o in FindObjectsByType(locoType, FindObjectsInactive.Exclude))
             {
                 var prop = o.GetType().GetProperty("moveSpeed");
                 if (prop != null && prop.CanWrite && prop.PropertyType == typeof(float))

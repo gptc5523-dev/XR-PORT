@@ -31,7 +31,7 @@ D = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(D, "output")
 sys.path.insert(0, D)
 import generate as G                                                         # noqa: E402
-from generate import RANGE, AMAX, RANGES, CONT_H, rtg_gt, rtg_tr, iso6346  # noqa: E402
+from generate import AMAX, RANGES, CONT_H, rtg_gt, rtg_tr, iso6346  # noqa: E402
 
 assert iso6346("CSQU", 305438) == "CSQU3054383"   # ISO 6346 표준 예시 번호
 

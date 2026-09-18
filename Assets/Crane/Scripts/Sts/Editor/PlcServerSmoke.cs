@@ -18,7 +18,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
     public static class PlcServerSmoke
     {
         const string Key = "PlcServerSmoke", StartKey = "PlcServerSmoke.Start", PrevKey = "PlcServerSmoke.Prev";
-        const string ScenePath = "Assets/Scenes/Port.unity", Crane = "STS_Crane";
+        const string ScenePath = StsPartNames.PortScenePath, Crane = StsPartNames.StsCraneRoot;
         const float WarmupS = 5f, MeasureS = 15f, MinSpanM = 0.5f;
 
         static int exceptions, samples;

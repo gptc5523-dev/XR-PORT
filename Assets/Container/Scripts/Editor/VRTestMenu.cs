@@ -33,13 +33,6 @@ namespace AIXRCrane.EditorTools
             if (_palette == null) _palette = AssetDatabase.LoadAssetAtPath<ContainerColorPalette>(PalettePath);
             return _palette;
         }
-        // 인덱스로 결정적 선택(야드 순환 — 24개면 24색 전부 1회씩). 팔레트 없으면 폴백.
-        static Color PaletteAt(int index)
-        {
-            var p = Palette();
-            if (p != null && p.Count > 0) return p.Get(index % p.Count).color;
-            return PaletteColors[index % PaletteColors.Length];
-        }
         // 랜덤 선택(단일 스폰). 팔레트 없으면 폴백.
         static Color PaletteRandom()
         {
@@ -63,7 +56,7 @@ namespace AIXRCrane.EditorTools
         static void SpawnSingle(float length, string suffix)
         {
             // 기존 컨테이너 모두 삭제 (Std Set 동일 패턴)
-            var existing = Object.FindObjectsByType<CubeReset>(FindObjectsSortMode.None);
+            var existing = Object.FindObjectsByType<CubeReset>();
             foreach (var c in existing) Undo.DestroyObjectImmediate(c.gameObject);
 
             string name = string.IsNullOrEmpty(suffix) ? "Container_Procedural" : "Container_Procedural_" + suffix;

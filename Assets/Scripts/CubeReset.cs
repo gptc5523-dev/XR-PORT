@@ -30,8 +30,6 @@ public class CubeReset : MonoBehaviour
     bool initialPlaced;
 
     public void SetHorizontalOffset(float offset) => horizontalOffset = offset;
-    public void SetVerticalOffset(float offset) => verticalOffset = offset;
-    public void SetPlacementMode(PlacementMode mode) => placementMode = mode;
 
     void Start()
     {

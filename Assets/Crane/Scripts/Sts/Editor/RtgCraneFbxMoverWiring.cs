@@ -23,7 +23,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
     /// </summary>
     public static class RtgCraneFbxMoverWiring
     {
-        const string CraneName = "RTG 크레인";
+        const string CraneName = StsPartNames.RtgCraneRoot;
 
         public static void Wire()
         {

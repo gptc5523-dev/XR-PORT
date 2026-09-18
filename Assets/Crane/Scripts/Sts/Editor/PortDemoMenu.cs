@@ -18,7 +18,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
     public static class PortDemoMenu
     {
         const string MenuPath = "PLC/시연 시나리오 (에디터 Play)";
-        const string ScenePath = "Assets/Scenes/Port.unity";
+        const string ScenePath = StsPartNames.PortScenePath;
         const string SmokeKey = "PortDemo.Smoke", PrevKey = "PortDemo.SmokePrev", StartKey = "PortDemo.SmokeStart";
         const float TimeScale = 10f, LimitSeconds = 600f;
 
@@ -38,7 +38,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             //   그땐 감독의 첫 크레인(STS)으로 잡는다.
             StsCrane crane = StsCraneVRController.Active != null ? StsCraneVRController.Active.GetComponent<StsCrane>() : null;
             if (crane == null)
-                foreach (var sc in Object.FindObjectsByType<StsCrane>(FindObjectsSortMode.None))
+                foreach (var sc in Object.FindObjectsByType<StsCrane>())
                     if (sc.GetComponent<RtgBogieSteering>() == null) { crane = sc; break; }
             if (crane == null) return;
             var cam = Camera.main;
@@ -134,7 +134,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             worst = "없음";
             float max = 0f;
             int outside = 0, measured2 = 0;
-            foreach (var lg in Object.FindObjectsByType<LODGroup>(FindObjectsInactive.Exclude, FindObjectsSortMode.None))
+            foreach (var lg in Object.FindObjectsByType<LODGroup>(FindObjectsInactive.Exclude))
             {
                 var t = lg.transform;
                 // 이름 규약으로 야드 컨테이너만 — Regex 를 쓰면 이 파일에 using 이 없어 컴파일이 깨진다(42 프로브와 같은 접두 판정).

@@ -10,7 +10,7 @@ public static class SetupMRScene
     {
         int added = 0;
 
-        var existingSession = Object.FindFirstObjectByType<ARSession>();
+        var existingSession = Object.FindAnyObjectByType<ARSession>();
         if (existingSession == null)
         {
             var sessionGO = new GameObject("AR Session");
@@ -20,7 +20,7 @@ public static class SetupMRScene
             added++;
         }
 
-        var xrOrigin = Object.FindFirstObjectByType<XROrigin>();
+        var xrOrigin = Object.FindAnyObjectByType<XROrigin>();
         if (xrOrigin != null)
         {
             var planeManager = xrOrigin.GetComponent<ARPlaneManager>();
@@ -59,7 +59,7 @@ public static class SetupMRScene
             Debug.LogWarning("[SetupMRScene] XR Origin 못 찾음. SampleScene에 'XR Origin Hands (XR Rig)' prefab 배치되어 있는지 확인");
         }
 
-        var existingMgr = Object.FindFirstObjectByType<TablePlacementManager>();
+        var existingMgr = Object.FindAnyObjectByType<TablePlacementManager>();
         if (existingMgr == null)
         {
             var mgrGO = new GameObject("TablePlacement");

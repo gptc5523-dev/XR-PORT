@@ -94,7 +94,7 @@ namespace AIXRCrane.Crane.Sts
         IEnumerator Start()
         {
             var ringMat = RingMaterial();
-            foreach (var c in FindObjectsByType<StsCrane>(FindObjectsSortMode.None))
+            foreach (var c in FindObjectsByType<StsCrane>())
             {
                 foreach (var b in c.GetComponents<PlcBridge>()) b.enabled = false;   // PLC 재생 말고 시나리오 — OnDisable 이 PlcDriven 도 끈다
                 var ctrl = c.GetComponent<StsCraneVRController>();
@@ -120,10 +120,10 @@ namespace AIXRCrane.Crane.Sts
 
             var site = new CraneDemoRunner.Site();
             var yardName = new Regex(@"^Cont(20|40)_\d+$");
-            foreach (var lg in FindObjectsByType<LODGroup>(FindObjectsSortMode.None))
+            foreach (var lg in FindObjectsByType<LODGroup>())
             {
                 var t = lg.transform;
-                bool ship = t.name.StartsWith("ShipContainer"), yard = !ship && yardName.IsMatch(t.name);
+                bool ship = t.name.StartsWith(StsPartNames.ShipContainer), yard = !ship && yardName.IsMatch(t.name);
                 if (!ship && !yard) continue;
                 if (!CraneDemoRunner.TryBounds(t, out var b)) continue;
                 if (yard) MakeGrabbable(t, b);   // 야드 컨테이너는 콜라이더·강체가 없어 VR 로 못 집는다

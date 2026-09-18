@@ -25,7 +25,7 @@ public class TablePlacementManager : MonoBehaviour
     void Awake()
     {
         Instance = this;
-        if (planeManager == null) planeManager = FindFirstObjectByType<ARPlaneManager>();
+        if (planeManager == null) planeManager = FindAnyObjectByType<ARPlaneManager>();
     }
 
     void OnDestroy()

@@ -64,7 +64,7 @@ namespace AIXRCrane.Crane.Sts
         void SpawnContainer()
         {
             // 잡기 기준점 = 트위스트락 중심. 여기에 정렬해야 안착(IsSeatedOver가 컨테이너 중심 vs 기준점 비교).
-            TwistlockFootprint(out Vector3 twCenter, out float twLong, out float twShort);
+            TwistlockFootprint(out Vector3 twCenter, out float twLong, out _);
             float groundY = transform.position.y;
 
             GameObject go;
@@ -116,7 +116,7 @@ namespace AIXRCrane.Crane.Sts
         {
             var pts = new System.Collections.Generic.List<Vector3>();
             foreach (var t in spreadT.GetComponentsInChildren<Transform>(true))
-                if (t.name.StartsWith("Spreader_Twistlock_")) pts.Add(t.position);
+                if (t.name.StartsWith(StsPartNames.SpreaderTwistlockPrefix)) pts.Add(t.position);
             if (pts.Count >= 2)
             {
                 Vector3 mn = pts[0], mx = pts[0];

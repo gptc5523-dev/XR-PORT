@@ -19,7 +19,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
     [InitializeOnLoad]
     public static class StsGrabProbe
     {
-        const string Key = "StsGrabProbe", PrevKey = "StsGrabProbe.Prev", ScenePath = "Assets/Scenes/Port.unity";
+        const string Key = "StsGrabProbe", PrevKey = "StsGrabProbe.Prev", ScenePath = StsPartNames.PortScenePath;
         const float TolXZ = 0.015f, TolY = 0.003f, LiftU = 0.05f;
         // 오너 2026-09-16 "락 거는 부분이 컨테이너 안으로 안 들어가" — 케이스 2종으로 나눠 잰다.
         //   · 호버(HoverM 위에서 Y 누름): 잠기면 실패. 공중 체결은 실물에 없다.
@@ -203,7 +203,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
 
         // SpreaderGrabber.Awake 와 똑같은 이름 규약으로 모은 콘 — RTG 에서 0개면 그랩버가 콘을 못 찾는다는 증거.
         static List<Transform> Cones(StsCrane crane) => crane.GetComponentsInChildren<Transform>(true)
-            .Where(t => t.name.StartsWith("Twistlock_Cone") || t.name.StartsWith("Spreader_Twistlock_"))   // Span() 과 같은 규약(Numbered 접미사 포함)
+            .Where(t => t.name.StartsWith(StsPartNames.TwistlockCone) || t.name.StartsWith(StsPartNames.SpreaderTwistlockPrefix))   // Span() 과 같은 규약(Numbered 접미사 포함)
             .ToList();
 
         // 렌더러 실측 최저점 — held(매단 컨테이너) 렌더러는 뺀다. cones=true 면 규약 일치 콘만, false 면 스프레더 전체.
@@ -396,7 +396,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
         static void Span(StsCrane crane, out float spanX, out float spanZ)
         {
             List<Vector3> pts = crane.GetComponentsInChildren<Transform>(true)
-                .Where(t => t.name.StartsWith("Twistlock_Cone") || t.name.StartsWith("Spreader_Twistlock_"))   // Numbered 접미사 포함
+                .Where(t => t.name.StartsWith(StsPartNames.TwistlockCone) || t.name.StartsWith(StsPartNames.SpreaderTwistlockPrefix))   // Numbered 접미사 포함
                 .Select(t => t.position).ToList();
             spanX = pts.Count > 1 ? pts.Max(p => p.x) - pts.Min(p => p.x) : 0f;
             spanZ = pts.Count > 1 ? pts.Max(p => p.z) - pts.Min(p => p.z) : 0f;
@@ -404,15 +404,15 @@ namespace AIXRCrane.Crane.Sts.EditorTools
 
         static void Setup()
         {
-            foreach (var b in Object.FindObjectsByType<PlcBridge>(FindObjectsSortMode.None)) b.enabled = false;   // PLC 재생이 축을 잡지 않게
+            foreach (var b in Object.FindObjectsByType<PlcBridge>()) b.enabled = false;   // PLC 재생이 축을 잡지 않게
             var yardRx = new Regex(@"^Cont(20|40)_\d+$");
-            var all = Object.FindObjectsByType<LODGroup>(FindObjectsSortMode.None).Select(l => l.transform)
-                .Where(t => t.name.StartsWith("ShipContainer") || yardRx.IsMatch(t.name)).ToList();
+            var all = Object.FindObjectsByType<LODGroup>().Select(l => l.transform)
+                .Where(t => t.name.StartsWith(StsPartNames.ShipContainer) || yardRx.IsMatch(t.name)).ToList();
             var bounds = new Dictionary<Transform, Bounds>();
             foreach (var t in all) if (CraneDemoRunner.TryBounds(t, out var bb)) bounds[t] = bb;
 
             // 원점 ↔ 바운즈 중심(로컬) — 원점 규약이 다른 컨테이너가 있는지
-            foreach (var t in new[] { all.FirstOrDefault(x => x.name.StartsWith("ShipContainer")), all.FirstOrDefault(x => x.name == "Cont40_00"), all.FirstOrDefault(x => x.name == "Cont20_00") })
+            foreach (var t in new[] { all.FirstOrDefault(x => x.name.StartsWith(StsPartNames.ShipContainer)), all.FirstOrDefault(x => x.name == "Cont40_00"), all.FirstOrDefault(x => x.name == "Cont20_00") })
                 if (t != null && bounds.TryGetValue(t, out var ob))
                     Debug.Log($"[StsGrabProbe] 원점↔바운즈 중심 {t.name}: 로컬 {t.InverseTransformPoint(ob.center):F4} · 크기 {ob.size:F4} · 회전 {t.rotation.eulerAngles} · 스케일 {t.lossyScale}");
 
@@ -431,7 +431,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
                 rb.isKinematic = true; rb.useGravity = false;
             }
 
-            foreach (var crane in Object.FindObjectsByType<StsCrane>(FindObjectsSortMode.None))
+            foreach (var crane in Object.FindObjectsByType<StsCrane>())
             {
                 var g = crane.GetComponent<SpreaderGrabber>();
                 if (g == null || crane.Attach == null || crane.Spreader == null) continue;
@@ -439,7 +439,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
                 if (crane.Gantry is GantryMover gm) gm.StopOnObstacle = false;
                 bool rtg = crane.GetComponent<RtgBogieSteering>() != null;
                 Vector3 me = crane.Gantry is Component gc ? gc.transform.position : crane.transform.position;
-                var picks = all.Where(t => bounds.ContainsKey(t) && (rtg ? yardRx.IsMatch(t.name) : t.name.StartsWith("ShipContainer")))
+                var picks = all.Where(t => bounds.ContainsKey(t) && (rtg ? yardRx.IsMatch(t.name) : t.name.StartsWith(StsPartNames.ShipContainer)))
                     .Where(t => Uncovered(t, all, bounds) && Reachable(crane, g, bounds[t]))
                     .OrderBy(t => (bounds[t].center - me).sqrMagnitude).ToList();
                 var chosen = rtg
