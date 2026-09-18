@@ -31,6 +31,9 @@ namespace AIXRCrane.Crane.Sts.Net
         public string JoinIp { get => joinIp; set { if (!string.IsNullOrEmpty(value)) joinIp = value; } }
         /// <summary>LanDiscovery가 호스트 비콘을 받아 JoinIp를 자동 설정했는지(자동 접속 트리거용).</summary>
         public bool HostDiscovered => hostDiscovered;
+        /// <summary>마지막으로 호스트 비콘을 받은 시각(unscaled 초). HostDiscovered 는 한 번 받으면 계속 true 라
+        ///   '호스트가 지금 살아 있나'는 이 값으로 본다(호스트는 1초마다 비콘을 뿌린다).</summary>
+        public float LastHostSeen { get; private set; } = float.NegativeInfinity;
         /// <summary>직전 '호스트 시작'이 실패했는지 — 대개 같은 PC의 다른 인스턴스가 이미 포트를 쥐고 있는 경우.
         /// VR 시작 메뉴(CraneNetMenuHUD)가 사용자에게 알리는 데 쓴다.</summary>
         public bool HostFailed => hostFailed;
@@ -48,6 +51,7 @@ namespace AIXRCrane.Crane.Sts.Net
             if (string.IsNullOrEmpty(ip)) return;
             joinIp = ip;
             hostDiscovered = true;
+            LastHostSeen = Time.unscaledTime;
         }
 
         public void BeginHost()  => StartHost();

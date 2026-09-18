@@ -30,7 +30,7 @@ namespace AIXRCrane.Crane.Flat
         [SerializeField] float viewElevationDeg = 28f;
         [Tooltip("시점 버튼 — 대상 바운즈 반지름 × 이 값만큼 떨어진다. 세로 시야 60° 에 구가 꽉 차는 거리가 2.0.")]
         [SerializeField] float viewDistanceFactor = 1.9f;
-        [Tooltip("호스트에 못 붙었을 때(호스트 없음·끊김) 다시 붙어 보는 간격(초).")]
+        [Tooltip("호스트 비콘이 이 시간(초) 안에 왔을 때만 붙고, 붙어 보는 간격도 이 값이다.")]
         [SerializeField] float joinRetrySeconds = 3f;
 
         const float RefW = 1920f, RefH = 1080f;
@@ -202,15 +202,17 @@ namespace AIXRCrane.Crane.Flat
         }
 
         // 세션 밖이면 호스트에 참가자로 붙는다 — 호스트 시작은 어디에도 없다(참가자 고정).
-        //   호스트 비콘을 받았으면(LanDiscovery) 그 IP, 못 받았으면 이 기기 IP — 서버 관전 인스턴스는 호스트와 같은 기계에서 돈다.
-        //   못 붙으면 NGO 가 클라이언트를 내리고(IsClient=false) 여기서 잠시 뒤 다시 붙는다 — 호스트가 나중에 떠도 알아서 들어간다.
+        //   ★ 호스트 비콘(LanDiscovery, 1초마다)이 방금 왔을 때만 붙는다. 호스트가 없는데 붙으면 Netcode 가
+        //     "Failed to connect to server." 를 빨간 오류로 찍고, 재시도마다 쌓였다(2026-09-18 오너 "오류 있는데").
+        //     IP 도 비콘이 알려 준 것만 쓴다 — 같은 서버 안의 호스트도 비콘으로 찾는다(VR 관전자가 이미 그렇게 붙는다).
+        //   붙었다 끊기면 NGO 가 클라이언트를 내리고(IsClient=false), 다음 비콘에 다시 붙는다.
         void EnsureParticipant()
         {
             var nm = NetworkManager.Singleton;
             if (nm == null || net == null || nm.IsClient || nm.IsServer) return;
+            if (!net.HostDiscovered || Time.unscaledTime - net.LastHostSeen > joinRetrySeconds) return;
             if (Time.unscaledTime < nextJoinTry) return;
             nextJoinTry = Time.unscaledTime + joinRetrySeconds;
-            if (!net.HostDiscovered) net.JoinIp = net.LocalIp;
             net.BeginClient();
         }
 
