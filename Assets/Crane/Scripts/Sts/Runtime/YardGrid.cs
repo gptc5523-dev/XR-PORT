@@ -6,7 +6,7 @@ namespace AIXRCrane.Crane.Sts
     /// 칸 중심 = 블록 중심 − 블록 크기/2 + 피치·(i + 0.5), 20ft 는 한 베이에 앞뒤 2개. SpreaderGrabber·CraneDemoRunner 공용.</summary>
     public static class YardGrid
     {
-        /// <summary>20ft 앞뒤 배치 틈 — 실척 m. QuayPartsPlacer.Yard20ftGapM 와 같은 값(Editor 라 참조 불가).</summary>
+        /// <summary>20ft 앞뒤 배치 틈 — 실척 m. 야드를 까는 QuayPartsPlacer·YardSnapProbe 도 이 값을 읽는다.</summary>
         public const float Gap20ftM = 0.30f;
         /// <summary>20ft 컨테이너 길이 — 실척 m.</summary>
         public const float Len20ftM = 6.058f;

@@ -397,8 +397,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
         const int    YardSeed    = 20260907;
         /// <summary>ISO 컨테이너 표준 높이 — 실척 m. 실측 스케일 기준값.</summary>
         const float  ContainerHeightM = 2.591f;
-        /// <summary>한 베이 안 20ft 두 개 사이 틈 — 실척 m.</summary>
-        const float  Yard20ftGapM = 0.30f;
+        const float  Yard20ftGapM = YardGrid.Gap20ftM;   // 한 베이 안 20ft 두 개 사이 틈 — 실척 m
 
         /// <summary>야드 블록에 컨테이너를 놓는다 — 40ft·20ft 지정 개수만큼, 셀 순서대로 결정적으로.
         /// 좌표는 전부 PortConfig 유도값에서 나오므로 컨테이너가 블록 안에 맞는지가 곧 블록 좌표의 검산이다.</summary>
@@ -423,7 +422,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             float inv = StsConfig.InvModelScale;
             if (Mathf.Abs(len40 * inv - PortConfig.ContainerLenM) > 0.05f ||
                 Mathf.Abs(wid40 * inv - ProceduralContainerMesh.StdWidth) > 0.05f ||
-                Mathf.Abs(len20 * inv - 6.058f) > 0.05f)
+                Mathf.Abs(len20 * inv - YardGrid.Len20ftM) > 0.05f)
             {
                 Debug.LogError($"[항구] 컨테이너 FBX 실측이 규격과 다릅니다 — 40ft {len40*inv:F3}L×{wid40*inv:F3}W, " +
                                $"20ft {len20*inv:F3}L m. 적재를 중단합니다.");

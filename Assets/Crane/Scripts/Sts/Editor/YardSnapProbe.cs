@@ -95,7 +95,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             float s = StsConfig.ModelScale;
             float rowPitch = PortConfig.RowPitchM * s, bayPitch = PortConfig.BayPitchM * s;
             float halfW = PortConfig.YardBlockWidthM * 0.5f * s, halfL = PortConfig.YardBlockLengthM * 0.5f * s;
-            float off20 = (6.058f + Yard20ftGapM) * 0.5f * s;   // 20ft 길이 6.058m + 틈, 한 베이에 앞뒤 2개
+            float off20 = (YardGrid.Len20ftM + YardGrid.Gap20ftM) * 0.5f * s;   // 한 베이에 앞뒤 2개
 
             var cells = new List<(float x, float z)>();
             for (int i = PortConfig.YardLaneStart; i < PortConfig.YardLanes; i++)
@@ -115,8 +115,6 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             return cells;
         }
 
-        // QuayPartsPlacer 의 20ft 틈과 같은 값.
-        const float Yard20ftGapM = 0.30f;
 
         static bool TryBounds(Transform t, out Bounds b)
         {
