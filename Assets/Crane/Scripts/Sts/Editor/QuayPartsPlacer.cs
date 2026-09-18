@@ -450,8 +450,8 @@ namespace AIXRCrane.Crane.Sts.EditorTools
         //   LOD1 만 쓰면 근접이 깨지고, 정밀본만 쓰면 258개에 3,020만 삼각형이라 버벅인다.
         const string YardFbx40 = "Assets/Container/Models/Container_40ft.fbx";
         const string YardFbx20 = "Assets/Container/Models/Container_20ft.fbx";
-        const string YardLod40 = "Assets/Container/Models/Container_40ft_LOD1.fbx";
-        const string YardLod20 = "Assets/Container/Models/Container_20ft_LOD1.fbx";
+        const string YardLod40 = "Assets/Container/Models/LOD1/Container_40ft_LOD1.fbx";
+        const string YardLod20 = "Assets/Container/Models/LOD1/Container_20ft_LOD1.fbx";
 
         // 화면 상대 높이 임계값 — ShipCreator 가 쓰던 값(문서/컨테이너_규격.md §10.7 실측 근거).
         //   씬은 1유닛 = 24m 라 거리 상수를 직접 쓰면 안 된다. 상대 높이라 단위 무관.

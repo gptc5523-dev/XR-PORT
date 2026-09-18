@@ -140,7 +140,7 @@ namespace AIXRCrane.Ship.EditorTools
             //   LOD0 = 정밀본(크레인이 집어 눈앞에 올 때) · LOD1 = 원저자 LOD1(배경).
             //   오너 지적 2026-09-08 "디자인 깨진다"(LOD1 단독) → LODGroup 으로 둘 다 넣는다.
             const string CargoFbx    = "Assets/Container/Models/Container_40ft.fbx";
-            const string CargoLodFbx = "Assets/Container/Models/Container_40ft_LOD1.fbx";
+            const string CargoLodFbx = "Assets/Container/Models/LOD1/Container_40ft_LOD1.fbx";
             ContainerFinal4Builder.EnsureMaterials();
             var src = AssetDatabase.LoadAssetAtPath<GameObject>(CargoFbx);
             if (src == null) { Debug.LogError($"[Ship] 컨테이너 FBX 없음: {CargoFbx}"); return; }
