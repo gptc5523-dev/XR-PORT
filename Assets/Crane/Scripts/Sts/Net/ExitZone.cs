@@ -57,15 +57,11 @@ namespace AIXRCrane.Crane.Sts.Net
         //   바닥 띠(LineRenderer)는 그대로 둔다 — 존 '경계'는 표지판으로 못 보여준다.
         /// <summary>표지판 리소스 경로(Assets/Crane/Resources/ 기준, 확장자 없음).</summary>
         public const string SignResourcePath = "Models/ExitSign";
-        /// <summary>표지판 배율 — 실척 모델을 이만큼 부풀려 세운다. 오너 지시 2026-09-17 "10배" → "더 많이 키우고".
-        ///   ★ 이건 표지판의 <b>실제 치수가 아니라 연출</b>이다(실척 2.2m 짜리를 66m 로 보이게 한다).
-        ///     모델은 실척 그대로 두고 '얼마나 크게 세우나'만 여기서 정한다 — 치수와 연출을 한 숫자에 섞으면
-        ///     다음 사람이 어느 쪽을 고쳐야 할지 모른다(표시판_빌드.py 의 H_TOTAL 2.20 은 건드리지 않았다).
-        ///   ★ <b>눈으로 맞추는 값</b>이라 손잡이로 남긴다 — 헤드셋에서 보고 이 숫자만 고치면 된다.
-        ///   ★ 2026-09-18 <b>30f → 15f</b>(오너 "사이즈도 줄여"). 실척 66m → <b>33m</b>.
-        ///     옛값 30 은 "더 많이 키우고" 시절 값인데, 66m 면 RTG(약 20m)보다 세 배라 항구를 눌렀다.
-        ///     글자 높이는 실척 0.33m × 배율 이므로 15 에서도 5m — 야드(165m)에서 충분히 읽힌다.</summary>
-        const float SignScale = 15f;   // 옛값 30f
+        // 표지판도 다른 부재와 같이 <b>실척 × ModelScale(1/24)</b> 로만 선다 — 연출 배율은 없앴다.
+        //   오너 2026-09-18 "비율을 1/24로 기본세팅이 되어 있잖아 이것도 그런식으로 줄여 사람보다 더 크면 어쩌자는거야".
+        //   종전 SignScale 은 실척 2.2m 판을 부풀리는 곱이었다: 10 → 30(66m) → 15(33m).
+        //   사람(1.7m)·RTG 와 같은 축척 위에 혼자 다른 배율이 있으면 항구 전체의 크기 감각이 깨진다.
+        //   이제 판 위끝 2.20m · 판 아래 1.30m — 사람 눈높이 바로 위, 실제 표지판 크기다.
 
         /// <summary>표지판 방향 보정(도, 월드 Y 축) — 바라볼 곳을 정한 뒤 남는 미세 조정용 손잡이.
         ///   ★ 2026-09-18 <b>90f → 0f</b>. 옛 값 90 은 "정면축을 모르니 사람이 보고 정한다"는 전제로 넣은
@@ -308,7 +304,7 @@ namespace AIXRCrane.Crane.Sts.Net
             sign.transform.localRotation = axisFix;   // 바라볼 곳을 못 구해도 최소한 서 있게
 
             // ★★ 배율을 계산으로 단정하지 말고 <b>재서 맞춘다</b> — 2026-09-17 여기서 100배를 틀렸다.
-            //   종전엔 "실척 모델이니 ModelScale×SignScale 이면 된다"고 단정했는데, 이 FBX 는 노드에
+            //   종전엔 "실척 모델이니 ModelScale 이면 된다"고 단정했는데, 이 FBX 는 노드에
             //   Lcl Scaling 100 이 들어 있어 임포트된 프리팹의 단위가 그 가정과 100배 달랐다. 결과가
             //   실척 66m 여야 할 표지판이 0.7m 로 섰고(로그로 잡혔다), 오너에겐 "작다"가 아니라
             //   "디자인이 깨져 보인다"로 나타났다 — 70cm 판에 EXIT 를 넣으면 멀리서 뭉개진다.
@@ -317,7 +313,7 @@ namespace AIXRCrane.Crane.Sts.Net
             //   ★ 에디터 헬퍼(QuayPartsPlacer.FbxScaleByHeight)는 PrefabUtility 를 써서 런타임에선 못 부른다.
             sign.transform.localScale = Vector3.one;
             float h = MeasuredHeight(sign);
-            float targetWorld = SignRealHeightMeters * SignScale * StsConfig.ModelScale;
+            float targetWorld = SignRealHeightMeters * StsConfig.ModelScale;
             sign.transform.localScale = Vector3.one * (h > 1e-6f ? targetWorld / h : StsConfig.ModelScale);
 
             // RTG 크레인(야드 블록) 쪽을 바라보게 — 오너 지시 2026-09-18 "돌려 EXIT RTG 크레인을 보는 방향으로".
@@ -341,7 +337,7 @@ namespace AIXRCrane.Crane.Sts.Net
                 Vector3 s = rend.bounds.size * StsConfig.InvModelScale;
                 bool upright = s.y >= Mathf.Max(s.x, s.z);
                 Debug.Log($"[ExitZone] 표지판 — 실척 바운즈 X {s.x:F1}m · Y {s.y:F1}m · Z {s.z:F1}m " +
-                          $"(배율 {SignScale:0}× · 야우보정 {SignYawOffset:0}°) → {(upright ? "서 있음" : "★ 누웠다")}");
+                          $"(야우보정 {SignYawOffset:0}°) → {(upright ? "서 있음" : "★ 누웠다")}");
             }
         }
 
