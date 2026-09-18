@@ -6,21 +6,8 @@ using AIXRCrane.Crane.Sts.Plc;
 
 namespace AIXRCrane.Crane.Sts
 {
-    /// <summary>
-    /// 시연 시나리오 총괄 — 오너 지시 2026-09-14: "서버에 처음 접속할 때 크레인들이 움직여야 됨. RTG·STS 가 각 컨테이너
-    /// 5개만 옮기는 걸 PLC 말고 시나리오로. 접근하면 멈추고 조종할 수 있게. RTG VR 조종도."
-    ///
-    ///   ① 씬이 뜨면 크레인마다 <see cref="CraneDemoRunner"/> 를 붙이고 PlcBridge 를 끈다(PLC 재생 대신 시나리오).
-    ///   ② 옮길 컨테이너와 내려놓을 자리는 여기서 한 벌(<see cref="CraneDemoRunner.Site"/>)로 나눠 준다 — 크레인끼리 같은
-    ///      컨테이너·자리를 잡지 않게. STS 가 먼저(배 컨테이너), RTG 는 가까운 야드 컨테이너를 나눠 갖는다.
-    ///   ③ 조종기는 한 번에 한 대 — 플레이어와 가장 가까운 크레인의 <see cref="StsCraneVRController"/> 만 켠다. 셋 다 켜 두면
-    ///      스틱 하나로 세 대가 같이 움직이고, 로코모션 켜기/끄기를 서로 덮어쓴다. 조종 중(운전실 시점 포함)엔 안 바꾼다.
-    ///   ④ 그 크레인 발치에 접근했거나 조종 중이면 시나리오가 멈춘다(<see cref="Holds"/>). 떠나면 이어서 돈다.
-    ///   ⑤ 접근 범위를 바닥에 반투명 띠로 그린다 — 안에 들어서면 진해진다(오너 2026-09-16 "게임처럼").
-    ///
-    /// 빌드에선 항상 켜진다. 에디터에선 메뉴 'PLC/시연 시나리오 (에디터 Play)' 를 켰을 때만 — PLC·KPI 작업을 방해하지 않게.
-    /// 가설 구현·Quest 미검증.
-    /// </summary>
+    /// <summary>시연 시나리오 총괄 — 크레인마다 <see cref="CraneDemoRunner"/> 를 붙여 PlcBridge 대신 자동으로 컨테이너를 옮긴다.
+    /// 조종기는 가장 가까운 크레인 한 대만 켜고, 발치에 접근했거나 조종 중이면 그 크레인의 시나리오가 멈춘다(<see cref="Holds"/>).</summary>
     [DisallowMultipleComponent]
     public sealed class PortDemoDirector : MonoBehaviour
     {
@@ -79,9 +66,10 @@ namespace AIXRCrane.Crane.Sts
             return max / StsConfig.ModelScale;
         }
 
-        // 관전자('참가'로 접속) — 오너 2026-09-16 "운전은 호스트만". 미접속·싱글·스모크는 그대로 조종된다(접속 전은 메뉴가 입력을 막는다).
-        //   CraneNetSync 는 접속 순간 크레인 한 대의 조종기만 끄고, 걸어서 다른 크레인으로 넘기면 여기서 다시 켜서 관전자도 운전이 됐다.
-        static bool Spectator
+        // 관전자('참가'로 접속)는 운전할 수 없다 — 미접속·싱글·스모크는 그대로 조종된다.
+        //   CraneNetSync 가 접속 순간 조종기 하나만 끄므로, 다른 크레인으로 넘어갈 때는 여기서도 다시 검사한다.
+        //   ★ 평면 조종기(FlatCraneController)도 이 판정을 쓴다 — '운전은 호스트만' 규칙의 단일 출처.
+        public static bool Spectator
         {
             get { var nm = Unity.Netcode.NetworkManager.Singleton; return nm != null && nm.IsClient && !nm.IsServer; }
         }
@@ -164,8 +152,8 @@ namespace AIXRCrane.Crane.Sts
             bool spectator = Spectator;
             foreach (var e in cranes)
             {
-                e.ring.enabled = !spectator;   // 범위 띠도 운전하는 사람(호스트·싱글)에게만 — 카메라가 아직 없어 아래 판정이 건너뛰는 프레임까지 덮는다
-                if (spectator && e.ctrl.enabled) { e.ctrl.ControlActive = false; e.ctrl.enabled = false; }   // 접속 순간 켜져 있던 것까지 — 끄면 로코모션이 이동모드로 복구된다
+                e.ring.enabled = !spectator;   // 관전자는 띠 숨김(카메라 없어 아래 판정이 스킵되는 프레임까지 커버)
+                if (spectator && e.ctrl.enabled) { e.ctrl.ControlActive = false; e.ctrl.enabled = false; }   // 접속 순간 켜진 조종기까지 끈다
             }
             var cam = Camera.main;
             if (cam == null) { activeNear = false; return; }
@@ -177,17 +165,16 @@ namespace AIXRCrane.Crane.Sts
                 float d = Distance(e, p);
                 if (d < bestD) { bestD = d; best = e; }
             }
-            // 붙잡는 건 '운전 중'(조종·갠트리 모드 또는 운전실 시점)일 때만 — 이동모드로 걷는 중엔 조종 토글이 켜져 있어도 넘긴다.
-            //   옛 조건(ControlActive)은 STS 를 조종하다 B 로 이동모드로 바꿔 RTG 로 걸어가도 조종기가 STS 에 잠겨
-            //   RTG 를 조종할 수 없었다(2026-09-15 오너 보고 · RtgControlSmoke: RTG 발치 거리 0 인데 조종기 STS 유지).
+            // 붙잡는 건 '운전 중'(조종·갠트리 모드 또는 운전실 시점)일 때만 — 이동모드로 걷는 중엔 넘긴다.
+            //   ControlActive 만 보면 이동모드로 갈아타도 조종기가 이전 크레인에 잠겨 다른 크레인을 조종 못 한다.
             bool locked = active != null && (active.ctrl.CabView || (active.ctrl.ControlActive && active.ctrl.CraneMode));
             if (!locked && best != active && (active == null || bestD + switchMarginMeters * StsConfig.ModelScale < Distance(active, p)))
                 Activate(best);
             activeNear = active != null && Distance(active, p) <= approachMeters * StsConfig.ModelScale;
-            // 운전 중(조종·갠트리 모드 또는 운전실 시점)엔 접근 띠를 숨긴다 — 오너 지시 2026-09-16 "반경표시는 운전할 때 숨겨야지".
+            // 운전 중(조종·갠트리 모드 또는 운전실 시점)엔 접근 띠를 숨긴다.
             foreach (var e in cranes)
             {
-                e.ring.enabled = !locked && !spectator;   // ★ !spectator 필수 — 이 줄이 위 관전자 판정보다 뒤라, 빼면 매 프레임 덮어써서 관전자에게 띠가 되살아난다(오너 재보고 2026-09-16 "참가는 라인 지우라니까")
+                e.ring.enabled = !locked && !spectator;   // ★ !spectator 필수 — 빠지면 매 프레임 덮어써 관전자에게 띠가 되살아난다
                 e.ring.startColor = e.ring.endColor = e == active && activeNear ? RingInside : RingIdle;
             }
         }

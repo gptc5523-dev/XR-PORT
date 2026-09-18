@@ -4,24 +4,8 @@ using AIXRCrane.Crane.Sts;
 
 namespace AIXRCrane.Crane.Flat
 {
-    /// <summary>
-    /// 평면 모드 크레인 조작 — 게임패드로 트롤리·호이스트·갠트리를 움직이고 집기/놓기를 한다.
-    ///
-    /// ★ 기존 StsCraneVRController 를 대체하지 않는다. 그쪽은 VR 경로 그대로 두고, 여기서는
-    ///   같은 IAxisMover(트롤리/호이스트/갠트리)·SpreaderGrabber 를 '호출만' 한다.
-    ///   속도 상수는 VR 쪽과 같은 실물 정격값을 쓴다(정격이 바뀌면 양쪽을 같이 고쳐야 한다).
-    ///
-    /// ★ VR과 달리 모드 전환이 없다. 게임패드는 스틱 2개 + D패드 + 트리거로 축이 충분해,
-    ///   이동/조종을 나눌 이유가 없다 — 걷기와 크레인 조작이 항상 동시에 열려 있다.
-    ///
-    /// [매핑] D패드 좌우=트롤리, D패드 상하=갠트리, LT/RT=호이스트 하강/상승,
-    ///        A=집기, B=놓기, X=운전실 시점, Y=HUD 토글.
-    ///        키보드 폴백: J/L=트롤리, U/O=갠트리, K/I=호이스트, G=집기, H=놓기, C=운전실, F1=HUD.
-    ///
-    /// [물리 정합] 축 적분은 FixedUpdate 에서만 한다 — kinematic 화물을 끌고 가는 이동이라
-    ///   SpreaderGrabber 의 통과방지 클램프(DefaultExecutionOrder 50)와 같은 박자여야 한다.
-    ///   입력 샘플링은 Update, 운전실 시점 추종은 LateUpdate(한 프레임 어긋남 방지) — VR 쪽과 동일한 규약.
-    /// </summary>
+    /// <summary>평면 모드 게임패드 조작 — VR과 같은 IAxisMover·SpreaderGrabber를 호출만 한다(속도 상수도 VR과 동일 정격).
+    /// 축 적분은 FixedUpdate에서만 — SpreaderGrabber 통과방지 클램프(order 50)와 같은 박자여야 한다.</summary>
     [AddComponentMenu("AI-XR Crane/Flat Mode/Flat Crane Controller")]
     [DisallowMultipleComponent]
     public sealed class FlatCraneController : MonoBehaviour
@@ -76,6 +60,11 @@ namespace AIXRCrane.Crane.Flat
             if (crane == null) { trolleyIn = gantryIn = hoistIn = 0f; return; }
 
             ReadAxes(out trolleyIn, out gantryIn, out hoistIn);
+            // 관전자는 운전하지 않는다 — 입력을 0 으로 비워 FixedUpdate 가 축을 안 움직이게 한다.
+            //   이 조종기는 크레인 밖 별도 오브젝트라 CraneNetSync.DisableControlOnClient(크레인 아래만 끈다)에 안 걸려,
+            //   관전자 화면에서 크레인이 혼자 움직여 호스트와 갈라졌다(2026-09-18, 안경 관전 경로 준비 중 발견).
+            //   운전실 시점·HUD 같은 '보기' 입력은 막지 않는다.
+            if (PortDemoDirector.Spectator) trolleyIn = gantryIn = hoistIn = 0f;
             ReadButtons();
 
             if (cabView && rig != null) rig.MovementLocked = true;
@@ -163,8 +152,9 @@ namespace AIXRCrane.Crane.Flat
             bool cab = (gp != null && gp.buttonWest.wasPressedThisFrame) || (kb != null && kb.cKey.wasPressedThisFrame);
             bool hud = (gp != null && gp.buttonNorth.wasPressedThisFrame) || (kb != null && kb.f1Key.wasPressedThisFrame);
 
-            if (grab) { if (debugLog) Debug.Log("[FlatCrane] 집기(Grab)"); grabber?.Grab(); }
-            if (release) { if (debugLog) Debug.Log("[FlatCrane] 놓기(Release)"); grabber?.Release(); }
+            bool drive = !PortDemoDirector.Spectator;   // 집기·놓기도 운전이다
+            if (drive && grab) { if (debugLog) Debug.Log("[FlatCrane] 집기(Grab)"); grabber?.Grab(); }
+            if (drive && release) { if (debugLog) Debug.Log("[FlatCrane] 놓기(Release)"); grabber?.Release(); }
             if (cab) { if (cabView) ExitCabView(); else EnterCabView(); }
             if (hud) FindAnyObjectByType<FlatHud>()?.Toggle();
         }
@@ -185,9 +175,8 @@ namespace AIXRCrane.Crane.Flat
             }
         }
 
-        // ── 운전실 시점 ─────────────────────────────────────────────────────────────
-        // VR 쪽 EnterCabView 와 같은 기준을 쓴다: 시선은 Cab_Viewpoint, 눈 위치는 운전실 후방 바닥 패널 '아래'.
-        //   좌석 눈높이는 바닥/콘솔에 가려 발밑 화물이 안 보이므로, 바닥 밑에서 전면 경사창으로 내려다보게 한다.
+        // 운전실 시점 — VR EnterCabView와 같은 기준(시선=Cab_Viewpoint, 눈 위치=운전실 후방 바닥 패널 '아래').
+        //   좌석 눈높이는 바닥/콘솔에 가려 발밑이 안 보이므로 바닥 밑에서 내려다보게 한다.
         void EnterCabView()
         {
             var trolleyT = (crane?.Trolley as Component)?.transform;
