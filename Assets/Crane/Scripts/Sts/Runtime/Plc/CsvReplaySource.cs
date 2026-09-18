@@ -3,20 +3,15 @@ using System.Globalization;
 
 namespace AIXRCrane.Crane.Sts.Plc
 {
-    /// <summary>
-    /// 기록 재생 PLC 소스 — PlcSim/generate.py가 만든 CSV(DB100 태그 시계열)를 <see cref="PlcSnapshot"/>로 재생한다.
-    /// "운영시나리오 로그 재생"(첫 회의 옵션 b) 경로. 가상 데이터 파일이 실제로 크레인을 움직이게 하는 소스.
-    ///
-    /// 순수 C#(UnityEngine 비의존) — CSV 텍스트를 받아 파싱. 파일 로드는 PlcBridge가 담당(에디터/스트리밍에셋).
-    /// 가속도(GtAccel 등)는 채우지 않는다 — CraneOpMode가 위치 미분으로 산출하므로 가속알람은 모션에서 자연 발생.
-    /// </summary>
+    /// <summary>CSV(DB100 태그 시계열)를 <see cref="PlcSnapshot"/>로 재생하는 PLC 소스. 순수 C#(UnityEngine 비의존),
+    /// 파일 로드는 PlcBridge 담당. 가속도는 채우지 않는다 — CraneOpMode가 위치 미분으로 산출한다.</summary>
     public sealed class CsvReplaySource : IPlcSource
     {
         readonly PlcSnapshot[] _frames;
         readonly float[] _times;   // 초
         float _t;
         int _idx;
-        bool _wrapped;             // 직전 Pump에서 되감기(끝→0)가 일어났는지(H5 마스킹용 1회성 플래그).
+        bool _wrapped;             // 직전 Pump 되감기 여부(1회성 플래그, H5 마스킹용)
 
         /// <summary>끝에서 처음으로 되감아 반복할지(기본 true).</summary>
         public bool Loop = true;
@@ -35,7 +30,8 @@ namespace AIXRCrane.Crane.Sts.Plc
             return _frames[i < 0 ? 0 : (i >= _frames.Length ? _frames.Length - 1 : i)];
         }
 
-        /// <summary>CSV 헤더에 없어 0으로 처리된, 파서가 기대한 컬럼명들. 침묵 실패(벤더 태그명 변경/헤더 오타 → 조용히 0) 가시화용 — PlcBridge가 이걸 보고 경고 로그한다. 헤더가 정상이면 비어 있음.</summary>
+        /// <summary>헤더에 없어 0으로 처리된 컬럼명(벤더 태그명 변경 등 침묵 실패 가시화용).
+        /// PlcBridge가 경고 로그로 쓴다. 헤더가 정상이면 비어 있음.</summary>
         public readonly List<string> MissingColumns = new List<string>();
 
         public CsvReplaySource(string csvText)

@@ -3,17 +3,8 @@ using UnityEngine.XR;   // InputDevices — Quest 컨트롤러 직접 읽기(조
 
 namespace AIXRCrane.Crane.Sts
 {
-    /// <summary>
-    /// 시점 눈높이 조절(앉기/낮추기) — 오른손 검지 트리거를 누른 채 왼손 스틱 ↑↓.
-    ///   카메라 오프셋(XR Origin > Camera Offset)의 Y만 움직여 중력/CharacterController와 안 싸운다
-    ///   (리그 월드 위치가 아니라 오프셋이라 도로 끌어올려지지 않음).
-    ///
-    /// StsCraneVRController에서 분리한 '단일 소스' — 호스트(조종자)·관전자 모두 동일하게 사용한다.
-    ///   - 관전자는 StsCraneVRController가 꺼져 있어도 이 컴포넌트로 높이를 조절할 수 있다.
-    ///   - StsCraneVRController는 HeightHold(트리거 홀드 여부)만 참조해, 조절 중엔 왼손 스틱을
-    ///     높이 전용으로 양보(호이스트/갠트리 입력 무효화)하고 걷기를 잠시 멈춘다.
-    /// 씬에 안 붙여도 [RuntimeInitializeOnLoadMethod]로 자동 스폰.
-    /// </summary>
+    /// <summary>시점 눈높이 조절(앉기/낮추기) — 오른손 트리거 홀드 + 왼손 스틱 ↑↓. 카메라 오프셋 Y만 움직여 중력과 안 싸운다.
+    /// StsCraneVRController와 분리된 단일 소스 — 호스트·관전자 공용, 관전자는 컨트롤러 없이도 동작. 씬에 안 붙여도 자동 스폰.</summary>
     [AddComponentMenu("AI-XR Crane/STS Crane/Crane View Height Adjuster")]
     [DisallowMultipleComponent]
     public sealed class CraneViewHeightAdjuster : MonoBehaviour
@@ -58,9 +49,8 @@ namespace AIXRCrane.Crane.Sts
             if (right.isValid) right.TryGetFeatureValue(CommonUsages.trigger, out rTrig);
             HeightHold = rTrig > triggerHoldThreshold;
 
-            // 관전자 '대각선 수직이동' 수정: 높이조절 중엔 XR 로코모션(ContinuousMove)을 꺼서 왼스틱이 '수직만' 움직이게.
-            //   호스트는 StsCraneVRController.EnforceLocomotion이 이미 같은 일을 하지만(ViewHeightActive→로코 off),
-            //   관전자는 그 컨트롤러가 꺼져 있어 로코모션이 살아 → 왼스틱이 수직(이 컴포넌트)+수평(XR 이동) 동시 적용 → 대각선.
+            // 관전자 대각선 이동 방지: 높이조절 중엔 XR 로코모션을 꺼서 왼스틱이 수직만 움직이게 한다.
+            //   호스트는 StsCraneVRController가 이미 처리, 관전자는 컨트롤러가 꺼져 있어 이 컴포넌트가 대신 끈다.
             if (HeightHold || locoSuppressed) UpdateLocomotionSuppression(HeightHold);
 
             if (!HeightHold) return;
@@ -80,12 +70,8 @@ namespace AIXRCrane.Crane.Sts
                 viewHeightOffset + stickY * viewHeightSpeed * Time.deltaTime, viewHeightMin, viewHeightMax);
             ApplyCameraOffsetY(newOffset);
 
-            // 바닥 밑으로/바닥 관통 방지. 눈이 바닥 위로 다음 둘 중 '큰' 만큼 떨어져 있게 한다:
-            //   (a) minEyeAboveFloor(체감 m) × rigScale  — 디자이너 지정 최저 눈높이
-            //   (b) nearClip × 4 (월드)                  — 니어클립 안쪽에 바닥이 들면 바닥이 잘려 '뚫려' 보이므로
-            //                                              그보다 확실히 위에서 멈춤. ((a)만 쓰면 1/24에서 ~0.004m로
-            //                                              너무 낮아 바닥 관통하던 버그.)
-            //   below(월드)는 ÷rigScale로 로컬/체감 오프셋으로 환산해 더한다.
+            // 바닥 관통 방지 — 눈이 바닥 위로 minEyeAboveFloor×rigScale, nearClip×4 중 큰 값만큼 있게 클램프.
+            //   below(월드)는 ÷rigScale로 로컬 오프셋 환산해 더한다.
             float rigScale = cameraOffset.parent != null ? cameraOffset.parent.lossyScale.y : 1f;
             float nearClip = camT.TryGetComponent(out Camera camC) ? camC.nearClipPlane : 0.01f;
             float worldClear = Mathf.Max(minEyeAboveFloor * rigScale, nearClip * 4f);
@@ -108,10 +94,8 @@ namespace AIXRCrane.Crane.Sts
             Transform parent = cameraOffset.parent;
             if (parent == null) { cameraOffset.localPosition = baseCameraOffsetLocal + Vector3.up * offset; return; }
 
-            // 카메라 오프셋을 '월드 수직'으로만 이동 — 리그가 기울었거나 비균일 스케일이어도 뒤/옆으로 안 샌다.
-            //   ('관전자가 뒤로 가며 내려가던' 버그: 기존 InverseTransformDirection+로컬더하기가 리그 회전×스케일 조합에서
-            //    수평 성분을 섞었음.) 기준 로컬을 월드로 환산 → 월드 up으로 offset×리그수직스케일 만큼 이동 → 다시 로컬로.
-            //   기준(base)을 매번 parent에서 월드로 재계산하므로 리그가 걸어 이동해도 안 흔들린다.
+            // 카메라 오프셋을 월드 수직으로만 이동 — 리그가 기울거나 비균일 스케일이어도 옆으로 안 샌다.
+            //   기준 로컬 → 월드 환산 → up으로 offset만큼 이동 → 다시 로컬로. base는 매번 재계산해 흔들리지 않는다.
             float vScale = Mathf.Abs(parent.lossyScale.y) > 1e-6f ? parent.lossyScale.y : 1f;
             Vector3 baseWorld = parent.TransformPoint(baseCameraOffsetLocal);
             Vector3 desiredWorld = baseWorld + Vector3.up * (offset * vScale);
@@ -129,7 +113,7 @@ namespace AIXRCrane.Crane.Sts
             baseCameraOffsetLocal = cameraOffset.localPosition;   // 로컬 기준점(고정)
             cameraOffsetCached = true;                // 제대로 찾았을 때만 캐시 — 관전자 등 리그가 늦게 뜨는 경우 대응
 
-            // 진단: 리그(부모) 회전·스케일 — '뒤로 가며 내려감'의 원인(기울기/비균일 스케일) 확인용.
+            // 진단: 리그(부모) 회전·스케일 확인용(기울기/비균일 스케일이면 카메라가 밀릴 수 있음).
             Vector3 e = cameraOffset.parent != null ? cameraOffset.parent.rotation.eulerAngles : Vector3.zero;
             Vector3 ls = cameraOffset.parent != null ? cameraOffset.parent.lossyScale : Vector3.one;
             Debug.Log($"[ViewHeight] 카메라오프셋 캐시 — 부모 '{(cameraOffset.parent != null ? cameraOffset.parent.name : "null")}' " +
@@ -137,9 +121,8 @@ namespace AIXRCrane.Crane.Sts
                       $"※ euler x/z≠0(기울기) 또는 스케일 비균일이면 그게 뒤로밀림 원인.");
         }
 
-        // 바닥 월드Y를 부두 걷는 땅 윗면에서 동적 산출 — CranePlayerStartPlacer.TryGetLand 한 곳을 같이 쓴다
-        //   (예전엔 같은 휴리스틱을 복사해 두었다 — 한쪽만 고치면 시작 높이와 눈높이 기준이 갈라진다).
-        //   한 번 부두에서 확정하면 캐시. 못 찾으면(부두 미생성/단독 씬) SerializeField floorWorldY를 폴백으로 두고 다음 프레임 재시도.
+        // 바닥 월드Y를 부두 걷는 땅 윗면에서 동적 산출 — CranePlayerStartPlacer.TryGetLand 재사용(기준 일원화).
+        //   한 번 확정하면 캐시, 못 찾으면 floorWorldY 폴백 후 다음 프레임 재시도.
         float ResolveFloorY()
         {
             if (floorYResolved) return resolvedFloorY;

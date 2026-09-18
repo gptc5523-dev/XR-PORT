@@ -7,37 +7,15 @@ using UnityEngine.ProBuilder;
 
 namespace AIXRCrane.Crane.Sts.EditorTools
 {
-    /// <summary>
-    /// 메뉴에서 RTG(Rubber-Tyred Gantry) 크레인 GameObject 계층을 자동 생성.
-    ///
-    /// ── 1단계: 형태(매싱)만 ──────────────────────────────────────────────
-    /// 이 스크립트는 RTG의 1차 실루엣(포털 프레임 테이블)만 세운다. 로프/시브/
-    /// 캣워크/계단/기계실 디테일·무버·스프레더 트위스트락 등은 이후 단계에서 얹는다.
-    ///
-    /// 생성 hierarchy:
-    ///     RTG_Crane                    (root, localScale = 1/24)
-    ///       ├─ Bogies                  코너 4개(고무 타이어 보기 매싱)
-    ///       ├─ SillBeams               좌/우 하부 종빔 2개(보기 위 결속)
-    ///       ├─ Legs                    박스 다리 4개
-    ///       ├─ SideBraces              측면 프레임 대각 브레이스 2개
-    ///       ├─ TopFrame
-    ///       │    ├─ MainGirder x2      상부 횡거더(트롤리 주행면)
-    ///       │    └─ EndTie x2          거더 전/후 결속 종빔
-    ///       ├─ Trolley                 두 거더 위 주행체(기계실 박스 + 운전실 캔틸레버)
-    ///       └─ Spreader                40ft 스프레더(매싱, 중간높이 파킹)
-    ///
-    /// 치수는 실척(m)으로 코드에 적고, 루트 localScale = ModelScale(1/24)로 축소해
-    /// 컨테이너·플레이어와 정합(=STS와 동일 스케일). 값은 6+1열·1-over-5/6급 표준 비율.
-    /// 형상은 ProBuilder 박스(PbBox)로 생성 → 디자이너가 곧바로 편집 가능.
-    /// </summary>
+    /// <summary>메뉴로 RTG(고무타이어 갠트리) 크레인 GameObject 계층 생성 — 1차 실루엣(포털 프레임)만, 로프·디테일은 이후 단계.
+    /// 치수는 실척(m), 루트 localScale=1/24로 컨테이너/STS와 정합. ProBuilder 박스(PbBox)로 생성해 편집 가능.</summary>
     public static class RtgCraneCreator
     {
         // 실척(m) 치수 — 6+1 wide, 1-over-5/6 RTG 표준 비율
         const float Scale       = StsConfig.ModelScale; // 1/24 — 컨테이너/STS와 동일(SSOT)
 
-        // 6+1열·1-over-5 하이큐브 RTG 표준 + 물리 검산으로 직접 유도(이전 작업 기록 미참조).
-        //   스팬: 6열×2.438 + 갭 + 트럭레인 → 다리중심 ≈ 23.6m (공개 6+1 RTG 23.47~23.6).
-        //   순양정 = 다리상단 20.5 − 트롤리/헤드블록/리빙 여유 2.2 ≈ 18.3m (1-over-5 하이큐브 17.9~18.5 충족).
+        // 6+1열·1-over-5 하이큐브 RTG 표준 + 검산 유도.
+        //   스팬 6열×2.438+갭+트럭레인 ≈ 23.6m, 순양정 = 다리상단 20.5 − 여유 2.2 ≈ 18.3m.
         const float SpanX       = 23.6f;   // 좌/우 다리 중심 간격(횡) = 컨테이너 6열 + 트럭레인
         const float BaseZ       = 7.5f;    // 전/후 포털 간격(주행방향) = 휠베이스
         const float LegSec      = 0.9f;    // 다리 박스 단면 한 변
@@ -48,7 +26,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
         const float GirderOverX = 0.75f;   // 주거더 X 오버행(양측)
         const float RailH       = 0.10f;   // 트롤리 크레인레일 높이(A75급). 휠 시트 = GirderTopY+RailH (SSOT)
 
-        const float SillTopY    = 2.87f;   // 실빔 윗면(= 다리 시작). 2.4→2.87: 실빔 밑면 2.07이 이퀄라이저 상단 1.97·셰브런가드 1.90 위로 0.1+ 클리어 → 조향 킹핀 회전 간극 확보(2.4에선 실빔이 이퀄라이저를 0.37m 관통했음). 순양정=거더밑면 20.5 불변
+        const float SillTopY    = 2.87f;   // 실빔 윗면(다리 시작). 옛값 2.4f — 이퀄라이저·킹핀 회전 간극 확보, 순양정 불변
         const float SillDepth   = 0.8f;    // 실빔 깊이(Y) → 실빔 2.07~2.87
         const float SillWidthX  = 0.9f;    // 실빔 폭(X)
         const float SillOverZ   = 1.0f;    // 실빔 Z 오버행(양측)
@@ -57,34 +35,28 @@ namespace AIXRCrane.Crane.Sts.EditorTools
         const float TireOD      = 1.5f;    // 18.00-25 타이어 외경(반경 0.75, 접지 y=0)
         const float TireW       = 0.5f;    // 타이어 폭(축=X)
         const float TwinDX      = 0.34f;   // 트윈 타이어 중심 X 반오프셋(간격 0.68)
-        const float StationDZ   = 1.05f;   // 코너 내 2스테이션 Z 반간격(휠베이스 2.1). 타이어 OD1.5 사이 틈 0.6 확보(중앙 프레임 수용)
+        const float StationDZ   = 1.05f;   // 코너 내 2스테이션 Z 반간격(휠베이스 2.1). 타이어 사이 틈 0.6 확보
 
 
         const float SprParkY    = 8.0f;    // 스프레더 파킹 높이(중간, 리빙 전 검토용)
 
-        // VR 수동 조종 구동 범위 (실척 m, 수학 검산) — STS 무버·컨트롤러 재사용
-        //   트롤리 X: 휠(트롤리중심±2.2)+휠어셈블리 반폭 0.175 이 레일 엔드스톱 안면(±12.25)에 물리지 않는 한계
-        //     = 12.25 − 2.2 − 0.175 = ±9.875 → 여유 두어 ±9.5. (6+1열 대부분 커버, 최외곽열 ±10.1은 레일한계로 소폭 미달 — 추후 조정)
+        // VR 수동 조종 구동 범위(실척 m, 검산) — STS 무버·컨트롤러 재사용.
+        //   트롤리 X = 12.25(레일 안면) − 2.2 − 0.175(휠폭) = ±9.875 → 여유 두어 ±9.5.
         const float TrolleyMinX = -9.5f, TrolleyMaxX = 9.5f;
-        //   호이스트 Y(스프레더 홀더 로컬): 상한 = 헤드블록 소켓(홀더+1.392)이 트롤리 프레임 밑면(23.2) 아래 0.3 여유 → 홀더 21.5.
-        //     행정 = RTG 1-over-5 정격 양정 18.1m(레퍼런스 §1) → 하한 = 21.5 − 18.1 = 3.4. (파킹 8.0은 범위 내, 로프행정=드럼24.25−소켓 검증 일치)
+        //   호이스트 Y: 상한 21.5(헤드블록 소켓, 프레임 밑 0.3 여유) − 행정 18.1 = 하한 3.4.
         const float HoistMinY   = 3.4f, HoistMaxY = 21.5f;
-        //   갠트리 Z: 야드 블록 따라 실척 ±20m 주행 → 월드 = ±20×Scale(생성 위치 기준). STS(±53m)보다 짧은 스택 이동 스케일.
+        //   갠트리 Z: 야드 블록 기준 실척 ±20m 주행(STS ±53m보다 짧음).
         const float GantryRangeM = 20f;
 
-        /// <summary>야드 배치 yaw(°) — 0 = 주행축이 월드 Z(안벽 평행), 스팬이 월드 X.
-        /// 오너 지시 2026-08-10 "RTG 90도 돌려줘"로 종전 90°(주행=X, 안벽 수직)에서 전환.
-        /// 야드 블록도 같은 방향으로 재유도됨(StsQuayGroundCreator §터미널 레이아웃 수식).
-        /// ★ 회전은 반드시 '_Bay 부모 피벗'에 준다 — 루트에 주면 GantryMover의 로컬 Z 주행이 깨진다.</summary>
+        /// <summary>야드 배치 yaw(°). 0 = 주행축이 월드 Z(안벽 평행), 스팬이 월드 X.
+        /// 회전은 반드시 '_Bay 부모 피벗'에 줄 것 — 루트에 주면 GantryMover 로컬 Z 주행이 깨진다.</summary>
         const float YardYawDeg = 0f;
 
-        /// <summary>야드 자동 배치 RTG 대수 — 오너 지시 2026-08-10 "RTG 2대 무조건 배치".
-        /// 블록이 더 많으면 안벽에 가까운 블록부터 채운다(블록 수 &gt; 장비 수는 실물도 정상).</summary>
+        /// <summary>야드 자동 배치 RTG 대수. 블록이 더 많으면 안벽에 가까운 블록부터 채운다.</summary>
         const int YardRtgCount = 2;
 
-        // 트롤리 권상 (레퍼런스: US5,314,262 컨테이너 크레인 트롤리 권상장치)
-        //   개방 프레임 위 더블스레드 드럼 2개를 깊이(Z)로 오프셋 → 로프 4가닥이 프레임 사이로 곧게 하강,
-        //   데드엔드 스프레더 소켓(x=±TrRopeGrooveX, z=±TrRopeZ)에 수직 정착. 트롤리 밑 리드시브 불필요.
+        // 트롤리 권상(레퍼런스 US5,314,262) — 더블스레드 드럼 2개를 Z로 오프셋해 로프 4가닥이 프레임
+        //   사이로 곧장 하강, 데드엔드 소켓(x=±TrRopeGrooveX, z=±TrRopeZ)에 수직 정착.
         const float TrHoistDrumR  = 0.45f;  // 권상 드럼 반경
         const float TrDrumY       = 24.25f; // 드럼 축 높이(= 프레임 윗면 23.8 + 드럼 반경 0.45)
         const float TrRopeGrooveX = 1.2f;   // 드럼 그루브/로프 X(= 스프레더 소켓 X). 더블스레드 2그루브/드럼
@@ -99,7 +71,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
         static float GirderLenX => SpanX + 2f * GirderOverX;     // 25.1
         static float SillCenterY => SillTopY - SillDepth * 0.5f; // 2.47
         static float SillLenZ   => BaseZ + 2f * SillOverZ;       // 9.5
-        static float SprHeadY   => SprParkY + 1.392f;            // 헤드블록/소켓 높이 = 파킹 + hbY0.058×24 (SSOT). 이전 +1.704는 STS 헤드'상단'(0.071)기준 → includeHead:false(헤드+대각스트럿 생략)인 RTG에선 프레임이 스프레더 위 1.1m 떠 보였음. 헤드'본체'중심(hbY)에 착좌
+        static float SprHeadY   => SprParkY + 1.392f;            // 헤드블록 소켓 높이 = 파킹 + hbY×24(SSOT), 헤드 본체중심 기준. 옛값 1.704
 
         // 색(파란 도장 강철 RTG)
         static readonly Color CBlue = new Color(0.10f, 0.30f, 0.62f);  // 구조 파랑(코발트)
@@ -117,17 +89,15 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             //   존이 없으면 야드 지면(Quay_Ground) 중심, 그마저 없으면 씬뷰 중심으로 폴백.
             var pos = TryNearestYardZonePosition(out var zp) ? zp
                     : TryYardGroundPosition(out var p) ? p : SceneViewPivot();
-            // 주행방향 = 월드 Z(안벽 평행)·스팬 = 월드 X — 야드 블록 장축과 동일(오너 지시 2026-08-10 "RTG 90도 돌려줘").
-            //   크레인 로컬 Z가 곧 타이어 구르는 축이므로 yaw=0이면 그대로 월드 Z 주행이 된다.
+            // 주행방향 = 월드 Z(안벽 평행)·스팬 = 월드 X — 야드 블록 장축과 동일.
+            //   크레인 로컬 Z가 타이어 구르는 축이라 yaw=0이면 그대로 월드 Z 주행.
             var go = CreatePlaced(pos, YardYawDeg, "RTG_Crane");
             Selection.activeGameObject = go;
             SceneView.lastActiveSceneView?.FrameSelected();
         }
 
-        // 지정 위치·주행방향(yaw)으로 RTG를 '부모 피벗' 아래 생성 — 갠트리(루트-로컬 Z=타이어 구르는 축)가
-        //   피벗 회전으로 월드 주행축에 매핑되게 한다. yaw=90°면 주행=월드 X(육지 방향)·스팬=월드 Z.
-        //   루트에 직접 회전을 주면 GantryMover의 localPosition.z가 회전 무관 월드 Z라 크레인이 옆(스팬)으로 기어가는
-        //     버그가 남([[feedback_derive_motion_per_crane_not_copy_sts]]). 반드시 피벗에 회전을 줘야 주행축이 따라온다.
+        // yaw로 회전한 '_Bay 부모 피벗' 아래 원점 생성 — 갠트리(로컬 Z=주행축)가 피벗 회전을 따라간다.
+        //   회전은 반드시 피벗에 줄 것 — 루트에 주면 GantryMover가 월드 Z 그대로라 옆(스팬)으로 기어간다.
         static GameObject CreatePlaced(Vector3 pos, float yawDeg, string craneName)
         {
             var pivot = new GameObject(craneName + "_Bay").transform;
@@ -140,13 +110,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             return go;
         }
 
-        /// <summary>
-        /// 야드 블록에 RTG를 자동 배치(오너 지시: 2대). 주행축 = 월드 Z(안벽 평행), 스팬 = 월드 X.
-        ///
-        /// ★ 배치 좌표는 부두 생성기가 '실제로 그린' 블록 존(YardBlock_Zone) 바운즈에서 읽는다 — 산식을 복사하지 않는다.
-        ///   종전엔 야드 X·블록 Z 산식을 이 파일에 다시 적어 두 곳이 갈라졌고(SSOT 미러), 부두 수식이 바뀔 때마다
-        ///   RTG만 엉뚱한 자리에 남았다. 존을 직접 읽으면 부두 쪽 수식이 바뀌어도 자동으로 따라온다.
-        /// </summary>
+        /// <summary>야드 블록에 RTG 자동 배치. 좌표는 부두 FBX가 그린 YardBlock_Zone 바운즈에서 읽는다(산식 중복 금지, SSOT).</summary>
         [MenuItem("Model/PG/크레인/RTG 야드 배치 (2대)", false, 2)]
         public static void PlaceRtgsInYard()
         {
@@ -155,8 +119,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
 
             float groundY = 0f;   // 데크 윗면 = y0 (프로젝트 SSOT 규약)
 
-            // 블록 존 — 종전엔 부두 절차 생성기가 그린 YardBlock_Zone 렌더러가 SSOT였다. 생성기 삭제
-            //   (오너 지시 2026-09-07 "코드를 전부 지워")로 그 SSOT가 없어졌다. 부두 FBX가 존을 갖고 오면 읽는다.
+            // 블록 존(YardBlock_Zone) — 부두 FBX가 갖고 오는 렌더러를 그대로 읽는다(생성기 없음).
             var zones = groundGo.GetComponentsInChildren<Renderer>()
                                 .Where(r => r.gameObject.name.StartsWith(StsPartNames.YardBlockZone))
                                 .OrderBy(r => Mathf.Abs(r.bounds.center.x)).ToList();
@@ -211,12 +174,12 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             BuildCatwalks(root);      // 거더 바깥 정비 캣워크 + 난간
             BuildLegLadder(root);     // -x 앞다리 바깥 수직 사다리(지면→캣워크)
             BuildCableReel(root);     // 전동 급전 케이블 릴(+x 후방 다리 외측) — 실물 RTG 전원 모듈(택1: Cable Reel)
-            BuildFloodlights(root);   // 상부 거더 바깥 저프로파일 투광등 분산 — 야간 하역 조사(실물 RTG 상부 모듈, 레퍼런스 §2·R5/R6 반영)
+            BuildFloodlights(root);   // 상부 거더 바깥 저프로파일 투광등 분산 — 야간 하역 조사
             var trolley  = BuildTrolley(root);   // RTG 크랩 트롤리(비주얼) — 두 거더 위 X 주행
             var spreader = BuildSpreader(root);  // 40ft 스프레더(STS 통째 복사 — 헤드블록 포함)
             BuildSpreaderReeving(root); // 트롤리→STS 헤드블록 소켓(x±1.2,z±1.8,y9.392) 4폴 로프(정적, 파킹)
 
-            BuildDrives(root, trolley, spreader, worldPosition);  // VR 수동 조종(STS 무버·컨트롤러 재사용) — 트롤리 X·호이스트 Y·갠트리 Z
+            BuildDrives(root, trolley, spreader, worldPosition);  // VR 수동 조종(STS 무버 재사용) — 트롤리 X·호이스트 Y·갠트리 Z
 
             return root.gameObject;
         }
@@ -252,7 +215,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
                 PbBox(b, "Bogie_AxleHousing", new Vector3(0f, TireOD * 0.5f, dz),
                     new Vector3(0.16f, 0.55f, 0.55f), CDark);
 
-            // 킹핀(90° 조향 축) — 이퀄라이저 ↔ 실빔. 중심 1.75→1.95(1.50~2.40): 실빔 상승(밑면 2.07) 후에도 이퀄라이저 0.47m·실빔 0.33m 솔리드 물림, 1.97~2.07 조향 간극을 가로질러 결합
+            // 킹핀(조향축) — 이퀄라이저↔실빔. 옛값 1.75 → 1.95: 실빔 상승 후에도 솔리드 물림 유지
             PbCyl(b, "Bogie_Kingpin", new Vector3(0f, 1.95f, 0f), 0.35f, 0.9f, Vector3.up, CDark);
 
             // 주행 기어박스(구동륜) — 벨리 프레임 바깥면에 밀착(중앙 z틈 z±0.25, 타이어 회피). x0.375~0.925
@@ -321,10 +284,8 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             }
         }
 
-        // 스팬 포털 프레임(z=±3.75 X-Y평면) 다리-거더 코너 니 브레이스 4개 — 각 다리 상단서 거더 밑면 안쪽으로 대각.
-        //   현재 스팬 프레임엔 대각 보강이 없어 박스만 맞물림 → 실물 포털 코너의 표준 니 브레이스로 보강.
-        //   [간섭 검산] z=±3.75(거더/다리 중심선). bot(±11.35,18.0)=다리 내면(11.35)서 시작·두께 0.4로 x≤11.50 < 측면브레이스 내면 11.55 → 무간섭.
-        //     top(±9.1,20.4)은 거더 밑면(20.5) 0.1 아래·두께로 20.54까지 관입 → 거더에 솔리드 결합. EndTie(x±11.55~12.05)와도 무간섭.
+        // 포털 코너 니 브레이스 4개 — 각 다리 상단서 거더 밑면 안쪽으로 대각 보강(스팬 프레임에 대각재 없음).
+        //   다리 내면(±11.35)~거더 밑면 안쪽(±9.1,20.4)까지, 측면브레이스·EndTie와 무간섭.
         static void BuildPortalKnees(Transform root)
         {
             var g = new GameObject("PortalKnees").transform; g.SetParent(root, false);
@@ -346,8 +307,8 @@ namespace AIXRCrane.Crane.Sts.EditorTools
                     new Vector3(0f, GirderCenterY, sz * LegHalfZ),
                     new Vector3(GirderLenX, GirderDepth, GirderWidthZ), CBlue);
 
-            float tieLenZ = BaseZ + LegSec;         // 8.40 = ±4.20 — 다리 바깥면(z=±4.20)까지만 덮음(코너 솔리드, 초과 0). 이전 BaseZ+GirderWidthZ(8.5,±4.25)는 거더 기준이라 하강 후 Leg_3/4를 0.05 초과·돌출했음
-            const float endTieY     = 19.738f;      // [사용자 씬 배치] 거더중심 21.5→19.738로 하강(다리 상단 바로 아래 횡결속)
+            float tieLenZ = BaseZ + LegSec;         // 8.40=±4.20 — 다리 바깥면까지만 덮음(코너 솔리드). 옛값 BaseZ+GirderWidthZ
+            const float endTieY     = 19.738f;      // 거더중심에서 하강(다리 상단 바로 아래 횡결속). 옛값 21.5
             const float endTieThick = 0.5f;         // 단면 두께 = SideBrace(Strut thick 0.5)와 동일(슬림 결속바)
             foreach (var sx in new[] { -1f, 1f })
                 PbBox(g, "EndTie",
@@ -370,7 +331,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
                     new Vector3(railLen, deckH, wlkW), CRim);
                 PbBox(g, "Catwalk_Toe", new Vector3(0f, deckY + deckH + 0.075f, outer),
                     new Vector3(railLen + postSec, 0.15f, 0.03f), CYellow);
-                // 코너 솔리드 결합: 레일이 양끝 포스트를 t/2씩 가로질러 덮게 railLen+=postSec (reference-corner-solid-joint)
+                // 코너 솔리드 결합 — 레일이 양끝 포스트를 t/2씩 덮게 railLen에 postSec을 더한다.
                 foreach (var rh in new[] { postH, postH * 0.5f })       // 상·중 난간
                     PbBox(g, "Catwalk_Rail", new Vector3(0f, deckY + deckH + rh, outer),
                         new Vector3(railLen + postSec, 0.04f, 0.04f), CRim);
@@ -407,7 +368,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             }
         }
 
-        // -x 앞다리 바깥 수직 사다리 — 지면→캣워크. 다리·보기·거더(모두 x≥-12.55) 바깥 x-12.7 에 세워 전부 비간섭
+        // -x 앞다리 바깥 수직 사다리(지면→캣워크), 전부 비간섭 위치(x-12.7)에 세운다.
         static void BuildLegLadder(Transform root)
         {
             var g = new GameObject("LegLadder").transform; g.SetParent(root, false);
@@ -427,12 +388,8 @@ namespace AIXRCrane.Crane.Sts.EditorTools
                     new Vector3(0.06f, 0.03f, railGapZ), CRim);
         }
 
-        // 전동 급전 케이블 릴 — 실물 RTG 전원 모듈(택1: Cable Reel, 출처 R1/R2). +x 후방 다리 외측에 U자 크래들로 얹은 릴.
-        //   [솔리드 결합] 릴을 캔틸레버로 띄우지 않고 베이스빔 + 양측 크래들 암 + 하부 대각 브레이스 + 다리 마운트판으로
-        //     다리에 통짜 지지([[reference_corner_solid_joint]]). 낙하 케이블 스터브 없음(케이블은 릴에 감겨 있음).
-        //   [간섭 검산] 다리면 x=LegHalfX+LegSec/2=12.25. 릴 축=X, 중심(13.075, 9.0, −3.75), 플랜지 R1.5.
-        //     내측 암(12.26~12.58)↔내플랜지(12.625)·외측 암(13.57~13.89)↔외플랜지(13.525) 각 0.045 클리어.
-        //     위 SideBrace(x=11.8면 y≈20)·아래 실빔(y≤2.87) 모두 무간섭. 감김R 1.25<플랜지R 1.5 → 림 노출.
+        // 전동 급전 케이블 릴 — +x 후방 다리 외측 U자 크래들. 캔틸레버 대신 베이스빔+크래들암+마운트판으로 다리에 통짜 지지.
+        //   릴 중심(13.075,9.0,−3.75), 플랜지 R1.5 — 주변 부재와 무간섭.
         static void BuildCableReel(Transform root)
         {
             var g = new GameObject("CableReel").transform; g.SetParent(root, false);
@@ -469,13 +426,8 @@ namespace AIXRCrane.Crane.Sts.EditorTools
                 new Vector3(0.4f, 0.6f, 0.6f), CDark);
         }
 
-        // 상부 프레임 투광등 — 실물 RTG는 전용 고탑 마스트가 아니라(그건 STS/경기장식),
-        //   상부 프레임이 이미 ~20m 고소라 각 상부 거더 바깥 가장자리(캣워크 난간 밖)에 저프로파일 아웃리거로 투광등을
-        //   분산 장착하고 하향-내향 광각으로 아래 컨테이너 스택 전장을 조사한다.
-        //   [출처 검증] Konecranes 모듈 다이어그램(코너 투광등 존재) + 항만조명 실무(Razorlux/AGC): "컨테이너가 거더 가까이
-        //     적재→광각 하향, 고소·해양등급 장착". 정확한 개수·간격은 터미널별 DIALux 산정(표준 없음)이라 분산 4/측으로 근사.
-        //   [간섭 검산] 아웃리거·투광등은 캣워크 바깥 난간선(z±4.8) 밖(z±5.25)·난간 상단(23.65) 위 → 통로 헤드룸 무간섭.
-        //     z±5.25는 거더(z≤±4.25)·트롤리 프레임(z≤±4.0) 밖. 아웃리거 밑면(23.65)이 난간 상단에 얹혀 솔리드 결합.
+        // 상부 프레임 투광등 — 전용 마스트 없이 거더 바깥 가장자리에 저프로파일 아웃리거로 분산 장착,
+        //   하향-내향으로 아래 컨테이너 스택을 조사(z±5.25, 난간선·거더·트롤리 프레임과 무간섭).
         static void BuildFloodlights(Transform root)
         {
             var g = new GameObject("Floodlights").transform; g.SetParent(root, false);
@@ -491,7 +443,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
                 for (int i = 0; i < perSide; i++)
                 {
                     float px = perSide > 1 ? -span * 0.5f + span * i / (perSide - 1) : 0f;
-                    // 아웃리거(난간 상단 밖으로 캔틸레버) — 난간선서 zFlood까지 수평 암, 밑면이 난간 상단(23.65)에 얹힘
+                    // 아웃리거 — 난간선~zFlood 수평 암, 밑면이 난간 상단(23.65)에 얹힘
                     PbBox(g, "Flood_Outrigger", new Vector3(px, deckY + 1.2f, (zRail + zFlood) * 0.5f),
                         new Vector3(0.12f, 0.1f, Mathf.Abs(zFlood - zRail) + 0.1f), CRim);
                     // 투광등(아웃리거 끝 밑, 하향-내향)
@@ -500,8 +452,8 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             }
         }
 
-        // 투광등 1기 — 하향 발광 어셈블리(요크 암 + 본체 + 베젤 림 + 발광 렌즈 디스크). at=상단 부착점, aim=조사 방향(identity=수직 하향).
-        //   [구 금지] 렌즈는 납작 원통 디스크([[feedback_sphere_for_round_joints_not_flat_steel]]). CLens는 발광(GetMaterial 이미션).
+        // 투광등 1기 — 하향 발광 어셈블리(요크+본체+베젤+렌즈 디스크). at=부착점, aim=조사 방향.
+        //   렌즈는 구 아님, 납작 원통 디스크로(CLens는 GetMaterial에서 발광 처리).
         static void RtgFloodlight(Transform parent, Vector3 at, Quaternion aim, float w)
         {
             var p = new GameObject(Numbered("Floodlight")).transform;
@@ -525,9 +477,8 @@ namespace AIXRCrane.Crane.Sts.EditorTools
                 w * 0.42f, lensT, Vector3.up, CLens);
         }
 
-        // 트롤리 주행 레일 — 각 주거더(z=±3.75) 중심선 위, 거더 전장(25.1) 끝까지 연속.
-        //   A75급 크레인레일 단면: 발(foot)+웨브(web)+머리(head) 3단(합=RailH 0.10, 휠시트=y0+RailH).
-        //   + 솔플레이트(체결판)·클립(~2m 간격)·양끝 엔드스톱(버퍼)으로 마감.
+        // 트롤리 주행 레일 — 각 주거더 중심선(z=±3.75) 위 전장 연속. A75급 3단(발+웨브+머리, 합 RailH 0.10).
+        //   솔플레이트·클립(~2m 간격)·양끝 엔드스톱으로 마감.
         static void BuildTrolleyRails(Transform root)
         {
             var g = new GameObject("TrolleyRails").transform; g.SetParent(root, false);
@@ -589,8 +540,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             // 단부빔 -X (얇은 단부빔) = Trolley_EndBeam_1
             PbBox(t, "Trolley_EndBeam", new Vector3(-frameHX, frameCY, 0f),
                 new Vector3(endBeamT, frameH, crossLenZ), CTrolley);
-            // 단부빔 +X = Trolley_EndBeam_2 → 운전실 마운트 브래킷. 캐빈 풋프린트(x 2.34~3.97) 위를 덮게 X를 2.3~4.0으로 넓힘
-            //   → 캐빈이 이 브래킷에 매달린 구조가 되어 '떠 보임' 해소(마운트 포스트 top 23.224가 브래킷 23.2~23.8에 물림). 종빔끝(3.2) 밖 0.8은 캔틸레버.
+            // 단부빔 +X = 운전실 마운트 브래킷. 캐빈 풋프린트(x2.34~3.97) 덮게 X 2.3~4.0으로 넓혀 '떠 보임' 해소.
             const float cabMinX = 2.3f, cabMaxX = 4.0f;
             PbBox(t, "Trolley_EndBeam", new Vector3((cabMinX + cabMaxX) * 0.5f, frameCY, 0f),
                 new Vector3(cabMaxX - cabMinX, frameH, crossLenZ), CTrolley);
@@ -618,9 +568,8 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             return t;
         }
 
-        // 운전실 — STS 크레인 운전실을 그대로 복사 재사용. +X 확장 베이 아래에 매달아 하역측(−X·아래)을 조망.
-        //   STS 운전실은 모델단위(실척×1/24)로 지어지고 홀더-로컬 자체 오프셋(본체중심 model x≈-0.096, y -0.077..-0.152)을 가짐 →
-        //   holder.localScale=24 로 루트 1/24 상쇄, 180°Y 회전으로 전면을 −X(중앙/화물)로 돌리고, 산식 위치로 확장 베이 밑에 배치.
+        // 운전실 — STS 운전실을 그대로 복사, +X 확장 베이 아래 매달아 하역측(−X)을 조망.
+        //   holder.localScale=24로 루트 1/24 상쇄, 180°Y 회전으로 전면을 −X로, 산식 위치에 배치.
         static void BuildTrolleyCab(Transform t)
         {
             var holder = new GameObject("OperatorCabRig").transform;
@@ -630,10 +579,8 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             // 배치 산식: 홀더 회전·스케일 반영 시 본체중심 → t-local (holderX+2.3, holderY-2.65). 지붕top=holderY-1.78, 바닥=holderY-3.65.
             //   목표: 본체중심 X≈3.15(+X 확장 베이 밑), 지붕top≈23.1(<프레임밑 23.2). ⇒ holderX=0.85, holderY=24.88.
             holder.localPosition = new Vector3(0.85f, 24.88f, 0f);
-            // 통합 마운트 상단을 프레임 밑면(frameBotY=23.2)에 맞춘다. STS 기본(−0.05)은 STS 박스 하단 기준이라
-            //   RTG에선 post top이 t-local 23.75까지 솟아 Trolley_EndBeam(23.2~23.8)을 관통했음.
-            //   post top = mountTopY+0.003 → t-local = 24.88+24·(mountTopY+0.003). 23.224(2.4cm 임베드) 목표 ⇒ mountTopY=−0.072.
-            //   이때 Cab_Mount_Tie top = 24.88+24·(−0.072) = 23.152 < 23.2 → 단부빔 관통 없음, 포스트만 밑면에 솔리드 결합.
+            // 마운트 상단을 프레임 밑면(23.2)에 맞춘다 — post top = 24.88+24·(mountTopY+0.003).
+            //   23.224(2.4cm 임베드) 목표 ⇒ mountTopY=−0.072, 단부빔 관통 없이 솔리드 결합.
             StsCraneCreator.BuildOperatorCabForReuse(holder, -0.072f);
         }
 
@@ -719,9 +666,8 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             }
         }
 
-        // 트롤리→스프레더 4폴 호이스트 리빙 — 로프 4가닥이 드럼 측면 접선점(x=±TrRopeGrooveX, y=TrDrumY, z=±TrRopeZ)에서
-        //   개방 프레임 사이로 곧게 하강해 데드엔드 소켓에 수직 정착(수직=드럼 접선 → 꺾임 0, '로프 허공 각짐 금지' 충족).
-        //   [향후] SpreaderHoist 무버 도입 시 드럼 감김·하강 구간을 동적 리빙(TrolleyReevingRig)으로 확장.
+        // 트롤리→스프레더 4폴 리빙 — 로프가 드럼 접선점(x=±TrRopeGrooveX,y=TrDrumY,z=±TrRopeZ)에서 프레임 사이로
+        //   곧게 하강해 소켓에 수직 정착(꺾임 0). [향후] 동적 리빙(TrolleyReevingRig)으로 확장 예정.
         static void BuildSpreaderReeving(Transform root)
         {
             var g = new GameObject("Reeving").transform; g.SetParent(root, false);
@@ -747,11 +693,8 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             return holder;
         }
 
-        // VR 수동 조종 배선 — STS와 동일 무버·컨트롤러 재사용(축 관례 동일: 트롤리 X·호이스트 Y·갠트리 Z).
-        //   StsCraneVRController[RequireComponent(StsCrane)]가 StsCrane 애그리게이터의 IAxisMover를 물리 고정틱(FixedUpdate)에
-        //   구동하고, 운전실 시점(A)은 LateUpdate 추종([[project_physics_pipeline_fixedupdate]]). 붐/러핑·어태치는 RTG에 없어 null 허용
-        //   (컨트롤러는 boom/attach를 안 씀, 애그리게이터 기즈모만 null-guard). 범위는 위 const의 실척 수학 검산값.
-        //   [다음 단계] 컨테이너 집기(SpreaderAttach/SpreaderGrabber)·로프 동적 추종(HoistRopeRig/TrolleyReevingRig)은 별도 증분.
+        // VR 수동 조종 배선 — STS와 동일 무버·컨트롤러 재사용(트롤리 X·호이스트 Y·갠트리 Z). 붐/러핑·어태치는 RTG에 없어 null.
+        //   [다음 단계] 컨테이너 집기(SpreaderAttach/SpreaderGrabber)·로프 동적 추종(HoistRopeRig/TrolleyReevingRig).
         static void BuildDrives(Transform root, Transform trolley, Transform spreaderHolder, Vector3 worldPosition)
         {
             // 트롤리(X) — 이동 시 스프레더 홀더 X 동기(TrolleyMover.OnMoved). 스프레더 홀더도 루트-로컬 실척 m라 동일 좌표계.
@@ -943,9 +886,8 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             return true;
         }
 
-        // 컨테이너 야드(주차장) 중심 XZ + 지면(Quay_Ground) 윗면 Y.
-        // RTG 로컬 y=0 이 보기(바퀴) 밑면이라, 루트를 이 위치에 두면 지면에 정확히 접지.
-        // (생성 시 기본 스폰 위치 계산용 — CreateFromMenu에서 사용)
+        // 컨테이너 야드 중심 XZ + 지면(Quay_Ground) 윗면 Y. RTG 로컬 y=0이 바퀴 밑면이라 여기 두면 접지.
+        //   CreateFromMenu 기본 스폰 위치 계산용.
         static bool TryYardGroundPosition(out Vector3 pos)
         {
             pos = Vector3.zero;
@@ -975,7 +917,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             return best;
         }
 
-        // Yard_* (Row/Slot/Edge) 전체 렌더러를 감싸는 바운즈 중심.
+        // YardPrefix(Yard*) 하위 렌더러 전체를 감싸는 바운즈 중심.
         static bool TryYardCenterXZ(out float cx, out float cz)
         {
             cx = cz = 0f;
@@ -992,9 +934,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
 
         static bool IsUnderYard(Transform t)
         {
-            // ★ 접두는 "Yard"(밑줄 없음) — 현행 야드 마킹은 "YardBlock_Zone/Rows/Edge" 라 "Yard_" 로 비교하면
-            //   하나도 안 걸린다. 그러면 야드 중심 탐색이 조용히 실패하고 '지면 바운즈 중심' 폴백으로 내려가,
-            //   그 지면이 바다로 오선택되던 시절엔 RTG가 바다 한가운데 떨어졌다(오너 지적 2026-08-10).
+            // 접두는 "Yard"(밑줄 없음) — "Yard_"로 비교하면 하나도 안 걸려 야드 중심 탐색이 조용히 실패한다.
             for (var p = t; p != null; p = p.parent)
                 if (p.name.StartsWith(StsPartNames.YardPrefix)) return true;
             return false;

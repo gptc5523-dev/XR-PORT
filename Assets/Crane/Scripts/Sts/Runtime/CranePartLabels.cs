@@ -5,15 +5,8 @@ using UnityEngine.UI;
 
 namespace AIXRCrane.Crane.Sts
 {
-    /// <summary>
-    /// 크레인 부품을 가리키는 3D 월드 말풍선(빌보드 + 지시선 callout).
-    ///   - 말풍선은 부품 바로 위가 아니라 살짝 비켜 떠 있고, '지시선(leader line)'이 해당 부품을 가리킴
-    ///     → 어느 부품 얘긴지 직관적이면서 라벨끼리 안 포개짐
-    ///   - 난잡 방지(요청): 가동부(스프레더/트롤리/갠트리)만 상시 표시(거리 컬링), 고정 부품 4종은
-    ///     '쳐다볼 때만' 표시 → 평소 화면이 깔끔
-    ///   - 스프레더: 적재/하중(t)/잠금 · 트롤리·갠트리: 위치%/속도(m/min) · 고정: 이름+역할
-    /// 씬에 안 붙여도 [RuntimeInitializeOnLoadMethod]로 자동 스폰. 이미 있으면 스킵.
-    /// </summary>
+    /// <summary>크레인 부품을 가리키는 3D 월드 말풍선(빌보드 + 지시선). 가동부(스프레더/트롤리/갠트리)는 상시,
+    /// 고정 부품은 쳐다볼 때만 표시. 씬에 없으면 자동 스폰([RuntimeInitializeOnLoadMethod]).</summary>
     [AddComponentMenu("AI-XR Crane/STS Crane/Crane Part Labels")]
     [DisallowMultipleComponent]
     public sealed class CranePartLabels : MonoBehaviour
@@ -81,7 +74,6 @@ namespace AIXRCrane.Crane.Sts
         void Start() => EnsureBuilt();
 
         // 크레인이 아직 없으면(절차 생성 전) 비활성화하지 말고 매 프레임 재시도 → 늦게 생성돼도 라벨이 뜬다.
-        // (예전: crane==null이면 enabled=false로 영구 비활성 → 라벨이 영원히 안 보이던 버그)
         void EnsureBuilt()
         {
             if (built) return;
@@ -104,8 +96,7 @@ namespace AIXRCrane.Crane.Sts
             //   다리에 박히지 않게 앞(+X=붐 아웃리치/크레인 앞쪽)으로 빼고 조금 더 올림. 지시선이 다리를 가리킴.
             BuildLabel(Kind.Axis, FindPart(StsPartNames.LegPost), crane.Gantry, "갠트리 주행", null,
                        up * 1.3f + Vector3.right * 0.22f);
-            // 고정 부품(이름 + 역할) — 쳐다볼 때만 표시
-            // 일단 주석처리(사용자 요청) — 복구하려면 주석 해제
+            // 고정 부품(이름 + 역할) — 쳐다볼 때만 표시. 지금은 주석처리, 복구하려면 해제.
             // BuildLabel(Kind.Static, FindPart(StsPartNames.MachineryHouse), null, "기계실", "권상기계·전장실", up);
             // BuildLabel(Kind.Static, FindPart(StsPartNames.OperatorCab), null, "운전실", "운전사 탑승", up);
             // BuildLabel(Kind.Static, FindPart(StsPartNames.BoomGirder), null, "붐 거더", "트롤리 레일", up);

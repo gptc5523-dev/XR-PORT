@@ -6,25 +6,14 @@ using UnityEngine;
 
 namespace AIXRCrane.Crane.Sts.EditorTools
 {
-    /// <summary>
-    /// Blender 임포트 크레인(<c>Assets/Crane/Models/RTG_Crane.fbx</c>)을 씬에 생성.
-    ///
-    /// 메뉴: <b>Model ▸ FBX ▸ 크레인 ▸ RTG 크레인 생성</b>
-    ///
-    /// 절차생성(ProBuilder) 크레인과 동일하게 루트 localScale = 1/24(ModelScale)로 넣어
-    /// 크기·정합을 맞춘다. 동작(무버)은 아직 배선 전 — 형상·스케일·URP 색까지.
-    ///
-    /// 이 한 파일이 자립적으로:
-    ///   1) FBX ModelImporter를 실척 1:1·축보정·애니메이션 없음·콜라이더 없음으로 고정
-    ///   2) Blender 머티리얼 12종을 동일 색 URP/Lit 에셋으로 생성·외부 리맵(있으면 재사용)
-    ///   3) FBX 인스턴스를 1/24로, 기존 크레인 위치에 맞춰 배치
-    /// </summary>
+    /// <summary>Blender 임포트 크레인(RTG_Crane.fbx)을 씬에 생성(Model ▸ FBX ▸ 크레인 ▸ RTG 크레인 생성).
+    /// 절차생성과 동일하게 루트 localScale=1/24로 넣어 정합; 이 파일이 임포트 설정·머티리얼 리맵·배치까지 자립적으로 처리한다.</summary>
     public static class RtgCraneFbxPlacer
     {
         const string Fbx       = "Assets/Crane/Models/RTG_Crane.fbx";
         const string MatDir    = "Assets/Crane/Materials/RTG";
         const string CraneName = StsPartNames.RtgCraneRoot;
-        const float  RealCraneHeightM = 25.042f;  // Blender 실측 RTG 총높이(m, 2026-07-15 재측정). 목표 크기 = ×ModelScale(1/24)로 절차 크레인과 동일.
+        const float  RealCraneHeightM = 25.042f;  // Blender 실측 RTG 총높이(m). 목표 크기 = ×ModelScale(1/24)로 절차 크레인과 동일.
 
         // name, r, g, b, metallic, smoothness(=1-rough), alpha(<1 → 투명), emis(발광 강도, 0=없음)  ── Blender Principled 실측값
         //   발광색 = BaseColor × emis. Blender RTG_Lens는 Emission Color가 Base Color와 동일해 이 식이 정확히 일치.
@@ -62,9 +51,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             Debug.Log($"[RTG] FBX 크레인 {n}대 배치 완료(블록 {zones.Count}개 중 안벽 가까운 순).");
         }
 
-        /// <summary>기존 RTG 를 모두 지운다 — FBX 든 절차생성이든.
-        /// 안 지우면 같은 야드 블록 위에 크레인이 겹쳐 쌓인다(종전 Create 의 실제 동작).
-        /// 절차생성 이름(RTG_Crane*)까지 지우는 이유는 오너 방침상 절차 크레인을 쓰지 않기 때문.</summary>
+        /// <summary>기존 RTG를 모두 지운다(FBX·절차생성 모두) — 안 지우면 같은 야드 블록에 겹쳐 쌓인다. 절차 크레인은 쓰지 않으므로 이름까지 지운다.</summary>
         static void ClearExistingRtgs()
         {
             int killed = 0;
@@ -116,9 +103,8 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             go.name = index > 0 ? $"{CraneName}_{index}" : CraneName;
             Undo.RegisterCreatedObjectUndo(go, "Create " + CraneName);
 
-            // 스케일: 결정적 목표 = 실척 높이 × ModelScale(1/24) → 절차생성 RTG_Crane과 항상 동일 크기.
-            //   ※ 기존 '기준 크레인 매칭'은 비결정적이었음(STS 있으면 3.15/RTG 있으면 1.08/없으면 극소) → "크기 갑자기 작아짐"의 원인. 제거.
-            //   FBX가 실척 25.76m를 0.26유닛으로 임포트(≈1/100, Blender FBX cm) → 목표/측정으로 보정.
+            // 스케일 목표 = 실척 높이 × ModelScale(1/24) → 절차생성 RTG_Crane과 항상 동일 크기(결정적).
+            //   FBX가 cm 단위로 임포트(≈1/100)되므로 목표/실측 비율로 보정한다.
             go.transform.localScale = Vector3.one;
             float fbxH = CombinedBounds(go).size.y;
             float target = RealCraneHeightM * StsConfig.ModelScale;   // 25.76 × 1/24 ≈ 1.073
@@ -126,23 +112,14 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             go.transform.localScale = Vector3.one * s;
             Debug.Log($"[RTG] 스케일 결정 — 목표 {target:F3}(실척 {RealCraneHeightM}m × 1/24) / FBX측정 {fbxH:F3} → localScale {s:F4}");
 
-            // 배치 = 야드 블록(YardBlock_Zone) 중심에 접지. 블록이 없으면 종전대로 지면 중앙.
-            //   ★ FBX RTG의 주행축은 로컬 Z(= RtgBogieSteering.Mode.Travel 의 정의)이고, 야드 블록도
-            //     장축이 Z(안벽 평행)라 회전 없이 그대로 정합한다. 별도 yaw를 주면 오히려 어긋난다.
-            //   블록 존 중심 = RTG 스팬 중심(오너 선택 2026-09-07 — 대칭 배치). 오프셋 없음.
+            // 배치 = 야드 블록(YardBlock_Zone) 중심에 접지(없으면 지면 중앙). FBX RTG 주행축은 로컬 Z, 야드 블록도 장축 Z라
+            //   회전 없이 그대로 정합한다 — 별도 yaw를 주면 오히려 어긋난다. 블록 존 중심 = RTG 스팬 중심, 오프셋 없음.
             go.transform.position = zone != null
                 ? new Vector3(zone.bounds.center.x, GroundPosition().y, zone.bounds.center.z)
                 : GroundPosition();   // Quay_Ground 지면 윗면에 접지
 
-            // ── 후속 배선 자동 실행 (수동 메뉴 없음 — 생성 한 번으로 구동 가능 상태까지) ──
-            //   ★ 배선 3종은 대상을 Selection.activeGameObject 로 찾고, 못 찾으면
-            //     GameObject.Find("RTG 크레인") 고정 이름으로 폴백한다. 그런데
-            //     RtgCraneFbxRopeSetup 은 끝에서 선택을 '로프 그룹'으로 옮기고
-            //     RtgCraneFbxMoverWiring 도 선택을 옮긴다. 그래서 한 번만 선택해 두면
-            //     두 번째 배선부터는 폴백 경로를 타는데, 야드 배치처럼 이름이
-            //     "RTG 크레인_1" 이면 폴백이 못 찾아 배선이 통째로 건너뛰어진다
-            //     (2026-09-07 실측: [RTG] 무버 배선 완료 가 로그에 안 찍힘 → 주행범위 미설정).
-            //   → 호출 직전마다 선택을 다시 세워 폴백을 아예 안 타게 한다.
+            // 후속 배선 자동 실행(수동 메뉴 없음). 배선 3종은 Selection.activeGameObject로 대상을 찾고 못 찾으면 고정 이름 폴백인데,
+            //   각 배선이 끝에서 선택을 옮기므로 호출 직전마다 선택을 다시 세운다(안 그러면 번호 붙은 야드 배치에서 배선이 통째로 빠진다).
             // Blender Hoist_Rope 구조(코너당 드럼출구·앵커→시브 2-fall)를 동적 재현 — 권상 시 신축.
             Selection.activeGameObject = go;
             RtgCraneFbxRopeSetup.Setup();
@@ -153,8 +130,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             Selection.activeGameObject = go;
             RtgSpreaderTelescopeSetup.Setup();
 
-            // 주행(Z) 범위를 '야드 블록'에서 재유도 — 배선 기본값은 크레인 치수 ±2배라 야드와 무관한 임시값이다
-            //   (RtgCraneFbxMoverWiring 주석: "범위는 야드 레이아웃이 정하는 몫"). 블록 밖으로 안 나가게 클램프.
+            // 주행(Z) 범위를 야드 블록에서 재유도 — 배선 기본값(크레인 치수 ±2배)은 야드와 무관한 임시값이라 블록 밖으로 안 나가게 클램프.
             string gantryMsg = zone == null ? "야드 블록 없음 → 배선 기본 주행범위 유지"
                                             : "GantryMover 없음(무버 배선 실패) → 주행범위 미설정";
             if (zone != null)
@@ -200,10 +176,9 @@ namespace AIXRCrane.Crane.Sts.EditorTools
         // ── 지면(Quay_Ground) 윗면 중심 위치 — 없으면 가장 넓은 평평 렌더러, 그마저 없으면 씬뷰 XZ·Y0 ──
         static Vector3 GroundPosition()
         {
-            // ★ 부두가 있으면 걷는 면(Asphalt)을 공용 헬퍼로 지목한다. '평평한 것 중 면적 최대' 휴리스틱만 쓰면
-            //   바다(6u×16u)가 아스팔트(3.9u×16u)보다 넓어 Sea가 뽑히고, RTG가 바다 한가운데 수면 위에 놓인다
-            //   (오너 지적 2026-08-10 "RTG 크레인이 바다에 출력된다"). 수면은 데크 아래 StsConfig.SeaLevelY 라 Y까지 어긋난다.
-            Renderer best = null;   // 부두 걷는 면 조회 헬퍼 삭제됨 — 아래 면적 최대 휴리스틱으로 폴백
+            // 면적 최대 휴리스틱만 쓰면 바다가 아스팔트보다 넓어 뽑혀 RTG가 수면 위에 놓인다 — 바다는 제외.
+            //   수면(StsConfig.SeaLevelY)은 데크 아래라 Y도 어긋난다.
+            Renderer best = null;   // 걷는 면 헬퍼 없음 — 아래 면적 최대 휴리스틱으로 폴백
             if (best == null)
             {
                 float bestArea = 0f;

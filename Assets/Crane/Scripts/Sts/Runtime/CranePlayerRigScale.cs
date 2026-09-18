@@ -2,23 +2,8 @@ using UnityEngine;
 
 namespace AIXRCrane.Crane.Sts
 {
-    /// <summary>
-    /// 플레이어(XR Origin 리그)를 크레인과 같은 1/24로 축소 → 미니어처 크레인이 HMD엔 실물 크기로 보인다.
-    ///
-    /// ★ 리그를 S=1/24로 줄이면 "1:1 월드 단위를 가정한 값"이 전부 어긋난다. 여기서 그걸 한꺼번에 재계산한다:
-    ///   1) rig.localScale = S
-    ///   2) 카메라 near clip ↓ (작아진 손/HUD가 근접평면에 잘리지 않게)
-    ///   3) CharacterController 우회 (XRBodyTransformer.constrainedBodyManipulator=null) + 중력off
-    ///      → 1/24로 축소된 충돌 캡슐이 부두에 '껴서' 전진이 막히던 '걷기 안 됨'의 진짜 원인 해소(XR Origin 직접 이동)
-    ///   4) 걷기 moveSpeed = walkSpeed 그대로 (ApplyWalkSpeed가 재적용). ※ rigScale을 곱하지 않는다 —
-    ///      XRI ContinuousMoveProvider가 이동량에 originTransform.localScale.x를 이미 곱하므로(중복 곱하면 1/576로
-    ///      걷기가 거의 0이 됨), moveSpeed엔 '체감' 속도를 그대로 넣어야 1:1 체감이 된다.
-    ///  ※ HUD 손 위 높이(CraneHud.FaceCameraAbove)·컨트롤러 탐색(FindController)·컨테이너 배치(VRTestMenu 부두 고정)는
-    ///    각 위치에서 스케일 인지로 처리됨. 크레인/그랩은 크레인 공간(이미 1/24)이라 리그 스케일과 무관.
-    ///  ※ 남은 헤드셋 튜닝(걷기 차단 원인 아님): 중력 체감(9.81이 24배), near clip 적정값, 텔레포트 거리, 컴포트 비네팅.
-    ///
-    /// enableScaling=false 면 실척 원복. [RuntimeInitializeOnLoadMethod]로 자동 스폰. 위치 배치와 독립(순서 무관).
-    /// </summary>
+    /// <summary>플레이어(XR Origin) 리그를 크레인과 같은 1/24 로 축소해 HMD 엔 실물 크기로 보이게 한다.
+    /// 스케일에 맞춰 near clip·CharacterController 우회(중력 off)·걷기속도를 함께 재계산한다.</summary>
     [AddComponentMenu("AI-XR Crane/STS Crane/Crane Player Rig Scale")]
     [DisallowMultipleComponent]
     public sealed class CranePlayerRigScale : MonoBehaviour
@@ -41,12 +26,8 @@ namespace AIXRCrane.Crane.Sts
         {
             if (!enableScaling || scale <= 0f) { enabled = false; return; }   // 원복/무효 — 실척 유지
 
-            // ★ 리그 탐색을 XR Origin 컴포넌트 직접 탐색으로 — 기존 Camera.main.transform.root는 다음 두 경우에
-            //   1/24를 영영 못 먹였다(=세상이 커 보임/플레이어 거대):
-            //     ① Main Camera 태그가 프리팹에만 있어 런타임에 누락/교체(MR 패스스루) 시 Camera.main=null → rig=null
-            //     ② XR Origin이 다른 부모 밑에 중첩되면 root가 엉뚱한 오브젝트가 됨
-            //   XROrigin 컴포넌트는 태그·계층 깊이와 무관하게 '스케일 대상' 그 자체라 둘 다 회피된다.
-            //   한 번 찾으면 캐시(리그 GO는 플레이 세션 내내 유지). 파괴/미발견 시에만 재탐색.
+            // 리그 탐색은 XR Origin 컴포넌트 직접 탐색 — Camera.main.transform.root 는 Main 카메라 태그 누락이나
+            // XR Origin 중첩 시 잘못된 리그를 잡는다. 한 번 찾으면 캐시, 파괴/미발견 시에만 재탐색.
             if (cachedRig == null) cachedRig = FindRig(out cachedCam);
             if (cachedRig == null)
             {
@@ -101,11 +82,8 @@ namespace AIXRCrane.Crane.Sts
             }
         }
 
-        /// <summary>
-        /// 스케일 대상 리그를 찾는다. ★ 핵심: '카메라를 실제로 자식으로 가진 리그'를 줄여야 눈높이가 바뀐다.
-        /// XROrigin을 찾되, 그게 Main Camera의 조상이 아니면(=다른 리그/카메라 reparent) 카메라의 실제 루트를 쓴다.
-        /// 둘 다 없으면 카메라 루트로 폴백. XRI 어셈블리 직접참조 없이 리플렉션.
-        /// </summary>
+        /// <summary>스케일 대상 리그를 찾는다 — 카메라를 실제로 자식으로 가진 리그를 줄여야 눈높이가 바뀐다.
+        /// XROrigin 이 카메라의 조상이 아니면 카메라의 실제 루트를 쓴다. 둘 다 없으면 카메라 루트로 폴백.</summary>
         Transform FindRig(out Camera cam)
         {
             cam = Camera.main;

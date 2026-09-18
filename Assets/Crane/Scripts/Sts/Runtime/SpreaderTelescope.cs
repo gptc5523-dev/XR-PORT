@@ -2,11 +2,8 @@ using UnityEngine;
 
 namespace AIXRCrane.Crane.Sts
 {
-    /// <summary>
-    /// 스프레더 텔레스코픽 — 좌/우 암(끝빔 + 트위스트락)을 20ft↔40ft 위치로 슬라이드하고,
-    /// 중앙 고정부(20ft) 끝과 암 사이의 텔레스코핑 빔을 함께 신축시킨다(실제 텔레스코픽 스프레더).
-    /// 20ft면 빔이 수축(거의 사라짐), 40ft면 신장한다. Set40()/Toggle()로 전환, speed&gt;0이면 부드럽게.
-    /// </summary>
+    /// <summary>스프레더 텔레스코픽 — 좌우 암(끝빔+트위스트락)을 20ft↔40ft로 슬라이드하고 텔레스코핑 빔을 함께 신축한다.
+    /// Set40()/Toggle()로 전환, speed&gt;0이면 부드럽게.</summary>
     [AddComponentMenu("AI-XR Crane/STS Crane/Spreader Telescope")]
     [DisallowMultipleComponent]
     [ExecuteAlways]   // 에디터에서도 토글 시 신축이 보이도록(Play 없이 확인 가능)

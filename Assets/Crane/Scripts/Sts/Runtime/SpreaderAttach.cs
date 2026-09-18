@@ -2,12 +2,8 @@ using UnityEngine;
 
 namespace AIXRCrane.Crane.Sts
 {
-    /// <summary>
-    /// 스프레더에 컨테이너를 attach/detach.
-    /// - Attach: 컨테이너를 attachPoint의 자식으로 만들고 Rigidbody를 kinematic으로 전환.
-    /// - Detach: 부모를 풀고 Rigidbody를 동적 상태로 복원, 옵션으로 새 부모 지정.
-    /// 트위스트락 동작(0.4s 가정)은 즉시 처리. 추후 애니메이션이 필요하면 이벤트로 분리.
-    /// </summary>
+    /// <summary>스프레더에 컨테이너를 attach/detach. Attach 시 attachPoint 자식+kinematic, Detach 시 복원+새 부모 지정 가능.
+    /// 트위스트락 동작은 즉시 처리(애니메이션 필요시 이벤트로 분리).</summary>
     [AddComponentMenu("AI-XR Crane/STS Crane/Spreader Attach")]
     [DisallowMultipleComponent]
     public sealed class SpreaderAttach : MonoBehaviour
@@ -43,11 +39,8 @@ namespace AIXRCrane.Crane.Sts
             attachPoint = point;
         }
 
-        /// <summary>
-        /// 컨테이너를 결합. 이미 잡고 있으면 무시(중복 잡기 방지).
-        /// 월드 자세(위치·회전·크기)를 그대로 둔 채 부착점 자식으로만 옮긴다 — 어디에 맞출지는 호출자가 정한다
-        /// (SpreaderGrabber 는 수평만 트위스트락 중심에, PLC 재생·시연 러너는 잰 자세 그대로).
-        /// </summary>
+        /// <summary>컨테이너를 결합(이미 잡고 있으면 무시). 월드 자세를 그대로 둔 채 부착점 자식으로만 옮긴다 —
+        /// 어디에 맞출지는 호출자가 정한다(SpreaderGrabber/PLC 재생 등).</summary>
         public bool Attach(Transform container)
         {
             if (container == null || attached != null) return false;
@@ -75,17 +68,13 @@ namespace AIXRCrane.Crane.Sts
                 attachedBody.useGravity = false;
                 attachedBody.isKinematic = true;
             }
-            // 월드 자세 보존 — 옛 코드는 localRotation 을 항등으로 덮어써, 회전된 부착점 밑에서 컨테이너가 같이 돌았다
-            //   (2026-09-15 오너 "컨테이너가 이상하게 잡혀", StsGrabProbe 실측):
-            //   · STS: 스프레더가 로컬 Y 90° → 잡는 순간 90° 돌아 긴 축 Z→X, 스프레더(긴 축 Z)와 엇갈려 매달림
-            //   · FBX RTG: 축변환 부모 → 컨테이너가 세워짐(긴 축 수직). 부착점 스케일(≈4.1667) 역산도 함께 필요 없어진다.
+            // 월드 자세 보존 — localRotation을 항등으로 덮어쓰면 회전된 부착점 아래서 컨테이너가 같이 돈다.
+            //   worldPositionStays:true로 옮기고 회전은 손대지 않는다.
             container.SetParent(Point, worldPositionStays: true);
             return true;
         }
 
-        /// <summary>
-        /// 결합 해제. newParent를 주면 그 아래로 이동(예: 야드 슬롯), null이면 씬 루트로.
-        /// </summary>
+        /// <summary>결합 해제. newParent를 주면 그 아래로 이동(예: 야드 슬롯), null이면 씬 루트로.</summary>
         public Transform Detach(Transform newParent = null)
         {
             if (attached == null) return null;

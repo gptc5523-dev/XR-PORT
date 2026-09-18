@@ -3,20 +3,8 @@ using UnityEngine.UI;
 
 namespace AIXRCrane.Crane.Sts
 {
-    /// <summary>
-    /// 처음 잡는 사람을 위해 — 글자 설명 없이, 각 컨트롤러 '위에' 그 모드에서 스틱을 미는 방향을
-    /// 화살표로만 띄운다. 모드(이동/운전/갠트리)에 따라 화살표가 자동으로 바뀐다.
-    ///
-    /// [표시 규칙 — StsCraneVRController가 실제로 읽는 축과 1:1]
-    ///   조종모드 : 왼손 ↕(호이스트 상하)        오른손 ↔(트롤리 좌우)
-    ///   갠트리   : 왼손 ↔(갠트리 좌우)           오른손 (없음 → 숨김)
-    ///   이동     : 왼손 ✛(걷기 4방향)            오른손 ↔(회전)
-    ///
-    ///   - 표시 전용 — 입력은 StsCraneVRController가 처리. 화살표는 '어느 스틱을 어디로'만 알려준다.
-    ///   - 모드 선택(오른 스틱 ↑↓ / B)은 ModeSelectorHUD가 따로 안내하므로 여기선 운전 방향만 보여준다.
-    ///   - 관전자(순수 클라이언트)에겐 숨긴다 — 조종을 못 하니 의미가 없다.
-    /// 씬에 안 붙여도 [RuntimeInitializeOnLoadMethod]로 자동 스폰. 이미 있으면 스킵.
-    /// </summary>
+    /// <summary>처음 잡는 사람을 위한 글자 없는 화살표 HUD — 각 컨트롤러 위에 그 모드에서 미는 방향만 표시(모드 자동 전환).
+    /// 표시 전용(입력은 StsCraneVRController), 관전자에겐 숨김. 씬에 안 붙여도 자동 스폰.</summary>
     [AddComponentMenu("AI-XR Crane/STS Crane/Crane Controller Arrow HUD")]
     [DisallowMultipleComponent]
     public sealed class CraneControllerArrowHUD : MonoBehaviour
@@ -59,10 +47,8 @@ namespace AIXRCrane.Crane.Sts
         {
             if (leftCanvas == null || rightCanvas == null) return;
 
-            // 표시 조건: 호스트로 시작했을 때(IsServer) 또는 네트워킹이 없을 때(싱글)만.
-            //   - 접속 전(시작 메뉴가 떠 있는 동안)엔 숨김 → 처음엔 'STS 크레인 멀티플레이' 메뉴만 보이게.
-            //   - 관전자(순수 클라이언트)도 숨김 — 조종을 못 하니 화살표가 무의미.
-            // 조종 HUD라 '조종 활성'(스틱클릭 진입)일 때만 — 관찰(기본)이면 화살표 숨김.
+            // 표시 조건: 호스트(IsServer) 또는 네트워킹 없음(싱글)이고, 조종 활성(ControlActive)일 때만.
+            //   접속 전·관전자·관찰 모드에선 숨김.
             if (controller == null || !controller.isActiveAndEnabled) controller = CraneHud.FindVrController();
             var nm = Unity.Netcode.NetworkManager.Singleton;
             bool show = (nm == null || nm.IsServer) && controller != null && controller.ControlActive;

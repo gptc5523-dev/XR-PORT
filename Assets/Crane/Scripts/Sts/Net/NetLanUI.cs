@@ -7,12 +7,8 @@ using UnityEngine;
 
 namespace AIXRCrane.Crane.Sts.Net
 {
-    /// <summary>
-    /// 같은 와이파이(LAN) 멀티플레이용 간단 접속 UI(IMGUI).
-    ///   - 호스트(조종자): "호스트 시작" → 자기 LAN IP를 크게 표시(참가자에게 불러줄 수 있게).
-    ///   - 관전자: 호스트 IP 입력 후 "참가". LanDiscovery가 있으면 IP가 자동 채워진다.
-    /// 최대 인원 maxPlayers(기본 5, 호스트 포함) 초과 접속은 거부한다.
-    /// </summary>
+    /// <summary>같은 와이파이(LAN) 멀티플레이 접속 UI(IMGUI) — 호스트는 "호스트 시작"으로 자기 IP 표시, 관전자는 IP 입력 후 "참가"(LanDiscovery가 있으면 자동 채움).
+    /// 최대 인원 maxPlayers(기본 5, 호스트 포함) 초과는 거부.</summary>
     [AddComponentMenu("AI-XR Crane/Net/Net LAN UI")]
     [DisallowMultipleComponent]
     public sealed class NetLanUI : MonoBehaviour
@@ -57,10 +53,8 @@ namespace AIXRCrane.Crane.Sts.Net
         public void BeginHost()  => StartHost();
         public void BeginClient() => StartClient();
 
-        /// <summary>세션을 끊고 시작 메뉴로 — 바닥 '나가는 존'(<see cref="ExitZone"/>)과 헤드셋 이탈 감시가 부른다.
-        /// ★ 서버의 AI-XR-Crane.exe 는 헤드셋이 빠져도 계속 살아 있다. 이걸 안 부르면 그 인스턴스가 포트(7777)를
-        ///   쥔 채 남아 다음 '호스트 시작'이 반드시 실패한다(오너 2026-09-16 "호스트 세션이 안 끊긴다").
-        /// IMGUI 의 '연결 끊기'와 같은 동작이지만, 그쪽은 헤드셋에 안 그려져 VR 에서는 쓸 수 없었다.</summary>
+        /// <summary>세션을 끊고 시작 메뉴로 — 나가는 존(<see cref="ExitZone"/>)과 헤드셋 이탈 감시가 부른다.
+        /// 서버 프로세스는 헤드셋이 빠져도 살아있어, 안 부르면 포트(7777)를 쥔 채 남아 다음 호스트 시작이 실패한다.</summary>
         public void Leave()
         {
             var nm = NetworkManager.Singleton;
@@ -83,16 +77,13 @@ namespace AIXRCrane.Crane.Sts.Net
             nm.OnClientDisconnectCallback -= OnClientLeft;   nm.OnClientDisconnectCallback += OnClientLeft;
 
             Transport.SetConnectionData("0.0.0.0", port, "0.0.0.0");   // 모든 인터페이스에서 수신
-            // 한 머신에 인스턴스를 여러 개 띄우면(서버 5개 구성) 먼저 뜬 쪽이 포트를 쥐므로 두 번째 호스트는 반드시 실패한다.
-            //   StartHost 는 실패를 false 로만 알리고 사유는 서버 로그(UnityTransport start failure)에만 남아,
-            //   헤드셋에서는 버튼을 눌러도 아무 일도 안 일어난 것처럼 보였다(오너 2026-09-16 "호스트 참가가 안 된다").
-            //   결과를 남겨 시작 메뉴가 사용자에게 알리고 '참가'로 안내하게 한다.
+            // 한 머신에 인스턴스를 여러 개 띄우면 먼저 뜬 쪽이 포트를 쥐어 두 번째 호스트는 반드시 실패한다.
+            //   실패 사유는 서버 로그에만 남으므로, 결과를 남겨 시작 메뉴가 사용자에게 알리고 '참가'로 안내한다.
             hostFailed = !nm.StartHost();
         }
 
-        // 정원 검사 — ConnectedClientsIds.Count만 보면 거의 동시에 들어온 두 요청이 둘 다 통과해 정원을
-        //   초과할 수 있다(승인~합류 사이 Count가 갱신 전). '승인했지만 합류 전' 인원(pendingApprovals)을
-        //   함께 더해 비교하면 레이스에도 초과되지 않는다.
+        // 정원 검사 — ConnectedClientsIds.Count만 보면 거의 동시 요청 둘 다 통과해 정원을 넘을 수 있다.
+        //   '승인했지만 합류 전' 인원(pendingApprovals)을 더해 비교하면 레이스에도 초과되지 않는다.
         void ApproveConnection(NetworkManager.ConnectionApprovalRequest req,
                                NetworkManager.ConnectionApprovalResponse resp)
         {

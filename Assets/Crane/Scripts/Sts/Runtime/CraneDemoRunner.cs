@@ -4,28 +4,12 @@ using UnityEngine;
 
 namespace AIXRCrane.Crane.Sts
 {
-    /// <summary>
-    /// 크레인 한 대의 시연 시나리오 — 컨테이너 5개를 옮기고, 다 옮기면 역순으로 제자리에 되돌리고, 반복한다.
-    ///   STS: 작업 베이의 배 위 단(위가 빈 것) → 같은 주행 위치의 안벽(땅) 빈자리.
-    ///   RTG: 다른 RTG 보다 나에게 가까운 야드 컨테이너 → 같은 주행 위치의 빈 열.
-    ///
-    /// 자리는 씬에서 잰다 — 컨테이너 렌더러 바운즈, 무버 WorldAxis(축 1 = 월드 몇), 부두 땅(TryGetLand), 콜라이더.
-    /// 축은 CraneAxisProfile 정격 최고속·가속의 사다리꼴로 움직인다. 집을 때마다 컨테이너의 '지금' 자리에서 다시 잰다
-    /// — 사람이 조종하다 옮겨 놓았어도 거기서 집는다. 닿지 않거나 StallSeconds 동안 목표에 못 다가가면 그 작업만 건너뛴다.
-    ///
-    /// 높이: 컨테이너 윗면은 스프레더 최저점(콘 바닥)에 온다(PlcCargoReplay 와 같은 규약). 축은 부착점으로 움직이므로
-    ///   부착점 → 콘 바닥 거리(drop)를 더해 잡는다 — FBX RTG 는 부착점이 스프레더 원점이라 안 더하면 스프레더가 파묻힌다.
-    ///   SpreaderGrabber 통과방지 클램프가 '빈 부착점 ≥ 받침 윗면', '든 컨테이너 밑면 ≥ 받침 윗면'으로 스프레더를 되밀어서
-    ///   목표를 SeatLift 만큼 띄워 잡고, 놓은 뒤 정확한 자리로 스냅한다. 안 띄우면 매 틱 서로 밀어 영영 안 끝난다.
-    /// 잡기는 SpreaderGrabber.Grab 을 쓰지 않는다 — 계산한 자세 그대로라 코너 안착 게이트가 필요 없다(PlcCargoReplay 와 같음).
-    ///
-    /// 멈춤: <see cref="PortDemoDirector.Holds"/> 가 참이면 그 틱에 손을 떼고(푸셔·장애물정지·콜라이더 원복) 기다린다.
-    /// 가설 구현·Quest 미검증.
-    /// </summary>
+    /// <summary>크레인 한 대의 시연 — 컨테이너 5개를 옮기고 역순으로 되돌리며 반복한다
+    /// (STS: 배 위 단 → 안벽 빈자리, RTG: 야드 → 가까운 빈 열). 자리는 매번 씬에서 다시 재고, 못 닿거나 막히면 그 작업만 건너뛴다. 가설 구현, Quest 미검증.</summary>
     [DisallowMultipleComponent]
     public sealed class CraneDemoRunner : MonoBehaviour
     {
-        /// <summary>크레인당 옮기는 컨테이너 수 — 오너 지시 "각 5개".</summary>
+        /// <summary>크레인당 옮기는 컨테이너 수.</summary>
         public const int Count = 5;
         const float SeatLiftMeters = 0.02f;   // 통과방지 클램프(topClearance 기본 0) 위로 확실히
         const float StallSeconds = 3f;
@@ -80,29 +64,16 @@ namespace AIXRCrane.Crane.Sts
 
         static float Lift => SeatLiftMeters * StsConfig.ModelScale;   // 놓을 때만 쓰는 여유(받침 윗면 위)
 
-        // 집는 자세의 '콘 바닥 − 컨테이너 윗면' (+ 띄움 / − 박힘). 수동 집기와 같은 자세로 앉힌다 —
-        //   그랩버가 기하에서 유도한 삽입 깊이(SpreaderGrabber.InsertDepthMeters, 크레인마다 다르다)만큼 콘을 박는다.
-        //   ★ 종전엔 늘 +SeatLift(윗면 20mm 위)라, 수동 집기를 고쳐도 자동 시연에서는 락이 컨테이너에 안 들어갔다
-        //     (오너 2026-09-16 "스프레더 락이 컨테이너 안으로 안 들어간다"). 상수를 박지 않으므로 그랩버 값이 바뀌면 따라간다.
-        //   ★ 클램프와 결합: 이 목표는 빈 스프레더 통과방지 한계(받침 윗면 − InsertU, fdf56d4)에 '정확히' 얹힌다.
-        //     옛 +20mm 는 그 한계(당시 받침 윗면)보다 위로 피하려던 값이었다. 클램프 기준이 부착점 쪽으로 되돌아가면
-        //     이 목표가 한계 아래가 되어 러너는 앉지 못하고 매 틱 밀리다 '막힘'으로 빠진다 — 둘은 같이 바뀌어야 한다.
+        // 집는 자세의 '콘 바닥 − 컨테이너 윗면' — 그랩버 삽입 깊이(InsertDepthMeters)만큼 콘을 박는다(수동 집기와 같은 자세).
+        //   빈 스프레더 통과방지 한계(받침 윗면 − InsertU)에 정확히 얹히므로 클램프 기준이 바뀌면 같이 바뀌어야 한다.
         float SeatGapM => grabber != null ? -grabber.InsertDepthMeters : SeatLiftMeters;
         float SeatGapU => SeatGapM * StsConfig.ModelScale;
 
-        // ── 검증 — 수식으로 세운 불변식을 작업마다 잰다. 위반은 "[PortDemo] 검증 실패" 경고, 스모크(PortDemoMenu)가 센다.
-        //   ① 집기 정렬: 트위스트락 중심(SpreaderGrabber.GrabPoint — 러너 식과 따로 잰다) ↔ 윗면 중심 수평거리 ≤ 0.36m
-        //      (= 수동 잠금 허용 registerTolXZ 0.015u × 24), 콘 바닥 − 윗면 = SeatGap(= −삽입깊이) ± 1cm
-        //   ② 안착: 옮긴 밑면 = max(땅 윗면, 발밑 컨테이너 윗면) ± 2cm — 공중에 뜨거나 파묻히지 않는다
-        //   ③ 겹침·경로: 놓은 자리와 운반 경로가 다른 컨테이너를 1cm 넘게 파고들지 않는다.
-        //      경로 = 시작·끝 바운즈의 합 — 주행·횡행이 축마다 단조(사다리꼴, 되돌아가지 않음)라 실제 궤적을 감싼다.
-        //   ④ 축: 틱마다 |v| ≤ 정격속, |a| ≤ 2·정격가속 — 사다리꼴 가속 구간은 a, 도착 틱 감속은 ≤ 2a 로 유계(Step 주석의 유도).
-        //      트립 한계(정격 × TripMargin 5/3)로 나누면 2 ÷ 5/3 = 1.2 — 부동소수 여유 5% 를 두고 넘으면 그 틱에서 실패.
-        //      2026-09-15 스모크에서 옛 도착 규칙(1mm 만 보고 섬)이 트립의 3.9배 스파이크를 냈다 — 이 검사가 그걸 잡는다.
+        // 검증 — 매 작업마다 잰다(위반은 "[PortDemo] 검증 실패" 경고). ① 집기 정렬 ≤0.36m·콘−윗면=SeatGap±1cm
+        //   ② 안착 = 받침 윗면 ±2cm ③ 겹침·경로 1cm 이상 파고들지 않음 ④ 축 |v|≤정격, |a|≤2·정격가속(트립비 ≤1.2×1.05)
         const float PickTolM = 0.36f, SupportTolM = 0.02f, OverlapSkinM = 0.01f;
 
-        // 집기 안착 허용오차 — 목표(= 삽입 깊이)에서 유도한다. 옛 고정 ±1cm 는 STS 유도깊이 24mm 의 ±42% 라
-        //   사실상 아무것도 못 잡았다(82 지적 2026-09-16). StsGrabProbe 의 밴드(d937f71)와 같은 식: min(5mm, 깊이×25%).
+        // 집기 안착 허용오차 — 삽입 깊이에서 유도(StsGrabProbe 와 같은 식): min(5mm, 깊이×25%).
         float SeatTolM => Mathf.Min(0.005f, Mathf.Abs(SeatGapM) * 0.25f);
         const float AccelTripRatioMax = 2f / CraneAxisProfile.TripMargin * 1.05f;
         public static int Violations;
@@ -242,11 +213,8 @@ namespace AIXRCrane.Crane.Sts
             result = Result.Done;
         }
 
-        // ── 흔들림(CraneSway) 대응 ──
-        //   Settle: 평형점 기준 진동 진폭이 SettleM 아래로 — ζ=0.7·L=25m 에서 1.5m → 0.1m 는 ln(15)/(ζ·√(g/L)) ≈ 6.2초.
-        //     돌풍이 계속 흔들어 못 내려가면 SettleTimeoutS 뒤 그대로 진행한다(실제 운전도 약한 흔들림엔 내린다).
-        //   Align: 잦아든 뒤 '실제' 부착점(흔들림·바람 편향 포함)을 목표 p 에 수평으로 맞춘다 — 운전자가 바람만큼 트롤리를 비켜 대는 것.
-        //     빈 스프레더는 바람을 안 받아 편향 0 이라 거의 안 움직이고, 컨테이너를 들면 d = L·F/(m·g) 만큼 비켜 댄다.
+        // 흔들림(CraneSway) 대응 — Settle: 진동 진폭이 SettleM 아래로 가라앉을 때까지 기다림(못 가라앉으면 SettleTimeoutS 뒤 진행).
+        //   Align: 가라앉은 뒤 실제 부착점(바람 편향 포함)을 목표에 수평으로 맞춘다 — 편향 d = L·F/(m·g) 만큼 비켜 댄다.
         const float SettleM = 0.1f, SettleTimeoutS = 30f;
 
         IEnumerator Settle()
@@ -297,10 +265,8 @@ namespace AIXRCrane.Crane.Sts
             yield return Drive(crane.Gantry != null ? AxisFor(crane.Gantry, d) : float.NaN, AxisFor(crane.Trolley, d), float.NaN);
         }
 
-        // 세 축을 목표로 — 남은 거리가 StallSeconds 동안 안 줄면 stalled.
-        //   '안 움직임'이 아니라 '안 다가감'으로 본다 — 클램프가 되밀면 매 틱 움직이긴 하는데 영영 안 닿는다.
-        // 멈춤(사람 접근·조종)에 그 틱 순간 정지하지 않는다 — 한 틱에 서면 감속이 v/dt(트롤리 3.5m/s → 175m/s², 정격의 290배)라
-        //   화물이 튄다. 정지거리 s = v²/(2a) 앞을 새 목표로 두면 Step 의 √(2a·err) 곡선이 곧 정격 감속선이다 — 선 뒤에 빠진다.
+        // 세 축을 목표로 — 남은 거리가 StallSeconds 동안 안 줄면 stalled('안 움직임'이 아니라 '안 다가감').
+        //   멈춤 시 그 틱에 순정지하지 않고 정지거리 s=v²/(2a) 앞을 새 목표로 둔다 — 감속이 튀어 화물이 흔들리지 않게.
         IEnumerator Drive(float g, float t, float h)
         {
             stalled = false;
@@ -359,10 +325,8 @@ namespace AIXRCrane.Crane.Sts
             float err = (Mathf.Clamp(target, a.Min, a.Max) - a.Current) * toM;
             left += Mathf.Abs(err);
             vMax *= speedScale; acc *= speedScale;
-            // 도착 = 1mm 안 '그리고' 한 틱에 설 수 있는 속도(|v| ≤ a·dt) — PlcSim/generate.py Axis 도착 정착과 같은 규칙.
-            //   위치만 보고 서면 남은 속도 √(2a·ε)(ε≈1mm)가 한 틱에 0 이 된다: 권상 0.039m/s → 1.95m/s² = 트립의 2.3배,
-            //   갠트리 3.9배(2026-09-15 스모크 진단). 이 규칙이면 v 를 실제 이동량/dt 로 두어 마지막 감속이 ≤ 2a 다:
-            //   다 먹는 틱은 err ≤ v·dt, v = √(2a·err) → err ≤ 2a·dt² → 남은 속도 err/dt ≤ 2a·dt.
+            // 도착 = 1mm 안 '그리고' 한 틱에 설 수 있는 속도(|v| ≤ a·dt) — PlcSim 정착 규칙과 같다.
+            //   위치만 보면 마지막 감속이 튄다: v 를 실제 이동량/dt 로 두면 err ≤ v·dt, v=√(2a·err) → 남은 속도 err/dt ≤ 2a·dt 로 유계.
             if (Mathf.Abs(err) < 0.001f && Mathf.Abs(v) <= acc * dt) { v = 0f; return true; }
             float speed = Mathf.Min(Mathf.Min(Mathf.Abs(v) + acc * dt, vMax), Mathf.Sqrt(2f * acc * Mathf.Abs(err)));
             float move = Mathf.Min(speed * dt, Mathf.Abs(err));
@@ -384,9 +348,8 @@ namespace AIXRCrane.Crane.Sts
             if (rtgTele != null) rtgTele.SetSize(j.ft40 ? RtgSpreaderTelescope.Size.Ft40 : RtgSpreaderTelescope.Size.Ft20);
         }
 
-        // 집은 컨테이너의 원자세가 받침(발자국 40% 이상 겹친 아래 단 — SpreaderGrabber landingOverlapFrac 과 같은 기준)을
-        //   파고든 채면(씬 적재 오차) 멈춘 채 접촉면까지 올린다. 안 그러면 들기 시작하는 둘째 틱에 통과방지 클램프가 그만큼을
-        //   한 번에 밀어 올려 권상 가속이 트립의 2.46배로 튄다(2026-09-15 스모크 4차 — 첫 틱 v = a·dt = 0.010 뒤 0.037~0.051m/s).
+        // 집은 컨테이너 원자세가 받침(발자국 40% 이상 겹친 아래 단)을 파고든 채면(적재 오차) 멈춘 채 접촉면까지 올린다.
+        //   안 그러면 들기 시작할 때 통과방지 클램프가 한 번에 밀어 올려 권상 가속이 튄다.
         void LiftToContact(Transform box)
         {
             if (crane.Spreader == null || !TryBounds(box, out var b)) return;
@@ -408,20 +371,14 @@ namespace AIXRCrane.Crane.Sts
             var c = crane.Attach.Detach(j.parent);
             if (c == null) return;
             c.SetPositionAndRotation(bottom + j.pivot, j.rot);   // SeatLift 만큼 띄워 내린 것을 정확한 자리로
-            // 진단 — 야드 칸 이탈이 어디서 생기는지 보려면 '어느 상자를 어디에 놓았는지' 가 있어야 한다.
-            //   2026-09-17 스모크가 Cont20_02 에서 이탈 0.256m(≤0.2)로 FAIL 했는데, 자동 경로엔 로그가 없어
-            //   옮긴 자리인지 되돌린 자리인지조차 못 갈랐다. 실척으로 남긴다(모델 단위는 1/24 라 안 읽힌다).
+            // 진단 로그 — 어느 상자를 어디에 놓았는지 실척으로 남긴다(모델 단위는 1/24 라 안 읽힌다).
             if (YardGrid.TrySnapXZ(bottom, Mathf.Max(j.size.x, j.size.z), out var cell))
                 Debug.Log($"[PortDemo] {name}: {c.name} {(toAway ? "옮김" : "되돌림")} — 실척 " +
                           $"({bottom.x * StsConfig.InvModelScale:F2}, {bottom.z * StsConfig.InvModelScale:F2})m · " +
                           $"칸중심 ({cell.x * StsConfig.InvModelScale:F2}, {cell.z * StsConfig.InvModelScale:F2})m · " +
                           $"이탈 {Vector3.Distance(new Vector3(bottom.x, 0f, bottom.z), new Vector3(cell.x, 0f, cell.z)) * StsConfig.InvModelScale:F3}m");
-            // ★ 위 진단은 '명령한 자리'(bottom)를 잰다 — 그건 스냅의 <b>입력</b>이라 구조적으로 늘 0.000 이 나오고
-            //   놓은 <b>결과</b>는 못 본다. 2026-09-17 스모크가 Cont20_02 에서 0.317m 로 FAIL 했는데 이 로그는
-            //   네 번 다 0.000 이라 원인을 한 칸도 못 좁혔다(명령을 재고 결과라 믿은 것).
-            //   그래서 스모크(PortDemoMenu.YardCellMaxErrM)와 <b>같은 식</b>으로 결과를 같이 잰다:
-            //   렌더러 AABB 중심 → YardGrid.TrySnapXZ → 칸중심까지 거리. 계획 크기와 측정 크기도 같이 남긴다 —
-            //   스냅은 크기로 격자를 고르므로 둘이 갈라지면 '다른 칸'을 기준으로 재게 된다.
+            // 위 진단은 '명령한 자리'만 재 구조적으로 늘 0 이 나온다 — 결과는 렌더러 AABB 중심 → YardGrid 스냅으로 따로 잰다.
+            //   계획 크기와 측정 크기도 같이 남긴다(스냅은 크기로 격자를 고르므로 갈라지면 다른 칸 기준이 된다).
             if (TryBounds(c, out var got) && YardGrid.TrySnapXZ(got.center, Mathf.Max(got.size.x, got.size.z), out var gotCell))
             {
                 float dr = new Vector2(got.center.x - gotCell.x, got.center.z - gotCell.z).magnitude * StsConfig.InvModelScale;
@@ -616,11 +573,8 @@ namespace AIXRCrane.Crane.Sts
                     if (s < lo || s > hi) continue;
                     Vector3 bottom = j.home + td * (s - home);
                     bottom.y = groundY;
-                    // 야드 안이면 칸(라인) 중심으로 라운딩 — 수동 놓기(SpreaderGrabber.Release)와 '같은 식'(YardGrid)을 읽는다.
-                    //   ★ 이게 없으면 자동 시연은 라인을 안 지킨다: 시나리오는 Place() → crane.Attach.Detach() 로 놓아
-                    //     Release() 의 스냅을 통째로 우회하므로, 수동 경로만 고쳐선 오너가 보는 화면이 안 바뀐다(xr-port-82 지적).
-                    //   야드 밖(에이프런·선박 하역)은 false 가 와서 자유 스텝 그대로 — 거기엔 맞출 격자가 없다.
-                    //   두 후보가 같은 칸으로 라운딩되면 아래 site.occupied 겹침 게이트가 걸러, 이웃 칸으로 자연히 넘어간다.
+                    // 야드 안이면 칸(라인) 중심으로 라운딩 — 수동 놓기(Release)와 같은 식(YardGrid). 없으면 자동 시연이 선을 안 지킨다.
+                    //   야드 밖은 격자가 없어 자유 스텝. 같은 칸으로 겹치면 site.occupied 게이트가 걸러 이웃 칸으로 넘어간다.
                     if (YardGrid.TrySnapXZ(bottom, Mathf.Max(j.size.x, j.size.z), out var cell))
                     { bottom.x = cell.x; bottom.z = cell.z; }
                     var slot = new Bounds(bottom + Vector3.up * (j.size.y * 0.5f), j.size);

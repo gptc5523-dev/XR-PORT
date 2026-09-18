@@ -4,17 +4,8 @@ using Procedural;   // 공유 MeshBuilder
 
 namespace AIXRCrane
 {
-    /// <summary>
-    /// 분해형(파트 분리) 20ft 컨테이너 생성기.
-    /// 기존 Build()(단일 메시·4 서브메시)와 별개로, 각 부품을 독립 GameObject
-    /// (자체 MeshFilter/MeshRenderer/Collider)로 쪼개 계층을 만든다.
-    ///
-    /// 좌표·치수 상수와 형상 헬퍼(AddCornerCastingWithHoles / BuildCorrugatedPanel /
-    /// AddVerticalCylinder / BuildFloor / ApplyTransform)는 메인 파셜과 100% 공유 →
-    /// 분해본이 단일메시본과 '동일 형상'으로 조립된다. 배치식(loop)만 여기서 미러한다.
-    ///
-    /// ⚠ 기존 컨테이너 프리팹/메시 에셋/Build() 경로는 일절 건드리지 않는다(별도 신규 생성물).
-    /// </summary>
+    /// <summary>분해형(파트 분리) 20ft 컨테이너 생성기 — 각 부품을 독립 GameObject로 쪼갠다(기존 단일메시 Build()와 별개).
+    /// 좌표·치수 상수와 형상 헬퍼는 메인 파셜과 100% 공유해 동일 형상으로 조립된다. 기존 Build() 경로는 안 건드림.</summary>
     public static partial class ProceduralContainerMesh
     {
         /// <summary>분해 파트에 부위별로 입힐 머티리얼(메인 프리팹과 동일 4종).</summary>
@@ -27,9 +18,7 @@ namespace AIXRCrane
             public Material marking;   // ID/CSC 플레이트 전용(옅은 무광 흰 — 본체색 미적용). null이면 body 폴백.
         }
 
-        /// <summary>
-        /// 임의 사이즈 분해형 컨테이너 — BuildSized의 Kit 버전. 정적 Length/Width/Height를 잠시 바꿔 BuildKit 호출 후 복구.
-        /// </summary>
+        /// <summary>임의 사이즈 분해형 컨테이너 — BuildSized의 Kit 버전. Length/Width/Height를 잠시 바꿔 BuildKit 호출 후 복구.</summary>
         public static GameObject BuildKitSized(
             float length, float width, float height,
             KitMaterials mats,
@@ -45,11 +34,8 @@ namespace AIXRCrane
             finally { Length = savedL; Width = savedW; Height = savedH; }
         }
 
-        /// <summary>
-        /// 부품 분리 컨테이너 계층 생성. 반환 = 루트 GameObject.
-        /// 계층: 루트 / [Castings · Frame · Body · Doors] 그룹 / 개별 파트(약 44개).
-        /// 각 파트 메시는 자기 AABB 중심으로 피봇을 옮겨(위치는 localPosition에 인코딩) 분해/회전이 자연스럽다.
-        /// </summary>
+        /// <summary>부품 분리 컨테이너 계층 생성. 반환 = 루트 GameObject.
+        /// 계층: 루트/[Castings·Frame·Body·Doors] 그룹/개별 파트(약 44개), 각 파트는 AABB 중심으로 피봇 이동.</summary>
         /// <param name="mats">부위별 머티리얼</param>
         /// <param name="rootName">루트 이름</param>
         /// <param name="scale">출력 스케일(기본 1/24 미니어처)</param>
@@ -126,10 +112,8 @@ namespace AIXRCrane
             float railZSpan   = Length - CornerCastD * 2f;
             float endRailXSpan= Width  - CornerCastW * 2f;
 
-            // 지게차 포켓(fork pocket) 개구 — 사이드 레일 관통
-            //   언더프레임에 이미 존재하는 포켓 하우징(BuildUnderframe: ForkPocketZ/ForkPocketWidth)과
-            //   Z위치·개구폭을 그대로 일치시킨다(어긋남 방지). 높이=RailH(레일 전 높이 관통), X 전관통.
-            //   20ft급(길이<9m)에만 적용(40ft는 포켓 없음). 레일이 포켓에서 3분할된다.
+            // 지게차 포켓(fork pocket) 개구 — 사이드 레일 관통. 언더프레임 포켓 하우징과 Z위치·개구폭을 일치시킨다.
+            //   높이=RailH 전관통, X 전관통. 20ft급(길이<9m)에만 적용, 레일이 포켓에서 3분할된다.
             bool hasForkPockets = Length < 9.0f;      // ForkPlateT는 클래스 상수(공유)
             float pocketZc  = ForkPocketZ;             // 기존 상수 재사용(=1.0)
             float pocketOpenW = ForkPocketWidth;       // 기존 상수 재사용(=0.32)

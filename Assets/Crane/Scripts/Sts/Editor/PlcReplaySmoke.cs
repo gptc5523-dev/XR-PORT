@@ -9,21 +9,15 @@ using UnityEngine;
 
 namespace AIXRCrane.Crane.Sts.EditorTools
 {
-    /// <summary>
-    /// 배치 스모크 — STS CSV 재생에 화물이 붙는지(배에 실린 컨테이너를 실제로 집는지).
-    ///   Unity -batchmode -nographics -projectPath . -executeMethod AIXRCrane.Crane.Sts.EditorTools.PlcReplaySmoke.Run -logFile plc.log
-    ///   CSV = 환경변수 PLC_SMOKE_CSV, 없으면 PlcSim/output/S14/run_01.csv. 10배속으로 이력의 마지막 놓기 + 5초(게임)까지 돌린다.
-    ///   PASS(종료 0) = 이력의 이동마다 집기·놓기가 나오고, 배(SHIP/)에서 집은 건 전부 씬 컨테이너(복제 박스 아님)이며
-    ///   트위스트락↔윗면 중심 ≤ 0.36m(수동 잠금 허용 registerTolXZ 0.015u × 24), 재생 예외 0.
-    /// 오너 에디터와 같은 EditorPrefs(PlcBridge 재생 복원·시연 스위치)를 쓰므로 원래 값을 두었다가 끝나면 되돌린다.
-    /// </summary>
+    /// <summary>배치 스모크 — STS CSV 재생 시 화물을 실제로 집는지 검증(PASS/FAIL 로 종료코드).
+    /// Unity -batchmode -nographics -projectPath . -executeMethod AIXRCrane.Crane.Sts.EditorTools.PlcReplaySmoke.Run -logFile plc.log</summary>
     [InitializeOnLoad]
     public static class PlcReplaySmoke
     {
         const string Key = "PlcReplaySmoke", StartKey = "PlcReplaySmoke.Start", EndKey = "PlcReplaySmoke.End",
                      MovesKey = "PlcReplaySmoke.Moves", PrevKey = "PlcReplaySmoke.Prev";
         const string ScenePath = StsPartNames.PortScenePath, Crane = StsPartNames.StsCraneRoot;
-        // 벽시계 한도 — ×10 을 걸어도 재생 스캔·물리 부하로 실측 ×3.6 이었다(2026-09-15, 게임 1072초 = 벽 301초). S14 전량 1732초 ≈ 480초.
+        // 벽시계 한도 — 재생 배속을 걸어도 스캔·물리 부하로 실효 배속은 더 낮다.
         const float TimeScale = 10f, WallLimitS = 900f, PickTolM = 0.36f;
 
         static int picks, places, shipPicks, shipAdopted, exceptions;
@@ -46,7 +40,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             string csv = System.Environment.GetEnvironmentVariable("PLC_SMOKE_CSV");
             if (string.IsNullOrEmpty(csv)) csv = Path.Combine(root, "PlcSim", "output", "S14", "run_01.csv");
             string hist = Path.ChangeExtension(csv, ".history.csv");
-            // 이동 수·끝 시각은 이력 파일에서 직접 센다 — PlcCargo 의 "N개 이동" 로그는 로그 구독(EnteredPlayMode)보다 먼저 찍혀 놓쳤다.
+            // 이동 수·끝 시각은 이력 파일에서 직접 센다 — PlcCargo 로그는 구독 전에 찍혀 놓칠 수 있다.
             var rows = File.Exists(hist) ? File.ReadAllLines(hist).Skip(1).Where(l => l.Trim().Length > 0).ToArray() : new string[0];
             float endS = rows.Length > 0 ? rows.Max(l => int.Parse(l.Split(',')[7], CultureInfo.InvariantCulture)) / 1000f + 5f : 60f;   // place_t_ms
 

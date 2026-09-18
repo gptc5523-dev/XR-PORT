@@ -2,11 +2,8 @@ using System.Collections.Generic;
 
 namespace AIXRCrane
 {
-    /// <summary>
-    /// ISO 6346 표준 컨테이너 식별 번호 생성기.
-    /// 형식: AAAA NNNNNN C  (4자 소유자 코드 + 6자리 일련번호 + 1자리 체크디지트)
-    /// 예) MRBU 200125 8
-    /// </summary>
+    /// <summary>ISO 6346 컨테이너 식별 번호 생성기. 형식: AAAA NNNNNN C(소유자 4자+일련 6자리+체크디지트).
+    /// 예) MRBU 200125 8</summary>
     public static class ContainerIdGenerator
     {
         // 실재하는 주요 선사/리스사 소유자 코드 (Category Identifier 'U' 포함)
@@ -33,10 +30,8 @@ namespace AIXRCrane
             {'S',30},{'T',31},{'U',32},{'V',34},{'W',35},{'X',36},{'Y',37},{'Z',38}
         };
 
-        /// <summary>
-        /// 키 문자열에서 '결정적으로' 컨테이너 번호 생성 — 같은 키면 항상 같은 번호(재현 가능).
-        /// 컨테이너 GameObject 이름 등 고정 식별자를 키로 주면, 그 컨테이너는 늘 동일 ISO 6346 번호를 갖는다.
-        /// </summary>
+        /// <summary>키 문자열에서 결정적으로 컨테이너 번호 생성 — 같은 키면 항상 같은 번호(재현 가능).
+        /// 컨테이너 이름 등 고정 식별자를 키로 쓰면 항상 동일 번호를 갖는다.</summary>
         public static string GenerateDeterministic(string key)
         {
             return Generate(new System.Random(StableHash.Seed(key)));

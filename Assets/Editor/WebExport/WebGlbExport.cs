@@ -5,10 +5,7 @@ using UnityEditor;
 using UnityEngine;
 using GLTFast.Export;
 
-/// <summary>
-/// 웹 전시용 GLB 내보내기 (glTFast).
-/// 배치: Unity -batchmode -executeMethod WebGlbExport.ExportRtgBatch
-/// </summary>
+/// <summary>웹 전시용 GLB 내보내기(glTFast). 배치: Unity -batchmode -executeMethod WebGlbExport.ExportRtgBatch</summary>
 public static class WebGlbExport
 {
     const string RtgFbxPath = "Assets/Crane/Models/RTG_Crane.fbx";
@@ -64,7 +61,7 @@ public static class WebGlbExport
             }
 
             // 업축 후보: 프리팹 기본 회전 → Z-up 보정(±90°X). 게이트 통과하는 첫 후보 채택.
-            // (FBX 원본이 Z-up이라 identity로 세우면 눕는다 — 2026-08-27 실측 27.25 x 12.43 x 25.04)
+            //   FBX 원본이 Z-up이라 identity로 세우면 눕는다(실측 27.25 x 12.43 x 25.04).
             var candidates = new (string label, Quaternion rot)[]
             {
                 ("프리팹 기본", prefab.transform.rotation),

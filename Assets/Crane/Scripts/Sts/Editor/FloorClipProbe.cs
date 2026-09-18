@@ -9,16 +9,9 @@ using UnityEngine;
 
 namespace AIXRCrane.Crane.Sts.EditorTools
 {
-    /// <summary>
-    /// 배치 검사 — 바닥(데크 y=0) 관통. 오너 2026-09-16 "컨테이너가 바닥을 뚫는다" 스크린샷 재현.
-    ///   ① 하강: 든 채로 '받침이 없는 빈 데크' 위에서 권상을 끝까지 내려도 컨테이너 밑면이 바닥 아래로 가면 안 된다.
-    ///      (SpreaderGrabber 통과방지 클램프는 받침 컨테이너가 있을 때만(over) 걸린다 — 빈 땅에서는 하한이 없다.)
-    ///   ② 복구: 이미 바닥 아래에 있는 컨테이너는 ContainerPhysicsStabilizer 바닥가드가 끌어올려야 한다.
-    ///      런타임에 강체가 붙는(=Start 목록에 없는) kinematic 야드 컨테이너가 가드의 사각이었다.
-    /// 판정은 바닥 y 하나로만 한다 — 콘 돌출·삽입 깊이 값에는 기대지 않는다(그 값은 재측정 중, xr-port-04 2026-09-16).
-    ///   Unity -batchmode -nographics -projectPath . -executeMethod AIXRCrane.Crane.Sts.EditorTools.FloorClipProbe.Run -logFile floor.log
-    ///   ※ -quit 금지 — EnterPlaymode 방식이라 주면 플레이에 못 들어가고 로그가 빈다.
-    /// </summary>
+    /// <summary>배치 검사 — 바닥(데크 y=0) 관통. ①빈 데크에서 권상을 하한까지 내려도 컨테이너 밑면이 바닥 아래로
+    /// 가면 안 된다. ②이미 바닥 아래인 컨테이너는 바닥가드가 끌어올려야 한다. 판정은 바닥 y 하나만 본다.
+    /// -batchmode -executeMethod ...FloorClipProbe.Run 로 실행, -quit 금지(EnterPlaymode라 주면 로그가 빈다).</summary>
     [InitializeOnLoad]
     public static class FloorClipProbe
     {
@@ -96,8 +89,8 @@ namespace AIXRCrane.Crane.Sts.EditorTools
                         // 왜 게이트에 걸렸는지 숫자로 남긴다 — 이게 없으면 '안 잡힘'이 회귀인지 원래 그런지 구분이 안 된다.
                         CraneDemoRunner.TryBounds(c.box, out var bs);
                         float gapMm = (c.g.ConeBottomY() - bs.max.y) / StsConfig.ModelScale * 1000f;   // 음수 = 콘이 박힌 깊이
-                        // '실제로 잡힌 것' 이 다른 컨테이너면 FindNearest 가 옆칸을 골랐다는 뜻(gap 이 −InsertU 인데 이름이 다를 때).
-                        //   gap 이 크게 양수면 대상이 콘 밑에 없었던 것 — 원인이 갈린다(xr-port-ae 2026-09-16 제안).
+                        // '실제로 잡힌 것' 이 다른 컨테이너면 FindNearest 가 옆칸을 골랐다는 뜻(gap 이 −InsertU 인데 이름 다를 때).
+                        //   gap 이 크게 양수면 대상이 콘 밑에 없었던 것 — 원인이 갈린다.
                         var got = c.crane.Attach != null ? c.crane.Attach.AttachedContainer : null;
                         Skip(c, $"안 잡힘 — 콘바닥−윗면 {gapMm:+0;-0}mm(실척), 설정 삽입 {c.g.InsertDepthMeters * 1000f:F0}mm, " +
                                 $"실제 잡힌 것 {(got != null ? got.name : "없음")}");
@@ -134,7 +127,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             skipped++; idx++; phase = 1; Wait(0.2f);
         }
 
-        // ② 바닥 아래 컨테이너를 바닥가드가 끌어올리는가 — 런타임에 강체가 붙은(=Start 목록에 없는) kinematic 야드 컨테이너로 잰다.
+        // ②바닥 아래 컨테이너를 바닥가드가 끌어올리는지 — 런타임에 붙는 kinematic 야드 컨테이너로 잰다.
         static void StepGuard()
         {
             if (phase != 20)
@@ -194,10 +187,8 @@ namespace AIXRCrane.Crane.Sts.EditorTools
                 && a.min.z - m < b.max.z && a.max.z + m > b.min.z;
         }
 
-        // 옮기기 전에 kinematic 으로 고정한다 — 배 컨테이너는 중력을 받는 동적 강체라, 파킹 높이(공중)의 콘 밑으로
-        //   옮겨 두면 Grab() 하기 전에 도로 갑판으로 떨어진다. 2026-09-16 실측: STS 가 '안 잡힘'으로 건너뛴 원인이
-        //   이것이었다(건너뜀 로그의 콘바닥−윗면 +30,599mm = 떨어져 돌아간 거리. 크레인이나 게이트 문제가 아니다).
-        //   잡히면 어차피 부착 쪽에서 kinematic 이 되고, 놓은 뒤 남는 kinematic 은 바닥가드가 본다.
+        // 옮기기 전에 kinematic 으로 고정한다 — 배 컨테이너는 동적 강체라 그대로 두면 Grab() 전에 갑판으로 떨어진다.
+        //   잡히면 부착 쪽에서 kinematic 이 되고, 놓은 뒤 남는 kinematic 은 바닥가드가 본다.
         static void Move(Transform t, Vector3 d)
         {
             var rb = t.GetComponent<Rigidbody>();

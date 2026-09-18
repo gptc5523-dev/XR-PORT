@@ -3,16 +3,10 @@ using UnityEngine;
 
 namespace AIXRCrane.Crane.Sts
 {
-    /// <summary>
-    /// 크레인 외부의 Rigidbody(=집을 수 있는 화물/컨테이너)를 트위스트락 콘 위치 기준으로 잡고/놓고,
-    /// 빈 스프레더가 컨테이너 윗면을 통과하지 못하게 호이스트를 클램프한다(게임 동작).
-    /// 컨테이너 식별은 특정 컴포넌트(ContainerInstance 등)에 의존하지 않는다 — Rigidbody가 달린
-    /// 자유 강체면 절차적 스폰(VRTestMenu)이든 프리팹이든 모두 잡힌다. VR 컨트롤러가 Grab()/Release()를 호출한다.
-    /// </summary>
-    // 실행 순서 고정(중요): 통과방지 클램프는 VRController의 축 이동(호이스트 하강, 기본 order 0) '뒤'에
-    //   돌아야 한 틱 침투를 즉시 복원한다. 둘 다 FixedUpdate이고 order가 같으면 순서가 불확정이라
-    //   최악 1틱(0.02s) 어긋남이 생긴다. 계산상 그 진폭(공하 0.00225m, 운전실 시점 각크기 ~7.7~25.8 arcmin)이
-    //   시각 인지 임계(1 arcmin)를 크게 초과해 떨림으로 보일 수 있으므로, order를 늦춰(50) 어긋남을 0으로 만든다.
+    /// <summary>크레인 외부 Rigidbody를 트위스트락 콘 기준으로 잡고/놓고, 빈 스프레더가 컨테이너 윗면을
+    /// 통과 못 하게 호이스트를 클램프한다. Rigidbody만 있으면 컴포넌트 무관하게 잡힌다.</summary>
+    // 실행 순서 고정: 통과방지 클램프는 VRController 축 이동(order 0) 뒤에 돌아야 한 틱 침투를 복원한다.
+    //   order 같으면 순서 불확정 → 떨림 발생, order를 50으로 늦춰 방지.
     [DefaultExecutionOrder(50)]
     [AddComponentMenu("AI-XR Crane/STS Crane/Spreader Grabber")]
     [RequireComponent(typeof(StsCrane))]
@@ -37,31 +31,20 @@ namespace AIXRCrane.Crane.Sts
         [Tooltip("동심 정렬 수평 허용오차(m) — 스프레더(트위스트락 평균) 중심이 컨테이너 중심에서 이 거리 안일 때만. " +
                  "사이즈가 자동 정합되므로 이 값 이내면 콘 4개가 코너캐스팅 위에 놓인다. 0.015≈가이드 정합(실척 ~36cm).")]
         [SerializeField] float registerTolXZ = 0.015f;
-        // 옛 높이 밴드 knob 2개 삭제(2026-09-16) — 콘 트랜스폼 원점을 콘 끝으로 착각한 식이라 값 자체가 의미가 없었다.
-        //   registerHoverTolY = 0.015u(실척 360mm 공중 체결 허용), seatDepthFrac = 0.45(실척 1.16m 침투 허용).
-        //   이제 삽입 밴드는 insertMeters × [InsertMinFrac, InsertMaxFrac] 하나로 정해진다(실측 ConeBottomY 기준).
+        // 옛 높이 밴드 knob 2개 삭제: registerHoverTolY=0.015u, seatDepthFrac=0.45.
+        //   현재는 insertMeters × [InsertMinFrac, InsertMaxFrac] 하나로 정해진다(ConeBottomY 실측 기준).
 
         [Tooltip("콘 돌출량을 못 재는 크레인(콘 미탐색)에서만 쓰는 폴백 삽입 깊이(실척 m). " +
                  "정상 크레인은 이 값을 무시하고 씬 기하에서 유도한다 — InsertDepthMeters 참고.")]
         [SerializeField] float insertFallbackMeters = 0.04f;
-        // 옛 knob insertMeters = 0.04f 는 삭제(2026-09-16). 근거가 "ISO 1161 상면 홀 상판 두께 ≈16mm + 여유" 였는데 1차 출처가 없다:
-        //   · ISO 1161:2016 은 1984판 Annex A(외형 치수 '예시, 비의무')를 삭제했다 ⇒ 현행판에 코너피팅 외형·상판 두께 규정이 아예 없다.
-        //   · 채택 수치 문서(~/Container/문서/컨테이너_통합.md Part 2)에도 상판 두께가 없다. 있는 것은 개구 63.5 × 124.5(스타디움형)와
-        //     캐스팅 외형 178×162×118(ISO 아님 · CIMC 제조사값, 우리 모델은 높이 113.5)뿐이다.
-        // ★ 다음 세션 주의 — 상판 두께를 벤더 카탈로그·블로그 같은 2차 출처로 채워 삽입 상한을 만들지 말 것.
-        //   Part 2 에 1차 출처로 들어온 뒤에만 쓴다(컨테이너 1차자료는 2026-08-14 전량 삭제됐다).
+        // 옛 knob insertMeters=0.04f 삭제 — 근거(ISO 1161 상판 두께 ≈16mm)가 1차 출처 없음.
+        // ★ 상판 두께를 2차 출처(벤더 카탈로그 등)로 채워 삽입 상한 만들지 말 것 — 1차 출처 확보 전엔 보류.
 
         float protrusionM = -1f;   // 콘 돌출량 실측 캐시(실척 m, 음수 = 아직 안 쟀음). 렌더러가 준비된 첫 사용 때 1회.
 
-        /// <summary>콘 삽입 깊이(실척 m) — 상수가 아니라 씬 기하에서 유도한다(오너 2026-09-16 "수식을 사용해서 수정하라고 했는데").
-        /// 실물 안착 자세는 <b>스프레더 구조 밑면이 컨테이너 최상면에 닿는</b> 깊이다. 그 최상면은 지붕이 아니라 상단 코너캐스팅 상면이다
-        /// — ISO 1496-1 5.2 가 상단 코너피팅을 위로 6mm 이상 돌출하도록 의무화하므로 컨테이너에서 가장 높은 면이 늘 캐스팅 상면이고,
-        /// 그래서 렌더러 바운즈 max.y 가 바로 그 면이다(잡기·클램프가 쓰는 기준면이 맞다는 근거).
-        ///   ⇒ 삽입 깊이 = 콘이 구조 밑면보다 아래로 나온 길이 = <see cref="MeasureProtrusionM"/> 콘 돌출량. 튜닝 상수가 없다.
-        ///   ⇒ 불변식: 이 깊이까지만 내려가면 스프레더 어느 부재도 컨테이너 최상면 아래로 안 들어간다.
-        /// 2026-09-16 실측(StsGrabProbe, 두 기준 일치): STS 24mm(Beam_Flange_1) · RTG 56mm(EndBeam_F_Body).
-        ///   옛 고정 40mm 는 STS 를 16mm 파묻고(구조가 컨테이너 안) RTG 를 16mm 띄웠다(콘이 덜 박힘 = 오너 보고).
-        /// 콘을 못 찾으면 <see cref="insertFallbackMeters"/>. ★ 호출자는 이 값을 필드로 캐시하지 말 것 — 프로퍼티로 매번 읽는다.</summary>
+        /// <summary>콘 삽입 깊이(실척 m) — 씬 기하에서 유도(스프레더 밑면이 컨테이너 상단 코너캐스팅 상면에 닿는 깊이
+        /// = <see cref="MeasureProtrusionM"/> 돌출량). 실측 STS 24mm · RTG 56mm(옛 고정 40mm).
+        /// 못 찾으면 <see cref="insertFallbackMeters"/>. ★ 캐시 금지 — 매번 프로퍼티로 읽는다.</summary>
         public float InsertDepthMeters
         {
             get
@@ -140,12 +123,8 @@ namespace AIXRCrane.Crane.Sts
         // (잡힌/놓인 상태는 매 프레임 IsChildOf로 거르므로 목록을 자주 다시 만들 필요가 없다.)
         const float MinRescanInterval = 3f;
 
-        // 침묵 클램프를 가시화한 명명 상수(값은 종전 매직넘버 그대로 — 기본값 거동 불변):
-        //   · AntiCollisionSkinFloor: antiCollisionSkin의 신뢰 가능한 하한. 옛 boundary 값(0.002)으로 남은
-        //     씬 인스턴스도 이 값 이상으로 올려 '운 좋을 때만' 근접이 잡히던 문제를 막는다.
-        //   · EmptyPassMarginCap: 빈 스프레더 통과방지 footprint 여유의 상한. passXZmargin(0.1)은 1/24
-        //     미니어처엔 커서 옆 컨테이너에 멀리서부터 걸리므로 이 값으로 제한한다.
-        //   · SideHitDepthFrac: 빈 스프레더가 컨테이너 옆면 '깊숙이' 들어온 측면충돌 판정 깊이(윗면 기준 높이의 비율).
+        // 명명 상수(매직넘버 가시화, 값 불변): AntiCollisionSkinFloor=근접 감지 신뢰 하한,
+        //   EmptyPassMarginCap=빈 스프레더 통과방지 여유 상한, SideHitDepthFrac=측면충돌 판정 깊이 비율.
         const float AntiCollisionSkinFloor = 0.006f;
         const float EmptyPassMarginCap = 0.03f;
         const float SideHitDepthFrac = 0.25f;
@@ -170,9 +149,8 @@ namespace AIXRCrane.Crane.Sts
             }
             twistlocks = list.ToArray();
 
-            // 직렬화된 기존 씬 인스턴스가 옛 boundary 값(0.002)으로 남아 있어도 신뢰 가능한 최소로 올린다
-            //   — 밀려난 컨테이너가 gap(≈0.002) 떨어져도 근접이 잡히게(이하면 '운 좋을 때만' 발생).
-            // 침묵 클램프 가시화: 인스펙터 값이 하한/상한에 걸리면 1회 경고해, 디자이너가 "왜 안 먹지"를 모르고 헤매지 않게.
+            // 직렬화된 기존 씬 값(옛 0.002)도 신뢰 가능한 최소로 올린다 — gap≈0.002 에서도 근접이 잡히게.
+            // 인스펙터 값이 하한/상한에 걸리면 1회 경고한다.
             if (antiCollisionSkin < AntiCollisionSkinFloor)
                 Debug.LogWarning($"[Crane] SpreaderGrabber: 인스펙터 antiCollisionSkin {antiCollisionSkin} 가 하한 {AntiCollisionSkinFloor}(으)로 클램프됨 — 더 작게 쓰려면 코드의 AntiCollisionSkinFloor를 낮출 것.");
             antiCollisionSkin = Mathf.Max(antiCollisionSkin, AntiCollisionSkinFloor);
@@ -195,12 +173,8 @@ namespace AIXRCrane.Crane.Sts
 
         void Refresh()
         {
-            // 강체 전부를 담는다 — '크레인 자식 제외'는 스캔 때가 아니라 쓰는 쪽(FindNearest·통과방지 루프)에서 매 틱 건다.
-            //   ★ 스캔 때 걸러내면 그 순간 매달려 있던 컨테이너가 목록에서 빠지고, 놓은 뒤에도 다음 재스캔(MinRescanInterval 3초)
-            //     까지 안 돌아온다 → 통과방지가 그 컨테이너를 못 보고 빈 스프레더가 그대로 관통한다.
-            //     2026-09-16 StsGrabProbe 실측: 과하강 케이스 8건 중 3건이 삽입 40mm 에서 안 멈추고 200mm 까지 내려갔고,
-            //     그 구간엔 PASS/clamp 엣지가 아예 없었다(over=false). 재생·시연이 방금 놓은 컨테이너에도 같은 구멍이 생긴다.
-            // 버퍼(bodies)를 비우고 다시 채워 매 갱신 새 List/배열 할당을 피한다(주기적 GC 절감).
+            // 강체 전부를 담는다 — 크레인 자식 제외는 스캔이 아니라 쓰는 쪽(FindNearest·통과방지)에서 매 틱 건다.
+            //   ★ 스캔 때 걸러내면 재스캔 전까지 통과방지가 그 컨테이너를 못 보고 관통한다.
             var all = FindObjectsByType<Rigidbody>(FindObjectsInactive.Exclude);
             bodies.Clear();
             foreach (var rb in all)
@@ -220,9 +194,8 @@ namespace AIXRCrane.Crane.Sts
             return AttachPoint != null ? AttachPoint.position : transform.position;
         }
 
-        /// <summary>콘 바닥(스프레더 최저 기하)의 월드 Y — 매단 컨테이너 렌더러는 뺀다.
-        /// 트랜스폼 원점은 콘 끝이 아니다(2026-09-16 실측: 절차 STS 는 원점=콘끝이지만 FBX RTG 는 원점이 콘끝보다 137mm 위).
-        /// 그래서 잡기·통과방지 기준은 원점이 아니라 이 실측값을 쓴다 — CraneDemoRunner.SpreaderBottomY 와 같은 식.</summary>
+        /// <summary>콘 바닥(스프레더 최저 기하)의 월드 Y — 매단 컨테이너 렌더러는 뺀다. 트랜스폼 원점은 콘 끝이 아니다
+        /// (STS 는 원점=콘끝, RTG 는 원점이 콘끝보다 137mm 위) — CraneDemoRunner.SpreaderBottomY 와 같은 식.</summary>
         public float ConeBottomY()
         {
             Transform held = crane != null && crane.Attach != null ? crane.Attach.AttachedContainer : null;
@@ -249,22 +222,16 @@ namespace AIXRCrane.Crane.Sts
         //   — 위(공중 체결)와 아래(옆면으로 깊숙이 파고든 상태)를 모두 거른다.
         const float InsertMinFrac = 0.25f, InsertMaxFrac = 2f;
 
-        // 빈 스프레더가 컨테이너 c의 상단 코너캐스팅 위에 '안착 정렬'됐는지. gp=트위스트락 콘 평균(잡기 기준점).
-        //   · 수평(dXZ): gp가 컨테이너 중심 XZ에서 registerTolXZ 이내 → 동심. 집기 시 텔레스코픽이 사이즈를
-        //     자동 정합하므로(20/40ft 혼합 야드), 동심이면 콘 4개가 4개 코너캐스팅 위에 놓인다.
-        //   · 높이(gap=콘 바닥Y−윗면Y, ConeBottomY 실측): 콘이 insertMeters×[InsertMinFrac, InsertMaxFrac] 만큼
-        //     '박혀 있을 때'만 체결. gap>0(공중)·너무 깊음(옆면 진입) 모두 거부. 통과방지가 정확히 insertMeters 에서 세워 준다.
-        //   사이즈를 별도 검사하지 않는 이유: 자동 신축이 정합하므로 동심+안착이 곧 코너 정렬과 동치.
+        // 빈 스프레더가 컨테이너 c 상단 코너캐스팅 위에 '안착 정렬'됐는지. gp=트위스트락 콘 평균.
+        //   수평은 registerTolXZ 이내 동심, 높이는 gap 이 insertMeters×[InsertMinFrac,InsertMaxFrac] 범위(박힘)일 때만 체결.
         bool IsSeatedOver(Transform c, Vector3 gp, out float dXZ, out float gap)
         {
             dXZ = float.MaxValue; gap = float.MaxValue;
             if (!TryBounds(c, out Bounds b)) return false;
             float dx = gp.x - b.center.x, dz = gp.z - b.center.z;
             dXZ = Mathf.Sqrt(dx * dx + dz * dz);
-            // gap = 콘 바닥 − 윗면(음수 = 그만큼 박힘). 실측 기하로 재야 한다 — 옛 코드는 gp.y(콘 트랜스폼 원점 평균)를
-            //   콘 끝으로 썼고, 그래서 원점이 콘끝보다 137mm 위인 RTG 는 콘이 135mm 파묻힌 채, STS 는 0mm(닿기만) 체결됐다.
-            //   옛 밴드: gap ≤ registerHoverTolY(0.015u=실척 360mm) ~ ≥ −높이×seatDepthFrac(0.45→실척 1.16m).
-            //   공중 360mm 에서도 잠겼던 원인(오너 2026-09-16 "락 거는 부분이 컨테이너 안으로 안 들어가").
+            // gap = 콘 바닥 − 윗면(음수 = 그만큼 박힘). 실측 기하로 재야 한다(트랜스폼 원점은 콘 끝이 아니다).
+            //   옛 밴드: gap ≤ registerHoverTolY(0.015u) ~ ≥ −높이×seatDepthFrac(0.45).
             gap = ConeBottomY() - b.max.y;
             bool centered = dXZ <= registerTolXZ;
             bool inserted = gap <= -InsertU * InsertMinFrac && gap >= -InsertU * InsertMaxFrac;
@@ -295,9 +262,8 @@ namespace AIXRCrane.Crane.Sts
                 $"seated={seated} dXZ={QaLog.F(segXZ)} gap={QaLog.F(segGap)} grabbed={willGrab}");
             if (c == null) return;
 
-            // 코너 안착 게이트 — 근접만으론 안 잠긴다. 트위스트락이 컨테이너 상단 코너캐스팅 위에
-            //   '동심 정렬(중심 ±registerTolXZ) + 윗면 높이 안착'했을 때만 체결한다(자동 신축으로 사이즈가
-            //   맞으므로 이 조건이 곧 콘 4개가 코너캐스팅 위에 놓임과 동치). 옆면 근처·공중·측면진입은 거부.
+            // 코너 안착 게이트 — 근접만으론 안 잠긴다. 동심 정렬(±registerTolXZ) + 윗면 높이 안착일 때만 체결.
+            //   옆면 근처·공중·측면진입은 거부.
             if (requireSeatedRegistration && !seated)
             {
                 if (debugLog)
@@ -322,24 +288,17 @@ namespace AIXRCrane.Crane.Sts
             }
 
             attach.Attach(c);   // 월드 자세 그대로 자식이 된다
-            // 수평은 트위스트락 중심에 맞춘다(플리퍼·가이드 역할 — 안착 게이트 통과면 오차 ≤ registerTolXZ). 회전은 그대로.
-            //   높이는 손대지 않는다 — 게이트가 '콘이 박힌 상태'만 통과시키므로 옮길 이유가 없고, 옮기면 컨테이너가 순간이동한다.
-            //     (옛 코드는 게이트를 끈 근접 잡기에서 윗면을 콘 '원점' 높이로 올렸다 — 원점≠콘끝인 RTG 에서 135mm 파묻힘의 원인.)
-            //   ※ 옛 코드는 부착점 '로컬' y 에서 월드 거리를 뺐다 — FBX RTG 부착점은 축변환·스케일 4.1667 이라
-            //     0.054u × 4.1667 = 0.225u 가 수평으로 튀었다(StsGrabProbe 실측 0.2249u).
+            // 수평은 트위스트락 중심에 맞춘다(오차 ≤ registerTolXZ). 회전은 그대로. 높이는 손대지 않는다 —
+            //   게이트가 '콘이 박힌 상태'만 통과시키므로 옮기면 순간이동한다.
+            //   ※ 옛 코드는 부착점 로컬 y 로 계산해 RTG 에서 0.054u×4.1667=0.225u 가 수평으로 튀었다(실측 0.2249u).
             if (hasBounds) c.position += new Vector3(gp.x - b.center.x, 0f, gp.z - b.center.z);
 
             // 하강 바닥 한계를 '컨테이너 밑면' 기준으로 — 스프레더가 아니라 컨테이너가 바닥(y=0)에 닿고 멈추게.
             if (spreaderHoist != null && TryBounds(c, out Bounds held))
             {
-                // 든 컨테이너 밑면이 바닥에 닿는 '축 값' — 축 해석과 무관하게 성립하는 한 식으로 구한다.
-                //   밑면을 바닥까지 내리려면 스프레더를 월드로 (floorTopY − 밑면Y) 만큼 움직여야 하고,
-                //   월드 이동 → 축 이동 환산이 WorldPerUnit 이다. 그래서 축 목표 = Current + 그 값 / WorldPerUnit.
-                //   ★ 옛 식 `(sp.position.y − 밑면Y) − 부모.position.y` 는 축을 로컬 Y 로 읽는 크레인에서만 맞았다.
-                //     SpreaderHoist.ReadAxis 는 worldVertical 이면 '월드' Y 를 읽으므로(FBX RTG), 그 크레인은
-                //     부모(트롤리) 높이만큼 하강 한계가 어긋나 컨테이너가 바닥 아래까지 내려갈 수 있었다.
-                //   검산 — 월드축: Current = sp.position.y · WorldPerUnit = 1 ⇒ sp.position.y − 밑면Y(= 옛 dropToBottom).
-                //          로컬축: Current = localPosition.y                  ⇒ localY − 밑면Y(= 옛 식과 동일).
+                // 축 목표 = Current + (floorTopY − 밑면Y) / WorldPerUnit — 축 해석(로컬/월드)과 무관하게 성립.
+                //   ★ 옛 식 (sp.position.y−밑면Y)−부모.position.y 는 로컬Y 크레인에서만 맞았다(worldVertical 크레인은
+                //     부모 높이만큼 하강 한계가 어긋나 바닥 아래까지 내려갈 수 있었다).
                 float floorMinY = spreaderHoist.Current + (floorTopY - held.min.y) / spreaderHoist.WorldPerUnit;
                 spreaderHoist.SetFloorOffset(floorMinY - spreaderHoist.Min);
                 if (debugLog) Debug.Log($"[Crane] 컨테이너 밑면 기준 바닥 — 하강한계 +{floorMinY - spreaderHoist.Min:F3} (높이 {held.size.y:F3})");
@@ -377,13 +336,8 @@ namespace AIXRCrane.Crane.Sts
             if (debugLog) Debug.Log("[Crane] 놓기(Detach)");
         }
 
-        // 놓을 때 야드 칸(라인) 중심·격자 축으로 맞춘다 — 오너 2026-09-16 "바닥 라인 안 지키고 그냥 내려놓는다. 수식으로 계산해서 수정".
-        //   · 수식은 YardGrid 한 곳에서만 유도한다 — 자동 시나리오(CraneDemoRunner.FindSlot)도 같은 식을 읽는다.
-        //     두 벌이 되면 수동·자동이 서로 다른 자리에 놓는다.
-        //   · 높이는 건드리지 않는다: 통과방지 클램프와 바닥 하한이 이미 밑면을 받침 윗면/바닥면에 세워 뒀다(b9d1d5b).
-        //   · 야드 블록 밖(에이프런·배·트럭)이면 아무것도 안 한다 — 그 자리는 격자와 무관하다.
-        //   · 목표 칸이 같은 높이에서 이미 차 있으면 맞추지 않는다 — 칸에 맞추려고 남의 컨테이너를 파고드는 게
-        //     라인 어긋남보다 나쁘다. 같은 칸 '위로' 쌓는 건 통과한다(쌓인 상자는 닿기만 하고 교차하지 않는다).
+        // 놓을 때 야드 칸(라인) 중심·격자 축으로 맞춘다(수식은 YardGrid 한 곳에서 유도 — 자동 시나리오도 같은 식).
+        //   높이는 안 건드림. 야드 밖은 무시. 목표 칸이 이미 차 있으면(같은 높이) 건너뜀 — 위로 쌓기는 통과.
         void SnapToYardCell(Transform c)
         {
             if (!TryBounds(c, out Bounds b)) return;
@@ -440,9 +394,8 @@ namespace AIXRCrane.Crane.Sts
         /// <summary>LoadCollisionRelay(접점·법선)가 옆/아래 충돌을 보고 — 닿는 순간 lastAntiCollTime 갱신(hold 동안 경보 유지).</summary>
         public void NotifyContact() => lastAntiCollTime = Time.time;
 
-        // 통과방지 클램프(hoist.MoveTo)와 푸셔 콜라이더 크기 변경은 kinematic 화물·콜라이더를 다루는
-        //   물리 동작이므로 FixedUpdate(PhysX 고정틱)에서 처리한다 — VRController의 축 이동도 FixedUpdate라
-        //   같은 박자에서 이동→클램프가 이어져 프레임률 의존·터널링·한 프레임 어긋남을 막는다.
+        // 통과방지 클램프·푸셔 콜라이더는 kinematic 물리 동작이라 FixedUpdate에서 처리한다.
+        //   VRController 축 이동도 FixedUpdate라 같은 박자로 이동→클램프가 이어져 프레임 의존·터널링을 막는다.
         void FixedUpdate()
         {
             if (Time.time >= nextRefresh) Refresh();
@@ -485,10 +438,8 @@ namespace AIXRCrane.Crane.Sts
             Transform ap = AttachPoint;
             if (attach == null || hoist == null || ap == null) return;
 
-            // 아래로 내려가면 안 되는 기준면(refBottomY)과, '바로 위에 있는지' 판정에 쓰는 중심(refCenter)을 정한다.
-            //  - 컨테이너를 들고 있으면: 들고 있는 컨테이너의 '밑면'과 그 XZ 중심
-            //    → 바로 밑에 깔린 컨테이너 윗면 위에 밑면이 얹히고 멈춤(깔아뭉개기/땅속 관통 방지).
-            //  - 빈 스프레더면: 부착점(점) — 기존 통과 방지 동작.
+            // 하한 기준면(refBottomY)과 판정 중심(refCenter): 들고 있으면 컨테이너 밑면+XZ중심(밑에 깔린 컨테이너 위에
+            //   얹혀 멈춤), 빈 스프레더면 부착점(기존 통과방지 동작).
             float refBottomY;
             Vector3 refCenter;
             Bounds heldB = default;
@@ -507,12 +458,8 @@ namespace AIXRCrane.Crane.Sts
                 refCenter = ap.position;   // 수평 판정(footprint 안인지)은 종전대로 부착점 XZ
             }
 
-            // 아래에 깔린 컨테이너(받침)를 고른다 — Landing & Position Sensor. bodies는 크레인 자식(스프레더/든 화물) 제외.
-            //   · 든 상태: 든 컨테이너 footprint와 'landingOverlapFrac 이상 겹치면' 적층 대상. 중심점 일치가 아니라
-            //     겹침 비율 판정이라, 살짝 어긋나게 내려놔도 윗면에서 멈춰 아래 것을 바닥으로 밀어넣지 않는다.
-            //     (옆에 나란히=겹침 ~0이라 적층으로 오인 안 함 → 옆 내려놓기 막힘 없음)
-            //   · 빈 스프레더: 부착점(점)이 footprint(±overMargin) 안이면 '바로 위'. passXZmargin(0.1m)은 미니어처엔
-            //     커서 0.03m로 상한(옆 컨테이너에 멀리서부터 걸리던 것 방지).
+            // 받침 컨테이너 선정(Landing & Position Sensor, bodies는 크레인 자식 제외): 든 상태는 footprint 겹침이
+            //   landingOverlapFrac 이상이면 적층 대상, 빈 스프레더는 부착점이 footprint(±overMargin) 안이면 '바로 위'.
             float overMargin = Mathf.Min(passXZmargin, EmptyPassMarginCap);
             float top = float.MinValue;
             float topMinY = 0f;   // 선택된(가장 높은) 컨테이너의 밑면 — 측면 침투 깊이 판정용
@@ -545,11 +492,8 @@ namespace AIXRCrane.Crane.Sts
                 if (b.max.y > top) { top = b.max.y; topMinY = b.min.y; over = true; selOverlap = overlapFrac; }
             }
 
-            // 받침 컨테이너가 없으면 '바닥'이 받침이다. 옛 코드는 그 경우 limit 를 0 으로 두고 클램프를 `over` 안에서만 걸어서
-            //   빈 땅 위에서는 하한이 아예 없었다 — 든 채로 내리면 데크를 뚫고 내려갔다(오너 2026-09-16 스크린샷).
-            //   바닥 높이는 ContainerPhysicsStabilizer.FindFloorTopY 가 SSOT(VirtualFloor 윗면 / 없으면 데크 y=0) — Start 에서 1회 캐시.
-            // 빈 스프레더는 콘이 InsertDepthMeters 만큼 박히는 데까지 내려간다(그 자리가 체결 자세) — 든 상태는 밑면이 윗면에 얹힌다.
-            //   ★ 바닥 받침에서는 삽입을 빼지 않는다 — 콘이 박힐 코너캐스팅 구멍은 컨테이너에만 있고, 데크 아래로 내려갈 이유가 없다.
+            // 받침이 없으면 '바닥'이 받침이다(FindFloorTopY가 SSOT). 빈 스프레더는 InsertDepthMeters 만큼 박히는 데까지 내려간다.
+            //   ★ 바닥 받침에서는 삽입을 빼지 않는다 — 코너캐스팅 구멍은 컨테이너에만 있어 데크 아래로 내려갈 이유가 없다.
             bool onFloor = !over;
             if (onFloor) top = floorTopY;
             float limit = top + topClearance - (holding || onFloor ? 0f : InsertU);
@@ -582,22 +526,16 @@ namespace AIXRCrane.Crane.Sts
                     $"holding={holding} depth={QaLog.F(depth)} threshold={QaLog.F(threshold)} sideHit=true clampApplied=false");
             }
 
-            // S-PASS-3 적층 안착: '실제로 얹힌 순간'(IsLanded 상승 엣지)에만 판정.
-            //   주의: 공중에서 footprint만 겹친 시점(over=true, 높이 높음)이 아니라, 든 컨테이너 밑면이
-            //   받침 윗면에 닿아 멈춘 순간을 본다(이전 버전은 공중 over-엣지에서 판정해 오탐 FAIL이 났음).
-            //   ★ 받침이 '바닥면'이면 footprint 겹침이 0 이 정상이다 — 바닥은 컨테이너가 아니라 지면이라 겹침 비율로 볼 대상이 아니다.
-            //     b9d1d5b 에서 바닥 하한을 넣은 뒤로 바닥 안착마다 이 검사가 "=> FAIL" 을 찍어 로그를 오염시켰다(실측 3건).
-            //     적층(컨테이너 위) 안착만 겹침을 따진다.
+            // S-PASS-3 적층 안착: IsLanded 상승 엣지(밑면이 받침 윗면에 닿아 멈춘 순간)에만 판정 — 공중 겹침 시점 아님.
+            //   ★ 받침이 '바닥면'이면 겹침 0 이 정상(지면은 겹침 비율 대상 아님) — 적층(컨테이너 위) 안착만 겹침을 따진다.
             bool landedStack = holding && IsLanded && top > floorTopY + 1e-4f;
             if (landedStack && !qaPrevLanded)
                 QaLog.Check("LAND", "stack", selOverlap >= landingOverlapFrac,
                     $"holding=true overlapFrac={QaLog.F(selOverlap)} threshold={QaLog.F(landingOverlapFrac)} " +
                     $"top={QaLog.F(top)} refBottomY={QaLog.F(refBottomY)} landed=true");
 
-            // S-PASS-1 빈 스프레더 통과방지: 윗면 근처에 클램프되어 멈춘 순간(상승 엣지).
-            //   refBottomY가 윗면(limit) 근처에 머물면(아래로 안 뚫음) PASS. 공중(refBottomY≫limit)은 제외.
-            //   판정: top 아래로 내려가면 클램프가 즉시 되밀고 있어야(corr>0) 통과방지 정상. top 근처/위면 그대로 OK.
-            //   FAIL = top 아래인데 보정이 없음(corr≈0) = 클램프 미작동·관통. 프레임 끊김의 1틱 과하강은 corr>0라 통과.
+            // S-PASS-1 빈 스프레더 통과방지: 윗면 근처에서 클램프된 순간(상승 엣지)만 판정, 공중은 제외.
+            //   FAIL = top 아래인데 보정 없음(corr≈0) = 클램프 미작동·관통.
             bool clampEmpty = over && !holding && !sideHit && refBottomY <= limit + 0.012f && refBottomY > limit - 0.06f;
             if (clampEmpty && !qaPrevClampEmpty)
                 QaLog.Check("PASS", "clamp", corr > 1e-4f || refBottomY >= limit - 0.012f,
@@ -628,8 +566,7 @@ namespace AIXRCrane.Crane.Sts
             dist = float.MaxValue;
             float range = Mathf.Min(grabRange, maxGrabRange);
 
-            // 콜라이더 기반 우선 — range 안의 콜라이더 중 크레인 외부 Rigidbody가 달린 것들 중 '가장 가까운' 1개
-            //   (예전: 첫 hit을 그대로 잡아 원치 않는 컨테이너가 짚히던 문제 → 최근접으로 선택)
+            // 콜라이더 기반 우선 — range 안의 콜라이더 중 크레인 외부 Rigidbody가 달린 것들 중 '가장 가까운' 1개.
             Transform nearestCol = null;
             float nearestColD = float.MaxValue;
             var hits = Physics.OverlapSphere(gp, range);
@@ -664,10 +601,8 @@ namespace AIXRCrane.Crane.Sts
             if (!Mathf.Approximately(sz.x, want)) { sz.x = want; pusherBox.size = sz; }
         }
 
-        // 스프레더 프레임에 kinematic 콜라이더(SpreaderPusher)를 달아 컨테이너(동적 강체)를 물리로 밀어/넘어뜨린다.
-        //   ▸ 별도 자식에 둬서 잡은 컨테이너(AttachPoint 자식)와 rigidbody가 중첩(nested)되지 않게 한다.
-        //   ▸ 박스 바닥은 부착점(그랩 평면)까지만 — 그 아래 트위스트락 콘은 비워 안착/잡기를 방해하지 않는다.
-        //   ▸ 크레인 다른 부재엔 콜라이더가 없어 자기 구조물과는 안 부딪힌다. 컨테이너 콜라이더하고만 충돌.
+        // 스프레더 프레임에 kinematic 콜라이더(SpreaderPusher)를 달아 컨테이너를 물리로 밀어/넘어뜨린다.
+        //   별도 자식(rigidbody 중첩 방지), 박스 바닥은 부착점까지만(콘은 비워 안착 방해 없음).
         void CreateSpreaderPusher()
         {
             if (!spreaderCollider) return;
@@ -686,12 +621,8 @@ namespace AIXRCrane.Crane.Sts
             rb.useGravity = false;
             rb.collisionDetectionMode = CollisionDetectionMode.ContinuousSpeculative;   // 이동 빠를 때 관통 줄임
 
-            // 박스 치수(정확 산식, 추정 없음):
-            //   · X(길이) = 2×current. 텔레스코프 반길이 current는 컨테이너 반길이와 정확히 일치(half20=0.126=L20ft/48,
-            //     half40=0.254=L40ft/48)하고 트위스트락이 코너캐스팅(±current)에 물리므로, 박스 길이=컨테이너 길이.
-            //   · Z(폭) = 실측 스프레더 폭(lb.size.z) — 텔레스코프와 무관(폭 불변).
-            //   · Y = 프레임 윗면(topY) ~ 그랩 평면(botY). 콘이 있는 그 아래는 비워 잡기/안착 방해 없음.
-            //   · 중심 X·Z = 0 (스프레더는 ±current/±폭 대칭 → 정확히 0).
+            // 박스 치수: X=2×current(half20=0.126, half40=0.254 = 컨테이너 반길이와 일치), Z=실측 스프레더 폭(폭 불변),
+            //   Y=프레임 윗면(topY)~그랩 평면(botY, 콘 아래는 비움), 중심 X·Z=0(대칭).
             float grabPlaneY = AttachPoint != null ? sp.InverseTransformPoint(AttachPoint.position).y : lb.min.y;
             float topY = lb.max.y;
             float botY = Mathf.Min(grabPlaneY, topY - 0.001f);
@@ -699,7 +630,7 @@ namespace AIXRCrane.Crane.Sts
             var box = go.AddComponent<BoxCollider>();
             box.center = new Vector3(0f, (topY + botY) * 0.5f, 0f);
             box.size   = new Vector3(Mathf.Max(lenX, 0.001f), Mathf.Max(topY - botY, 0.001f), Mathf.Max(lb.size.z, 0.001f));
-            // 컨테이너 contactOffset(0.001)와 맞춤 — 기본값 0.01이면 밀린 컨테이너가 ~0.011 떨어져 Anti-Collision skin이 못 닿는다(빈 스프레더 경보 누락).
+            // 컨테이너 contactOffset(0.001)와 맞춤 — 기본값 0.01이면 밀린 컨테이너가 떨어져 Anti-Collision skin이 못 닿는다.
             box.contactOffset = 0.001f;
             pusherBox = box;
 

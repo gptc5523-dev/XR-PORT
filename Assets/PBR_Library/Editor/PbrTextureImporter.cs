@@ -3,13 +3,8 @@ using UnityEngine;
 
 namespace Sts.Art
 {
-    /// <summary>
-    /// PBR_Library 아래로 들어오는 ambientCG 텍스처의 import 설정을 파일명 접미사로 자동 구성한다.
-    /// - *_NormalGL  : 노멀맵으로 인식 (OpenGL 규약 = Unity 기본)
-    /// - *_Roughness / *_Metalness / *_Displacement / *_AmbientOcclusion : 선형 데이터(sRGB off)
-    /// - *_Color     : 알베도(sRGB on, 기본값 유지)
-    /// 아티스트가 텍스처마다 수동으로 설정을 바꾸지 않도록 하기 위함.
-    /// </summary>
+    /// <summary>PBR_Library 의 ambientCG 텍스처 import 설정을 파일명 접미사로 자동 구성한다(수동 설정 불필요).
+    /// _NormalGL→노멀맵, _Roughness/_Metalness/_Displacement/_AmbientOcclusion→선형(sRGB off), _Color→알베도(기본).</summary>
     public class PbrTextureImporter : AssetPostprocessor
     {
         const string LibraryRoot = "Assets/PBR_Library/";

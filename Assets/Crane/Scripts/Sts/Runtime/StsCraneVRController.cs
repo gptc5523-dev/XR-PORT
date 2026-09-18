@@ -4,22 +4,8 @@ using UnityEngine.XR;            // InputDevices — Quest 컨트롤러 직접 �
 
 namespace AIXRCrane.Crane.Sts
 {
-    /// <summary>
-    /// VR 컨트롤러(Quest)로 STS 크레인을 수동 조종. 입력은 UnityEngine.XR.InputDevices로 직접 읽음
-    /// (코드 InputAction이 OpenXR에서 입력을 못 받는 문제 회피). 키보드 미사용 — 컨트롤러 전용.
-    ///
-    /// [모드] 이동 / 운전 / 갠트리 3가지 (CraneModeSelectorHUD가 오른쪽 컨트롤러에 목록 표시)
-    ///   - 오른쪽 스틱 위/아래(상하) 플릭 → 모드 후보 이동(하이라이트만, 좌우=트롤리와 안 겹치게 가드)
-    ///   - B 버튼(오른손 보조) → 현재 후보를 실제 모드로 확정 (스틱만으론 안 바뀜 → 조종 중 충돌 방지)
-    /// [조종]
-    ///   - 조종모드: 오른손 스틱 X → 트롤리,  왼손 스틱 Y → 호이스트(위=올림)
-    ///   - 갠트리모드: 왼손 스틱 X → 갠트리(크레인 전체 좌우 주행)
-    ///   - 이동모드: 스틱 무시, XR 로코모션(걷기) 활성
-    /// [공통] Y 버튼(왼손) → 집기,  X 버튼(왼손) → 놓기
-    ///   (집기/놓기를 X·Y에 둬서 트리거/그립은 손 직접 집기[XRGrabInteractable]와 겹치지 않음)
-    /// A 버튼(오른손 주): 운전/갠트리 모드일 때 운전실 시점(운전실 좌석 눈높이로 이동·스프레더 향, 고개 숙여 내려다봄) 토글.
-    /// 운전/갠트리 모드일 때만 씬의 XR 로코모션을 끄고, 이동모드면 복구한다.
-    /// </summary>
+    /// <summary>VR 컨트롤러(Quest)로 STS 크레인 조종 — XR.InputDevices 직접 읽기(OpenXR 에서
+    /// 코드 InputAction 미동작 회피). 모드(이동/운전/갠트리)는 오른쪽 스틱 상하 + B 확정, 축 조종은 스틱, Y/X 로 집기/놓기.</summary>
     [AddComponentMenu("AI-XR Crane/STS Crane/STS Crane VR Controller")]
     [RequireComponent(typeof(StsCrane))]
     [DisallowMultipleComponent]
@@ -192,14 +178,12 @@ namespace AIXRCrane.Crane.Sts
             // QA 자동 시나리오 합성 입력 — 기기 대신 주입값으로 스틱을 대체(나머지 처리는 동일 → FixedUpdate 축적분 경로 그대로).
             if (qaDrive) { rs = qaRS; ls = qaLS; }
 
-            // 시점 높이 조절은 CraneViewHeightAdjuster(별도 컴포넌트, 호스트/관전자 공통)가 담당
-            //   조종 컨트롤러는 '조절 중'이면 왼손 스틱을 높이 전용으로 양보(호이스트/갠트리 입력 무효화)한다.
-            //   걷기 정지는 EnforceLocomotion의 locoOn 조건이 ViewHeightActive()로 매 프레임 반영한다.
+            // 시점 높이 조절은 CraneViewHeightAdjuster 가 담당 — 조절 중엔 왼손 스틱을 높이 전용으로 양보한다.
+            // 걷기 정지는 EnforceLocomotion 의 locoOn 이 ViewHeightActive() 로 매 프레임 반영한다.
             if (ViewHeightActive()) ls = Vector2.zero;
 
-            // 관찰 ⇄ 조종 토글: 오른쪽 스틱 클릭(primary2DAxisClick). 기본은 관찰(controlActive=false)
-            //   관찰: 크레인은 PLC/시뮬이 움직이고 사용자 조종 입력은 전면 차단 → 호스트·관전자 동일 화면(모드선택 HUD도 숨김).
-            //   조종: 스틱 클릭 한 번으로 진입, 이때만 모드선택 HUD가 뜨고 축 조종이 열린다.
+            // 관찰 ⇄ 조종 토글: 오른쪽 스틱 클릭. 관찰(기본)은 조종 입력 전면 차단(호스트·관전자 동일 화면).
+            // 조종은 스틱 클릭 한 번으로 진입, 이때만 모드선택 HUD와 축 조종이 열린다.
             bool modeToggleNow = Btn(right, CommonUsages.primary2DAxisClick);
             if (modeToggleNow && !prevModeToggleBtn)
             {
@@ -216,13 +200,8 @@ namespace AIXRCrane.Crane.Sts
             // 관찰 모드: 조종 입력(모드선택/확정/시점/집기/축이동) 전면 차단. 걷기·시점높이는 위에서 이미 처리됨.
             if (!controlActive) { driveRS = driveLS = Vector2.zero; return; }
 
-            // 모드 선택: 스틱 위/아래로 '후보'만 이동 → B로 '확정'
-            //   스틱만으론 모드가 안 바뀜(후보 하이라이트만 이동). B를 눌러야 실제 전환.
-            //   → 조종모드에서 오른쪽 스틱 좌우(트롤리) 조작 중 모드가 빠지는 충돌 해소.
-            //   추가 가드: 좌우로 밀 땐(|x|≥0.5) 후보도 안 움직임. 중앙 복귀 후에만 다음 이동 인정(폭주 방지).
-            //   ★ 오른손 검지 트리거를 당긴 채여야 후보 이동·확정이 먹는다(오너 지시 2026-09-16) — 조종 중 오른쪽 스틱은
-            //     트롤리라 위아래로 조금만 밀려도 모드가 바뀌던 것을 막는다. 같은 트리거를 쓰는 시점 높이 조절
-            //     (CraneViewHeightAdjuster)은 왼손 스틱이라 겹치지 않는다.
+            // 모드 선택: 스틱 위/아래로 후보만 이동, B 로 확정 — 오른손 트리거를 당긴 채여야 먹는다
+            // (조종 중 오른쪽 스틱은 트롤리라 위아래로 밀려도 모드가 안 바뀌게). 좌우로 밀면 후보도 안 움직인다.
             float rTrig = 0f;
             if (right.isValid) right.TryGetFeatureValue(CommonUsages.trigger, out rTrig);
             bool modeHold = rTrig > modeTriggerThreshold;
@@ -256,9 +235,8 @@ namespace AIXRCrane.Crane.Sts
             if (releaseNow && !prevRelease) { if (debugLog) Debug.Log("[Crane] X 입력 → 놓기(Release)"); grabber?.Release(); }
             prevRelease = releaseNow;
 
-            // 모드별 조종 입력 저장 → 실제 축 이동은 FixedUpdate에서(물리 정합)
-            //   입력 샘플링은 Update(프레임률)에서, kinematic 화물을 끌고 가는 축 적분은 FixedUpdate(고정틱)에서
-            //   처리해 PhysX 접촉/스윕과 박자를 맞춘다 — 프레임률 의존·터널링 완화. (이동모드는 FixedUpdate가 무시)
+            // 모드별 조종 입력 저장 → 실제 축 이동은 FixedUpdate 에서(물리 정합).
+            // kinematic 화물을 끄는 축 적분을 PhysX 와 같은 고정틱에서 처리해 터널링을 줄인다.
             driveRS = rs;
             driveLS = ls;
         }
@@ -380,14 +358,8 @@ namespace AIXRCrane.Crane.Sts
             foreach (var c in rig.GetComponentsInChildren<Collider>(true))
                 if (c.enabled) { c.enabled = false; rigColliders.Add(c); }
 
-            // 카메라가 운전실 시점에 오도록 리그를 평행 이동.
-            //   전용 앵커면: 시선(전방/요)은 Cab_Viewpoint 기준, 눈 '위치'는 운전실 후방 바닥 패널(Cab_Fb_FloorRear)
-            //     '아래'로 내린다 — 좌석 눈높이는 바닥/콘솔/벽에 가려 발밑 화물이 안 보이므로, 바닥 패널 밑에서
-            //     전면 경사창으로 바로 아래(스프레더/선박 셀)를 막힘없이 내려다보게 한다. (옛 Cab_Kick은 생산부가 없어
-            //     항상 폴백→좌석 눈높이에 갇혀 '조종실 안' 시점이 됐었음.)
-            //   레거시 앵커면: 기준부품 + 오프셋(트롤리 회전만 반영·스케일 안 곱함).
-            //   바닥은 전용 앵커 유무와 무관하게 찾는다 — FBX RTG 는 Cab_Viewpoint 가 없어 옛 조건(dedicated)에 막혀
-            //     트롤리 본체 원점(크레인 한가운데)으로 떨어졌다.
+            // 카메라를 운전실 시점으로 평행 이동. 전용 앵커(Cab_Viewpoint)면 바닥 패널 아래로 눈높이를 내려
+            // 발밑 화물을 보이게 하고, 레거시 앵커면 기준부품+오프셋. 바닥은 앵커 유무와 무관하게 찾는다.
             Transform cabFloor = FindCabFloor(trolleyT, cabFloorAnchorName);
             Transform eyeAnchor = cabFloor != null ? cabFloor : cabAnchor;
             Vector3 target = cabFloor != null ? BelowCabFloor(cabFloor, cabFloorDropDown)             // 바닥 패널 '아래'
@@ -412,9 +384,8 @@ namespace AIXRCrane.Crane.Sts
                                    : $", 오프셋 {cabLocalOffset}") + " (고개 숙여 아래를 보세요)");
         }
 
-        // 시점 기준 부품 찾기 — 트롤리 하위에서 이름으로(재귀).
-        //   우선순위: 전용 'Cab_Viewpoint'(운전실 좌석 눈높이 앵커, 생성기가 심음) → 직렬화된 cabAnchorName → 트롤리 본체.
-        //   전용 앵커면 dedicated=true → EnterCabView가 오프셋 0 + 전방(스프레더) 시선정렬을 적용.
+        // 시점 기준 부품 찾기 — 트롤리 하위에서 이름으로(재귀). 우선순위: Cab_Viewpoint → cabAnchorName → 트롤리 본체.
+        // 전용 앵커면 dedicated=true → EnterCabView 가 오프셋 0 + 전방(스프레더) 시선정렬 적용.
         Transform FindCabAnchor(Transform trolleyT, out bool dedicated)
         {
             dedicated = false;
@@ -426,10 +397,8 @@ namespace AIXRCrane.Crane.Sts
             return trolleyT;
         }
 
-        // 운전실 '바닥' 부품(Cab_Fb_FloorRear 등) 찾기 — 눈 위치를 이 바닥 '아래'에 둬 발밑 화물을 내려다보게.
-        //   1순위: 직렬화된 이름  2순위: STS 후방 바닥 패널(Cab_Fb_FloorRear)  3순위: FBX RTG 바닥(OperatorCab_Floor_Panel).
-        //   기존 씬 인스턴스가 옛 'Cab_Kick'(생산부 없음)으로 직렬화돼 있어도 인스펙터 수정 없이 동작하도록 폴백을 둔다.
-        //   전부 못 찾으면 null → EnterCabView가 좌석 눈높이(Cab_Viewpoint)로 폴백. FlatCraneController 도 같이 쓴다.
+        // 운전실 바닥 부품 찾기 — 눈 위치를 이 바닥 아래에 둬 발밑 화물을 보이게 한다.
+        // 우선순위: 직렬화 이름 → Cab_Fb_FloorRear → RTG 바닥. 못 찾으면 null(좌석 눈높이로 폴백).
         public static Transform FindCabFloor(Transform trolleyT, string preferredName)
         {
             Transform byName = null, byRear = null, byRtg = null;
@@ -443,9 +412,8 @@ namespace AIXRCrane.Crane.Sts
             return byName != null ? byName : byRear != null ? byRear : byRtg;
         }
 
-        /// <summary>바닥 패널 '중심' 에서 drop 만큼 아래 — 운전실 시점 눈 위치.
-        ///   FBX RTG 부품은 피벗이 트롤리 원점이라 position 은 크레인 한가운데다 → 렌더러 바운즈 중심을 쓴다.
-        ///   STS 절차 패널은 피벗 = 박스 중심(PivotLocation.Center)이라 값이 같다.</summary>
+        /// <summary>바닥 패널 중심에서 drop 만큼 아래 — 운전실 시점 눈 위치.
+        /// FBX RTG 는 피벗이 트롤리 원점이라 렌더러 바운즈 중심을 쓴다(STS 는 피벗=중심이라 값이 같다).</summary>
         public static Vector3 BelowCabFloor(Transform floor, float drop)
         {
             var r = floor.GetComponent<Renderer>();
@@ -483,10 +451,8 @@ namespace AIXRCrane.Crane.Sts
         static bool Btn(UnityEngine.XR.InputDevice d, InputFeatureUsage<bool> usage)
             => d.isValid && d.TryGetFeatureValue(usage, out bool v) && v;
 
-        // 로코모션(걷기·회전 등 + 수동 지정분)은 '이동모드 + 높이조절 중 아님'일 때만 켠다.
-        //   목록 추적(disable/enable 큐) 방식은 모드 사이클·높이조절이 섞이면 상태가 어긋나
-        //   '두 번째 이동모드에서 안 걸어지던' 버그가 났다. → 캐시한 프로바이더에 매 프레임 목표 상태를
-        //   '직접' 강제하는 선언적 방식으로 교체(자가 치유, 누적/엇갈림 원천 차단). Update와 전환 시 호출.
+        // 로코모션은 '이동모드 + 높이조절 중 아님'일 때만 켠다. 캐시된 프로바이더에 매 프레임
+        // 목표 상태를 직접 강제하는 선언적 방식(디스에이블/이네이블 큐 방식은 상태가 어긋났었다).
         void ApplyMode()
         {
             EnforceLocomotion();
@@ -513,9 +479,8 @@ namespace AIXRCrane.Crane.Sts
             foreach (var o in FindObjectsByType(locoType, FindObjectsInactive.Include))
             {
                 if (o is not Behaviour b) continue;
-                // SnapTurn(45° 점프 + 0.5s debounce)은 '딱딱 끊기는' 회전이라 항상 끄고 토글 목록에서도 제외.
-                //   (제외 안 하면 이동모드 진입마다 EnforceLocomotion이 도로 켜서 점프가 부활한다.)
-                //   같은 오른손 스틱의 ContinuousTurn('Turn' 액션)이 부드러운 회전을 이어받는다.
+                // SnapTurn(45° 점프)은 항상 끄고 토글 목록에서도 제외 — 안 그러면 이동모드 진입마다 부활한다.
+                // 같은 오른손 스틱의 ContinuousTurn 이 부드러운 회전을 이어받는다.
                 if (snapType != null && snapType.IsInstanceOfType(b)) { b.enabled = false; continue; }
                 if (!locoProviders.Contains(b)) locoProviders.Add(b);
             }
@@ -540,11 +505,8 @@ namespace AIXRCrane.Crane.Sts
             if (walkSpeed <= 0f) return;
             var locoType = LocomotionProviderType;
             if (locoType == null) return;
-            // rigScale을 곱하지 않는다(중요). XRI ContinuousMoveProvider는 이동량 계산 시 이미
-            //   `m_MoveSpeed * deltaTime * originTransform.localScale.x`로 리그 스케일(1/24)을 곱한다
-            //   ("Adjust speed with user scale"). 여기서 또 walkSpeed×rigScale을 넣으면 1/24 × 1/24 = 1/576이라
-            //   걷기가 사실상 0이 된다(턴은 회전이라 스케일 무관 → 정상 → '오른쪽만 되고 왼쪽 걷기 안 됨').
-            //   → moveSpeed에는 원하는 '체감' 속도(walkSpeed)를 그대로 넣고, 월드 축소 반영은 XRI에 맡긴다.
+            // rigScale 을 곱하지 않는다 — XRI ContinuousMoveProvider 가 이미 리그 스케일을 곱한다.
+            // 또 곱하면 1/24 × 1/24 = 1/576 이라 걷기가 사실상 0 이 된다. walkSpeed 그대로 넣는다.
             float effective = walkSpeed;
             int n = 0;
             foreach (var o in FindObjectsByType(locoType, FindObjectsInactive.Exclude))

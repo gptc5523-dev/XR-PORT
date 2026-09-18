@@ -2,12 +2,8 @@ using UnityEngine;
 
 namespace AIXRCrane.Crane.Sts
 {
-    /// <summary>
-    /// 단일 축 무버 공통 베이스 — Gantry(Z)·Trolley(X)·SpreaderHoist(Y)가 공유.
-    /// 클램프·이동·정규화·기즈모 골격을 한곳에 모으고, 파생 클래스는 '어느 축인지'(읽기/쓰기)와
-    /// 표시 색만 제공한다. min/max 직렬화 필드는 의도적으로 파생 클래스에 남겨 둔다
-    /// (각자의 기본값·Header·기존 인스펙터/프리팹 값 보존 → 직렬화 변화 없음).
-    /// </summary>
+    /// <summary>단일 축 무버 공통 베이스 — Gantry(Z)·Trolley(X)·SpreaderHoist(Y)가 공유. 클램프·이동·정규화·기즈모 골격을 제공.
+    /// min/max 직렬화 필드는 파생 클래스에 남긴다(각자 기본값·직렬화 보존).</summary>
     public abstract class AxisMoverBase : MonoBehaviour, IAxisMover
     {
         public abstract float Min { get; }
@@ -65,9 +61,7 @@ namespace AIXRCrane.Crane.Sts
         {
             Vector3 l = transform.localPosition;
             l[GizmoAxis] = axisValue;
-            // localPosition이 사는 공간 = 부모 공간. 부모가 없으면 그게 곧 월드다.
-            // (옛 폴백 parent=transform은 자기 TRS를 자기 localPosition에 다시 곱해
-            //  루트에 붙는 GantryMover의 범위선을 스케일 배만큼 날려버렸다.)
+            // localPosition이 사는 공간 = 부모 공간 — 부모 없으면 그게 곧 월드다(parent=transform 폴백 금지).
             Transform parent = transform.parent;
             return parent != null ? parent.TransformPoint(l) : l;
         }

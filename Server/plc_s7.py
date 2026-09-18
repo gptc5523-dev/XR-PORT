@@ -1,18 +1,15 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-가상 S7 PLC + PLC 어댑터 — 실 PLC(㈜엠비이) 가 오기 전까지 'PLC 에 접속해 주소로 읽는' 경로를 진짜 S7 통신으로 돌린다.
-오너 2026-09-17 "python-snap7 이걸로 작업하자" — PLCSIM Advanced 는 유료·Windows 전용이라 직접 만든다.
+가상 S7 PLC + PLC 어댑터 — 실 PLC(㈜엠비이) 가 오기 전까지 'PLC 접속해 주소로 읽기' 경로를 진짜 S7 통신으로 돌린다.
 
-  sim      가상 PLC. S7 통신(TCP 102)으로 DB100(운영)·DB101(알람)을 열고 PlcSim CSV 를 실시간으로 써 넣는다.
-  adapter  PLC 어댑터. PLC 에 접속해 DB100·DB101 을 주소로 읽고 통합서버 /ingest 에 넣는다.
-           실 PLC 가 오면 --plc 주소만 바꾼다(아래 LAYOUT 이 벤더 주소표와 같다는 전제에서).
-  check    LAYOUT 자기 검사 — 주소 겹침·고정점·CSV 전 행 인코딩 왕복. 네트워크·snap7 없이 돈다.
+  sim      가상 PLC. S7(TCP 102)으로 DB100(운영)·DB101(알람)을 열고 PlcSim CSV 를 실시간으로 써 넣는다.
+  adapter  PLC 에서 DB100·DB101 을 읽어 통합서버 /ingest 에 넣는다. 실 PLC 는 --plc 주소만 바꾼다.
+  check    LAYOUT 자기 검사 — 주소 겹침·고정점·CSV 왕복 인코딩. 네트워크·snap7 없이 돈다.
 
 흐름: sim(또는 실 PLC) → adapter → xrcrane_db.py /ingest → /since → Unity ServerPlcSource → 크레인.
-의존성: python-snap7==2.0.2 (sim·adapter 만). 나머지는 표준 라이브러리.
-  ★ 버전 고정. 3.x 는 순수 파이썬 구현이라 register_area 가 버퍼를 복사한다 — sim 이 써도 클라이언트엔 0 만 보였다
-    (2026-09-17 aiserver: 버전 미지정 pip 이 3.1.2 를 깔아 610행 전부 0). sim 은 기동 때 되읽어 확인한다.
+의존성: python-snap7==2.0.2(sim·adapter 만), 나머지는 표준 라이브러리.
+버전 고정 필수 — 3.x 는 register_area 가 버퍼를 복사해 쓴 값이 클라이언트엔 0 으로만 보인다.
 """
 import argparse
 import csv
@@ -25,8 +22,8 @@ import time
 import urllib.request
 
 # 주소표 — (태그, DB, 바이트, 비트, 형식). 형식 R=REAL(4) I=INT(2) X=BOOL. S7 은 빅엔디언.
-# ★ 가정 주소다. 코드에 남은 벤더 주소는 4개뿐(ANCHORS)이라 그걸 고정점으로 두고 나머지를 축 블록으로 채웠다.
-#   MBE-DOC-2026-XR-002(PLC 데이터 포인트 리스트)를 받으면 이 표만 바꾼다 — sim·adapter 가 같이 따라간다.
+# 가정 주소표 — 벤더 확정 전 값. ANCHORS 4개만 고정점, 나머지는 축 블록으로 채웠다.
+#   MBE-DOC-2026-XR-002(PLC 데이터 포인트 리스트)가 오면 이 표만 바꾼다.
 LAYOUT = [
     ("GT_Position", 100, 0, 0, "R"), ("GT_Velocity", 100, 4, 0, "R"),
     ("GT_Direction", 100, 8, 0, "X"), ("GT_Running", 100, 8, 1, "X"),
@@ -149,7 +146,7 @@ def cmd_sim(args):
             ctypes.memmove(buf, bytes(dbs[db]), DB_SIZE)
             srv.unlock_area(SrvArea.DB, db)
 
-    # 기동 자기 확인 — 쓴 값이 S7 클라이언트에 그대로 보이는가. 라이브러리가 버퍼를 복사하면 여기서 멈춘다(위 ★).
+    # 기동 자기 확인 — 쓴 값이 S7 클라이언트에 그대로 보이는지 확인(버퍼를 복사하는 라이브러리면 여기서 멈춘다).
     from snap7.client import Client
     publish(rows[0])
     probe = Client()

@@ -1,29 +1,17 @@
 namespace AIXRCrane.Crane.Sts.Plc
 {
-    /// <summary>
-    /// 가상 PLC(stopgap) — ㈜엠비이 PLCSIM Advanced(사양서 §7.1, 도착 대기) 전까지 동일 계약(<see cref="PlcSnapshot"/>)을
-    /// 충실히 생성한다. <b>순수 C#</b>(UnityEngine 비의존) → 헤드리스 테스트 가능. 실척 단위.
-    ///
-    /// 핵심 = <b>가감속 한계(정격 이내) 운전</b>. 직접조종(임시입력)은 출발/정지마다 0↔정격을 한 틱에 점프(≈37 m/s²)해
-    /// 가속알람이 항상 오경보였다(문서/PLC.md §5.2). 가상 PLC는 인버터처럼 가속도를 정격으로 제한(트라페조이드 프로파일)해
-    /// 정상 운전은 한계 이내, <see cref="InjectAggressive"/>로 급조작을 주입하면 1021/2021/3021이 자연발생한다.
-    ///
-    /// ※ 가설 구현 — Unity 미실행·Quest 미검증. 속도/가속 기본값은 통상 STS 보수값으로, 벤더 확정·튜닝 대상.
-    /// </summary>
+    /// <summary>가상 PLC(실 PLC 도착 전 스텁) — 순수 C#(UnityEngine 비의존)이라 헤드리스 테스트 가능, 실척 단위·<see cref="PlcSnapshot"/> 계약 동일.
+    /// 가감속을 정격 이내로 제한(트라페조이드)해 정상 운전은 오경보 없음, <see cref="InjectAggressive"/>로 급조작을 주입하면 알람이 자연발생.</summary>
     public sealed class VirtualPlcSource : IPlcSource
     {
-        // 실척 가동 범위 (m)
-        // 하드코딩 금지(SSOT=무버 기하). PlcBridge가 무버 Max/Min에서 산출해 주입한다:
-        //   RangeM = (Max − Min) × (1/ModelScale).  주입 후 ResyncRangeDependent()로 range 의존값 재동기화.
-        // 헤드리스 단독 사용 시에는 호출측이 직접 set한 뒤 ResyncRangeDependent()를 부른다(미주입이면 0→축 정지).
+        // 실척 가동 범위(m) — 하드코딩 금지(SSOT=무버 기하). PlcBridge가 RangeM = (Max−Min)×(1/ModelScale) 로 주입.
+        // 헤드리스 단독 사용 시 set 후 ResyncRangeDependent()를 직접 호출(미호출이면 0→축 정지).
         public float GtRangeM = 0f;
         public float TrRangeM = 0f;
         public float HoRangeM = 0f;
 
-        // 정격 속도(m/s)·가속(m/s²) — SSOT: CraneAxisProfile
-        //  H5(정격 속도·가감속 하드코딩) 대응: 값은 CraneAxisProfile 단일 출처를 참조(여기 박지 않음).
-        //  트립 판정(CraneOpMode)도 같은 출처를 참조해 정격↔트립 관계가 한곳에서 관리된다.
-        //  필드는 (테스트가 set할 수 있게) 유지하되 기본값만 프로파일에서 가져온다 → 동작 비트 동일.
+        // 정격 속도(m/s)·가속(m/s²) — SSOT: CraneAxisProfile(트립 판정 CraneOpMode도 동일 출처 참조).
+        // 필드는 테스트가 override 할 수 있게 유지, 기본값만 프로파일에서 가져온다.
         public float GtMaxSpeed = CraneAxisProfile.GantryMaxSpeed,  GtRatedAccel = CraneAxisProfile.GantryRatedAccel;
         public float TrMaxSpeed = CraneAxisProfile.TrolleyMaxSpeed, TrRatedAccel = CraneAxisProfile.TrolleyRatedAccel;
         public float HoMaxSpeed = CraneAxisProfile.HoistMaxSpeed,   HoRatedAccel = CraneAxisProfile.HoistRatedAccel;
@@ -52,11 +40,8 @@ namespace AIXRCrane.Crane.Sts.Plc
             _wp = 0;
         }
 
-        /// <summary>
-        /// Range를 주입(set)한 뒤 호출 — range 의존 상태(권상 시작/목표=최상단 HoRangeM)를 새 값으로 재동기화.
-        /// 구성 시점엔 Range가 0(미주입)이라 _ho가 0에서 시작했을 수 있으므로, 주입 직후 최상단으로 끌어올린다.
-        /// 사이클이 이미 진행 중이면(권상이 최상단을 목표로 한 상태가 아니면) 위치를 강제로 옮기지 않는다.
-        /// </summary>
+        /// <summary>Range 주입 후 호출 — range 의존 상태(권상 목표=최상단 HoRangeM)를 재동기화한다.
+        /// 사이클이 이미 진행 중이면(권상이 최상단 대기가 아니면) 위치를 강제로 옮기지 않는다.</summary>
         public void ResyncRangeDependent()
         {
             // 아직 한 번도 Pump되지 않았거나 권상이 최상단 대기 상태면 새 최상단으로 정렬.
@@ -164,23 +149,10 @@ namespace AIXRCrane.Crane.Sts.Plc
                 Pos += Vel * dt;
                 Accel = a;
 
-                // 정착 스냅 — 미세 떨림 제거.
-                //  스냅이 잔여속도를 1틱에 0으로 죽이면, 트립 측정(CraneOpMode.StepAccel)이
-                //    위치를 2차 미분해 인공 가속 스파이크 a = Δv/dt 를 본다. 기존 임계 vNow<0.02 → 50Hz(dt=0.02s)에서
-                //    a ≈ 0.02/0.02 = 1.0 m/s² → GT 트립 0.25·HO 트립 0.833을 초과(디바운스만으로 흡수 — 안전마진 취약).
-                //
-                //  해법(a, 임계 하향): 스냅 속도 임계를 '정격 감속 1틱이 어차피 없앨 속도' = maxAccel×dt 로 둔다.
-                //    이러면 스냅 시 Δv ≤ maxAccel×dt → 측정 가속 a = Δv/dt ≤ maxAccel(= 정격 감속도)로,
-                //    이 인공 스파이크가 '정상 감속 1틱'과 물리적으로 구별 불가능해진다(저크도 추가되지 않음).
-                //  정량 검증(CraneAxisProfile 정격·트립, k=trip/rated=1.667):
-                //    a_spike ≤ maxAccel = trip / 1.667 = trip × 0.6  →  trip×0.6 < clear(=trip×0.8) < trip.
-                //    축별: GT 0.15<0.20<0.25 / TR 0.60<0.80<1.000 / HO 0.50<0.667<0.833 — 모두 해제임계 미만.
-                //    ∴ 스냅 스파이크가 가장 낮은 GT 트립 0.25는 물론 각 축 clear 임계까지 밑돌아, 트립이
-                //    디바운스에 의존하지 않고 '구조적으로' 안전(set/clear 카운터가 한 번도 안 오름).
-                //  정착 거동 보존: 정격 감속 구간에서 |Vel|은 틱당 maxAccel×dt 씩 감소하므로, 잔여속도가 이 임계
-                //    밑으로 떨어지는 시점은 곧 0으로 수렴하는 시점 → 스냅이 반드시 발동(dNow<0.01 위치창 동시 충족).
-                //    최종 결과(Pos=Target, Vel=0, Accel=0)는 종전과 동일.
-                float vSnap = maxAccel * dt;   // 정격 감속 1틱분 속도(축별·dt별 자기일관, 리터럴 추측 금지)
+                // 정착 스냅 — 잔여속도를 0으로 죽여 미세 떨림을 없앤다. 스냅이 만드는 인공 가속 스파이크가
+                // 트립 측정(CraneOpMode.StepAccel)을 오경보하지 않도록, 임계 vSnap = maxAccel×dt(정격 감속
+                // 1틱이 없앨 속도)로 잡아 스파이크를 정상 감속과 구별 불가능하게 한다 — 임계를 올리면 오경보 위험.
+                float vSnap = maxAccel * dt;   // 임의 리터럴로 바꾸지 말 것(축·dt별 자기일관)
                 float vNow = Vel < 0f ? -Vel : Vel;
                 float dNow = (Target - Pos) < 0f ? -(Target - Pos) : (Target - Pos);
                 if (dNow < 0.01f && vNow < vSnap) { Pos = Target; Vel = 0f; Accel = 0f; }

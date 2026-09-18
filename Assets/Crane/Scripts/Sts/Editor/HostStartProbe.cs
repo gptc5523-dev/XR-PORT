@@ -10,22 +10,8 @@ using AIXRCrane.Crane.Sts.Net;
 
 namespace AIXRCrane.Crane.Sts.EditorTools
 {
-    /// <summary>
-    /// 배치 검사 — '호스트 시작'의 결과가 실제로 남는가(오너 2026-09-16 "호스트 참가가 안 된다").
-    ///   ① 포트가 점유된 상태: 호스트가 실패하고 NetLanUI.HostFailed 가 true 여야 한다.
-    ///      → 이 상태를 못 잡으면 VR 메뉴가 아무 말도 못 하고, 사용자는 눌렀는지조차 모른다(종전 거동).
-    ///   ② 포트가 빈 상태: 호스트가 뜨고(IsServer) HostFailed 는 false 여야 한다.
-    ///   ③ 나가기: 세션을 끊으면 포트가 풀려 **다시 호스트가 될 수 있어야** 한다(오너 "호스트 세션이 안 끊긴다").
-    ///      서버의 AI-XR-Crane.exe 는 헤드셋이 빠져도 살아 있어, 안 끊으면 그 인스턴스가 7777 을 쥔 채 남는다.
-    ///   ④ 헤드셋 이탈 자동 종료 '규칙'(ExitZone.ShouldAutoEnd) — 관전자가 있으면 유지, 혼자면 종료.
-    ///      ※ 규칙만 잰다. 배관(XRDisplaySubsystem 폴링 → xrSeenRunning 가드 → 타이머 누적)은 배치에
-    ///        XR 서브시스템이 없어 도달 자체가 불가능하므로 **헤드셋에서만 확인된다**. 특히 '관전자가 있는
-    ///        동안은 타이머를 아예 안 쌓는다'(관전자가 나간 순간 즉시 종료 방지)는 이 검사 밖이다(c8 미검증 항목).
-    /// 서버는 한 머신에 인스턴스 5개를 띄우므로 ①은 실제로 일어나는 상황이다(먼저 뜬 쪽이 포트를 쥠).
-    /// UnityTransport 는 UDP 라 점유도 UdpClient 로 한다(TcpListener 로는 충돌하지 않는다).
-    ///   Unity -batchmode -nographics -projectPath . -executeMethod AIXRCrane.Crane.Sts.EditorTools.HostStartProbe.Run -logFile host.log
-    ///   ※ -quit 금지 — EnterPlaymode 방식이라 주면 플레이에 못 들어가고 로그가 빈다.
-    /// </summary>
+    /// <summary>배치 검사 — 호스트 시작 결과가 실제로 남는지 검증(포트 점유/정상 시작·나가기 후 재호스트·헤드셋 이탈 자동 종료 규칙, ④는 규칙 함수만).
+    /// Unity -batchmode -nographics -projectPath . -executeMethod AIXRCrane.Crane.Sts.EditorTools.HostStartProbe.Run -logFile host.log (-quit 금지, 로그가 빈다).</summary>
     [InitializeOnLoad]
     public static class HostStartProbe
     {
@@ -116,9 +102,8 @@ namespace AIXRCrane.Crane.Sts.EditorTools
                     measured++; if (!ok) fails++;
                     Debug.Log($"[HostStartProbe] {(ok ? "OK " : "BAD")} ②포트정상 — HostFailed {failed}(기대 false), IsServer {serverUp}(기대 true)");
 
-                    // ③ 나가기 — NetLanUI.Leave() 는 다른 세션이 작업 중이라 아직 HEAD 에 없다.
-                    //   직접 호출하면 HEAD 빌드가 깨져 배포 체인이 멈추므로, 있으면 부르고 없으면 '미구현'으로 판정만 남긴다.
-                    //   ※ Leave() 가 커밋되면 이 리플렉션을 ui.Leave() 직접 호출로 바꿀 것.
+                    // ③ 나가기 — NetLanUI.Leave()는 리플렉션으로 호출(직접 호출은 미구현 시 빌드를 깬다).
+                    //   Leave()가 커밋되면 ui.Leave() 직접 호출로 바꿀 것.
                     var leave = typeof(NetLanUI).GetMethod("Leave", BindingFlags.Public | BindingFlags.Instance);
                     if (leave == null)
                     {
@@ -133,7 +118,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
                     phase = 4; Wait(1.0f); return;
                 }
 
-                case 4:   // 세션이 실제로 끊겼는지 — 안 끊기는 것 자체가 오너가 보고한 증상이다
+                case 4:   // 세션이 실제로 끊겼는지 확인(안 끊기면 포트가 잡혀 다음 호스트 시작이 실패)
                 {
                     var nm4 = NetworkManager.Singleton;
                     if (nm4 != null && (nm4.IsServer || nm4.IsClient))
@@ -170,10 +155,8 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             }
         }
 
-        // ④ 규칙 한 줄 판정. spectators 는 인원수가 아니라 **3상태**다(c8 규약, ExitZone.SpectatorCount 와 동일):
-        //   ≥1 관전자가 붙은 호스트 · 0 혼자 남은 호스트 · −1 나는 관전자(호스트 아님).
-        //   그래서 조건이 `spectators <= 0` 이고, 이게 "혼자 남은 호스트"와 "관전자 본인"을 함께 덮는다.
-        //   ★ 누가 `<= 0` 을 `== 0` 으로 '고치면' 관전자 자동 정리가 조용히 죽는다 — −1 케이스가 그걸 잡는다.
+        // ④ 규칙 판정. spectators는 인원수가 아니라 3상태: ≥1 관전자 붙음 · 0 혼자 남음 · −1 나는 관전자.
+        //   조건 `spectators <= 0`을 `== 0`으로 고치면 관전자 자동 정리가 조용히 죽는다(−1 케이스가 빠짐).
         static void Rule(string what, float lostFor, float grace, int spectators, bool expect)
         {
             bool got = ExitZone.ShouldAutoEnd(lostFor, grace, spectators);

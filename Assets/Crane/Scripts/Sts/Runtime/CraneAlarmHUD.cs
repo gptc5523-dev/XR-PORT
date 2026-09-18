@@ -4,16 +4,8 @@ using AIXRCrane.Crane.Sts.Net;   // CraneNetSync(자식 네임스페이스) 참�
 
 namespace AIXRCrane.Crane.Sts
 {
-    /// <summary>
-    /// 크레인 활성 알람을 시야 '상단 중앙'에 크게 띄우는 공유 경보 배너.
-    ///   - 상태 패널(CraneStatusHUD)과 달리 호스트·관전자 '전원'에게 보인다 — 알람은 안전 신호라 모두 봐야 함.
-    ///     (그래서 IsServer·조종모드 게이트가 없다. 오직 '활성 알람이 있을 때만' 표시.)
-    ///   - 네트워크 세션이면 CraneNetSync.NetAlarmCode(호스트 권위)를 읽어 호스트=관전자 동일 표시.
-    ///     단독 실행(네트워크 없음/미접속)이면 로컬에서 CraneFault.Evaluate로 직접 판정.
-    ///   - 코드 → 메시지/심각도는 AlarmCodebook(SSOT)에서 조회. 알람 없으면 캔버스를 끈다.
-    /// HMD 카메라 자식으로 붙어 머리를 돌려도 정면 상단에 고정(head-locked). 발생 시 심각도색 배경 + 펄스로 주의를 끈다.
-    /// 씬 어디든 한 곳에 붙이면 됨(없으면 자동 스폰). crane을 비우면 자동 탐색.
-    /// </summary>
+    /// <summary>크레인 활성 알람을 시야 상단 중앙에 띄우는 공유 경보 배너 — 안전 신호라 전원에게 보임(게이트 없음, HMD 자식으로 head-locked).
+    /// 네트워크면 CraneNetSync.NetAlarmCode(호스트 권위)·단독이면 CraneFault.Evaluate로 판정, 메시지는 AlarmCodebook(SSOT) 조회. 없으면 자동 스폰.</summary>
     [AddComponentMenu("AI-XR Crane/STS Crane/Crane Alarm HUD")]
     [DisallowMultipleComponent]
     public sealed class CraneAlarmHUD : MonoBehaviour
@@ -38,10 +30,8 @@ namespace AIXRCrane.Crane.Sts
         [SerializeField] int fontSize = 48;   // ⚠ 아이콘 단독이라 크게
 
         // ── 외부 공지 ─────────────────────────────────────────────────────
-        // 오너 지시 2026-09-17: "존에 들어오면 알림을 하나 뜨게 해줘 … 헤드셋 상단에 20초 후 종료합니다".
-        //   새 HUD 를 만들지 않고 이 배너를 쓴다 — 머리 정면 상단 고정·호스트/관전자 위치 분리가 이미 돼 있다.
-        //   ★ 알람이 있으면 알람이 이긴다. 알람은 안전 신호라 공지가 덮으면 안 된다.
-        //   ★ 부른 쪽이 매 프레임 갱신하고, 끊기면 유예 뒤 저절로 사라진다(호출자가 지우는 걸 잊어도 안 남는다).
+        // 새 HUD 대신 이 배너로 존 진입 공지도 띄운다(HMD 상단 고정 위치 재사용). 알람이 있으면 알람이 우선(안전 신호라 공지가 못 덮음).
+        // 부른 쪽이 매 프레임 갱신, 끊기면 유예 뒤 자동으로 사라진다(호출자가 안 지워도 안 남음).
         static string notice;
         static Color  noticeColor = CraneHud.HudColor.Danger;
         static float  noticeUntil;

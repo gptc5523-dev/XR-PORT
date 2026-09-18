@@ -2,23 +2,8 @@ using UnityEngine;
 
 namespace AIXRCrane.Crane.Sts
 {
-    /// <summary>
-    /// 플레이어(로컬 XR 리그)가 야드 컨테이너·크레인을 물리적으로 밀지 않게 한다.
-    ///
-    ///   [문제] 리그의 '솔리드' 콜라이더(몸/캡슐/CharacterController)가 동적으로 쌓인 컨테이너를 들이받아
-    ///          밀거나 무너뜨림 — 수직 상승 후 야드 위로 지나갈 때. (호스트·참가자 모두 각자 리그가 있어 공통 발생)
-    ///          기존엔 운전실 시점(EnterCabView)에서만 리그 콜라이더를 임시로 껐는데, 시점 밖에선 켜져 있어 충돌.
-    ///
-    ///   [방침: 사용자 결정] 손/컨트롤러(XR 인터랙터 = 트리거 콜라이더)만 남겨 상호작용 유지하고,
-    ///          그 외 '솔리드' 콜라이더는 끈다 → 플레이어 몸은 모든 것을 통과(크레인·컨테이너·벽),
-    ///          컨테이너는 오직 스프레더(SpreaderGrabber)로만 집힌다.
-    ///
-    ///   ※ 로코모션은 이미 CharacterController 우회 + 중력off(CranePlayerRigScale)라, 솔리드 콜라이더를 꺼도
-    ///     걷기/서있기에 영향 없음(시작 위치는 CranePlayerStartPlacer가 잡음).
-    ///   ※ 네트워크 동기화 불필요 — 각 클라이언트가 자기 로컬 리그(Camera.main.root)에만 적용.
-    ///     원격 플레이어는 시각 아바타가 없어(제거됨) 남의 표현이 내 씬 물리에 개입하지 않음.
-    ///   ※ 트리거는 안 건드림(끄면 손 집기/포크 UI가 깨짐). 솔리드만 끈다.
-    /// </summary>
+    /// <summary>로컬 XR 리그가 야드 컨테이너·크레인을 물리로 밀지 않게 한다 — 손/컨트롤러(트리거)만 남기고
+    /// 몸의 솔리드 콜라이더(캡슐·CharacterController)는 끈다. 트리거는 안 건드림(끄면 손 집기/포크 UI 깨짐), 네트워크 동기화 불필요.</summary>
     [AddComponentMenu("AI-XR Crane/STS Crane/Player Collider Policy")]
     [DisallowMultipleComponent]
     public sealed class PlayerColliderPolicy : MonoBehaviour

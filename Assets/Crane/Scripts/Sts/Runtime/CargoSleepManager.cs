@@ -3,35 +3,15 @@ using UnityEngine;
 
 namespace AIXRCrane.Crane.Sts
 {
-    /// <summary>
-    /// 근접 활성화(①) + 충돌·솔버 차등(②) — 화물 컨테이너 부하 절감.
-    ///   사용자 눈엔 동일: 모든 컨테이너가 그대로 보이고, 잡기/밀림/토플도 그대로.
-    ///   실제론: 스프레더에서 먼 컨테이너는 '재워서'(kinematic) 물리 솔버·바닥가드·연속충돌을 건너뛰고,
-    ///           스프레더가 가까이 오면 그 주변만 '깨워서'(동적 + 풀 ContainerPhysics) 밀림/토플이 동작한다.
-    ///
-    /// 배경:
-    ///   배 갑판에 ~770개 화물이 전부 '동적 강체(Solver 30·ContinuousSpeculative)'로 깔려 있어 CPU 병목.
-    ///   (ShipCreator가 그렇게 굽는다 — kinematic↔kinematic은 PhysX가 접촉을 안 풀어 스프레더가 못 밀기 때문.)
-    ///   대부분은 크레인에서 멀어 평생 안 건드리므로 재워도 무방. 가까운 것만 깨우면 기능은 그대로, 부하만 사라진다.
-    ///
-    /// 안전장치:
-    ///   · '원래 동적이던' 컨테이너만 관리 대상 — 야드 배경(원래 kinematic)은 손대지 않는다.
-    ///   · 크레인 자식(잡혀서 이송 중인 화물)은 제외 — 부착 로직이 따로 제어.
-    ///   · ContainerPhysicsStabilizer 바닥가드는 kinematic을 건너뛰므로(118행) 재운 것엔 자동으로 안 돈다.
-    ///     깨운 것은 stabilizer가 이미 _bodies로 추적 중이라 바닥가드가 정상 작동.
-    /// </summary>
+    /// <summary>스프레더에서 먼 화물은 kinematic 으로 재우고 가까운 것만 깨워(동적 + ContainerPhysics) 물리 부하를 줄인다.
+    /// '원래 동적'인 컨테이너만 관리 — 야드 배경(kinematic)·크레인 자식·배 화물은 제외.</summary>
     [AddComponentMenu("AI-XR Crane/STS Crane/Cargo Sleep Manager")]
     [DisallowMultipleComponent]
     public sealed class CargoSleepManager : MonoBehaviour
     {
         [Header("근접 반경(모델 units · 1/24)")]
-        // 실측 격자(ModelScale 1/24)로 산출 — 추측 금지:
-        //   행 피치(X)=ContainerWidthM 2.438m→0.102m, 베이 피치(Z)=cargoLen194m/14→0.577m,
-        //   단 높이(Y)=CargoTierH 2.59m→0.108m(4단=0.43m), 40ft 길이=12.19m→0.508m(반길이 0.254).
-        //   행이 0.102m로 빽빽해 반경이 조금만 커도 X로 수십 행이 깨어난다(반경1.0→180개 깨움 실측).
-        //   → 스프레더가 다루는 40ft 반길이(0.254)+이동 여유를 덮되 격자보다 작게: wake 0.35 / sleep 0.50.
-        //   접촉 베이의 ~7행×윗단 ≈ 약 20개만 깨움(토플은 윗단이 동적이면 충분). 빠른 이동 pop-in: 트롤리
-        //   ~240m/min=0.167m/s(모델)×scan 0.15s=0.025m 이동이라 0.35-0.254=0.096 여유로 충분.
+        // 격자(1/24): 행 피치 0.102 · 40ft 반길이 0.254 — 반경이 크면 X 로 수십 행이 깨어난다(1.0 → 180개).
+        //   40ft 반길이 + 이동 여유를 덮되 격자보다 작게: wake 0.35 / sleep 0.50.
         [Tooltip("스프레더가 이 거리 안에 오면 깨운다(동적). 40ft 반길이(0.254)+여유. 기본 0.35.")]
         [SerializeField] float wakeRadius = 0.35f;
         [Tooltip("이 거리 밖으로 멀어지면 다시 재운다(kinematic). flip-flop 방지 히스테리시스라 wakeRadius보다 커야 함. 기본 0.50.")]
@@ -67,15 +47,15 @@ namespace AIXRCrane.Crane.Sts
             spreaderT = (crane != null ? crane.Spreader as Component : null)?.transform;
 
             BuildManagedList();
-            // 시작 시 전부 재움 — 스프레더 근처 것만 첫 스캔에서 깨어난다. (대부분 멀어서 잠든 채 유지)
+            // 시작 시 전부 재움 — 스프레더 근처 것만 첫 스캔에서 깨어난다.
             foreach (var e in managed) Sleep(e);
             if (debugLog)
                 Debug.Log($"[Cargo] 근접 활성화 시작 — 관리 화물 {managed.Count}개 모두 재움(kinematic). " +
                           $"wake<{wakeRadius} / sleep>{sleepRadius}, 스프레더={(spreaderT != null ? spreaderT.name : "없음")}");
         }
 
-        // 관리 대상 = 이름에 'Container' + Rigidbody + 크레인 자식 아님 + '원래 동적'(kinematic 아님).
-        //   야드 배경(원래 kinematic)·크레인 부재는 자동 제외. 이미 관리 중인 것은 (내가 재워서 kinematic이어도) 유지.
+        // 관리 대상 = 이름에 'Container' + Rigidbody + 크레인 자식 아님 + 원래 동적.
+        //   이미 관리 중인 것은 (내가 재워 kinematic 이어도) 유지.
         void BuildManagedList()
         {
             // 파괴된 것 정리
@@ -87,9 +67,8 @@ namespace AIXRCrane.Crane.Sts
                 if (rb == null || managedSet.Contains(rb)) continue;
                 if (rb.name.IndexOf("Container", System.StringComparison.OrdinalIgnoreCase) < 0) continue;
                 if (craneRoot != null && rb.transform.IsChildOf(craneRoot)) continue;   // 크레인/스프레더 자식 제외
-                // 배 화물(ShipContainer)은 재우지 않는다 — 부두 화물처럼 '항상 동적' 유지.
-                //   재우면 잡았다 놓을 때 SpreaderAttach가 kinematic을 복원/재우기가 낙하를 얼려서 공중에 뜬다.
-                //   PhysX가 정착한 강체를 자동 sleep하므로 항상 동적이어도 정상상태 CPU는 거의 0(잡을 때만 깨움 부하).
+                // 배 화물은 재우지 않는다 — 재우면 놓을 때 SpreaderAttach 복원과 겹쳐 공중에 뜬다.
+                //   정착한 강체는 PhysX 가 자동 sleep 하므로 항상 동적이어도 부하는 거의 0.
                 if (rb.name.StartsWith(StsPartNames.ShipContainer, System.StringComparison.OrdinalIgnoreCase)) continue;
                 if (rb.isKinematic) continue;   // '원래 동적'만 — 야드 배경(kinematic) 보존
                 var e = new Entry { rb = rb, col = rb.GetComponent<Collider>(), awake = true };
@@ -125,8 +104,7 @@ namespace AIXRCrane.Crane.Sts
                 // 잡혀서 크레인 자식이 된 화물은 부착 로직이 제어 — 건드리지 않는다.
                 if (craneRoot != null && e.rb.transform.IsChildOf(craneRoot)) continue;
 
-                // 히스테리시스로 '원하는 상태' 결정 후, '실제 isKinematic'과 대조해 어긋날 때만 토글.
-                //   (이송 중 부착 로직이 kinematic을 바꿔놨다 풀려나도 자가 보정 — flag-실제 불일치 방지.)
+                // 히스테리시스로 원하는 상태를 정하고, 실제 isKinematic 과 다를 때만 토글(부착 로직이 바꿔 놓아도 자가 보정).
                 float d2 = (e.rb.position - sp).sqrMagnitude;
                 bool wantAwake = e.awake ? (d2 <= sleep2) : (d2 < wake2);
                 if (wantAwake)

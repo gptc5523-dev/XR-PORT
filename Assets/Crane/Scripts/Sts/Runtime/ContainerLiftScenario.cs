@@ -3,15 +3,8 @@ using UnityEngine;
 
 namespace AIXRCrane.Crane.Sts
 {
-    /// <summary>
-    /// **컨테이너 배치 → 잡기 → 들어올리기 → 내리기** 자동 검증 시나리오 (VR 없이 에디터 Play로 동작 확인).
-    ///
-    /// Play 시: 스프레더 바로 아래 지면에 테스트 컨테이너를 놓고 → 실제 무버(SpreaderHoist, worldVertical)로
-    /// 하강하며 매 프레임 SpreaderGrabber.Grab() 시도 → 코너 안착되면 잡힘 → 들어올림 → 원위치로 내림 → 놓기 → 반복.
-    ///
-    /// 콘솔 로그([컨테이너테스트]/[Crane])로 각 단계·잡힘 여부·스프레더 월드Y를 확인한다. 그랩버 debugLog가 집기 판정 로그도 찍음.
-    /// 전제: 먼저 'RTG 크레인 생성' 실행(SpreaderHoist·Grabber·Attach를 자동 배선). 미배선 시 오류 로그 후 자동 비활성.
-    /// </summary>
+    /// <summary>컨테이너 배치→잡기→들기→내리기 자동 검증 시나리오(VR 없이 에디터 Play로 확인).
+    /// 콘솔 로그로 단계·잡힘·스프레더 Y 확인. 전제: 먼저 'RTG 크레인 생성' 실행(미배선 시 오류 후 자동 비활성).</summary>
     [AddComponentMenu("AI-XR Crane/STS Crane/컨테이너 잡기 테스트 (FBX)")]
     [DisallowMultipleComponent]
     public sealed class ContainerLiftScenario : MonoBehaviour

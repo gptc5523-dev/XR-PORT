@@ -2,28 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 생성 데이터 자체검사 — generate.py 를 돌린 뒤 실행한다. 실패하면 종료코드 1.
-
-무엇을 왜 보는가 (전부 실제로 한 번씩 깨졌던 항목이다):
-  1) 위치 ≤ 가동범위   : 넘으면 Unity(PlcBridge)가 realPos/rangeM 을 클램프해 축이 끝에 붙는다.
-  2) 겉보기 가속 < 트립: CraneOpMode 가 위치를 2차 미분해 가속알람(1021/2021/3021)을 낸다.
-                         판정은 CraneOpMode 와 같은 규칙 — 한계 초과가 AccelTripSetN(=3)
-                         '연속' 이어야 트립이다. 1틱 스파이크는 디바운스가 흡수하므로
-                         최대값이 아니라 '연속 초과 길이'를 본다. 방향 전환(감속 amax →
-                         반대로 가속 amax)은 위치 2차차분이 한 틱만 2·amax 로 잡히는데,
-                         이건 정상 운전이고 실제로 트립되지 않는다.
-                         급정지 이벤트(E-Stop·스내그·모터고장)가 있는 런은 급감속이
-                         설계된 동작이라 제외한다 — 라벨이 아니라 '그 런에 실제로 급정지
-                         이벤트가 있었는가'로 판정한다(주의 라벨에도 스내그가 들어있다).
-  3) 런별 상이         : 같은 시나리오 N 회가 같은 파일이면 100회 반복시험이 1회와 같다.
-  4) 적하·양하 방향     : S13(육지→배)·S14(배→육지)가 뒤집히면 데이터가 통째로 거짓이다.
-                         양하의 단 순서(위→아래)도 본다 — 아래부터 내리면 실물은 무너진다.
-  5) 헤더 계약         : CsvReplaySource.ParseCsv 가 이름으로 찾는 컬럼이 전부 있어야 한다.
-  6) 작업 이력         : 이력 한 줄이 PLC 시계열에서 실제로 그 자리였는가(집기/놓기 시각의 축 위치),
-                         그리고 적치 규칙 — 위에 얹힌 걸 빼거나 허공에 놓는 이력은 실물에서 불가능하다.
-                         run_until_settled 타임아웃은 조용히 넘어가서, 가는 도중에 집은 이력이 남을 수 있다.
-                         배 자리는 씬의 실제 점유(2단 랜덤 포함)에서 출발한다.
-  7) Port.unity 대조   : 생성기 '씬 기하' 식(배·크레인 위치, 갠트리 범위, 스프레더 오프셋, 갑판 컨테이너 전량)이
-                         실제 씬과 같은가. 오너 지적 2026-09-14 "허공에 작업" — 좌표가 씬과 갈라지면 여기서 멈춘다.
+위치범위·가속트립·적하양하 방향과 단 순서·헤더 계약·작업이력·런 상이성·Port.unity 좌표를 검사한다.
 """
 import csv, glob, json, os, sys, collections
 
@@ -61,7 +40,7 @@ pos = collections.defaultdict(lambda: {k: 0.0 for k in COL})
 digests = collections.defaultdict(set)
 
 for f in sorted(glob.glob(os.path.join(OUT, "*", "*.csv"))):
-    if f.endswith(".history.csv"): continue                     # 작업 이력은 PLC 시계열이 아니다(6번에서 본다)
+    if f.endswith(".history.csv"): continue                     # 작업 이력은 PLC 시계열이 아니다
     sid = os.path.basename(os.path.dirname(f)); L = label[sid]
     rows = list(csv.DictReader(open(f, encoding="utf-8")))
     miss = [c for c in NEEDED if c not in rows[0]]
@@ -129,9 +108,8 @@ for sid, pick_ship in (("S13", False), ("S14", True), ("S15", True)):
     edge = G.sts_tr(0.0)
     pick_side  = all(tr > edge for _, tr, _ in picks)  if pick_ship else all(tr < edge for _, tr, _ in picks)
     place_side = all(tr < edge for _, tr, _ in places) if pick_ship else all(tr > edge for _, tr, _ in places)
-    # 단 순서는 '스택별'로 본다 — 20개는 베이·열을 오가며 옮기므로 첫 개와 마지막 개를 비교하면 서로 다른 스택이라
-    #   의미가 없다(같은 단이면 산포 ±3cm 방향에 따라 판정이 뒤집혔다 — 2026-09-16). 같은 스택(베이·열 격자)
-    #   안에서 양하는 위 단부터, 적하는 아래 단부터여야 한다. 허용 오차는 한 단의 절반.
+    # 단 순서는 스택별(베이·열 격자)로 본다 — 서로 다른 스택끼리 비교하면 의미가 없다.
+    #   같은 스택 안에서 양하는 위 단부터, 적하는 아래 단부터. 허용 오차는 한 단의 절반.
     seq, half, bad, stack = (picks if pick_ship else places), G.CONT_H / 2, 0, {}
     for gt, tr, ho in seq:
         key = (round(gt / G.CONT_L), round(tr / G.CONT_W))          # 베이(GT)·열(TR) 격자

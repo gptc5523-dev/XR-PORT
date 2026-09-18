@@ -6,26 +6,8 @@ using UnityEngine;
 
 namespace AIXRCrane.Crane.Sts.EditorTools
 {
-    /// <summary>
-    /// FBX RTG 크레인에 **모양 유지 + 동적 신축 권상 로프**를 세팅.
-    /// 「Model ▸ FBX ▸ 크레인 ▸ RTG 크레인 생성」이 자동 호출한다(수동 메뉴 없음).
-    ///
-    /// Blender에서 모델링한 로프(Hoist_Rope_*, Ø53mm 32각 튜브)의 실측 굵기를 그대로 재현하되, 정적 메시가 아니라
-    /// 리빙 경로를 따라 매 프레임 튜브를 재생성해 권상 시 신축한다(<see cref="RtgRopeTube"/>).
-    ///
-    /// 코너마다 경로: 드럼출구(트롤리 고정) → [낙차] → 시브 접선점 → [시브 하부 감김 호] → 시브 접선점 → [낙차] → 앵커.
-    ///
-    /// 드럼출구 마커(옛 Hoist_DrumExit_*)는 현재 Blender에서 삭제됨 → 임포트된 모델 로프의 **드럼측 끝 캡
-    /// 링 중심**(= 로프 양 끝 캡 2개 중 **앵커에서 먼** 쪽)에서 자동 추출해 트롤리 자식 고정점으로 재생성한다.
-    /// 원본 정적 로프 메시는 숨긴다(동적 튜브가 대체).
-    ///
-    /// 리빙 입력 2개는 **전부 모델 로프 실측에서 유도**한다(상수 박지 않음 → 모델이 바뀌면 따라간다):
-    ///   ① 드럼출구 = 로프 드럼측 캡 링의 중심   ② 감김 반경 = min|로프정점−시브중심| + 로프반경
-    /// 둘 다 '중심선' 값이라야 한다. 표면 정점이나 시브 외곽 바운즈를 쓰면 로프 반경만큼 어긋난다(아래 각주).
-    ///
-    /// **형상은 모델을 따르되 색은 따르지 않는다** — 동적 로프는 로프 전용 검정 재질(`RTG_RopeBlack.mat`)을 쓴다.
-    /// 드럼 코일은 손대지 않으므로(오너 결정 2026-07-16) 드럼출구에서 코일과 색이 갈린다. 결함 아님.
-    /// </summary>
+    /// <summary>FBX RTG 크레인에 모양 유지 + 동적 신축 권상 로프 세팅(RTG 크레인 생성이 자동 호출).
+    /// 드럼출구·감김반경은 모델 로프 실측에서 유도(상수 아님). 로프는 전용 검정 재질이라 드럼 코일과 색이 다르다(의도).</summary>
     public static class RtgCraneFbxRopeSetup
     {
         const string CraneName = StsPartNames.RtgCraneRoot;
@@ -114,9 +96,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             }
             if (ropeWorldRadius <= 0f)
             {
-                // 폴백: 시브 비율로 월드 반경 환산. 실측 로프 0.0265m ↔ 실측 **감김 반경** 0.4439m.
-                //   ropeWorld = 0.0265 × (감김반경 / 0.4439) — 임포트 스케일 무관하게 정확.
-                //   (sheaveRadii가 림 0.46이 아니라 감김 0.4439를 담게 바뀌었으므로 분모도 0.4439다.)
+                // 폴백: 시브 비율로 월드 반경 환산 — ropeWorld = 0.0265 × (감김반경 / 0.4439), 임포트 스케일 무관.
                 float avgSheave = 0f; foreach (var s in sheaveRadii) avgSheave += s;
                 avgSheave = sheaveRadii.Count > 0 ? avgSheave / sheaveRadii.Count : 0.019f;
                 ropeWorldRadius = 0.0265f * (avgSheave / 0.4439f);
@@ -128,11 +108,8 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             group.transform.SetParent(root, false);
             group.transform.localScale = Vector3.one / Mathf.Max(1e-4f, root.lossyScale.x);
 
-            // 동적 로프 재질 — 모델 상속(RTG_DarkMetal)이 아니라 **로프 전용 검정 재질**을 쓴다.
-            //   [오너 결정 2026-07-16] 자유 로프만 검정. **드럼 코일은 건드리지 않는다** —
-            //   코일은 Hoist_Drum_F/B 메시의 RTG_DarkMetal 슬롯이라 그대로 (0.15,0.16,0.18)로 남고,
-            //   드럼출구에서 코일과 자유 로프의 색이 갈리는 건 **의도된 것**이다(형상은 0.03mm로 이어져 있다).
-            //   전용 에셋이라 RTG_DarkMetal을 공유하는 나머지 191개 오브젝트는 영향 없다.
+            // 동적 로프는 모델 상속(RTG_DarkMetal)이 아니라 로프 전용 검정 재질을 쓴다.
+            //   드럼 코일은 그대로 RTG_DarkMetal이라 드럼출구에서 색이 갈린다(의도, 형상은 이어져 있음).
             ropeMat = GetRopeMaterial() ?? ropeMat ?? GetFallbackRopeMaterial();
 
             var filters = new MeshFilter[sheaves.Count];
@@ -166,26 +143,8 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             Debug.Log(diag.ToString());
         }
 
-        // 드럼출구 = 로프 **드럼측** 평면컷 캡 링의 **중심**(= 로프 중심선 위의 점).
-        //
-        // Blender 실측(2026-07-16, RTG_Crane_Scene): 드럼 코일 꼬리 캡 중심과 로프 드럼측 캡 중심이
-        //   (1.2, 0.8895, 23.74)로 **0.03mm 일치** → 캡 중심이 곧 로프가 드럼을 떠나는 접선 이탈점이다.
-        //   (권상 로프의 드럼 감김 코일은 Hoist_Rope_*가 아니라 Hoist_Drum_F/B 메시에 들어 있다.)
-        //
-        // ※ 드럼측을 **'최상단 캡'으로 고르면 안 된다** — 그건 형상에 딸린 우연이지 의미가 아니다.
-        //   2026-07-16 이전엔 로프 앵커측 끝이 z=23.600에서 잘려 앵커에 안 닿아 있었고(공중에 뜬 결함),
-        //   그 덕에 드럼측(23.740)이 우연히 최상단이었다. 로프를 앵커에 접합(23.600→24.000)하는 순간
-        //   앵커측이 최상단이 되어 드럼출구가 앵커 자리로 잡힌다 = 동적 로프 전체가 틀어진다.
-        //   → **앵커에서 먼 쪽 캡**을 택한다. 임계값이 필요 없고 접합 전/후 형상 모두에서 같은 답이다:
-        //     접합 후 드럼측 1.728m vs 앵커측 0.015m / 접합 전 드럼측 1.728m vs 앵커측 0.385m.
-        //
-        // ※ 반드시 '중심'이어야 한다 — 옛 구현은 최장 엣지 끝점, 즉 튜브 **표면 정점 1개**를 집었다.
-        //   캡은 32각 평면컷이라 32개 정점이 전부 같은 Y에 있어 그중 아무거나 뽑혔고, 결과가
-        //   중심선에서 **로프 반경(26.5mm)만큼** 빗나가 동적 로프가 드럼 코일에서 반경 하나만큼
-        //   어긋나 보였다(Unity 실측 (1.1948,23.74,0.8635) vs 참값 (1.2,23.74,0.8895)).
-        //   최장 엣지 필터는 '드럼 감김부 배제'가 목적이었으나 로프 메시엔 감김부가 아예 없어 무의미했다.
-        //
-        // 아울러 월드 반경(최소 bbox 반폭)·머티리얼 반환.
+        // 드럼출구 = 로프 드럼측 평면컷 캡 링의 중심(중심선 위 점 — 표면 정점 하나를 쓰면 로프반경만큼 빗나간다).
+        // 앵커에서 먼 쪽 캡을 택한다 — 가까운 쪽/최상단으로 고르면 동적 로프 전체가 틀어진다. 월드 반경·머티리얼도 반환.
         static Vector3 DrumExitWorld(Transform rope, Transform anchor, out float worldRadius, out Material mat)
         {
             worldRadius = 0f; mat = null;
@@ -213,9 +172,8 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             float eps = worldRadius * 0.25f;
             float q   = Mathf.Max(1e-6f, worldRadius * 0.01f);   // 중복 판정용 위치 양자화
 
-            // 캡A = 월드 Y 최대면. 캡B = 캡A 평면을 뺀 나머지의 Y 최대면 = 반대쪽 캡.
-            //   로프 양 다리는 통짜 스팬(중간 링 없음: 실측 5.7m)이라 '캡A 다음으로 높은 면'이 곧 반대쪽 캡이다.
-            //   Blender 실측 뒷받침: 평면컷(수평) 링은 29개 중 **캡 2개뿐** — 나머지 링은 축에 수직이라 Y가 퍼진다.
+            // 캡A = 월드 Y 최대면. 캡B = 캡A 평면을 뺀 나머지의 Y 최대면(반대쪽 캡).
+            //   로프는 중간 링 없는 통짜 스팬이라 '캡A 다음으로 높은 면'이 곧 반대쪽 캡이다.
             Vector3 capA = PlanarCapCenter(w, mx.y, eps, q);
             float yB = float.NegativeInfinity;
             for (int i = 0; i < w.Length; i++)
@@ -228,9 +186,8 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             return (capA - anchor.position).sqrMagnitude >= (capB - anchor.position).sqrMagnitude ? capA : capB;
         }
 
-        // 평면컷 캡 링의 중심 = planeY 평면(±eps)에 놓인 정점들의 중심.
-        //   임포터가 노멀/UV 이음매에서 정점을 쪼개 같은 자리에 중복 정점을 만들므로, 위치 중복을 제거해야
-        //   중심이 이음매 쪽으로 쏠리지 않는다.
+        // 평면컷 캡 링의 중심 = planeY 평면(±eps) 정점들의 중심. 임포터가 이음매에서 정점을 쪼개 중복시키므로
+        //   위치 중복을 제거해야 중심이 이음매 쪽으로 쏠리지 않는다.
         static Vector3 PlanarCapCenter(Vector3[] w, float planeY, float eps, float q)
         {
             var seen = new HashSet<Vector3Int>();
@@ -247,16 +204,8 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             return n > 0 ? sum / n : w[TopIndex(w)];
         }
 
-        // 시브 감김 반경 = **로프 중심선이 도는 반경**(시브 바깥 치수가 아니다).
-        //   R_w = min|로프 정점 − 시브 중심| + 로프 반경
-        //   로프 중심선과 시브 중심은 같은 평면에 있고, 감김의 최내점이 시브 중심에 가장 가까운 로프 점이라
-        //   축을 몰라도 3D 거리만으로 정확하다(전부 월드 계산 → 크레인 임포트 스케일 무관).
-        //
-        // Blender 실측(2026-07-16): R_w = **0.4439** — 감김 구간 25개 링 전부 편차 0.00000.
-        //   시브 홈 바닥은 0.4100이고 로프는 그 위 7.4mm에 떠서 앉는다(홈 옆면에 물림) → 홈바닥+로프반경으로
-        //   유도하면 안 되고, 로프 실측이 유일한 정답이다.
-        // ※ 옛 SheaveWorldRadius(렌더러 bounds 최대 반폭)는 시브 **림** 0.4600을 줘서 16.1mm 컸고,
-        //   감김 호와 양쪽 접선점이 통째로 밀렸다.
+        // 시브 감김 반경 = 로프 중심선이 도는 반경(시브 바깥 치수가 아니다): R_w = min|로프 정점 − 시브 중심| + 로프 반경.
+        // 홈바닥+로프반경으로 유도하면 안 된다 — 로프가 홈 옆면에 물려 떠 있어 실측만 정답(시브 림 반경을 쓰면 감김이 밀린다).
         static float WrapRadiusWorld(Transform rope, Vector3 sheaveCenter, float ropeWorldRadius)
         {
             var mf = rope.GetComponentInChildren<MeshFilter>();
@@ -278,10 +227,8 @@ namespace AIXRCrane.Crane.Sts.EditorTools
 
         const string RopeMatPath = "Assets/Crane/Materials/RTG/RTG_RopeBlack.mat";
 
-        // 로프 전용 검정 재질. 없으면 만들고, **있으면 그대로 존중**한다(인스펙터로 조정한 값을 재생성이 덮지 않게)
-        //   — `RtgCraneFbxPlacer.GetOrCreate`와 같은 규약: **.mat이 정본이고 이 코드의 숫자는 초기값일 뿐**이다.
-        //   색만 검정이고 금속/광택은 RTG_DarkMetal과 동일(0.60/0.50) — '색만 바꾼다'는 지시 그대로.
-        //   BaseColor가 0이 아니라 0.02인 건 PBR에서 완전 검정인 물질이 없어 0으로 두면 평평하게 뭉개지기 때문.
+        // 로프 전용 검정 재질 — 없으면 생성, 있으면 그대로 존중(인스펙터 조정값을 재생성이 덮지 않게, .mat이 정본).
+        //   BaseColor 0.02(완전 0 아님)는 PBR 순수 검정이 평평해 보이는 것을 피함. 금속/광택은 RTG_DarkMetal과 동일.
         static Material GetRopeMaterial()
         {
             var existing = AssetDatabase.LoadAssetAtPath<Material>(RopeMatPath);

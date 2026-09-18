@@ -5,13 +5,8 @@ using UnityEngine.InputSystem;
 
 namespace AIXRCrane.Crane.Sts
 {
-    /// <summary>
-    /// XR 텔레포트 InputAction(이름에 "Teleport" 포함)을 Play 진입 시 자동 비활성화.
-    ///   - MonoBehaviour 아님 → 씬에 컴포넌트 안 붙여도 됨
-    ///   - [RuntimeInitializeOnLoadMethod(AfterSceneLoad)] 로 매 Play 시 자동 실행
-    ///   - InputSystem.onActionChange 구독 → 누가 다시 enable 하면 즉시 다시 disable
-    /// 시점 회전(SnapTurn/ContinuousTurn)·걷기(ContinuousMove)는 이름이 달라 영향 없음.
-    /// </summary>
+    /// <summary>Play 진입 시 이름에 "Teleport" 포함된 InputAction을 자동 비활성화, 재활성화되면 즉시 재차단.
+    /// 시점 회전·걷기는 이름이 달라 영향 없음.</summary>
     public static class XRTeleportActionDisabler
     {
         const bool DebugLog = true;

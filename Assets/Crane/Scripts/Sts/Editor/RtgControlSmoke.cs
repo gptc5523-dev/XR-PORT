@@ -5,20 +5,8 @@ using UnityEngine;
 
 namespace AIXRCrane.Crane.Sts.EditorTools
 {
-    /// <summary>
-    /// 배치 스모크 — 시연 씬에서 RTG 를 VR 조종할 수 있는지(오너 2026-09-15 "RTG 크레인은 내가 조종이 불가능").
-    ///   Unity -batchmode -nographics -projectPath . -executeMethod AIXRCrane.Crane.Sts.EditorTools.RtgControlSmoke.Run -logFile rtg.log
-    ///   오너 흐름 그대로: (호스트 접속) STS 조종 켬 → B 로 이동모드 → 걸어서 RTG 발치로.
-    ///   PASS(종료 0) =
-    ///     ① 걸어온 것만으로 그 RTG 가 조종기를 받고 조종 토글이 이어진다
-    ///     ② 상태 HUD 가 조종기를 받은 크레인(STS → RTG)을 보여 준다
-    ///     ③ 합성 스틱(QaBeginDrive/QaSticks) 1.5초씩 — 트롤리·호이스트·갠트리 실척 속도
-    ///        |Δ축| × WorldPerUnit ÷ ModelScale ÷ Δt 가 StsCraneVRController 정격(3.3 · 공하 2.7 · 0.75 m/s) ±10%
-    ///     ④ 갠트리 주행에 타이어가 굴렀다 — 회전각 = 이동거리 ÷ 반경(±5%), 바닥점이 진행 반대로(역회전 아님)
-    ///        (오너 2026-09-16 "RTG 크레인 바퀴가 안 움직여")
-    ///     ⑤ 갠트리 모드 A(운전실 시점) — 카메라가 OperatorCab_Floor_Panel 바로 밑(XZ 안 · 밑면 아래 0~0.02u)
-    ///        (오너 2026-09-16 "운전실 밑에 카메라가 있어야 하는데 중앙에 카메라가 있어")
-    /// </summary>
+    /// <summary>배치 스모크 — 시연 씬에서 RTG 를 VR 조종할 수 있는지 확인. -batchmode 로 걸어서 RTG 발치까지 가
+    /// 조종기 인계·HUD 전환·축 속도(정격 ±10%)·타이어 굴림·운전실 시점 다섯 항목을 판정, 하나라도 FAIL 이면 종료 1.</summary>
     [InitializeOnLoad]
     public static class RtgControlSmoke
     {
@@ -91,7 +79,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
                             mb.GetType().GetMethod("RestoreController", Priv)?.Invoke(mb, new object[] { true });
                             Object.Destroy(mb);
                         }
-                    // 오너 흐름: STS 조종 켬 → 조종모드 → B 로 이동모드(조종 토글은 켠 채)
+                    // 실제 흐름 재현: STS 조종 켬 → 조종모드 → B 로 이동모드(조종 토글은 켠 채)
                     stsCtrl.QaBeginDrive(StsCraneVRController.Mode.Crane);
                     stsCtrl.QaBeginDrive(StsCraneVRController.Mode.Move);
                     Next(); return;

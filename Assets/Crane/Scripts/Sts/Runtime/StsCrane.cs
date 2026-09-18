@@ -2,11 +2,8 @@ using UnityEngine;
 
 namespace AIXRCrane.Crane.Sts
 {
-    /// <summary>
-    /// STS Crane 컴포지션 루트.
-    /// 각 부속(boom/trolley/spreader/attach)은 자체 책임을 가진 컴포넌트로 분리되어 있고,
-    /// 이 클래스는 그들에 대한 참조를 모아 외부에 일관된 API를 노출만 한다(SRP + Facade).
-    /// </summary>
+    /// <summary>STS Crane 컴포지션 루트 — 각 부속(boom/trolley/spreader/attach)은 독립 컴포넌트로 분리되고,
+    /// 이 클래스는 참조를 모아 일관된 API만 노출한다(SRP + Facade).</summary>
     [AddComponentMenu("AI-XR Crane/STS Crane/STS Crane (Root)")]
     [DisallowMultipleComponent]
     public sealed class StsCrane : MonoBehaviour
@@ -36,15 +33,11 @@ namespace AIXRCrane.Crane.Sts
         public CraneOpMode OpMode =>
             opMode != null ? opMode : (opMode = GetComponent<CraneOpMode>() ?? gameObject.AddComponent<CraneOpMode>());
 
-        /// <summary>
-        /// 모델이 실척의 몇 배로 생성됐는지(StsCraneCreator.Scale=1/24와 동일). 단일 소스 — 속도/거리
-        /// 환산(모델 units ↔ 실제 m)이 필요한 HUD·컨트롤러가 각자 상수를 두지 말고 이 값을 참조한다.
-        /// </summary>
+        /// <summary>모델 축척(실척의 1/24, StsConfig.ModelScale과 동일). 속도/거리를 m 단위로 환산할 때
+        /// 각자 상수를 두지 말고 이 값을 참조한다(SSOT).</summary>
         public float ModelScale => StsConfig.ModelScale;   // SSOT — 값(1/24)은 StsConfig 단일 정의
 
-        /// <summary>
-        /// Builder가 한 번에 참조를 주입할 때 사용. 직접 인스펙터로 끌어 넣어도 동작은 동일.
-        /// </summary>
+        /// <summary>Builder가 한 번에 참조를 주입할 때 사용 — 인스펙터로 직접 끌어 넣어도 동일하게 동작.</summary>
         public void Configure(Transform boom, TrolleyMover trolley,
                               SpreaderHoist spreader, SpreaderAttach attach,
                               GantryMover gantry = null)

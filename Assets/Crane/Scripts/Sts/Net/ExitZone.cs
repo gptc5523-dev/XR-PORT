@@ -5,24 +5,8 @@ using UnityEngine.XR;
 
 namespace AIXRCrane.Crane.Sts.Net
 {
-    /// <summary>
-    /// 부두 모서리 바닥의 **나가는 존** — 밟고 잠깐 서 있으면 세션을 끊고 시작 메뉴로 돌아간다.
-    ///
-    /// <para><b>왜 필요한가</b> — 오너 2026-09-16 "호스트로 접속했다가 그냥 앱을 끄면 호스트 세션이 그대로 남아
-    /// 호스트가 접속이 안 된다". 서버에서는 크레인 5대가 <b>한 머신에서 같은 포트(7777)를 공유</b>하고,
-    /// 먼저 호스트를 누른 인스턴스가 그 포트를 쥔다(<see cref="NetLanUI"/>.StartHost 주석 참조).
-    /// 헤드셋을 벗어도 서버의 AI-XR-Crane.exe 는 24시간 계속 살아 있어 포트를 놓지 않는다 → 다음 호스트는 반드시 실패한다.
-    /// VR 에는 나갈 길이 아예 없었다: <see cref="NetLanUI"/> 의 '연결 끊기'는 IMGUI 라 헤드셋에 안 그려지고,
-    /// 시작 메뉴(<see cref="CraneNetMenuHUD"/>)는 접속 6초 뒤 사라지며 나가기 항목이 없다.</para>
-    ///
-    /// <para><b>두 갈래로 막는다</b>
-    /// ① <b>존을 밟고 나가기</b> — 의도적으로 끝낼 때. 지나가다 스치는 것으로는 안 끊기게 dwell(기본 10초)을 둔다.
-    /// ② <b>헤드셋 이탈 자동 종료</b> — 실제로는 대부분 존을 안 밟고 그냥 앱을 끈다. 그때가 근본 원인이므로
-    ///    XR 디스플레이가 멈추면 유예 뒤 스스로 Shutdown 한다. ①만으로는 같은 사고가 계속 난다.</para>
-    ///
-    /// 씬에 안 붙여도 <c>[RuntimeInitializeOnLoadMethod]</c> 로 자동 스폰 — Port.unity 를 건드리지 않는다
-    /// (다른 세션도 같은 씬을 편집 중이라 씬 변경은 충돌 위험이 크다). 접속 중일 때만 보인다.
-    /// </summary>
+    /// <summary>부두 모서리의 나가는 존 — dwell(기본 10초) 서 있으면 세션 종료. 헤드셋 이탈 시에도 유예 뒤 자동 종료.
+    /// 씬에 안 붙여도 런타임에 자동 스폰된다.</summary>
     [AddComponentMenu("AI-XR Crane/Net/Exit Zone")]
     [DisallowMultipleComponent]
     public sealed class ExitZone : MonoBehaviour
@@ -31,7 +15,7 @@ namespace AIXRCrane.Crane.Sts.Net
         [Tooltip("존 반경(실척 m). 걷다가 실수로 들어오지 않게 부두 '모서리'에 둔다.")]
         [SerializeField] float radiusMeters = DefaultRadiusMeters;
         [Tooltip("존 안에 이만큼 서 있어야 나간다(초). 지나가다 스치는 것으로 안 끊기게.")]
-        [SerializeField] float dwellSeconds = 10f;   // 오너 지시 2026-09-17 — 트리거를 없앤 대신 체류시간으로 실수 방지(시연 뒤 20→10초)
+        [SerializeField] float dwellSeconds = 10f;   // 체류시간으로 오조작 방지(옛값 20초)
         [Tooltip("걷는 땅 모서리에서 안쪽으로 띄울 거리(실척 m) — 띠가 경계 밖으로 새지 않게.")]
         [SerializeField] float insetMeters = DefaultInsetMeters;
 
@@ -50,32 +34,19 @@ namespace AIXRCrane.Crane.Sts.Net
         static readonly Color BandIdle = new Color(0.92f, 0.20f, 0.18f, 0.35f);
         static readonly Color BandInside = new Color(0.92f, 0.20f, 0.18f, 0.95f);
 
-        // ★ 월드공간 Canvas(HUD)는 2026-09-17 오너 지시로 없앴다 — "나가는 존에 HUD 삭제하고
-        //   blender 에서 표시판 하나 이쁘게 만들어서 나가는 존 가운데 놔줘".
-        //   대신 실물 표지판 ExitSign.fbx(문서/스크립트/표시판_빌드.py)가 존 중심에 선다
-        //   (BuildSign 이 존과 같은 center 를 쓰므로 자리가 어긋날 수 없다 — 심는 메뉴는 없앴다).
-        //   바닥 띠(LineRenderer)는 그대로 둔다 — 존 '경계'는 표지판으로 못 보여준다.
+        // 월드공간 HUD 대신 표지판(ExitSign.fbx)을 에디터 메뉴(QuayPartsPlacer)가 존 중심에 심는다.
+        // 바닥 띠(LineRenderer)는 경계 표시용으로 따로 유지한다.
         /// <summary>표지판 리소스 경로(Assets/Crane/Resources/ 기준, 확장자 없음).</summary>
         public const string SignResourcePath = "Models/ExitSign";
-        // 표지판도 다른 부재와 같이 <b>실척 × ModelScale(1/24)</b> 로만 선다 — 연출 배율은 없앴다.
-        //   오너 2026-09-18 "비율을 1/24로 기본세팅이 되어 있잖아 이것도 그런식으로 줄여 사람보다 더 크면 어쩌자는거야".
-        //   종전 SignScale 은 실척 2.2m 판을 부풀리는 곱이었다: 10 → 30(66m) → 15(33m).
-        //   사람(1.7m)·RTG 와 같은 축척 위에 혼자 다른 배율이 있으면 항구 전체의 크기 감각이 깨진다.
-        //   이제 판 위끝 2.20m · 판 아래 1.30m — 사람 눈높이 바로 위, 실제 표지판 크기다.
+        // 표지판도 실척 × ModelScale(1/24)로만 선다 — 연출 배율(옛값 10~30배)은 없앴다.
+        // 판 위끝 2.20m·아래 1.30m, 사람 눈높이 실제 크기.
 
-        /// <summary>표지판 방향 보정(도, 월드 Y 축) — 바라볼 곳을 정한 뒤 남는 미세 조정용 손잡이.
-        ///   ★ 2026-09-18 <b>90f → 0f</b>. 옛 값 90 은 "정면축을 모르니 사람이 보고 정한다"는 전제로 넣은
-        ///     것인데, 정면축은 <b>잴 수 있었다</b>: 블렌더 앞면 −Y 가 축 보정 Rx(−90) 뒤 유니티 <b>+Z</b> 가 되고
-        ///     (국소 (0,−1,0) → (x, z, −y) = (0,0,+1)), 그건 LookRotation 의 forward 와 같은 축이다.
-        ///     즉 보정 0 이라야 바라보는 곳을 정면으로 본다. 90 을 더한 탓에 표지판은 목표에서 <b>90° 빗나가</b>
-        ///     서 있었고(실측: 리스폰이 +X 인데 야우 180°, 정면 −Z), 오너가 "돌려"라고 말할 때까지 남아 있었다.
-        ///   ★ 손잡이는 남긴다 — 반대로 보이면 180 을, 옆으로 보이면 ±90 을 넣으면 끝난다.</summary>
-        const float SignYawOffset = 0f;   // 옛값 90f — 위 주석 참조
+        /// <summary>표지판 방향 미세 보정(도, 월드 Y). 블렌더 앞면 −Y 가 축 보정 뒤 유니티 +Z 라 0 이 정면.
+        /// 반대로 보이면 180, 옆이면 ±90.</summary>
+        const float SignYawOffset = 0f;   // 옛값 90f
 
-        /// <summary>표지판 실척 높이(m) — 표시판_빌드.py 의 H_TOTAL 과 같은 값.
-        ///   ★ 이 값은 <b>목표</b>일 뿐 FBX 단위계를 가정하지 않는다. 실제 배율은 BuildSign 이 프리팹을
-        ///     띄워 <b>재서</b> 맞춘다(FbxScaleByHeight 와 같은 원리). 그래서 H_TOTAL 과 어긋나도
-        ///     표지판이 틀린 크기로 서는 게 아니라 '목표가 바뀌는' 것뿐이라 조용히 깨지지 않는다.</summary>
+        /// <summary>표지판 실척 높이(m) — 표시판_빌드.py 의 H_TOTAL 과 같은 값. 실제 배율은 FitSign 이
+        /// 프리팹을 재서 목표로 수렴시키므로(FbxScaleByHeight 와 같은 원리) 값이 달라도 조용히 깨지지 않는다.</summary>
         const float SignRealHeightMeters = 2.2f;
 
         LineRenderer band;
@@ -108,10 +79,8 @@ namespace AIXRCrane.Crane.Sts.Net
             Vector3 d = cam.transform.position - center; d.y = 0f;
             bool inside = d.sqrMagnitude <= r * r;
 
-            // 오너 지시 2026-09-17: "나가는 존에 들어가면 그냥 트리거 없이 20초 뒤에 나가게 만들자".
-            //   종전에는 호스트에게 트리거 홀드를 요구했다 — 호스트가 끊기면 관전자도 같이 끊기기 때문이었다.
-            //   그 보호를 체류시간으로 옮긴다: 2초는 지나가다 스칠 수 있지만 10초는 서 있기로 결심해야 채워진다.
-            //   호스트/관전자 구분은 경고 문구에만 남긴다(끊기는 사람이 몇 명인지는 여전히 보여줘야 한다).
+            // 트리거 없이 체류시간(dwell)으로 오조작을 막는다 — 지나가다 스치면 안 채워지고 서 있어야 채워진다.
+            // 호스트/관전자 구분은 경고 문구에만 남긴다(끊기는 인원 수는 보여줘야 한다).
             int spectators = SpectatorCount();
             bool host = spectators >= 0;
             bool arming = inside;
@@ -126,10 +95,8 @@ namespace AIXRCrane.Crane.Sts.Net
                 return;
             }
 
-            // 헤드셋 상단 공지 — 오너 지시 2026-09-17 "존에 들어오면 … 상단에 N초 후 종료합니다"(N = dwellSeconds).
-            //   존 안에 있는 동안만 매 프레임 갱신한다. 밖으로 나가면 갱신이 끊겨 유예 뒤 저절로 사라진다
-            //   (여기서 지우지 않아도 남지 않는다 — 호출자가 정리를 잊는 실수 자체를 없앤 설계).
-            //   끊기는 사람이 나 말고 더 있으면 그 수를 같이 보여준다. 모르고 끊으면 안 되니까.
+            // 헤드셋 상단에 남은 초를 공지 — 존 안에 있는 동안만 갱신, 밖으로 나가면 유예 뒤 저절로 사라진다.
+            // 관전자가 더 있으면 그 수도 같이 보여준다.
             if (inside)
             {
                 float left = Mathf.Max(0f, dwellSeconds - dwell);
@@ -139,15 +106,8 @@ namespace AIXRCrane.Crane.Sts.Net
 
         }
 
-        // ② 헤드셋 이탈 감시 — XR 디스플레이가 running 에서 멈추면 유예 뒤 종료.
-        //   평면 모드(비VR)에서는 애초에 running 이 된 적이 없으므로 xrSeenRunning 가드로 오발을 막는다.
-        //
-        // ★ 호스트는 '관전자가 없을 때만' 자동 종료한다 (xr-port-04·ae·42 지적 2026-09-16).
-        //   호스트가 Shutdown 하면 관전자 전원이 시작 메뉴로 튕긴다. 시연 중 헤드셋을 잠깐 벗는 건 아주 흔하고
-        //   (설명하려고·클라이언트에게 씌워 주려고), 벗은 사람에게는 경고를 띄울 화면조차 없다 → 유예를 늘려도 '알고 누른다'가 안 된다.
-        //   반대로 '혼자 남은 호스트'의 자동 정리는 그대로 둔다 — 그게 오너가 보고한 원래 버그
-        //   (앱을 그냥 끄면 7777 이 잡힌 채 남아 다음 호스트가 실패)의 유일한 자동 해결 경로다.
-        //   "명시적 종료로 대체하면 된다"는 논리는 '명시적 종료를 안 하는 경우'를 못 덮는다 — 그게 원래 사고였다.
+        // 헤드셋 이탈 감시 — running 이 멈추면 유예 뒤 종료. 평면 모드는 xrSeenRunning 가드로 오발 방지.
+        // 호스트는 관전자가 없을 때만 자동 종료한다 — 있으면 전원이 튕기므로.
         void WatchHeadset()
         {
             if (headsetLostGraceSeconds <= 0f) return;
@@ -168,13 +128,8 @@ namespace AIXRCrane.Crane.Sts.Net
                 Leave($"헤드셋 이탈 {headsetLostGraceSeconds:0}초 경과 — 자동 정리(관전자 없음)");
         }
 
-        /// <summary>헤드셋 이탈 자동 종료 판정 — <b>규칙 그 자체</b>. 배관(서브시스템 폴링)과 분리해 XR 없이도 부를 수 있다.
-        ///   배치(-batchmode)에는 XRDisplaySubsystem 이 없어 <see cref="WatchHeadset"/> 경로는 실행조차 안 되므로,
-        ///   회귀가 실제로 나는 '규칙'만 떼어 검사 가능하게 둔다(xr-port-42 HostStartProbe ④).
-        /// <para>spectators 규약 — <see cref="SpectatorCount"/> 와 같다:
-        ///   <b>≥1</b> 나는 호스트고 관전자가 붙어 있다 → 종료 안 함(남을 끊게 된다).
-        ///   <b>0</b> 나는 호스트인데 혼자다 → 유예 뒤 종료(잃는 사람 없고 포트 7777 을 푼다 — 오너의 원래 버그).
-        ///   <b>−1</b> 나는 호스트가 아니다(관전자) → 유예 뒤 종료(자기 연결만 끊긴다).</para></summary>
+        /// <summary>헤드셋 이탈 자동 종료 판정 — 배관과 분리해 XR 없이도 테스트 가능.
+        /// spectators: ≥1 종료 안 함, 0 유예 뒤 종료(호스트 단독), −1 유예 뒤 종료(관전자).</summary>
         public static bool ShouldAutoEnd(float lostFor, float graceSeconds, int spectators)
             => graceSeconds > 0f && lostFor >= graceSeconds && spectators <= 0;
 
@@ -201,18 +156,15 @@ namespace AIXRCrane.Crane.Sts.Net
             QaLog.Info("EXIT", "leave", $"reason={why}");
         }
 
-        /// <summary>존 중심 — 걷는 땅(케이슨+야드 포장 합집합)의 네 모서리 중 플레이어 시작점에서 가장 가까운 곳.
-        ///   '모서리'라 평소 동선과 겹치지 않고, '가장 가까운' 쪽이라 처음 보는 사람도 눈에 띈다.
-        ///   ★ 런타임 존과 에디터 표시용 체스말이 <b>같은 자리</b>를 쓰도록 계산은 여기 한 곳뿐이다
-        ///     (눈으로 확인한 자리와 실제 나가는 자리가 어긋나면 그 표시는 쓸모가 없다).</summary>
+        /// <summary>존 중심 — 걷는 땅 네 모서리 중 플레이어 시작점에서 가장 가까운 곳.
+        /// 런타임 존과 에디터 체스말이 같은 자리를 쓰도록 계산은 여기 한 곳뿐이다.</summary>
         public static bool TryComputeCenter(float insetMeters, out Vector3 center)
         {
             center = default;
             if (!CranePlayerStartPlacer.TryGetLand(out Bounds land)) return false;
 
-            // ★ 지정 마커가 있으면 그 자리를 쓴다 — 오너가 체스말로 자리를 정하는 흐름
-            //   (QuayPartsPlacer.ApplyPawnToExitZone). 리스폰이 PlayerStartPoint 를 우선하는 것과
-            //   같은 규칙이라 다음 사람이 두 곳을 같은 방식으로 읽는다. 마커가 없으면 아래 모서리 계산이 폴백.
+            // 지정 마커(체스말, QuayPartsPlacer.ApplyPawnToExitZone)가 있으면 그 자리를 쓴다.
+            // 리스폰의 PlayerStartPoint 우선과 같은 규칙. 없으면 아래 모서리 계산이 폴백.
             var fixedPoint = GameObject.Find(StsPartNames.ExitZonePoint);
             if (fixedPoint != null)
             {
@@ -247,9 +199,8 @@ namespace AIXRCrane.Crane.Sts.Net
             transform.position = center;
             BuildBand();
             placed = true;
-            // 좌표는 실척(m)을 앞에 찍는다 — 오너 지시 2026-09-17 "실척 좌표로 해줘".
-            //   모델 단위는 1 unit = 24 m 라 숫자가 1/24 로 눌려 사람이 못 읽는다(−0.25 vs −6.00m).
-            //   모델 값도 괄호로 같이 남긴다 — 코드에 넣을 땐 그쪽이 필요하다.
+            // 좌표는 실척(m)을 앞에 찍는다 — 모델 단위(1u=24m)는 숫자가 눌려 사람이 못 읽는다.
+            // 모델 값도 괄호로 같이 남긴다(코드에 넣을 땐 그쪽 필요).
             Vector3 real = center * StsConfig.InvModelScale;
             Debug.Log($"[ExitZone] 나가는 존 배치 — 실척 X {real.x:F2}m · Z {real.z:F2}m (모델 {center.x:F4}, {center.z:F4}) · " +
                       $"반경 실척 {radiusMeters:0.#}m · {dwellSeconds:0}초 머물면 종료 · " +
@@ -257,50 +208,28 @@ namespace AIXRCrane.Crane.Sts.Net
             return true;
         }
 
-        /// <summary>표지판의 <b>자세·배율</b>. 런타임(ExitZone.BuildSign)과 에디터 배치
-        /// (QuayPartsPlacer '나가는 문 표지판 씬에 배치')가 <b>같은 식</b>을 쓰도록 여기 한 곳에만 둔다.
-        ///   ★ 두 곳에 베껴 두면 반드시 갈라진다 — 2026-09-17 에만 이 식이 두 번 틀렸다(누움 · 100배).
-        ///     씬에 심은 표지판과 VR 에 뜨는 표지판이 다르면 씬을 보고 고칠 수가 없다.</summary>
+        /// <summary>표지판의 자세·배율 — 에디터 배치 메뉴(QuayPartsPlacer)가 부르는 공용 식.
+        /// 두 곳에 베끼면 갈라지므로 여기 한 곳에만 둔다.</summary>
         /// <param name="axisFix">임포트된 프리팹 루트의 회전(블렌더 Z-up 보정). 지우면 표지판이 눕는다.</param>
         public static void FitSign(GameObject sign, Quaternion axisFix, Vector3 center)
         {
-            // 실척으로 만든 모델에 축척(1/24)만 곱한다 — 오너 지시 2026-09-17 "실제 사이즈 만들고 1/24 이렇게 작업해야지".
-            //   ★ 종전에는 렌더러 바운즈의 Y 를 '높이' 로 보고 맞췄다. 그런데 FBX 축이 틀어져 들어오면 Y 가
-            //     높이가 아니라 폭(1.8m)이 되고, 1.8 을 0.1 로 줄여 18배 작아진 채 누워 버린다 — 실제로 그랬다.
-            //     상수 배율은 그런 '조용한 어긋남' 이 없다. 모델이 실척이라는 전제만 지키면 된다.
-            // ★★ FBX 축 보정을 지우지 말 것 — 표지판이 바닥에 눕는 원인이 바로 이것이었다(오너 2026-09-17 "바닥에 누워 있어").
-            //   블렌더 메시는 Z-up 이라 정점이 높이를 Z 에 갖고 있다(ExitSign.fbx 실측: X 1.80 폭 · Y 0.29 두께 · Z 0…2.20 높이).
-            //   그걸 세우는 건 임포트된 루트의 회전 −90°X <b>하나뿐</b>인데, 여기서 rotation 에 그냥 대입하면 그 보정이 날아간다.
-            //   LookRotation(수평벡터, up) 은 피치가 0 이라, 대입 즉시 높이축 Z 가 월드 +Z 로 누워 판이 바닥에 깔린다.
-            //   그래서 덮어쓰지 않고 <b>곱한다</b>(축 보정 먼저 → 그다음 야우).
-            //   임포터에서 축을 구우면(bakeAxisConversion=1) 이 회전이 단위원이 되어 식이 그대로 성립한다.
+            // 실척 모델에 축척(1/24)만 곱한다 — 렌더러 바운즈로 재면 FBX 축 틀어짐에 조용히 어긋난다.
+            // FBX 축 보정(axisFix)을 rotation 에 그냥 대입하지 말 것 — 표지판이 눕는다. 곱해서 유지한다.
             sign.transform.localRotation = axisFix;   // 바라볼 곳을 못 구해도 최소한 서 있게
 
-            // ★★ 배율을 계산으로 단정하지 말고 <b>재서 맞춘다</b> — 2026-09-17 여기서 100배를 틀렸다.
-            //   종전엔 "실척 모델이니 ModelScale 이면 된다"고 단정했는데, 이 FBX 는 노드에
-            //   Lcl Scaling 100 이 들어 있어 임포트된 프리팹의 단위가 그 가정과 100배 달랐다. 결과가
-            //   실척 66m 여야 할 표지판이 0.7m 로 섰고(로그로 잡혔다), 오너에겐 "작다"가 아니라
-            //   "디자인이 깨져 보인다"로 나타났다 — 70cm 판에 EXIT 를 넣으면 멀리서 뭉개진다.
-            //   그래서 프리팹을 배율 1 로 세워 높이를 재고 목표 실척으로 수렴시킨다(FbxScaleByHeight 와 같은 식).
-            //   ★ 반드시 axisFix 를 먼저 건 뒤에 잰다 — 안 그러면 Y 가 높이가 아니라 두께(0.29m)라 배율이 7배 튄다.
-            //   ★ 에디터 헬퍼(QuayPartsPlacer.FbxScaleByHeight)는 PrefabUtility 를 써서 런타임에선 못 부른다.
+            // 배율을 단정하지 말고 재서 맞춘다 — FBX 마다 단위가 다를 수 있다(옛 사고: 100배 차이).
+            // axisFix 를 먼저 건 뒤에 재야 한다 — 안 그러면 Y 가 두께가 되어 배율이 튄다.
             sign.transform.localScale = Vector3.one;
             float h = MeasuredHeight(sign);
             float targetWorld = SignRealHeightMeters * StsConfig.ModelScale;
             sign.transform.localScale = Vector3.one * (h > 1e-6f ? targetWorld / h : StsConfig.ModelScale);
 
-            // RTG 크레인(야드 블록) 쪽을 바라보게 — 오너 지시 2026-09-18 "돌려 EXIT RTG 크레인을 보는 방향으로".
-            //   블렌더 앞면은 −Y(FACE_F)고 축 보정 뒤 유니티 +Z 가 되므로 LookRotation 의 forward 와 맞는다.
-            //   ★ 씬에서 RTG 를 <b>찾지 않는다</b>. 이름이 "RTG 크레인_1"(한글·공백)이라 코드의 "RTG_Crane_N"
-            //     로는 안 걸리고, 대수·이름은 언제든 바뀐다. RTG 가 서는 자리는 야드 블록이고 그 중심은
-            //     PortConfig 가 수식으로 갖고 있다 — 씬 탐색 없이 SSOT 에서 바로 나온다.
-            //     Z 는 블록이 안벽 중앙 기준 대칭이라 0(씬 실측: 블록 두 개가 z ±3.5313 에 있다).
+            // RTG(야드 블록) 쪽을 바라보게 — 이름으로 씬 탐색하지 않고 PortConfig 수식으로 중심을 구한다.
+            // 블렌더 앞면 −Y 가 축 보정 뒤 유니티 +Z 라 LookRotation 의 forward 와 맞는다.
             float yardX = PortConfig.YardBlockCenterX(PortConfig.YardLaneStart) * StsConfig.ModelScale;
             Vector3 look = new Vector3(yardX - center.x, 0f, -center.z).normalized;
-            // STS 쪽으로 더 — 오너 2026-09-18 "STS 보는 방향으로 조금 더 돌려줘 사람들이 보기 편하게".
-            //   사람은 RTG 와 STS 두 곳에서 일한다. 두 방향 단위벡터의 합 = <b>이등분선</b>이라 양쪽에서
-            //   같은 각도로 읽힌다(각도를 손으로 적으면 존·야드가 옮겨질 때 조용히 틀어진다).
-            //   STS 는 부두를 주행하므로 메뉴를 누른 순간의 위치를 쓴다. 없으면 RTG 쪽만 본다.
+            // STS 방향도 더해 이등분선을 본다(단위벡터 합) — 각도를 손으로 적으면 존·야드 이동 시 어긋난다.
+            // STS 가 없으면 RTG 쪽만 본다.
             var sts = GameObject.Find(StsPartNames.StsCraneRoot);
             if (sts != null)
             {
@@ -311,9 +240,7 @@ namespace AIXRCrane.Crane.Sts.Net
                 sign.transform.rotation = Quaternion.AngleAxis(SignYawOffset, Vector3.up)
                                         * Quaternion.LookRotation(look.normalized, Vector3.up) * axisFix;
 
-            // 진단 — '섰나 누웠나'를 로그 한 줄로 끝낸다. 모델이 높이 2.2m · 폭 1.8m · 두께 0.29m 라
-            //   월드 바운즈에서 <b>Y 가 가장 길면 서 있는 것</b>이고, 아니면 누운 것이다(야우로는 X·Z 만 섞인다).
-            //   ★ 오너 눈으로만 닫히던 항목을 기계가 먼저 거르게 하려는 것이다 — 헛배포 한 번을 아낀다.
+            // 진단 로그 — 월드 바운즈 Y 가 가장 길면 서 있는 것, 아니면 누운 것(야우로는 X·Z 만 섞인다).
             var rend = sign.GetComponentInChildren<Renderer>();
             if (rend != null)
             {
@@ -363,9 +290,8 @@ namespace AIXRCrane.Crane.Sts.Net
             return band;
         }
 
-        // 띠 단면 알파 = 가우시안 — 가운데 진하고 가장자리로 번져 사라진다.
-        //   PortDemoDirector.RingMaterial 과 같은 식(색·용도만 다름). 10줄이라 공용화 대신 복제했다 —
-        //   합칠 거면 CraneHud 로 올리는 게 맞고, 그건 여러 세션이 동시에 만지는 파일이라 지금은 피했다.
+        // 띠 단면 알파 = 가우시안(가운데 진함, 가장자리로 번져 사라짐). PortDemoDirector.RingMaterial 과 같은 식.
+        // 10줄이라 공용화 대신 복제 — 합치려면 CraneHud 로.
         static Material BandMaterial()
         {
             const int n = 32;

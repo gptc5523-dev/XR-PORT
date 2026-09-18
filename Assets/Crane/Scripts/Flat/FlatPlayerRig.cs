@@ -3,18 +3,8 @@ using UnityEngine.InputSystem;
 
 namespace AIXRCrane.Crane.Flat
 {
-    /// <summary>
-    /// 평면 모드 플레이어 리그 — VR의 XR Origin 자리를 대신한다(게임패드 이동·시선).
-    ///
-    /// ★ 스케일 규약(중요): 리그 루트는 CranePlayerRigScale 이 매 프레임 1/24(StsConfig.ModelScale)로
-    ///   축소한다. 그래서 이 스크립트의 '미터' 값들은 전부 **실척 미터를 리그 로컬에 그대로** 넣는다:
-    ///     · 눈높이 1.65 를 카메라 localPosition.y 에 넣으면 → 월드 1.65/24 ≈ 0.069 (미니어처 기준 정확)
-    ///     · 이동은 월드 변위이므로 속도에 리그 스케일을 곱한다(lossyScale 실측 — 축소가 꺼져 있어도 자동 대응).
-    ///   스케일을 코드에 상수로 박지 말 것. 리그 축소가 켜졌는지/꺼졌는지에 따라 24배가 어긋난다.
-    ///
-    /// [조작] 왼쪽 스틱 = 이동, 오른쪽 스틱 = 시선, LB/RB = 하강/상승, 왼쪽 스틱 누름 = 가속.
-    ///   게임패드가 없을 때를 대비해 키보드 폴백(WASD·방향키·Q/E·Shift)도 둔다 — PC 검증용.
-    /// </summary>
+    /// <summary>평면 모드 플레이어 리그 — VR XR Origin 대신(게임패드 이동·시선, 키보드 폴백). 리그가 1/24로 축소되므로
+    /// 미터값은 실척 그대로 로컬에 넣고 속도엔 lossyScale(리그 스케일)을 곱한다 — 상수로 박으면 축소 온/오프에 따라 어긋난다.</summary>
     [AddComponentMenu("AI-XR Crane/Flat Mode/Flat Player Rig")]
     [DisallowMultipleComponent]
     public sealed class FlatPlayerRig : MonoBehaviour
@@ -84,9 +74,8 @@ namespace AIXRCrane.Crane.Flat
 
             ReadInput(out Vector2 move, out Vector2 look, out float vertical, out bool sprint);
 
-            // ── 시선: yaw 는 리그 루트, pitch 는 카메라 로컬 ────────────────────────────
-            // 외부(CranePlayerStartPlacer)가 리그를 회전시켰으면 내 yaw 를 그쪽에 맞춘다.
-            //   안 맞추면 다음 프레임에 내가 옛 yaw 로 되돌려 '시작 방향이 튕기는' 증상이 난다.
+            // ── 시선: yaw 는 리그 루트, pitch 는 카메라 로컬 ──
+            // 외부(CranePlayerStartPlacer)가 리그를 돌렸으면 내 yaw 를 맞춘다 — 안 맞추면 시작 방향이 튕긴다.
             float curYaw = transform.eulerAngles.y;
             if (float.IsNaN(appliedYaw) || Mathf.Abs(Mathf.DeltaAngle(curYaw, appliedYaw)) > 0.01f) yaw = curYaw;
 

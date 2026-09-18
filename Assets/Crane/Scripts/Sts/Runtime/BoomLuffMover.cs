@@ -2,16 +2,8 @@ using UnityEngine;
 
 namespace AIXRCrane.Crane.Sts
 {
-    /// <summary>
-    /// 붐 러핑(기립) 구동 — 바다측 붐을 힌지 피벗에서 Z축으로 회전시켜 세우고 내린다.
-    ///
-    /// 좌표 규약: 피벗(Boom_LuffPivot)은 바다다리 상단 힌지(=거더 중심선)에 있고, 러핑 대상 구조는
-    ///   피벗 로컬 +X(바다측)로 뻗는다. 로컬 Z축 +회전 → +X 부재가 +Y(위)로 올라간다(붐 기립).
-    ///   current=0 = 수평(작업 자세), current=max = 스토우(기립 자세).
-    ///
-    /// 물리 무관 kinematic 회전(AxisMover/SpreaderHoist와 동일 규약) — 값을 넣으면 즉시 자세 반영.
-    /// [ExecuteAlways]로 에디터에서도 자세 확인(Play 없이). Play 진입(도메인 리로드) 대비 [SerializeField] 유지.
-    /// </summary>
+    /// <summary>붐 러핑 구동 — 피벗 로컬 +X(바다측)를 로컬 Z+회전으로 올린다. current=0 수평, current=max 기립.
+    /// 물리 무관 kinematic 회전, ExecuteAlways로 에디터에서도 자세 확인.</summary>
     [AddComponentMenu("AI-XR Crane/STS Crane/Boom Luff Mover")]
     [DisallowMultipleComponent]
     [ExecuteAlways]

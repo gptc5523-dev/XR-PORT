@@ -1,21 +1,14 @@
 namespace AIXRCrane.Crane.Sts.Plc
 {
-    /// <summary>PLC <b>제어모드</b> — ㈜엠비이 데이터포인트리스트 OP_Mode 태그(DB100.DBW130)의 값(수동/반자동/자동/정비).
-    /// ※ 명칭 주의: 이건 '제어모드'다. 크레인 <b>운영상태</b>(운전/정지/이상)는 별개 타입
-    ///   <see cref="AIXRCrane.Crane.Sts.OpMode"/>(컴포넌트 CraneOpMode)이며 혼동 금지 — 과거 둘 다 'OpMode'라 꼬였음.
-    ///   CSV/PLC 태그명은 벤더 사양이라 OP_Mode를 유지하고, C# 명칭만 ControlMode로 분리한다.</summary>
+    /// <summary>PLC 제어모드 — ㈜엠비이 데이터포인트리스트 OP_Mode 태그(DB100.DBW130)의 값(수동/반자동/자동/정비).
+    /// 크레인 운영상태(운전/정지/이상)는 별개 타입 OpMode(컴포넌트 CraneOpMode)이니 혼동 금지.</summary>
     public enum PlcControlMode { Manual = 0, Semi = 1, Auto = 2, Maintenance = 3 }
 
     /// <summary>스프레더 모드 — ㈜엠비이 SP_Mode(DB100.DBW100).</summary>
     public enum PlcSpreaderMode { TwentyFt = 0, FortyFt = 1, FortyFiveFt = 2, Twin = 3 }
 
-    /// <summary>
-    /// PLC 한 스냅샷 — ㈜엠비이 「PLC 데이터 포인트 리스트」(MBE-DOC-2026-XR-002) DB100(운영)·DB101(알람)의
-    /// XR 대상 태그를 <b>실척 단위</b>로 담는다. 프로토콜 무관(S7/OPC UA/가상 동일).
-    ///
-    /// ※ 기존 문서(문서/PLC.md §5.1)의 placeholder PlcSnapshot(정규화 위치·opMode 0~2)을
-    ///   벤더 확정 사양대로 격상한 것. 정규화는 PlcBridge가 축 주입 시점에 수행한다.
-    /// </summary>
+    /// <summary>PLC 한 스냅샷 — ㈜엠비이 「PLC 데이터 포인트 리스트」(MBE-DOC-2026-XR-002) DB100(운영)·DB101(알람)의
+    /// XR 대상 태그를 실척 단위로 담는다. 프로토콜 무관(S7/OPC UA/가상 동일).</summary>
     public struct PlcSnapshot
     {
         // 축 위치/속도 (실척) — DB100 GT/TR/HO

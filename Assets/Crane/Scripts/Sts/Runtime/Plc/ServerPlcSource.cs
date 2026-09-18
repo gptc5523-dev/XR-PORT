@@ -6,17 +6,8 @@ using UnityEngine;
 
 namespace AIXRCrane.Crane.Sts.Plc
 {
-    /// <summary>
-    /// 통합서버 PLC 소스 — 서버(Server/xrcrane_db.py)에 쌓이는 스냅샷을 읽어 크레인을 움직인다.
-    /// 흐름: 외부 PLC → 서버 /ingest → (여기) /since 폴링 → PlcBridge → 3축. 오너 2026-09-17 "서버에서 데이터 읽어서 크레인 움직이게".
-    /// 앱 안 가상 PLC(<see cref="VirtualPlcSource"/>)는 오너 지시 임시였고, 이게 그 자리를 잇는 소스다.
-    ///
-    ///   · 폴링은 백그라운드 스레드 — 네트워크 대기가 물리틱을 막지 않게. 행은 서버 id 로 이어 받는다(X-Last-Id).
-    ///     스레드는 첫 Pump 에서 띄운다 — 시연 감독이 PlcBridge 를 꺼 두면 서버를 두드리지 않는다.
-    ///   · 파싱은 <see cref="CsvReplaySource"/> 파서 그대로 — 서버가 PlcSim CSV 와 같은 헤더로 돌려줘 태그 계약이 한 곳이다.
-    ///   · 최신 행보다 DelayS 뒤를 보간 재생 — PLC 100ms 그리드를 계단으로 따라가면 위치 미분이 가속 알람을 낸다(H5 와 같은 이유).
-    ///   · 서버가 끊기면 마지막 자세에서 멈춘다. 가상 데이터로 폴백하지 않는다 — 가짜 움직임은 연결된 것처럼 보이게 한다.
-    /// </summary>
+    /// <summary>통합서버 PLC 소스 — 서버(Server/xrcrane_db.py)의 스냅샷을 폴링해 크레인 3축을 움직인다.
+    /// 서버가 끊기면 마지막 자세에서 멈춘다(가상 데이터로 폴백하지 않음 — 침묵 실패 방지).</summary>
     public sealed class ServerPlcSource : IPlcSource, IDisposable
     {
         const float DelayS = 0.2f;   // 최신 행보다 이만큼 뒤를 재생 — PLC 2스캔(100ms) 여유
@@ -45,7 +36,7 @@ namespace AIXRCrane.Crane.Sts.Plc
         public string Name => "Server";
         public bool IsConnected => online;
 
-        /// <summary>직전 Pump 에서 t_ms 가 되돌아갔으면(새 런) true 1회 — PlcBridge 가 가속 추적을 재프라임한다(H5).</summary>
+        /// <summary>직전 Pump 에서 t_ms 가 되돌아갔으면(새 런) true 1회 — PlcBridge 가 가속 추적을 재프라임한다.</summary>
         public bool ConsumeDiscontinuity()
         {
             bool w = wrapped; wrapped = false; return w;

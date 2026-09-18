@@ -2,14 +2,8 @@ using UnityEngine;
 
 namespace AIXRCrane.Crane.Sts
 {
-    /// <summary>
-    /// 스프레더 푸셔/든 컨테이너 콜라이더에 붙어, 외부 컨테이너와 '옆·아래로' 부딪힌 접촉을 SpreaderGrabber에 보고(3013 HO Snag).
-    ///   - 박스 겹침을 계산하지 않고 PhysX가 주는 '접점(contact) + 법선(normal)'을 직접 본다
-    ///     → 닿은 자리(바닥 포함) 어디든, 박스가 밀려나기 전 '닿는 순간' 잡힌다(겹침 방식의 일찍 뜸·바닥 누락 해소).
-    ///   - 법선 수직성분 |normal.y|이 작으면(옆/아래로 쿵) 충돌로 보고, 크면(똑바로 위에서 사뿐) 적층으로 보고 무시.
-    ///   - sleep 방지: 접촉한 컨테이너를 WakeUp() — 가만히 대고 있어도 OnCollisionStay가 계속 와 경보가 유지된다.
-    /// 강체 없는 바닥/구조물, 크레인 자식(스프레더/든 화물)은 제외한다.
-    /// </summary>
+    /// <summary>스프레더 푸셔/든 컨테이너 콜라이더에 붙어, 외부 컨테이너와 옆·아래로 부딪힌 접촉을 SpreaderGrabber 에 보고(3013 HO Snag).
+    /// PhysX 접점 법선의 |y| 로 충돌(작음)과 적층(큼)을 구분하고, sleep 방지로 WakeUp() 한다. 강체 없는 바닥·크레인 자식은 제외.</summary>
     [DisallowMultipleComponent]
     public sealed class LoadCollisionRelay : MonoBehaviour
     {

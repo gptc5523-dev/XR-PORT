@@ -5,14 +5,8 @@ namespace AIXRCrane
     /// <summary>컨테이너 하중 상태 등급(정상/주의/이상).</summary>
     public enum LoadGrade { Normal, Caution, Over }
 
-    /// <summary>
-    /// 컨테이너 ID로부터 하중(톤)과 상태 등급을 '결정적으로' 산출한다.
-    /// 같은 ID = 항상 같은 무게(재현 가능). 야드의 컨테이너마다 무게가 달라
-    /// 정상/주의/이상이 골고루 나오도록 세 구간에 분포시킨다.
-    ///
-    /// 하중 정의: 스프레더가 잡은 '컨테이너 총중량(Gross)'. 스프레더 자중은 영점(tare) 처리.
-    /// PLC 실하중 센서가 연동되면, 이 산출값 대신 측정값을 쓰고 Grade()만 재사용하면 된다.
-    /// </summary>
+    /// <summary>컨테이너 ID로부터 하중(톤)·등급을 결정적으로 산출(같은 ID=항상 같은 무게). 정상/주의/이상이 고르게 분포하도록 3구간 매핑.
+    /// PLC 실하중 센서 연동 시 이 산출값 대신 측정값을 쓰고 Grade()만 재사용하면 된다.</summary>
     public static class ContainerLoad
     {
         // 상태 등급 경계 (총중량 Gross, 톤). ISO 6346 컨테이너 max gross ≈ 30.5t.
@@ -20,9 +14,8 @@ namespace AIXRCrane
         public const float NormalMax  = 24f;    // 이하 = 정상
         public const float CautionMax = 30.5f;  // 이하 = 주의 / 초과 = 이상(컨테이너 과적)
 
-        // 크레인 과부하(SWL) — 컨테이너 ISO 한계와 무관한 '크레인 정격 인양하중' 기준(H1)
-        // 실제 SWL은 ㈜엠비이 벤더 확인 대상(질의서 H1). 통상 STS 단동 SWL ≈ 50~65t(트윈리프트는 컨테이너당 절반).
-        //   단일 ISO 컨테이너(max 30.5t)는 정상 운전에서 SWL을 넘지 않는다 → '상시 과부하 트립'(가상 32t) 오경보 제거.
+        // 크레인 과부하(SWL) — 컨테이너 ISO 한계와 무관한 크레인 정격 인양하중 기준(H1). 실제값은 벤더 확인 필요(통상 STS 50~65t).
+        //   단일 ISO 컨테이너(max 30.5t)는 정상 운전에서 SWL을 넘지 않는다.
         public const float RatedLoadTon    = 65f;     // 크레인 정격 인양하중(SWL), 톤 — 벤더 확인 후 확정.
         public const float OverloadWarnFrac = 1.05f;  // 정격 105% — 경고
         public const float OverloadTripFrac = 1.10f;  // 정격 110% — 과부하 트립(코드북 3012)

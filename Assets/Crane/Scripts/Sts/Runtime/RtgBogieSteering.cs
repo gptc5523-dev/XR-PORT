@@ -2,20 +2,8 @@ using UnityEngine;
 
 namespace AIXRCrane.Crane.Sts
 {
-    /// <summary>
-    /// RTG 보기(Bogie) 스티어링 — `Bogie_LF/LB/RF/RB` 를 킹핀 축 기준으로 0° ↔ 90° 회전.
-    /// RTG는 레일이 아니라 고무 타이어로 달리므로 보기를 꺾어 주행 방향 자체를 바꾼다.
-    ///
-    ///  • 0°(주행)  — 스택 길이방향. Blender Y = Unity 로컬 Z.
-    ///  • 90°(레인) — 레인 간 이동. Blender X = Unity 로컬 X.
-    ///
-    /// 실측 근거: 문서/크레인_동적데이터/RTG_크레인_동적데이터.md §6 —
-    /// 킹핀(`BogieKingpin_*`)의 XY 중심이 Bogie EMPTY loc과 **정확히 일치**하므로,
-    /// Bogie EMPTY를 수직축으로 돌리면 킹핀 축과 맞는다(피벗 보정 불필요).
-    ///
-    /// 주행축 전환은 **회전이 끝난 순간에만** 한다 — 꺾는 도중에 축을 바꾸면 타이어가 진행방향을
-    /// 안 보는 채로 옆으로 미끄러진다. 꺾는 동안은 <see cref="GantryMover.TravelLocked"/>로 주행을 막는다.
-    /// </summary>
+    /// <summary>RTG 보기(Bogie_LF/LB/RF/RB) 스티어링 — 킹핀 축 기준 0°(주행, Blender Y=Unity Z) ↔ 90°(레인, Blender X=Unity X) 회전.
+    /// 주행축 전환은 회전이 끝난 뒤에만(도중 전환 시 타이어가 옆으로 미끄러짐) — 꺾는 동안 <see cref="GantryMover.TravelLocked"/>로 주행 잠금.</summary>
     [AddComponentMenu("AI-XR Crane/STS Crane/RTG Bogie Steering")]
     [DisallowMultipleComponent]
     [ExecuteAlways]   // 에디터 메뉴로 Play 없이 0°/90° 확인 가능하게
@@ -153,20 +141,16 @@ namespace AIXRCrane.Crane.Sts
             {
                 var t = bogies[i];
                 if (t == null) continue;
-                // 월드 수직(킹핀 축)을 부모 로컬로 변환해 그 축으로 회전 — FBX는 부모에 축변환이 걸려 있어
-                //   로컬 Y/Z가 수직과 어긋난다(SpreaderLockAnimator.worldVertical과 같은 이유·같은 방식).
-                //   순서 중요: AngleAxis를 왼쪽에 둬야(프리곱) rest가 identity가 아닐 때도 축이 안 틀어진다.
+                // 월드 수직(킹핀 축)을 부모 로컬로 변환해 회전 — FBX 부모 축변환으로 로컬 Y/Z가 수직과 어긋난다.
+                // AngleAxis를 왼쪽에 둬야(프리곱) rest가 identity 아닐 때도 축이 안 틀어진다.
                 Vector3 lu = t.parent != null ? t.parent.InverseTransformDirection(Vector3.up) : Vector3.up;
                 if (lu.sqrMagnitude < 1e-8f) lu = Vector3.up; else lu.Normalize();
                 t.localRotation = Quaternion.AngleAxis(angle, lu) * restRot[i];
             }
         }
 
-        // ── 타이어 굴림 ──
-        //   Wheel_* 16개는 보기 자식이고 피벗 = 휠 중심(Blender 실측: 로컬 bbox 중심 0, 폭 0.72 · Ø1.514 → 가장 얇은 축 = 차축).
-        //   휠 중심의 월드 이동량을 굴림 방향(차축 × 위)으로 투영해 '거리 ÷ 반경' 만큼 차축으로 돌린다 —
-        //   위치만 보므로 VR 갠트리·레인 이동·조향(킹핀 둘레 원호)·PLC 재생·관전자 동기화를 가리지 않는다.
-        //   Play 에서만 — [ExecuteAlways]라 에디트에서 돌리면 크레인을 끌 때마다 휠 회전이 씬 오버라이드로 쌓인다.
+        // ── 타이어 굴림 ── Wheel_* 피벗=휠 중심. 월드 이동량을 굴림 방향(차축×위)에 투영해 거리÷반경만큼 회전.
+        // 위치만 보므로 이동수단 가리지 않음. Play에서만 — Edit에서 돌리면 씬 오버라이드로 쌓인다([ExecuteAlways]).
         Transform[] wheels;
         Vector3[] wheelAxle, wheelPrev;   // 차축(휠 로컬 단위벡터) · 직전 프레임 휠 중심(월드)
         float[] wheelRadius;              // 월드 단위

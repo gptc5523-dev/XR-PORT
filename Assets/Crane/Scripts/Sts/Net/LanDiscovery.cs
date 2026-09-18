@@ -6,12 +6,8 @@ using UnityEngine;
 
 namespace AIXRCrane.Crane.Sts.Net
 {
-    /// <summary>
-    /// (선택) 같은 와이파이에서 호스트를 자동으로 찾는 UDP 브로드캐스트 비콘.
-    ///   - 호스트: 주기적으로 "STSCRANE|port" 비콘을 브로드캐스트.
-    ///   - 관전자: 비콘을 받으면 NetLanUI에 호스트 IP를 자동 입력(타이핑 불필요).
-    /// 실패해도(특히 Quest/Android 브로드캐스트 제약) 게임에 영향 없도록 전부 try/catch. 안 되면 수동 IP 사용.
-    /// </summary>
+    /// <summary>같은 와이파이에서 호스트를 자동으로 찾는 UDP 브로드캐스트 비콘(선택).
+    /// 호스트는 주기 비콘 송신, 관전자는 수신해 IP 자동 입력. 실패해도 게임엔 영향 없음(수동 IP 폴백).</summary>
     [AddComponentMenu("AI-XR Crane/Net/LAN Discovery")]
     [RequireComponent(typeof(NetLanUI))]
     [DisallowMultipleComponent]
@@ -46,9 +42,8 @@ namespace AIXRCrane.Crane.Sts.Net
             ReleaseMulticastLock();
         }
 
-        // Android(Quest) 멀티캐스트/브로드캐스트 수신 락
-        //   안드로이드는 전력 절약을 위해 기본적으로 자신 앞으로 온 유니캐스트만 올려보내고
-        //   브로드캐스트/멀티캐스트 패킷은 버린다. WifiManager.MulticastLock을 잡아야 수신된다.
+        // Android(Quest) 멀티캐스트/브로드캐스트 수신 락 — 기본은 유니캐스트만 받고 나머지는 버린다.
+        //   WifiManager.MulticastLock 을 잡아야 수신된다.
 #if UNITY_ANDROID && !UNITY_EDITOR
         AndroidJavaObject multicastLock;
         void AcquireMulticastLock()

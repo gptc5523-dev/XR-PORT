@@ -5,18 +5,8 @@ using UnityEngine.XR.Interaction.Toolkit.Interactables;
 
 namespace AIXRCrane.Crane.Sts.Net
 {
-    /// <summary>
-    /// STS 크레인 상태를 호스트(=조종자) → 모든 클라이언트(=관전자)로 단방향 동기화.
-    ///
-    /// 설계 요지:
-    ///   - 호스트만 크레인을 실제로 조종한다(StsCraneVRController/Operator/Grabber가 호스트에서만 동작).
-    ///   - 클라이언트는 조종 입력 컴포넌트를 끄고, 네트워크로 받은 값으로 무버(MoveTo)만 호출 → 시각 재현.
-    ///   - 무버들은 자체 Update가 없어(값이 들어올 때만 Transform을 세팅) 단순 적용으로 충돌이 없다.
-    ///
-    /// 이 컴포넌트는 NetworkObject가 붙은 '씬에 배치된' 별도 GameObject에 둔다(크레인이 런타임 생성이라도
-    /// FindObjectOfType로 각 기기에서 자기 크레인을 찾으므로 무방). 같은 씬을 모두 로드하므로 씬 NetworkObject는
-    /// 호스트 시작 시 자동 스폰된다.
-    /// </summary>
+    /// <summary>STS 크레인 상태를 호스트(조종자) → 클라이언트(관전자)로 단방향 동기화.
+    /// 클라이언트는 조종 컴포넌트를 끄고 네트워크 값으로 MoveTo만 호출해 시각만 재현한다.</summary>
     [AddComponentMenu("AI-XR Crane/Net/Crane Net Sync")]
     [DisallowMultipleComponent]
     public sealed class CraneNetSync : NetworkBehaviour
@@ -46,10 +36,8 @@ namespace AIXRCrane.Crane.Sts.Net
         readonly NetworkVariable<int>   nAlarmCode = new(0, E, S);   // 활성 알람(최고 심각도 1건) 코드. 0=이상 없음 — 관전자도 같은 알람을 보도록 동기화.
         readonly NetworkVariable<int>   nOpMode    = new(0, E, S);   // 운영상태(운전/정지/이상) = (int)OpMode. 호스트 판정을 관전자도 동일하게 보도록 동기화.
 
-        // 컨테이너 적재 동기화 — has/index/grabWorld/attachLocal을
-        //   분리 NetworkVariable 4개로 보내면 수신 순서가 역전될 수 있어(대역폭 혼잡 시) has=true가
-        //   먼저 도착하면 클라가 초기 0 오프셋으로 잘못 붙던 위험이 있었다. 한 구조체(단일 NetworkVariable)로
-        //   묶어 4필드를 '원자적'으로 한 번에 전송 → 부분 갱신 불가, 선언순서 의존 제거.
+        // 컨테이너 적재 동기화 — 4필드(has/index/grabWorld/attachLocal)를 한 구조체로 묶어 원자적으로 전송.
+        //   분리 전송 시 수신 순서 역전으로 부분 갱신될 위험이 있다.
         readonly NetworkVariable<GrabState> nGrab = new(default, E, S);
 
         /// <summary>적재 상태 4필드를 원자적으로 동기화하는 단일 구조체(unmanaged → NetworkVariable 가능).</summary>
@@ -202,9 +190,7 @@ namespace AIXRCrane.Crane.Sts.Net
 
         void Update()
         {
-            // 네트워크 세션에 스폰되기 전(=혼자 플레이/편집 중)에는 아무것도 하지 않는다.
-            // 가드가 없으면 IsServer=false라 ClientApply가 매 프레임 크레인을 기본값(0)으로 덮어써
-            // 싱글플레이에서 크레인이 움직이지 않는 것처럼 보인다.
+            // 스폰 전(혼자 플레이)엔 아무것도 안 한다 — 가드 없으면 ClientApply가 크레인을 0으로 덮어쓴다.
             if (!IsSpawned) return;
 
             if (crane == null) { EnsureRefs(); if (crane == null) return; }
@@ -231,8 +217,7 @@ namespace AIXRCrane.Crane.Sts.Net
                 if (lockAnim != null) nLocked.Value = lockAnim.Locked;
             }
 
-            // 그랩/릴리스(이산 상태 전환)는 매 프레임 감지 — 지연 없이 즉시 반영(어차피 변할 때만 전송).
-            //   4필드를 GrabState 한 구조체로 묶어 '원자적'으로 1회 전송(수신 순서 역전·부분 갱신 불가).
+            // 그랩/릴리스는 매 프레임 감지해 즉시 반영(지연 없음), GrabState 구조체로 원자적 전송.
             bool has = attach != null && attach.HasContainer;
             if (has != nGrab.Value.Has)
             {
@@ -246,9 +231,8 @@ namespace AIXRCrane.Crane.Sts.Net
                 nGrab.Value = g;
             }
 
-            // 활성 알람 코드(최고 심각도 1건) — 안전 신호라 throttle 없이 즉시 동기화(값이 바뀔 때만 전송).
-            //   관전자는 끝단·충돌 플래그 등 알람 판정 상태를 로컬에 다 갖지 못하므로, 호스트가 판정한
-            //   결과 코드를 권위값으로 내려보내 호스트=관전자 알람을 100% 일치시킨다(클라 재계산 의존 제거).
+            // 활성 알람 코드 — 안전 신호라 throttle 없이 즉시 동기화. 관전자는 판정 상태를 다 못 가지므로
+            //   호스트가 판정한 결과 코드를 권위값으로 내려 호스트=관전자 알람을 일치시킨다.
             var fault = CraneFault.Evaluate(crane);
             int alarm = fault.IsValid ? fault.Code : 0;
             if (alarm != nAlarmCode.Value) nAlarmCode.Value = alarm;
@@ -279,10 +263,8 @@ namespace AIXRCrane.Crane.Sts.Net
             telescope?.Set40(nIs40.Value);
             lockAnim?.SetLocked(nLocked.Value);
 
-            // 적재 상태는 콜백이 아니라 폴링으로 감지한다.
-            //   GrabState 구조체 한 덩이로 동기화되므로 has/오프셋이 항상 함께 도착해(원자성, S2 수정) 부분 갱신
-            //   문제는 없다. 폴링을 유지하는 이유는 '늦게 접속한 관전자'도 현재 적재 상태로 자연 수렴시키기 위함
-            //   (OnValueChanged는 가입 후 변경분만 받음). Update 시점엔 그 틱의 값이 모두 적용된 뒤라 일관적.
+            // 폴링으로 적재 상태 감지(콜백 아님) — 늦게 접속한 관전자도 현재 상태로 자연 수렴한다
+            //   (OnValueChanged는 가입 후 변경분만 받아 못 씀). GrabState 원자 동기화라 부분 갱신 없음.
             var grab = nGrab.Value;
             if (grab.Has != clientHasContainer)
             {
@@ -296,17 +278,15 @@ namespace AIXRCrane.Crane.Sts.Net
         {
             if (attach == null) return;
             Transform anchor = attach.AttachAnchor;
-            // 1순위: 호스트가 보낸 결정적 인덱스로 '바로 그 컨테이너'를 집는다(색·ID 일치 보장).
-            //        씬이 양쪽 동일하므로 같은 정렬 목록의 같은 인덱스는 같은 개체다.
-            // 2순위: 인덱스가 없거나 못 찾을 때만 기존 좌표 근접 매칭으로 폴백.
+            // 1순위: 호스트가 보낸 결정적 인덱스로 그 컨테이너를 바로 집는다(씬이 동일해 인덱스=개체 보장).
+            // 2순위: 인덱스가 없거나 못 찾으면 좌표 근접 매칭으로 폴백.
             Transform target = ContainerByIndex(grab.Index)
                             ?? FindNearestRigidbody(grab.GrabWorld, containerMatchRadius);
             if (target == null) return;
 
             var rb = target.GetComponent<Rigidbody>();
             if (rb != null) { rb.isKinematic = true; rb.useGravity = false; }
-            // 호스트 SpreaderAttach 와 같이 월드 회전·크기는 그대로(씬이 같아 호스트와 같은 자세) — 위치만 호스트 로컬 값으로.
-            //   옛 localRotation 항등은 회전된 부착점 밑에서 컨테이너를 90° 돌렸다(호스트 쪽 같은 버그, 2026-09-15).
+            // 호스트 SpreaderAttach 와 동일하게 회전·크기는 그대로 두고 위치만 세팅(각도 바꾸면 컨테이너가 돈다).
             target.SetParent(anchor, worldPositionStays: true);
             target.localPosition = grab.AttachLocal;
             clientHeld = target;
@@ -334,10 +314,8 @@ namespace AIXRCrane.Crane.Sts.Net
             return best;
         }
 
-        // 모든 컨테이너 Rigidbody를 이름순으로 정렬한 결정적 목록.
-        // 씬이 호스트·관전자 모두 동일하므로(같은 이름 집합·고유 이름) 같은 순서가 보장된다.
-        // 잡혀서 스프레더(크레인 자식)로 옮겨가도 목록에서 빠지지 않도록 부모 관계로 거르지 않는다
-        // — 그래야 인덱스가 잡기 전후로 변하지 않는다.
+        // 컨테이너 Rigidbody를 이름순 정렬한 결정적 목록(씬이 양쪽 동일해 순서 보장).
+        //   부모 관계로 거르지 않는다 — 잡혀 스프레더 자식이 돼도 인덱스가 변하면 안 된다.
         static readonly List<Transform> _containerBuf = new();
         List<Transform> BuildContainerList()
         {
@@ -365,9 +343,8 @@ namespace AIXRCrane.Crane.Sts.Net
             return (index < list.Count) ? list[index] : null;
         }
 
-        // 컨테이너 핸드오프
-        // 누구나 손으로 컨테이너를 옮기면 전원이 본다. A가 든 걸 B가 집으면 소유권이 B로 넘어가(마지막 집기 우선)
-        // A 손에서 떨어진다. 컨테이너는 NetworkObject가 아니라 '결정적 인덱스'로 식별(씬 동일 → 같은 인덱스=같은 개체).
+        // 컨테이너 핸드오프 — 누구나 옮기면 전원이 본다. B가 A가 든 걸 집으면 소유권이 B로 넘어간다(마지막 집기 우선).
+        //   컨테이너는 NetworkObject가 아니라 결정적 인덱스로 식별(씬 동일 → 같은 인덱스=같은 개체).
 
         static float RoundDm(float v) => Mathf.Round(v * 10f) / 10f;   // 0.1m 반올림(물리 지터 흡수)
 

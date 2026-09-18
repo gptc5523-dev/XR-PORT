@@ -3,14 +3,8 @@ using UnityEngine;
 
 namespace AIXRCrane.Crane.Sts
 {
-    /// <summary>
-    /// 스프레더 트위스트락 잠금/해제 모션 — **수직축 90° 회전 전용**(위치 불변).
-    /// 사양 SSOT(문서/크레인_동적데이터/rtg_crane_dynamics.json · 문서/스프레더_동작데이터/spreader_operation.json)의
-    /// twistlock.dof = {type: rotation, axis: Z, 0°→90°}. 병진 자유도는 없다 —
-    /// 스프레더는 로프에 매달려 높이가 고정이고 컨테이너가 상승해 물리는 방식이라 콘이 내려갈 일이 없다.
-    /// SpreaderGrabber가 SetLocked()를 호출한다.
-    /// 스프레더 자식 중 이름이 Twistlock_Cone / Twistlock_Head(절차) 또는 Spreader_Twistlock_*(FBX)인 것들을 자동 수집.
-    /// </summary>
+    /// <summary>스프레더 트위스트락 잠금/해제 — 수직축 90° 회전 전용(위치 불변, 사양 SSOT: twistlock.dof rotation Z 0°→90°).
+    /// SpreaderGrabber가 SetLocked() 호출. 자식 중 Twistlock_Cone/Head(절차) 또는 Spreader_Twistlock_*(FBX)를 자동 수집.</summary>
     [AddComponentMenu("AI-XR Crane/STS Crane/Spreader Lock Animator")]
     [DisallowMultipleComponent]
     [ExecuteAlways]   // 에디터 메뉴(잠그기/풀기)로 Play 없이 즉시 확인 가능하게
@@ -19,7 +13,6 @@ namespace AIXRCrane.Crane.Sts
         [SerializeField] float twistAngle = 90f;   // 잠금 시 수직축 회전(사양: 0° → 90°)
         [SerializeField] float speed = 4f;          // 잠금/해제 진행 속도(1/초)
 
-        // FBX 크레인: 트위스트락 로컬 Y축이 월드 수직과 어긋나므로 '월드 위쪽'을 기준으로 회전.
         [Tooltip("FBX 크레인: 로컬축 어긋남 회피 위해 월드 수직 기준 회전. 절차 크레인은 off.")]
         [SerializeField] bool worldVertical = false;
         public void SetWorldVertical(bool v) => worldVertical = v;
@@ -71,9 +64,7 @@ namespace AIXRCrane.Crane.Sts
             Apply();
         }
 
-        // 위치는 절대 건드리지 않는다 — 트위스트락은 '회전 전용'(사양 SSOT).
-        // 옛 dip(아래로 삽입)은 사양에 없는 창작이었고, 로컬 단위 상수라 FBX RTG(로컬 1단위=실척 100m)에서
-        // 의도한 1cm가 1m로 나가 콘(높이 0.135m)이 끝빔 밖으로 빠졌다.
+        // 위치는 절대 건드리지 않는다 — 트위스트락은 회전 전용(사양 SSOT). 로컬 단위 상수는 FBX/절차 간 스케일이 달라 위험.
         void Apply()
         {
             foreach (var p in parts)

@@ -2,24 +2,13 @@ using UnityEngine;
 
 namespace AIXRCrane.Crane.Sts
 {
-    /// <summary>
-    /// 갠트리 주행범위(로컬 Z Min/Max)를 '씬의 부두 레일 + 크레인 바퀴 실측'으로 계산해 적용하는 런타임 SSOT.
-    ///
-    /// [왜 런타임인가]
-    ///   주행범위 계산이 에디터 메뉴(GantryRangeFitMenu)에만 있어, 전량 양하 시나리오를 그냥 Play하면
-    ///   갠트리 Min/Max가 기본값(±1)인 채여서 배 앞/뒤 베이가 '도달불가'로 걸러지던 문제가 있었다.
-    ///   → 계산을 여기(런타임)로 옮겨 자동 시나리오가 시작 시 스스로 맞추게 하고, 에디터 메뉴·부두/크레인
-    ///     생성기는 이 계산을 '공유'하게 한다(한 곳만 고치면 모두 일치).
-    ///
-    ///   주행반경 = (크레인 중심→레일 안쪽 끝 거리) − (크레인 중심→바깥 바퀴 거리)
-    ///   → 끝까지 가면 바깥 바퀴가 노란선(레일) 안쪽 끝에 '딱' 닿고 그 이상은 안 나간다. 좌우 대칭.
-    /// </summary>
+    /// <summary>갠트리 주행범위(로컬 Z Min/Max)를 씬의 부두 레일 + 크레인 바퀴 실측으로 계산하는 공용 SSOT.
+    /// Apply 는 에디터 메뉴(GantryRangeFitMenu)와 크레인 생성기가 함께 불러 쓴다(한 곳만 고치면 모두 일치).
+    /// 주행반경 = (중심→레일 안쪽 끝) − (중심→바깥 바퀴), 끝까지 가면 바퀴가 레일 안쪽 끝에 닿는다.</summary>
     public static class GantryRangeFit
     {
-        /// <summary>
-        /// 크레인 바퀴가 레일을 안 벗어나는 '최대 대칭 주행범위'를 계산해 GantryMover.Configure로 적용. 성공 시 true.
-        /// 크레인/부두/플레이어를 재생성·이동하지 않고 GantryMover의 Min/Max만 바꾼다. (에디터/런타임 공용)
-        /// </summary>
+        /// <summary>크레인 바퀴가 레일을 안 벗어나는 최대 대칭 주행범위를 계산해 GantryMover.Configure 로 적용. 성공 시 true.
+        /// 크레인/부두/플레이어를 재생성·이동하지 않고 GantryMover 의 Min/Max 만 바꾼다(에디터 메뉴·크레인 생성기 공용).</summary>
         public static bool Apply(GameObject crane, GantryMover gantry, out string msg)
         {
             msg = "";
@@ -71,7 +60,7 @@ namespace AIXRCrane.Crane.Sts
                 any = true;
             }
             if (any) return half;
-            // 폴백(바퀴 못 찾을 때): 게이지/2 + 보기 전장/2 = (16/24)/2 + 0.104/2 ≈ 0.385  [H2] SSOT 참조
+            // 폴백(바퀴 못 찾을 때): 게이지/2 + 보기 전장/2 = (16/24)/2 + 0.104/2 ≈ 0.385
             return (StsConfig.GantryBaseZMeters * StsConfig.ModelScale) * 0.5f + StsConfig.BogieLengthZ * 0.5f;
         }
 

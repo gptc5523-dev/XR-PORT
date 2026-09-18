@@ -1,35 +1,15 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-가상 PLC 운영 데이터 생성기 (PLCSIM stopgap)
-============================================
-㈜엠비이 PLCSIM Advanced / 시뮬레이션 데이터(운영시나리오 부록C, 도착 대기) 전까지,
-동일 형식의 가상 데이터를 생성한다. 근거 문서:
-  - 태그/주소/단위 : MBE-DOC-2026-XR-002 (PLC 데이터 포인트 리스트, DB100/DB101)
-  - 시나리오 시퀀스 : MBE-DOC-2026-XR-004 (운영 시나리오 12선) + S13/S14 (연속 적하·양하)
-                     + S15 (STS 5개 양하) · S16 (RTG 5개 야드 정리)
-  - 알람 코드/심각도 : MBE-DOC-2026-XR-003 (알람 코드북)
-  - 푸시 주기 100ms : MBE-DOC-2026-XR-001/005
-
-출력(벤더 부록C 형식):
-  output/<Sxx>/run_NN.csv          : DB100 운영 태그 시계열(100ms)
-  output/<Sxx>/run_NN.events.json  : DB101 알람/이벤트 로그
-  output/<Sxx>/run_NN.history.csv  : 작업 이력 — 컨테이너 1개 = 1줄(번호·출발·도착·집기/놓기 시각). 옮긴 게 있는 런만
-  output/manifest.json             : 전체 런 목록 + AI 라벨 분포(정상/주의/이상)
-
-※ 가설 데이터 — 실 PLCSIM 도착 시 이 생성기는 폐기/검증대조용으로만 남긴다.
-   속도/가속 기본값은 통상 STS 보수값(벤더 확정·튜닝 대상).
-"""
+"""가상 PLC 운영 데이터 생성기(PLCSIM stopgap) — 실 데이터 도착 전까지 벤더 부록C 형식과 같은 가상 데이터를 생성.
+출력: output/<Sxx>/run_NN.csv(DB100)·.events.json(DB101)·.history.csv(작업이력), manifest.json(전체 런 목록)."""
 import csv, json, os, math, argparse, random
 
 DT = 0.1  # 100ms 폴링 (사양서 §3.2)
 
 # ── 실척 가동 범위 · 정격 속도(m/s)/가속(m/s²) ──
-# ★ SSOT 는 Unity 크레인 기하다. PlcBridge 는 무버 Min/Max 에서 rangeM 을 자동 산출해
-#   realPos / rangeM 으로 정규화한다 → 여기 값이 실제 가동범위와 다르면 그 비율만큼
-#   위치가 통째로 어긋나고, 초과분은 클램프돼 축이 끝에 붙어버린다.
-#   RANGE 는 아래 '씬 기하' 절에서 유도한다(STS_RANGE — gt 는 GantryRangeFit 식).
-# ── 비활성 2026-09-14 (gt 를 설계 상수 GantryRange ±2.2u 로 박았는데 씬 런타임은 236.98m — 베이가 통째로 어긋나 허공 작업) ──
+# SSOT 는 Unity 크레인 기하 — PlcBridge 가 무버 Min/Max 로 rangeM 을 산출해 realPos/rangeM 으로 정규화한다.
+#   여기 값이 실제 가동범위와 다르면 위치가 그 비율만큼 어긋나고 초과분은 클램프된다. RANGE 는 '씬 기하'절에서 유도.
+# ── 비활성(설계 상수 gt 가 씬 런타임과 달라 베이가 어긋났다) ──
 # RANGE = {"gt": 105.6, "tr": 78.9, "ho": 39.2}
 # 정격 — SSOT = CraneAxisProfile.cs (VirtualPlcSource 와 같은 출처를 쓴다)
 VMAX  = {"gt": 0.7,  "tr": 3.5, "ho": 1.25}   # CraneAxisProfile.*MaxSpeed
@@ -82,13 +62,8 @@ CSV_FIELDS = [
 
 class Axis:
     """가속도 한계 트라페조이드 프로파일(점프 없음) — VirtualPlcSource.cs 와 같은 의도.
-
-    ※ C# 과 한 곳이 다르다: C# 은 정착 시 Pos = Target 으로 '위치를' 스냅하지만 여기선
-      위치를 절대 건드리지 않고 Target 을 현재 위치로 당긴다. CSV 는 100ms 격자라
-      5cm 위치 텔레포트가 겉보기 가속 Δd/dt² = 5 m/s² 로 보이고, Unity 의 CraneOpMode 가
-      위치를 2차 미분하므로 정상 운전에서 가속알람(1021/2021/3021)이 오발한다
-      (패치 전 실측: 정상 시나리오 GT 5.10 · TR 5.60 · HO 10.30 m/s², 트립 0.25/1.00/0.833).
-      속도만 죽이면 Δv ≤ amax·dt → 겉보기 가속 ≤ amax < 트립 이라 구조적으로 안전하다."""
+    C#과 다르게 정착 시 위치를 스냅하지 않고 Target 을 당긴다 — 위치 텔레포트는 CSV 100ms 격자에서
+    겉보기 가속(Δd/dt²)을 튀게 해 Unity CraneOpMode 의 가속알람(1021/2021/3021)을 오발시킨다."""
     def __init__(self, pos, lim=None):
         self.pos = pos; self.vel = 0.0; self.target = pos; self.accel = 0.0
         self.lim = lim   # 실척 가동 상한(엔드스톱). None 이면 무제한.
@@ -103,19 +78,13 @@ class Axis:
             a = (1.0 if d > 0 else -1.0) * amax
         self.vel += a * dt
         self.vel = max(-vmax, min(vmax, self.vel))
-        # 감속 한계 — '남은 거리 안에서 반드시 멈출 수 있는 속도'로 제한한다.
-        #   100ms 이산 틱이라 감속 시작 판정만으로는 목표를 v·dt 만큼 지나친다(TR 실측 0.50 m).
-        #   지나치면 엔드스톱이 속도를 한 틱에 죽여 겉보기 가속 5~7 m/s² → 가속알람 오발.
-        #   vcap 은 dist 에 대해 매끄러워서(Δv/틱 ≈ amax·dt) 이 제한 자체는 스파이크를 안 만든다.
-        #   바닥(amax*dt) — vcap 은 dist→0 에서 기울기가 발산해 마지막 한 틱에 속도를
-        #   정격의 2배로 깎는다(실측 TR 1.30 / 정격 0.6). 정격 한 틱치 속도를 바닥으로 깔면
-        #   그 속도에서 아래 '도착 정착'(임계 amax*dt+1e-3)이 바로 걸려 Δv ≤ amax*dt,
-        #   즉 겉보기 가속 ≤ amax < 트립이 된다.
+        # 감속 한계 — 남은 거리에서 반드시 멈출 수 있는 속도로 제한: vcap = max(√(2·amax·dist), amax·dt).
+        #   바닥이 없으면 dist→0 에서 vcap 기울기가 발산해 속도를 과도하게 깎아 겉보기 가속이 트립을 넘는다.
+        #   바닥을 두면 '도착 정착' 임계(amax·dt+1e-3)에 바로 걸려 겉보기 가속이 amax 아래로 유지된다.
         vcap = max(math.sqrt(2.0 * amax * dist), amax * dt) if dist > 0.0 else 0.0
         self.vel = max(-vcap, min(vcap, self.vel))
-        # ※ 여기에 '틱당 속도변화 ≤ amax' 상한을 두면 안 된다 — vcap 을 무력화해서
-        #   감속이 늦어지고 축이 엔드스톱을 때린다(실측: TR 이 0 을 지나쳐 −0.45 m/s 에서
-        #   급정지 → 겉보기 가속 4.3). 급정지는 상한이 아니라 Sim.arrest() 로 분리한다.
+        # ※ 여기에 '틱당 속도변화 ≤ amax' 상한을 두면 안 된다 — vcap 을 무력화해 감속이 늦어지고
+        #   축이 엔드스톱을 때린다. 급정지는 상한이 아니라 Sim.arrest() 로 분리한다.
         self.pos += self.vel * dt
         self.accel = a
         # 엔드스톱(리밋 스위치) — 트라페조이드 오버슈트가 가동범위를 넘지 않게 한다.
@@ -221,17 +190,14 @@ class Sim:
         if tr is not None: self.tr.target = self._aim(tr, "tr")
         if ho is not None: self.ho.target = self._aim(ho, "ho")
 
-    # 목표는 리밋에 붙이지 않는다 — 한 틱치 여유(vmax·dt)를 남긴다.
-    #   붙이면 마지막 접근이 엔드스톱을 때려 속도가 한 틱에 죽고(실측 TR −0.14 → −0.01)
-    #   겉보기 가속이 1.3 m/s² 로 튄다. 실제 크레인도 리밋 스위치 위에 주차하지 않는다.
+    # 목표는 리밋에 붙이지 않는다 — 한 틱치 여유(vmax·dt)를 남긴다. 붙이면 마지막 접근이 엔드스톱을
+    #   때려 속도가 한 틱에 죽어 겉보기 가속이 튄다. 실제 크레인도 리밋 스위치 위에 주차하지 않는다.
     def _aim(self, v, axis):
         m = VMAX[axis] * DT
         return max(m, min(self.range[axis] - m, v + self.rng.gauss(0.0, self.sigma[axis])))
 
-    # 급정지 — E-Stop·스내그·모터고장처럼 정격을 넘겨 세우는 구간.
-    #   브레이크가 물리는 데 시간이 걸린다: '속도를 한 틱에 0' 으로 두면 미분 시 무한 감속이라
-    #   실 데이터로 안 보이고, 반대로 정격 감속으로 세우면 급정지처럼 안 보인다.
-    #   mul = 정격 대비 감속 배수. 트립 임계(정격×1.667)를 넘는 건 의도된 것 — 알람이 떠야 맞다.
+    # 급정지 — E-Stop·스내그·모터고장처럼 정격을 넘겨 세우는 구간. 브레이크가 물리는 시간을 남기려
+    #   정격 감속의 mul 배로 세운다(0으로 즉시 죽이면 무한 감속이라 실 데이터로 안 보인다).
     def arrest(self, mul=EMG_BRAKE, estop=False, safety_ticks=200):
         self.estop = estop
         for _ in range(safety_ticks):
@@ -299,14 +265,8 @@ class Sim:
 
 
 
-# ── 비활성 2026-09-14 (씬과 불일치 — 갠트리 105.6m 가정·선측 모서리를 열로·해치커버 뺀 갑판고 → 허공 작업) ──
-# # ─────────────────── 씬 기하에서 유도한 작업 좌표 (실척 m) ───────────────────
-# # ★ 여기 숫자는 지어낸 값이 아니라 전부 Unity SSOT 에서 유도한 값이다.
-# #   StsConfig      : LegGaugeXMeters 18 · QuayDeckAboveSeaMeters 4 · ModelScale 1/24
-# #   StsCraneCreator: TrolleyMinX −15.9 · TrolleyMaxX 63 · LandLegX 0 · WaterLegX 18 · RailH 44
-# #   ShipConfig     : FreeboardMeters 11 · BeamMeters 39.53 · DeckRows 15 · ContainerWidthM 2.438
-# #   ShipBerthMenu  : 접안틈 = ApronSeawardM 4 + FenderClearance 1.5 = 5.5
-# #
+# ── 비활성(씬과 불일치 — 갠트리 105.6m 가정·선측 모서리를 열로·해치커버 뺀 갑판고 → 허공 작업) ──
+# # 씬 기하에서 유도한 작업 좌표(실척 m) — StsConfig·StsCraneCreator·ShipConfig·ShipBerthMenu 값에서 유도.
 # # ── 트롤리: PLC 좌표 = 붐로컬 X + 15.9 (0 = 백리치 끝) ──
 # TR_LANDLEG   = 15.9                     # 육지쪽 다리      (X = 0)
 # TR_QUAY      = 33.9                     # 바다쪽 다리·안벽 (X = 18)
@@ -317,17 +277,14 @@ class Sim:
 # TR_SHIP_WORK = TR_SHIP_NEAR + 2 * ROW_PITCH   # 배 위 기본 작업 열(현측에서 3번째)
 #
 # # ── 권상: PLC 좌표 = 스프레더 하단의 안벽 상면 기준 높이 − 0.8 ──
-# #   HO=0 은 SpreaderMinY = −(RailH − 0.8) 이라 안벽 상면 +0.8m 에 해당한다.
 # QUAY_TO_DECK = 11.0 - 4.0               # 주갑판 − 안벽 = 건현 − 안벽고 = 7.0
 # CONT_H       = 2.591                    # ISO 1AA 높이
 # HO_DECK_T1   = QUAY_TO_DECK + CONT_H - 0.8         #  8.79  갑판 1단 상면
-# HO_DECK_T2   = QUAY_TO_DECK + 2 * CONT_H - 0.8     # 11.38  갑판 2단 상면(오너 지시 갑판 최대 2단)
+# HO_DECK_T2   = QUAY_TO_DECK + 2 * CONT_H - 0.8     # 11.38  갑판 2단 상면(최대 2단)
 # HO_CHASSIS   = 1.51 - 0.8                          #  0.71  섀시 데크 상면(40ft 샤시 1.51m)
 # HO_CLEAR     = HO_DECK_T2 + 3.0                    # 14.38  이송 클리어고
 #
-# # ─────────────────────── 시나리오 ───────────────────────
-# # ※ 옛 값(HI = RANGE["ho"] = 39.2 최상단 / LO = 2.0 / SEA = range 끝)은 씬이 생기기 전
-# #   추상 좌표였다. 매 사이클 최상단까지 올리는 운전은 실물에 없다 — 클리어고까지만 올린다.
+# # ── 시나리오 — 옛 HI/LO/SEA 는 씬 이전 추상 좌표(클리어고까지만 올린다) ──
 # HI   = HO_CLEAR       # 이송 클리어고
 # LO   = HO_DECK_T2     # 배쪽 작업고(갑판 2단 상면)
 # LO_L = HO_CHASSIS     # 육지쪽 작업고(섀시 데크)
@@ -335,13 +292,7 @@ class Sim:
 # LAND = TR_CHASSIS     # 트롤리 육지측
 
 # ═══════════════════ 씬 기하 — 전부 Unity SSOT 수식에서 유도 (실척 m, 데크 윗면 y=0) ═══════════════════
-# 오너 지시 2026-09-14 "허공에 작업하고 있는데 수식을 사용해서 작업해 · 시연이라 더 빡세게".
-#   ★ 종전 좌표가 허공이던 이유
-#     ① 갠트리 범위를 설계 상수 105.6m 로 가정 — 씬 런타임은 236.98m(GantryRangeFit, Play 로그).
-#        GT 는 range 비율로 정규화되므로 베이가 통째로 밀려 컨테이너가 없는 곳에 내려갔다.
-#     ② 트롤리 '열' 을 배 현측 모서리에서 셌다 — 실제 열 중심은 사이드데크·해치 폭 식으로 정해진다.
-#     ③ 권상 '갑판' 에 해치 코밍 1.8m·커버 0.35m 가 빠졌다 — 1단 윗면은 11.74m(종전 9.59m).
-#   아래는 C# 원본 식을 그대로 옮긴 것이다. verify.py ⑦ 이 Port.unity 를 파싱해 좌표·점유를 전부 대조한다.
+# 아래는 C# 원본 식을 그대로 옮긴 것이다. verify.py ⑦ 이 Port.unity 를 파싱해 좌표·점유를 전부 대조한다.
 
 CONT_W, CONT_H, CONT_L = 2.438, 2.591, 12.192          # ISO 1AA — ProceduralContainerMesh
 
@@ -701,22 +652,16 @@ def gen_S14(s):  # STS 20개 양하 — 가까운 베이부터, 안벽쪽 스택
 
 
 def gen_S15(s):  # STS 5개 양하(시연) — 작업 베이의 실제 컨테이너 5개 → 포털 밑 에이프런 레인 5칸
-    """오너 지시 2026-09-14 "허공에 작업 · 수식으로 · 시연이라 빡세게".
-    크레인 홈에서 출발해 작업 베이(2단 스택이 있는 가장 가까운 베이)로 주행 → 안벽쪽 스택부터 위 단 먼저 집고
-    바다쪽 레인(L1)부터 한 칸씩 데크에 내려놓는다. 좌표는 전부 '씬 기하' 식에서 나오고 verify ⑦ 이 씬과 대조한다."""
+    """크레인 홈에서 출발해 작업 베이로 주행 → 안벽쪽 스택부터 위 단 먼저 집고 바다쪽 레인(L1)부터 데크에 내려놓는다.
+    좌표는 전부 '씬 기하' 식에서 나오고 verify ⑦ 이 씬과 대조한다."""
     s.op_mode = AUTO; s.sigma = dict(AUTO_SIGMA)
     s.gt.pos = s.gt.target = GT_HOME
     for n, k in enumerate(discharge_order([WORK_BAY])[:5]):
         sts_transfer(s, GT_WORK if n == 0 else None, _ship(k), _lane(n, "QUAY"))
 
 
-# ─────────────── RTG (야드 정리) — 씬 기하에서 유도 (실척 m) ───────────────
-#   RtgCraneFbxMoverWiring : 트롤리 ±10.095 (레일 끝 − 휠 외측면) · 권상 행정 19.566
-#   RtgCraneFbxPlacer      : 주행 = 블록 존 길이 − 크레인 길이 → 씬 실측 (6.466479 − 0.596189)u × 24 = 140.887
-#   PortConfig             : 블록 6열 × 12베이 × 4단 · 열 피치 2.838 · 베이 피치 12.792 · 블록이 스팬·주행 중앙
-#   ★ PLC 0 = 각 무버 Min. 권상 Min 은 그랩 평면이 지면에 닿는 높이라 HO = 그랩 평면의 지면 기준 높이.
-#   ★ 속도·가속은 STS 와 같다 — RTG 도 같은 StsCrane·CraneOpMode 로 가속알람을 판정한다(RTG 동적데이터 §11).
-#   YARD1 = 'RTG 크레인_1' 이 선 블록(선미측, z<0).
+# ─── RTG(야드 정리) — 씬 기하에서 유도(실척 m). PLC 0 = 각 무버 Min, 속도·가속은 STS 와 동일 ───
+# YARD1 = 'RTG 크레인_1' 이 선 블록(선미측, z<0).
 RTG_RANGE     = {"gt": 140.887, "tr": 20.19, "ho": 19.566}
 RTG_ROW_PITCH = 2.438 + 0.4                                     # 2.838 = 컨테이너폭 + 열간격
 RTG_TR_ROW0   = RTG_RANGE["tr"] / 2 - 2.5 * RTG_ROW_PITCH       # 3.000 — 6열이 스팬 중앙 대칭
@@ -730,9 +675,8 @@ RTG_HO_CLEAR  = 4 * CONT_H + 3.0                                # 13.36 — 4단
 def rtg_gt(bay): return RTG_GT_BAY0 + bay * BAY_PITCH
 def rtg_tr(row): return RTG_TR_ROW0 + row * RTG_ROW_PITCH
 
-# (베이, 열, 단) 0부터 — 단은 1부터. 흩어진 1단 5개를 6번 베이 1·2열로 모아 3단·2단으로 쌓는다.
-#   씬 야드가 1단 랜덤 산포라(QuayPartsPlacer 셔플) '정리' = 모아 쌓기. 갠트리는 한 번에 2베이 이내 —
-#   더 멀면 주행이 run_until_settled 타임아웃(90s)을 넘는다.
+# (베이, 열, 단) 0부터 — 단은 1부터. 흩어진 1단 5개를 6번 베이 1·2열로 모아 3단·2단으로 쌓는다(1단 랜덤 산포 정리).
+#   갠트리는 한 번에 2베이 이내 — 더 멀면 주행이 run_until_settled 타임아웃(90s)을 넘는다.
 RTG_JOBS = [
     ((3, 1, 1), (5, 0, 1)),
     ((4, 4, 1), (5, 0, 2)),
@@ -833,15 +777,14 @@ def main():
     for sid, name, label, fn in SCENARIOS:
         n = runs_per[label]
         for i in range(1, n + 1):
-            # 런마다 다른 시드 — 같은 시나리오 N회가 서로 다른 데이터가 된다(반복시험 요건).
-            #   시드는 (시나리오번호, 회차)로 결정 → 재생성해도 같은 값(재현성). hash()는
-            #   프로세스마다 달라지므로(PYTHONHASHSEED) 쓰지 않는다.
+            # 런마다 다른 시드 — 같은 시나리오 N회가 서로 다른 데이터가 된다(반복시험 요건). 시드는
+            #   (시나리오번호, 회차)로 결정해 재생성해도 같은 값(재현성) — hash()는 프로세스마다 달라 안 쓴다.
             seed = int(sid[1:]) * 1000 + i
             crane = CRANE.get(sid, "STS")
             sim = Sim(sp_mode=SPTWIN if sid == "S04" else SP40, rng=random.Random(seed),
                       range_m=RANGES[crane], id_base=int(sid[1:]) * 1000,
-                      # 세 축 모두 씬 휴지 자세에서 시작하고, 작업 위치로는 '주행해서' 간다 — 시작값을 작업 위치로 박으면
-                      #   PlcBridge 첫 스캔(절대 위치)에 그만큼 한 틱에 튄다(오너 2026-09-16 "트롤리가 맨 끝에서 시작").
+                      # 세 축 모두 씬 휴지 자세에서 시작하고 작업 위치로는 '주행해서' 간다 — 시작값을 박으면
+                      #   PlcBridge 첫 스캔(절대 위치)에 그만큼 한 틱에 튄다.
                       gt0=GT_HOME if crane == "STS" else RTG_GT_HOME,
                       tr0=TR_HOME if crane == "STS" else RTG_TR_HOME,
                       ho0=HO_HOME if crane == "STS" else RTG_HO_HOME)

@@ -4,23 +4,9 @@ using UnityEngine;
 
 namespace AIXRCrane.Crane.Sts.EditorTools
 {
-    /// <summary>
-    /// Blender 임포트 RTG 크레인("RTG 크레인")에 **핵심 구동 무버**를 붙이고 배선한다.
-    /// 「Model ▸ FBX ▸ 크레인 ▸ RTG 크레인 생성」이 자동 호출한다(수동 메뉴 없음).
-    ///
-    /// 붙이는 것(축이 Blender→Unity 변환 프레임과 일치하는 것만):
-    ///   • GantryMover   (루트, 로컬 Z = 주행)
-    ///   • TrolleyMover  (Trolley, 로컬 X = 거더 횡행) + 스프레더 X 동기
-    ///   • SpreaderHoist (Spreader, 로컬 Y = 권상)
-    ///   • Rigidbody(kinematic) + StsCrane(애그리게이터) 배선
-    ///
-    /// 범위(Min/Max)는 **임포트된 실제 지오메트리/피벗에서 자동 산출** — 하드코딩 금지
-    /// (절차생성 크레인과 좌표·스케일 관례가 달라 값 복사는 틀림).
-    ///
-    /// 신축(Telescope)은 <see cref="RtgSpreaderTelescopeSetup"/>가 단독 소유 — 생성 시 이 툴 다음에 이어서 호출된다.
-    /// 여기서 제외: Flipper. VR컨트롤러/그래버도 XR 리그 의존이라 제외 — 필요 시 별도 부착.
-    /// 배선 후 각 무버를 선택하면 기즈모로 Min/Max 범위 선이 보이므로 눈으로 검증 가능.
-    /// </summary>
+    /// <summary>Blender 임포트 RTG 크레인에 핵심 구동 무버(Gantry/Trolley/Hoist + Rigidbody/StsCrane)를 붙이고 배선한다.
+    /// 「Model ▸ FBX ▸ 크레인 ▸ RTG 크레인 생성」이 자동 호출. 범위(Min/Max)는 임포트 지오메트리에서 자동 산출(하드코딩 금지).
+    /// 신축은 <see cref="RtgSpreaderTelescopeSetup"/> 단독 소유. Flipper/VR컨트롤러 제외.</summary>
     public static class RtgCraneFbxMoverWiring
     {
         const string CraneName = StsPartNames.RtgCraneRoot;
@@ -53,8 +39,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
 
             // ── 범위 자동 산출 ──
             // Trolley X: 휠 외측면이 레일 끝에 닿는 지점. 레일·휠 실지오메트리에서 산출(실측 ±10.095 재현).
-            //   ※ 옛 식 ±0.72×스팬반폭은 근거 없는 계수라 ±9.07로 1.02m 짧았다 —
-            //     문서/크레인_동적데이터/RTG_크레인_동적데이터.md §4 참조.
+            //   문서/크레인_동적데이터/RTG_크레인_동적데이터.md §4 참조.
             if (!TrolleyRange(root, trolleyT, out float txMin, out float txMax))
             {
                 float halfX = LocalHalfExtent(crane, root, 0);
@@ -65,18 +50,12 @@ namespace AIXRCrane.Crane.Sts.EditorTools
 
             // Hoist Y(월드 절대): FBX는 로컬Y≠월드상이라 월드 Y로 직접 구동.
             // 상한 = 스프레더가 머리 위 구조물에 닿기 직전(헤드룸에서 산출 — 유도는 Headroom() 주석).
-            //   ※ 임포트 포즈를 상한으로 쓰면 안 된다 — 모델의 스프레더는 도킹이 아니라 로프 중간에 매달린 자세라
-            //     상한으로 잡는 순간 위로 전혀 못 올라간다(실측 양정의 절반만 사용).
-            //     실측 근거: 문서/크레인_동적데이터/RTG_크레인_동적데이터.md §5 — 한계쌍은 주거더 밑면(20.500)
-            //     ↔ Spreader_TeleBeam_F 상단(10.876), 헤드룸 9.624m(실척) → 상한 월드 z 19.893.
+            //   실측(문서/크레인_동적데이터/RTG_크레인_동적데이터.md §5): 한계쌍 주거더 밑면(20.500)↔TeleBeam_F 상단(10.876),
+            //   헤드룸 9.624m → 상한 월드 z 19.893.
             float headroom = Headroom(root, spreadT, out string limitPair);
             float hyMax = spreadT.position.y + headroom;
-            // 하한 = 그랩 평면(트위스트락 콘 바닥 = 스프레더 최저점)이 지면에 닿는 높이.
-            // 상한과 같은 방식으로 실지오메트리에서 산출 — 상수 금지.
-            //   ※ 옛 식 root.y + 0.02f 는 스케일맹이었다: 1/24 스케일에서 2cm = 실척 0.48m라
-            //     그랩 평면이 지면 위 0.157m(실척)에 떠서 컨테이너가 바닥에 안 닿았다.
-            //     실측 근거: 문서/크레인_동적데이터/RTG_크레인_동적데이터.md §5 — 그랩 평면은
-            //     스프레더 원점보다 0.3275 아래, 하한 월드 z 0.3275(행정 19.566). 아래 식이 이를 재현한다.
+            // 하한 = 그랩 평면(트위스트락 콘 바닥 = 스프레더 최저점)이 지면에 닿는 높이. 상한과 같은 방식으로 실지오메트리에서 산출.
+            //   실측(§5): 그랩 평면은 스프레더 원점보다 0.3275 아래, 하한 월드 z 0.3275(행정 19.566).
             float grabDrop = spreadT.position.y - CombinedBounds(spreadT.gameObject).min.y;
             float hyMin = root.position.y + grabDrop;
             if (hyMin > hyMax - 0.1f) hyMin = hyMax - 0.1f;         // 최소 여유(퇴화 방지)
@@ -117,7 +96,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
 
             // ── 트위스트락 잠금 애니 ──
             //   신축(RtgSpreaderTelescope)은 여기서 손대지 않는다 — RtgSpreaderTelescopeSetup이 단독 소유하며
-            //   생성 흐름에서 이 메서드 직후 호출된다(빔 탐색·기준자세 캡처가 그쪽이 정확).
+            //   생성 흐름에서 이 메서드 직후 호출된다.
             var lockAnim = GetOrAdd<SpreaderLockAnimator>(spreadT.gameObject);
             lockAnim.SetWorldVertical(true);    // FBX 축 우회(월드 수직 기준 회전·딥)
 
@@ -129,8 +108,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
                 Debug.LogWarning($"[RTG] 보기를 {steer.BogieCount}/4개만 찾았습니다 — 스티어링이 일부만 돕니다. " +
                                  "FBX에 Bogie_LF/LB/RF/RB 가 있는지 확인하세요.");
 
-            // Configure로 넣은 값(범위·참조)이 Play/도메인리로드에도 유지되도록 오버라이드/씬 기록.
-            // ※ Play 모드에선 MarkSceneDirty/오버라이드 기록이 금지 → 에디트 모드에서만(런타임엔 값이 바로 적용됨).
+            // Configure로 넣은 값이 Play/도메인리로드에도 유지되도록 오버라이드/씬 기록(에디트 모드에서만 — Play 중엔 금지).
             if (!Application.isPlaying)
             {
                 foreach (Component comp in new Component[] { rb, gantry, trolley, hoist, attach, sts, grabber, lockAnim, steer })
@@ -255,23 +233,11 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             return null;
         }
 
-        // 호이스트 상한 헤드룸(월드 단위) = 스프레더가 위로 올라갈 수 있는 거리
-        //   = min over (장애물 삼각형 T, 스프레더 부품 S | XZ 겹치고 T가 S 위) ( T밑면 − S상단 )
-        //
-        // 아래 셋을 동시에 지켜야 값이 맞는다 — 하나만 빠져도 거더를 뚫거나 양정을 손해본다:
-        //   ① 트롤리가 아니라 **크레인 전체**를 훑는다. 주거더(GantryFrame_Body)는 Structure 소속이라
-        //      트롤리 자식이 아니다. 트롤리만 보면 거더를 통째로 놓쳐 Trolley_DeckFrame(월드z 23.250)까지
-        //      올라간다 → 스프레더가 거더를 1.52m(실척) 관통. 이게 실제로 났던 버그다.
-        //   ② 장애물은 렌더러 AABB가 아니라 **삼각형 단위**로 본다. GantryFrame_Body는 다리+거더가
-        //      한 메시(월드z 2.01~22.52)라 AABB 밑면이 다리 바닥이라 헤드룸이 0으로 무너진다.
-        //   ③ 스프레더도 통짜 bbox가 아니라 **부품 단위**로 본다. RTG는 z(Blender y) ±3.0~4.75 쌍거더에
-        //      가운데가 뚫린 슬롯이라 시브(±1.58)는 거더에 안 막히고 슬롯으로 올라간다. 통짜로 보면
-        //      시브가 막힌 걸로 오판해 1.23m 손해다.
-        //
-        // 실측 검증(Blender RTG_Crane_Scene, 2026-07-15, 전부 실척 m):
-        //   한계쌍 GantryFrame_Body(밑면 20.500) ↔ Spreader_TeleBeam_F(상단 10.876) → 헤드룸 9.624
-        //   → 상한 월드 10.269+9.624 = 19.893 · 하한 0.3275 · 행정 19.566.
-        //   문서/크레인_동적데이터/RTG_크레인_동적데이터.md §5 참조.
+        // 호이스트 상한 헤드룸(월드 단위) = min over (장애물 삼각형 T, 스프레더 부품 S | XZ 겹치고 T가 S 위) (T밑면 − S상단).
+        //   ① 트롤리가 아니라 크레인 전체를 훑는다(주거더는 트롤리 자식이 아님). ② 장애물은 렌더러 AABB가 아니라
+        //   삼각형 단위로 본다. ③ 스프레더도 부품 단위로 본다(통짜 bbox면 슬롯을 막힌 걸로 오판).
+        //   실측(문서/크레인_동적데이터/RTG_크레인_동적데이터.md §5): 한계쌍 GantryFrame_Body(20.500)↔TeleBeam_F(10.876)
+        //   → 헤드룸 9.624, 상한 19.893 · 하한 0.3275 · 행정 19.566.
         static float Headroom(Transform root, Transform spreader, out string limitPair)
         {
             limitPair = "(장애물 없음)";
@@ -352,8 +318,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             return false;
         }
 
-        // 정적 로프(Hoist_Rope_FL)·동적 튜브(Hoist_Rope_FL_Dyn) 모두. 정적은 로프 셋업이 이미 숨기지만
-        // 이 배선만 단독 실행될 때를 대비해 이름으로도 막는다(로프를 장애물로 세면 헤드룸이 0이 된다).
+        // 정적/동적 로프 모두 제외(이름으로 판정) — 로프를 장애물로 세면 헤드룸이 0이 된다.
         static bool IsRope(Transform t) => t.name.StartsWith("Hoist_Rope");
 
         static Bounds CombinedBounds(GameObject g)
@@ -365,9 +330,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             return b;
         }
 
-        // 트롤리 로컬X 범위 = 레일 X 범위에서 휠 그룹이 삐져나가지 않는 조건.
-        //   휠 외측면이 레일 끝에 닿을 때가 한계: railMin ≤ (휠최소 + 이동량), (휠최대 + 이동량) ≤ railMax.
-        //   이동량 = x − x0 이므로 → x ∈ [railMin − (wMin − x0), railMax − (wMax − x0)].
+        // 트롤리 로컬X 범위: 휠 외측면이 레일 끝에 닿을 때가 한계 → x ∈ [railMin−(wMin−x0), railMax−(wMax−x0)].
         //   실측(문서 §4): 레일 ±12.550 − 휠 그룹 반폭 2.455 = ±10.095.
         static bool TrolleyRange(Transform root, Transform trolley, out float min, out float max)
         {
@@ -391,8 +354,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             return true;
         }
 
-        // 렌더러들의 frame-로컬 X 범위. 로컬 bbox 8코너를 직접 변환한다 —
-        // Renderer.bounds(월드 AABB)를 거치면 크레인이 회전해 있을 때 범위가 부풀어 한계가 틀어진다.
+        // 렌더러들의 frame-로컬 X 범위. 로컬 bbox 8코너를 직접 변환한다(월드 AABB를 거치면 회전 시 범위가 부풀어 틀어진다).
         static bool LocalRangeX(Transform frame, System.Collections.Generic.List<Renderer> rs, out float min, out float max)
         {
             min = float.MaxValue; max = float.MinValue;

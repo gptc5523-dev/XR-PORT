@@ -10,17 +10,8 @@ using UnityEngine;
 
 namespace AIXRCrane.Crane.Sts.EditorTools
 {
-    /// <summary>
-    /// 항구 부재 FBX 배치 — 블렌더에서 만든 부재를 씬에 깐다.
-    ///
-    /// 오너 방침 2026-09-07 "모든 오브젝트는 blender 에서 만들고 유니티로 넘기자".
-    ///   메시는 C#에서 절대 만들지 않는다. 이 파일이 하는 일은 '어디에 몇 개' 뿐이다.
-    ///   메뉴는 무조건 Model > FBX 아래 둔다(오너 지시).
-    ///
-    /// 좌표 규약 — 부두 절차 생성기(StsQuayGroundCreator)가 삭제돼 안벽 SSOT가 없다.
-    ///   그래서 이 배치기는 '안벽 가장자리 = 월드 원점 X0, 안벽 방향 = Z' 를 기준으로 깐다.
-    ///   부두 FBX가 들어오면 그 실측 위치로 갈아끼운다.
-    /// </summary>
+    /// <summary>항구 부재 FBX 배치 — 블렌더에서 만든 부재를 씬에 깐다. 메시는 C#에서 만들지 않고 '어디에 몇 개'만 정한다.
+    /// 좌표 규약: 안벽 SSOT가 없어 안벽 가장자리=월드 원점 X0, 안벽 방향=Z로 깐다(부두 FBX 도입 시 실측으로 교체).</summary>
     public static class QuayPartsPlacer
     {
         const string CurbFbx    = "Assets/Crane/Models/Quay_Curb.fbx";
@@ -31,9 +22,6 @@ namespace AIXRCrane.Crane.Sts.EditorTools
         const string YardPaveFbx  = "Assets/Crane/Models/Yard_Pavement.fbx";
         const string YardBlockFbx = "Assets/Crane/Models/Yard_Block.fbx";
         const string LaneFbx      = "Assets/Crane/Models/Quay_Lane.fbx";
-        // ── 비활성 2026-09-14 (임시 시작점 체스말 제거 — 좌표는 PortConfig.PlayerStart* 로 저장) ──
-        // const string PawnFbx      = "Assets/Crane/Models/StartMarker_Pawn.fbx";
-        // const float  PawnHeightM  = 2.0f;   // 폰 높이 2m · 받침 Ø1.0m · 머리 Ø0.68m · 목 r 0.12m
 
         // 부재 실척 높이 — 블렌더 빌드 스크립트와 쌍으로 유지한다(문서/스크립트/부두연석_유닛_빌드.py).
         const float CurbHeightM    = 0.528f;   // 단면 0.72W × 0.528H
@@ -41,8 +29,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
         const float RailHeightM    = 0.192f;   // DIN 536 A120 170 + 소플레이트 22
                                                //   = StsConfig.RailSectionH(0.008u) × 24. SSOT 일치
 
-        // ═══ 항구 치수 SSOT — 오너가 새로 계산해 넣는다 (지시 2026-09-07 "기존 항구 사이즈가 있다면 삭제") ═══
-        //   PortConfig 가 설계선 LOA 에서 유도한다. 여기에 숫자를 박지 말 것.
+        // ═══ 항구 치수 SSOT — PortConfig가 설계선 LOA에서 유도한다. 여기에 숫자를 박지 말 것. ═══
         static float BerthLenM => PortConfig.BerthLengthMeters;   // 294 × 1.15 → 340m
 
         // 부재 배치 간격 — 부재 자체 규격에서 나온 값이라 항구 사이즈와 무관하게 유지.
@@ -51,10 +38,8 @@ namespace AIXRCrane.Crane.Sts.EditorTools
         const float BollardGapM    = 20f;     // 계선주 간격 — 미정이면 오너 값으로 교체
         const float BollardInsetM  = 1.08f;   // 안벽 가장자리 → 육지쪽 계선주 중심 — 미정이면 교체
         const float RailPitchM     = 12.0f;   // 레일 정척 12m + 신축이음 10mm = FBX 규격
-        // ═══ 색 — URP/Lit 머티리얼 에셋을 만들어 FBX 에 리맵한다 ═══
-        //   FBX 내장 머티리얼은 Blender Principled 를 유니티가 자동 변환한 것이라 URP 에서
-        //   색·거칠기가 그대로 안 온다. RTG(RtgCraneFbxPlacer)가 쓰는 방식과 동일하게
-        //   .mat 에셋을 명시 생성하고 임포터에 리맵해 결정적으로 고정한다.
+        // ═══ 색 — URP/Lit 머티리얼 에셋을 만들어 FBX에 리맵한다 ═══
+        //   FBX 내장 머티리얼(Blender→Unity 자동변환)은 URP에서 색이 그대로 안 와 .mat을 명시 생성해 고정한다.
         const string MatDir = "Assets/Crane/Materials/Port";
 
         // 이름은 Blender 빌드 스크립트가 만든 머티리얼 이름과 정확히 일치해야 리맵이 걸린다.
@@ -73,7 +58,6 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             ("Yard_Paint",        0.85f, 0.68f, 0.08f, 0.00f, 0.30f, null),   // 블록 도색(황색)
             ("Lane_Paint",        0.88f, 0.74f, 0.10f, 0.00f, 0.25f, null),   // 안전 차선(안전 노랑 — 블록보다 밝게)
             ("StartMarker_Red",   0.80f, 0.12f, 0.10f, 0.00f, 0.65f, null),   // 체스말(임시) — 회색 부두에서 튀게.
-                                                                              //   2026-09-14 시작점용으로 껐다가 2026-09-16 나가는 존 표시용으로 되살림.
         };
 
         /// <summary>FBX 별로 리맵할 머티리얼 — 그 FBX 에 없는 이름을 리맵하면 .meta 만 지저분해진다.</summary>
@@ -90,20 +74,17 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             [PawnFbx]                                 = new[] { "StartMarker_Red" },
         };
 
-        const float YardMarkThickM = 0.015f;
+        const float YardMarkThickM = 0.015f;  // 블록 도색 두께 = FBX 규격. 실측 스케일 기준값
         const float LaneThickM     = 0.015f;  // 차선 도색 두께 = FBX 규격
-        const float LanePitchM     = 12.0f;   // 차선 유닛 길이 = 레일 피치. 총길이가 레일과 정확히
-                                              //   같아야 갠트리 한계(Lane 기준)가 레일 밖으로 안 나간다  // 블록 도색 두께 = FBX 규격. 실측 스케일 기준값
+        const float LanePitchM     = 12.0f;   // 차선 유닛 길이 = 레일 피치 — 총길이가 레일과 같아야 갠트리 한계가 밖으로 안 나간다
         const float CaissonPitchM  = 20.0f;   // 케이슨 1함 20m + 줄눈 30mm = FBX 규격. 340/20 = 17함
-        // 체스말(임시 위치 표시) — 2026-09-14 시작점용으로 지웠다가 2026-09-16 '나가는 존' 표시용으로 되살림.
-        //   에셋은 그때 GUID 그대로 복원했다(새로 임포트하면 GUID 가 바뀌어 머티리얼 리맵이 끊긴다).
+        // 체스말(임시 위치 표시) — 에셋 GUID를 유지해야 머티리얼 리맵이 안 끊긴다(재임포트 금지).
         const string PawnFbx       = "Assets/Crane/Models/StartMarker_Pawn.fbx";
-        const float  PawnHeightM   = 2.0f;    // 사람 키 — 멀리서도 자리가 보이게. Blender 빌드 스크립트 H 와 쌍이었다(스크립트는 현재 없음)
+        const float  PawnHeightM   = 2.0f;    // 사람 키 — 멀리서도 자리가 보이게.
         const string ExitPawnName  = "ExitMarker_Pawn";
 
-        /// <summary>'나가는 존'(<see cref="AIXRCrane.Crane.Sts.Net.ExitZone"/>) 자리를 빨간 체스말(폰 2m)로 표시 — 임시. 오너 요청 2026-09-16.
-        /// 자리는 런타임 존과 <b>같은 계산</b>을 쓴다 — 눈으로 본 자리와 실제 나가는 자리가 어긋나면 표시가 무의미하다.
-        /// EditorOnly 태그라 빌드엔 안 들어간다(존 자체는 런타임에 자동 생성된다). 다시 누르면 교체, 치우려면 씬에서 지운다.</summary>
+        /// <summary>'나가는 존'(<see cref="AIXRCrane.Crane.Sts.Net.ExitZone"/>) 자리를 빨간 체스말(폰 2m)로 표시(임시).
+        /// 런타임 존과 같은 계산을 쓴다(자리가 어긋나면 표시가 무의미). EditorOnly라 빌드 제외, 다시 누르면 교체.</summary>
         [MenuItem("Model/FBX/항구/나가는 존 체스말 (임시)", false, 8)]
         static void PlaceExitPawn()
         {
@@ -135,17 +116,8 @@ namespace AIXRCrane.Crane.Sts.EditorTools
 
         const string SpawnPawnName = "SpawnMarker_Pawn";
 
-        /// <summary>플레이어가 <b>리스폰되는 자리</b>를 빨간 체스말(폰 2m)로 표시 — 임시. 오너 요청 2026-09-17
-        /// "이 체스말은 내가 XY 좌표를 너한테 알려주려고 만든 거야. 일단 내가 리스폰 되는 곳에 체스말 배치해".
-        ///
-        /// 즉 이 표식은 <b>좌표를 부르는 도구</b>다. 그래서 자리가 실제와 1 mm 라도 어긋나면 안 된다 —
-        /// 런타임 배치와 <b>같은 계산</b>(CranePlayerStartPlacer.TryComputeSpawnXZ)을 그대로 쓴다.
-        ///   ★ 마커(CranePlayerStartPoint) 좌표를 그대로 쓰면 안 된다. 마커가 부두 밖이면 걷는 땅 안으로
-        ///     클램프되어 값이 바뀌므로 '마커 자리' 와 '실제 리스폰 자리' 가 다르다(xr-port-c8 지적).
-        ///     TryComputeSpawnXZ 는 클램프까지 끝난 최종 좌표를 준다.
-        ///   ★ Y 는 0 — 런타임도 마커 Y 를 무시하고 걷는 면 윗면에 발을 붙인다. 케이슨·야드 포장 둘 다 윗면이 y=0.
-        /// EditorOnly 태그라 빌드엔 안 들어간다. 다시 누르면 교체, 치우려면 씬에서 지운다.
-        /// ExitMarker_Pawn 과 이름이 달라 둘이 같이 서 있을 수 있다(리스폰 ↔ 나가는 존 거리를 눈으로 잰다).</summary>
+        /// <summary>플레이어 리스폰 자리를 빨간 체스말(폰 2m)로 표시(임시) — 좌표를 부르는 도구라 1mm도 어긋나면 안 된다.
+        /// 런타임과 같은 계산(TryComputeSpawnXZ, 클램프까지 끝난 값)을 쓴다. Y=0, EditorOnly. ExitMarker_Pawn과 별개로 공존 가능.</summary>
         [MenuItem("Model/FBX/항구/리스폰 지점 체스말 (임시)", false, 9)]
         static void PlaceSpawnPawn()
         {
@@ -177,14 +149,8 @@ namespace AIXRCrane.Crane.Sts.EditorTools
                                  $"런타임 배치와 같은 계산(TryComputeSpawnXZ) — 클램프까지 끝난 최종 좌표다.");
         }
 
-        /// <summary>체스말을 옮겨 둔 자리를 <b>실제 시작 지점</b>(PlayerStartPoint)으로 적용 — 오너 요청 2026-09-17
-        /// "내가 체스말로 PlayStartPoint 로 지정해준 거라고 했는데 … 그걸로 Point 변경작업해".
-        ///
-        /// 오너 작업 흐름: 체스말을 원하는 자리로 끌어다 놓는다 → 이 메뉴를 누른다 → 마커가 그 자리로 간다 → 저장.
-        ///   ★ 체스말은 <b>표시일 뿐</b> 리스폰을 정하지 않는다. 리스폰은 PlayerStartPoint 마커가 정한다.
-        ///     그래서 체스말만 옮기면 아무 일도 안 일어난다 — 이 메뉴가 그 둘을 잇는다.
-        ///   ★ Y 는 옮기지 않는다. 런타임이 마커 Y 를 무시하고 걷는 면 윗면에 발을 붙이므로 의미가 없다.
-        ///   ★ 회전(바라보는 방향)은 체스말의 yaw 를 그대로 가져온다 — 런타임이 마커 forward 를 쓴다.</summary>
+        /// <summary>체스말을 옮긴 자리를 실제 시작 지점(PlayerStartPoint)으로 적용 — 체스말은 표시일 뿐, 이 메뉴가
+        /// 마커를 그 자리로 옮겨야 반영된다. Y는 유지(런타임이 마커 Y 무시, 걷는 면에 발 붙임), 회전은 체스말 yaw를 그대로 가져온다.</summary>
         [MenuItem("Model/FBX/항구/체스말 자리를 시작 지점으로 적용", false, 10)]
         static void ApplyPawnToStartPoint()
         {
@@ -215,9 +181,8 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             if (f.sqrMagnitude > 1e-4f) mgo.transform.rotation = Quaternion.LookRotation(f.normalized, Vector3.up);
             EditorUtility.SetDirty(mgo.transform);
             UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(mgo.scene);
-            // 적용과 동시에 저장한다 — 오너 지시 2026-09-17 흐름에서 '적용했다' 와 '파일에 있다' 가 어긋났다.
-            //   Unity 는 저장 전까지 디스크에 안 쓰므로, 저장 안 하면 빌드에도 안 들어가고 외부에서 읽을 수도 없다.
-            //   메뉴를 누른 것 자체가 '이 상태를 원한다' 는 의사표시라 여기서 저장까지 끝내는 게 맞다.
+            // 적용과 동시에 저장한다 — Unity는 저장 전까지 디스크에 안 써서, 저장 안 하면 빌드에도 안 들어간다.
+            //   메뉴를 누른 것 자체가 '이 상태를 원한다'는 의사표시라 여기서 저장까지 끝낸다.
             UnityEditor.SceneManagement.EditorSceneManager.SaveOpenScenes();
 
             Vector3 rb = before * StsConfig.InvModelScale, ra = mgo.transform.position * StsConfig.InvModelScale;
@@ -227,13 +192,8 @@ namespace AIXRCrane.Crane.Sts.EditorTools
                  $"★ 씬 저장까지 완료 — 이제 배포하면 반영됩니다.");
         }
 
-        /// <summary>체스말을 옮겨 둔 자리를 <b>나가는 존</b> 자리로 적용 — 오너 요청 2026-09-17
-        /// "ExitMarker 도 지점 적용해줘 지금 Pawn 으로 위치 옮겼거든".
-        ///
-        /// 시작 지점과 같은 흐름이다: 체스말을 옮긴다 → 이 메뉴 → 마커가 생기거나 옮겨진다 → 저장(자동).
-        ///   ★ 나가는 존은 원래 걷는 땅 모서리에서 <b>계산</b>만 했다. 지정할 방법이 없어서 체스말을 옮겨도
-        ///     아무 일이 안 일어났다 — 리스폰에서 겪은 것과 같은 간극이라 같은 방식으로 메운다.
-        ///   ★ 마커(ExitZonePoint)가 없으면 ExitZone 은 예전처럼 모서리를 계산한다. 폴백이 살아 있다.</summary>
+        /// <summary>체스말을 옮긴 자리를 나가는 존(ExitZonePoint) 자리로 적용 — 시작 지점 적용과 같은 흐름(옮기고 누르면 저장까지).
+        /// 마커가 없으면 ExitZone은 걷는 땅 모서리를 계산하는 폴백으로 동작한다.</summary>
         [MenuItem("Model/FBX/항구/체스말 자리를 나가는 존으로 적용", false, 11)]
         static void ApplyPawnToExitZone()
         {
@@ -268,15 +228,8 @@ namespace AIXRCrane.Crane.Sts.EditorTools
         const string ExitSignName = "ExitSign";
         const string ExitBandName = "ExitBand";
 
-        /// <summary>'나가는 문' 표지판과 존 띠를 <b>씬에 심는다</b> — 오너 지시 2026-09-18
-        /// "지금 유니티에서 Scene 랑 서버랑 다르거든 … Scene 를 서버쪽이랑 똑같이 만들어줘".
-        ///
-        /// 서버 빌드에는 보이는데 씬에는 오브젝트가 없었다 — 표지판·띠가 <b>런타임 생성물</b>이라
-        /// 에디터에서는 보이지도, 옮기지도, 지우지도 못했다(2026-09-18 "표지판 삭제해" 가 씬에서 안 되던 이유).
-        ///   ★ 자리·자세·배율·띠는 런타임과 <b>같은 코드</b>를 부른다(<see cref="ExitZone.FitSign"/> ·
-        ///     <see cref="ExitZone.CreateBand"/>). 베껴 쓰면 씬에서 고친 게 VR 에서 다르게 나타난다.
-        ///   ★ 체스말과 달리 EditorOnly 가 <b>아니다</b> — 빌드에 들어가야 VR 에서 보인다.
-        ///   ★ 런타임 <c>BuildSign()</c> 호출은 막아 둔 상태라야 한다. 둘 다 살면 표지판이 두 개 선다.</summary>
+        /// <summary>'나가는 문' 표지판과 존 띠를 씬에 심는다(빌드 포함). 자리·자세는 런타임과 같은 코드
+        /// (<see cref="ExitZone.FitSign"/>·<see cref="ExitZone.CreateBand"/>)를 쓴다.</summary>
         [MenuItem("Model/FBX/항구/나가는 문 표지판·존 배치", false, 12)]
         public static void PlaceExitSign()   // 배치 검증이 부를 수 있게 public
         {
@@ -325,9 +278,8 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             var fbx = Load(CurbFbx, "연석"); if (fbx == null) return;
 
             float pitch = CurbPitchM * StsConfig.ModelScale;
-            // 내림 — 올림하면 마지막 유닛이 안벽 끝을 최대 반피치(2m) 넘어 바다로 튀어나온다.
-            //   나눗셈은 반드시 실척 m 끼리. 모델 단위(×1/24)로 나누면 344/4 가 86.0000012 로 나와
-            //   반대로 튀는 순간 유닛 1개가 조용히 사라진다.
+            // 내림 — 올림하면 마지막 유닛이 안벽 끝을 반피치 넘어 바다로 튀어나온다. 나눗셈은 반드시 실척 m끼리
+            //   (모델 단위로 나누면 부동소수 오차로 유닛 1개가 조용히 사라질 수 있다).
             int   units = Mathf.FloorToInt(BerthLenM / CurbPitchM);
             float run   = pitch * units;
             float scale = FbxScaleByHeight(fbx, CurbHeightM);
@@ -350,9 +302,8 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             if (!BerthReady("계선주")) return;
             var fbx = Load(BollardFbx, "계선주"); if (fbx == null) return;
 
-            // 구간 '중앙'에 놓는다. 끝점 배치(z = ±안벽/2)는 계선주 반지름만큼 안벽 밖 허공으로 나간다.
-            //   중앙 배치는 양끝에 반피치(10m) 여유가 생겨 원기둥이 통째로 데크 위에 올라온다.
-            //   연석·레일·케이슨이 쓰는 식과 동일하다.
+            // 구간 '중앙'에 놓는다 — 끝점 배치(z=±안벽/2)는 계선주 반지름만큼 허공으로 나간다.
+            //   중앙 배치는 양끝에 반피치 여유가 생겨 원기둥이 데크 위에 올라온다(연석·레일·케이슨과 동일 식).
             float pitch = BollardGapM * StsConfig.ModelScale;
             int   n     = Mathf.FloorToInt(BerthLenM / BollardGapM);
             float run   = pitch * n;
@@ -368,9 +319,8 @@ namespace AIXRCrane.Crane.Sts.EditorTools
                        $"(안벽 {BerthLenM:F0}m) · 안쪽 {BollardInsetM:F2}m · scale {scale:F4}");
         }
 
-        /// <summary>안벽 케이슨 — 항구의 본체. 데크 윗면이 y=0(크레인 접지·컨테이너 착지면)에 오도록
-        /// 안벽고만큼 내려 놓는다. 바다 +X · 육지 −X · 안벽 가장자리 X0 규약이라 케이슨은 가장자리에서
-        /// 육지쪽으로 에이프런 폭만큼 뻗는다.</summary>
+        /// <summary>안벽 케이슨 — 항구의 본체. 데크 윗면이 y=0(크레인 접지·컨테이너 착지면)에 오도록 안벽고만큼 내려 놓는다.
+        /// 바다 +X·육지 −X·안벽 가장자리 X0 규약이라 케이슨은 가장자리에서 육지쪽으로 에이프런 폭만큼 뻗는다.</summary>
         [MenuItem("Model/FBX/항구/안벽 배치 (Quay_Caisson)", false, 0)]
         static void PlaceCaisson()
         {
@@ -390,10 +340,8 @@ namespace AIXRCrane.Crane.Sts.EditorTools
                 Place(fbx, root, "Quay_CaissonUnit",
                       new Vector3(x, y, -run * 0.5f + pitch * (i + 0.5f)), scale);
 
-            // 걷는 면·컨테이너 착지면 — 부두 전체를 감싸는 BoxCollider 1개.
-            //   FBX 는 addColliders:0 로 임포트되므로 콜라이더가 하나도 안 생긴다. 없으면 플레이어가
-            //   부두를 뚫고 떨어지고 컨테이너도 안 얹힌다. 유닛마다 MeshCollider 를 다는 대신
-            //   직육면체 하나로 덮는다 — 케이슨이 실제로 직육면체라 형상 오차가 0이다.
+            // 걷는 면·컨테이너 착지면 — 부두 전체를 감싸는 BoxCollider 1개. FBX는 addColliders:0라 콜라이더가 안 생겨
+            //   없으면 플레이어가 부두를 뚫고 떨어진다. 유닛마다 안 달고 직육면체 하나로 덮는다(케이슨이 실제 직육면체라 오차 0).
             var col = Undo.AddComponent<BoxCollider>(root.gameObject);
             col.size   = new Vector3(PortConfig.ApronWidthMeters, wallH, BerthLenM) * StsConfig.ModelScale;
             col.center = new Vector3(x, y * 0.5f, 0f);
@@ -403,9 +351,8 @@ namespace AIXRCrane.Crane.Sts.EditorTools
                        $"(코핑 {StsConfig.QuayDeckAboveSeaMeters:F0} + 수심 {PortConfig.WaterDepthMeters:F0}) · scale {scale:F4}");
         }
 
-        /// <summary>주행 레일 2줄 — 게이지는 StsConfig.LegGaugeXMeters(18m, Post-Panamax 표준) SSOT,
-        /// 안벽 가장자리로부터의 거리는 PortConfig.ApronSeawardM SSOT 를 따른다.
-        /// 원점 대칭으로 깔면 바다 +X 규약 때문에 해측 레일이 물 위로 나간다.</summary>
+        /// <summary>주행 레일 2줄 — 게이지는 StsConfig.LegGaugeXMeters(18m, Post-Panamax 표준), 안벽 가장자리로부터의
+        /// 거리는 PortConfig.ApronSeawardM SSOT. 원점 대칭으로 깔면 바다 +X 규약 때문에 해측 레일이 물 위로 나간다.</summary>
         [MenuItem("Model/FBX/항구/레일 배치 (Quay_Rail)", false, 3)]
         static void PlaceRail()
         {
@@ -432,21 +379,9 @@ namespace AIXRCrane.Crane.Sts.EditorTools
                        $"피치 {RailPitchM:F0}m · 총 {run * StsConfig.InvModelScale:F1}m · scale {scale:F4}");
         }
 
-        // ═══ 야드 적재 ═══
-        //   ★ 정밀 FBX 를 쓴다(오너 지시 2026-09-07 "fbx 컨테이너 넣어줘 40ft 10개 20ft 10개").
-        //     오너 방침 2026-09-07 "우리는 저폴리 사용 안 할 거야" — 정밀본만 쓴다.
-        //     그래서 대수가 예산을 직접 정한다(정밀본 1개 = 110,134 삼각형).
-        //   ★ 정밀 FBX 규약(항구 부재와 반대) — 실측으로 확인한 것:
-        //     · 프리팹 루트가 자체 스케일(4.1667 = 100/24)을 갖는다 → localScale 을 건드리지 않는다.
-        //     · 길이가 Unity Z 축이다(클래스 주석의 "길이 → X" 는 틀렸다) → 회전 없음.
-        //     · 피봇이 '중앙 높이'다 → y = 높이/2.
-        //   ★ 원저자가 blend 안에 만들어 둔 LOD1 을 쓴다(2026-09-08). FBX 로 안 내보내져
-        //     있었을 뿐이다. 정밀본(LOD0) 110,302 → LOD1 11,092 삼각형.
-        //     머티리얼 이름이 정밀본과 같아(Body·Door·Frame·Steel_HDG…) 색이 그대로다.
-        //     문(DoorL/DoorR)이 따로 있어 크레인이 집어 눈앞에 와도 컨테이너로 읽힌다.
-        //   LOD0 = 정밀본(크레인이 집어 눈앞에 올 때) · LOD1 = 원저자 LOD1(배경).
-        //   오너 지적 2026-09-08 "디자인 깨진다"(LOD1 단독) → LODGroup 으로 둘 다 넣는다.
-        //   LOD1 만 쓰면 근접이 깨지고, 정밀본만 쓰면 258개에 3,020만 삼각형이라 버벅인다.
+        // ═══ 야드 적재 — 정밀 FBX만 사용(저폴리 안 씀), 대수가 그대로 렌더 예산이다 ═══
+        //   정밀 FBX 규약(항구 부재와 반대): 루트가 자체 스케일을 가져 localScale은 안 건드림, 길이=Z축(회전 없음), 피봇=중앙 높이(y=높이/2).
+        //   LOD1(원저자 export)과 정밀본(LOD0)을 LODGroup으로 묶어 근접 디테일과 성능을 함께 잡는다.
         const string YardFbx40 = "Assets/Container/Models/Container_40ft.fbx";
         const string YardFbx20 = "Assets/Container/Models/Container_20ft.fbx";
         const string YardLod40 = "Assets/Container/Models/LOD1/Container_40ft_LOD1.fbx";
@@ -466,9 +401,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
         const float  Yard20ftGapM = 0.30f;
 
         /// <summary>야드 블록에 컨테이너를 놓는다 — 40ft·20ft 지정 개수만큼, 셀 순서대로 결정적으로.
-        ///
-        /// 좌표는 전부 PortConfig 유도값(열 피치·베이 피치·블록 중심)에서 나온다.
-        /// 컨테이너가 블록 안에 정확히 들어가는지가 곧 블록 좌표의 검산이다.</summary>
+        /// 좌표는 전부 PortConfig 유도값에서 나오므로 컨테이너가 블록 안에 맞는지가 곧 블록 좌표의 검산이다.</summary>
         [MenuItem("Model/FBX/항구/컨테이너 적재 (야드)", false, 7)]
         static void StackYardContainers()
         {
@@ -506,9 +439,8 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             var stale = GameObject.Find("Container_40ft");   // 테스트로 꺼낸 낱개 정리
             if (stale != null) Undo.DestroyObjectImmediate(stale);
 
-            // 셀 목록 — 두 블록 전체. 아래에서 섞어 쓴다.
-            //   순서대로 쓰면 첫 블록 첫 열이 일자로 다 차버린다(오너 지적 2026-09-07
-            //   "한쪽만 배치되고 일자로 채워진다"). 실제 야드도 한 줄로 늘어놓지 않는다.
+            // 셀 목록 — 두 블록 전체를 모아 아래에서 섞어 쓴다. 순서대로 쓰면 첫 블록 첫 열이 일자로 다 차버린다
+            //   (실제 야드도 한 줄로 늘어놓지 않는다).
             var cells = new List<(float x, float z)>();
             for (int i2 = PortConfig.YardLaneStart; i2 < PortConfig.YardLanes; i2++)
                 for (int j2 = 0; j2 < PortConfig.YardBlocksPerLane; j2++)
@@ -566,10 +498,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
         }
 
         /// <summary>컨테이너 하나를 놓는다 — 실측해서 ISO 높이에 맞춘다.
-        ///
-        /// ★ localScale 을 '1 로 리셋'하면 안 된다. 정밀본 프리팹은 루트가 자체 스케일을 갖고
-        /// LOD1 은 실척 m 라, 어느 쪽이든 맞게 하려면 '곱해야' 한다(reset 하면 24배/1/24배로 튄다).
-        /// 스케일이 이미 맞으면 배율이 1 이라 아무 변화가 없다.</summary>
+        /// localScale을 1로 리셋하면 안 된다 — 정밀본/LOD1 둘 다 이미 스케일이 있어 리셋하면 24배/1÷24배로 튄다(반드시 곱한다).</summary>
         static void Put(GameObject hi, GameObject lo, Transform parent, string name,
                         float x, float y, float z)
         {
@@ -590,9 +519,8 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             lg.RecalculateBounds();
         }
 
-        /// <summary>FBX 를 꺼내 ISO 높이에 맞춘다.
-        /// ★ localScale 을 1 로 '리셋'하면 안 된다 — 정밀본은 프리팹 루트가 자체 스케일을 갖고
-        /// LOD1 은 실척 m 라, 리셋하면 24배/1÷24배로 튄다. 반드시 '곱한다'.</summary>
+        /// <summary>FBX를 꺼내 ISO 높이에 맞춘다 — localScale을 1로 리셋하면 안 된다(정밀본/LOD1 스케일이 이미 있어
+        /// 리셋하면 24배/1÷24배로 튄다). 반드시 곱한다.</summary>
         static GameObject Fit(GameObject src, Transform parent, string name)
         {
             var go = (GameObject)PrefabUtility.InstantiatePrefab(src);
@@ -602,21 +530,15 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             float t = ContainerHeightM * StsConfig.ModelScale;
             if (m > 1e-6f) go.transform.localScale *= t / m;
 
-            // ★ 원점 규약이 FBX 마다 다르다 — 정밀본은 '바닥', LOD1 은 '중앙'(2026-09-08 Blender 실측).
-            //     Container_40ft.fbx        Z[-0.000 +0.108]  ← 바닥
-            //     Container_40ft_LOD1.fbx   Z[-1.296 +1.296]  ← 중앙
-            //   래퍼는 y 를 '중앙 높이'로 놓으므로(콜라이더 center 도 0), 바닥 원점 FBX 는
-            //   반 통(2.591/2 = 1.296m) 만큼 떠오른다. LOD 가 바뀌는 순간 컨테이너가 튀어오른다.
+            // 원점 규약이 FBX마다 다르다 — 정밀본은 '바닥', LOD1은 '중앙'. 래퍼는 y를 '중앙 높이'로 놓으므로
+            //   바닥 원점 FBX는 반통(2.591/2=1.296m)만큼 떠오른다 — LOD가 바뀌는 순간 컨테이너가 튀어오른다.
             //   피봇을 바운즈 중앙으로 통일하면 어느 규약이든 같은 자리에 앉는다.
             go.transform.position += parent.position - RtgCraneFbxPlacer.CombinedBounds(go).center;
             return go;
         }
 
-        /// <summary>배치 후 크기를 실측한다 — Put 과 '같은 스케일 보정'을 걸고 잰다.
-        ///
-        /// 보정 전에 재면 LOD1(실척 m)이 24배로 나와 규격 가드가 오작동한다
-        /// (2026-09-08 실측: 40ft 가 292.560L 로 찍혀 적재가 중단됐다).
-        /// 측정과 배치가 같은 값을 보게 해야 가드가 진짜 문제만 잡는다.</summary>
+        /// <summary>배치 후 크기를 실측한다 — Put과 같은 스케일 보정을 걸고 잰다.
+        /// 보정 전에 재면 LOD1(실척 m)이 24배로 나와 규격 가드가 오작동한다. 측정과 배치가 같은 값을 봐야 한다.</summary>
         static float Probe(GameObject src, out float len, out float wid)
         {
             var p = (GameObject)PrefabUtility.InstantiatePrefab(src);
@@ -630,13 +552,8 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             return h;
         }
 
-        /// <summary>에이프런 안전 차선 — 레일 양옆 ±LaneOffsetM 에 4줄.
-        ///
-        /// ★ 오브젝트 이름을 "Lane" 으로 놓는 것이 핵심이다. GantryRangeFit 이 Quay_Ground 안에서
-        /// 이름이 "Lane" 으로 시작하는 렌더러의 Z 바운즈를 STS 갠트리 주행 한계로 쓴다
-        /// ("한계 기준 = 노란 차선 안쪽"). 못 찾으면 QuayRail 로 폴백한다 — 장식이 아니라 기능 SSOT.
-        ///
-        /// 레일 사이(트럭 주행 구역)에는 차선을 넣지 않는다 — 오너 지시 2026-09-07.</summary>
+        /// <summary>에이프런 안전 차선 — 레일 양옆 ±LaneOffsetM에 4줄. 이름을 "Lane"으로 두는 게 핵심 —
+        /// GantryRangeFit이 이 이름의 렌더러 Z 바운즈를 갠트리 주행 한계로 쓴다(장식이 아니라 SSOT). 레일 사이는 비움.</summary>
         [MenuItem("Model/FBX/항구/차선 배치 (Lane)", false, 6)]
         static void PlaceLane()
         {
@@ -664,13 +581,9 @@ namespace AIXRCrane.Crane.Sts.EditorTools
                        $"(레일과 동일) · 레일 사이는 비움 · scale {scale:F4}");
         }
 
-        /// <summary>야드 — 포장 1장 + 블록 마킹 4개. 둘은 항상 같이 가므로 메뉴 하나로 묶는다.
-        ///
-        /// 포장은 에이프런 끝(x=−30)에서 케이슨과 '정확히 맞댄다'. 겹치면 두 데크 윗면이 y=0 에서
-        /// 겹쳐 밟는 면에 Z-fighting 이 난다. 옆면끼리는 서로 반대를 보므로 백페이스 컬링이 처리한다.
-        ///
-        /// 블록 마킹 이름은 반드시 YardBlock_Zone — RtgCraneCreator 가 이 렌더러의 bounds 로
-        /// RTG 위치(center)와 갠트리 주행범위(size.z)를 잡는다. 이름과 바운즈가 곧 SSOT 다.</summary>
+        /// <summary>야드 — 포장 1장 + 블록 마킹 4개(항상 같이 감). 포장은 에이프런 끝에서 케이슨과 정확히 맞댄다
+        /// (겹치면 y=0 걷는 면에서 Z-fighting). 블록 마킹 이름은 반드시 YardBlock_Zone — RtgCraneCreator가 이 bounds로
+        /// RTG 위치·갠트리 범위를 잡는 SSOT다.</summary>
         [MenuItem("Model/FBX/항구/야드 배치 (Yard)", false, 5)]
         static void PlaceYard()
         {
@@ -703,8 +616,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
                           new Vector3(PortConfig.YardBlockCenterX(i) * StsConfig.ModelScale, 0f,
                                       PortConfig.YardBlockCenterZ(j) * StsConfig.ModelScale), bScale);
 
-            // 트럭 주행레인 도색은 제거했다 — 오너 선택 2026-09-07 (RTG 를 블록 중앙으로).
-            //   전에 깔았던 그룹이 씬에 남아 있으면 지운다.
+            // 트럭 주행레인 도색은 제거했다(RTG를 블록 중앙으로) — 전에 깔았던 그룹이 남아 있으면 지운다.
             var stale = GameObject.Find("Yard_TruckLane");
             if (stale != null) Undo.DestroyObjectImmediate(stale);
 
@@ -720,10 +632,8 @@ namespace AIXRCrane.Crane.Sts.EditorTools
                       $"야드 x −{PortConfig.ApronWidthMeters:F0}~−{PortConfig.ApronWidthMeters + depth:F1}m");
         }
 
-        /// <summary>바다 — 수면이 StsConfig.SeaLevelY 에 정확히 오도록 해저 깊이만큼 내려 놓는다.
-        /// 이름이 Sea/Sea_* 여야 StsPartNames.IsSeaName() 이 지면 탐색에서 걸러낸다. 안 그러면
-        /// 바다(588×1,516m)가 아스팔트(30×340m)보다 넓어 '면적 최대' 휴리스틱이 바다를 골라
-        /// RTG·플레이어가 수면 위에 선다. 콜라이더는 달지 않는다 — 안벽 밖에는 바닥이 없다.</summary>
+        /// <summary>바다 — 수면이 StsConfig.SeaLevelY에 정확히 오도록 해저 깊이만큼 내려 놓는다. 이름이 Sea/Sea_*여야
+        /// IsSeaName()이 지면 탐색에서 걸러낸다(안 그러면 넓은 바다가 '면적 최대' 휴리스틱에 골라진다). 콜라이더 없음.</summary>
         [MenuItem("Model/FBX/항구/바다 배치 (Sea)", false, 4)]
         static void PlaceSea()
         {
@@ -750,9 +660,8 @@ namespace AIXRCrane.Crane.Sts.EditorTools
                        $"겹침 {PortConfig.SeaOverlapM:F0}m · scale {scale:F4}");
         }
 
-        /// <summary>항구 전체를 씬 뷰에 담고, 부재별 실측을 찍는다.
-        /// 부재마다 배치 직후 FrameSelected 를 하는데 마지막이 바다(1,516m)라
-        /// 부두(30m 폭)가 실 한 가닥으로 보인다. 안 보이는 렌더러도 같이 잡아낸다.</summary>
+        /// <summary>항구 전체를 씬 뷰에 담고 부재별 실측을 찍는다. 부재마다 배치 직후 FrameSelected를 하는데
+        /// 마지막이 바다(1,516m)라 부두(30m 폭)가 실 한 가닥으로 보인다 — 안 보이는 렌더러도 같이 잡아낸다.</summary>
         [MenuItem("Model/FBX/항구/전체 보기 + 실측", false, 20)]
         static void FrameAll()
         {
@@ -789,12 +698,8 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             Debug.Log(sb.ToString());
         }
 
-        /// <summary>씬의 모든 머티리얼에 GPU 인스턴싱을 켠다 — 같은 메시+머티리얼 조합이
-        /// 한 드로우콜로 묶인다. 연석 85·차선 112·레일 56·컨테이너 부재 60벌이 전부 해당.
-        /// 형상·색이 바뀌지 않는 무손실 최적화라 되돌릴 이유가 없다.
-        ///
-        /// 서버 배포 구성상(빌드_인프라.md: Windows 빌드 → 5070 Ti Proton 렌더 → WiVRn → Quest)
-        /// 5명 = 5 인스턴스가 각자 씬을 렌더하므로 드로우콜이 5배로 곱해진다. CPU 병목은 여기다.</summary>
+        /// <summary>씬의 모든 머티리얼에 GPU 인스턴싱을 켠다 — 같은 메시+머티리얼 조합이 한 드로우콜로 묶인다.
+        /// 형상·색이 바뀌지 않는 무손실 최적화다. 서버가 5인스턴스로 씬을 렌더하므로 드로우콜이 5배로 곱해져 CPU 병목이 여기다.</summary>
         [MenuItem("Model/FBX/항구/GPU 인스턴싱 켜기 (전체)", false, 21)]
         static void EnableInstancingAll()
         {
@@ -832,8 +737,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
 
         // ── 공용 ──
 
-        /// <summary>안벽 길이가 아직 안 정해졌으면 배치를 막는다. 옛 값을 되살려 조용히 쓰는 것보다,
-        /// 멈추고 새 숫자를 요구하는 편이 낫다(오너 지시 2026-09-07).</summary>
+        /// <summary>안벽 길이가 아직 안 정해졌으면 배치를 막는다 — 옛 값을 조용히 되살리는 대신 새 숫자를 요구한다.</summary>
         static bool BerthReady(string label)
         {
             if (BerthLenM > 0f) return true;
@@ -914,11 +818,8 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             return mat;
         }
 
-        /// <summary>부두 루트 — 없으면 만든다.
-        /// StsCraneCreator(레일 정렬)·RtgCraneCreator(야드 배치)·RtgCraneFbxPlacer(지면)·
-        /// GantryRangeFit(주행범위)·ShipBerthMenu(접안 앵커) 5곳이 전부
-        /// GameObject.Find(StsPartNames.QuayGround) 로 부두를 찾는다. 부재를 씬 루트에
-        /// 흩어놓으면 부두가 실제로 있어도 아무도 못 찾는다.</summary>
+        /// <summary>부두 루트 — 없으면 만든다. StsCraneCreator·RtgCraneCreator·RtgCraneFbxPlacer·GantryRangeFit·ShipBerthMenu
+        /// 5곳이 GameObject.Find(QuayGround)로 부두를 찾으므로, 부재를 씬 루트에 흩어놓으면 아무도 못 찾는다.</summary>
         static Transform QuayRoot()
         {
             var go = GameObject.Find(StsPartNames.QuayGround);

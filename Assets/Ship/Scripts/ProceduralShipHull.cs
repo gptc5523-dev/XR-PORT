@@ -4,22 +4,8 @@ using Procedural;   // 공유 MeshBuilder (크레인·컨테이너와 동일 빌
 
 namespace AIXRCrane.Ship
 {
-    /// <summary>
-    /// Post-Panamax 컨테이너선 '선체(Hull)' 절차적 메시 생성기 — 1단계(솔리드 우선).
-    ///
-    /// 단순 박스가 아니라 실제 선형(線型)을 로프트로 조형한다([[feedback_no_placeholder_primitives]]):
-    ///   · 평탄한 선저(flat of bottom) + 빌지(bilge) 라운드 + 수직 현측(wall-sided) — 컨테이너선 표준 단면
-    ///   · 긴 평행중앙부(parallel midbody)
-    ///   · 가는 선수 진입각(fine entrance) → 거의 수직 스템
-    ///   · 풍만한 선미 + 트랜섬(transom) 평면 마감
-    ///   · 선수/선미 킬 상승(선저 융기), 선수 시어(sheer)
-    ///
-    /// 좌표계: +Z=선수, 미드십 z=0, ±X=선폭, +Y=상방. 흘수선 y=0(피벗).
-    /// 서브메시: 0=Topside(흘수선 위), 1=Bottom(흘수선 아래 방오도장), 2=Boot(흘수선 띠), 3=Deck(주갑판).
-    ///
-    /// 실척(m)으로 빌드 후 ShipConfig.ModelScale(1/24)로 정점 축소(크레인·컨테이너와 동일 스케일).
-    /// 2단계(갑판 해치코밍)·3단계(거주구/펀넬)·4단계(컨테이너 적재)는 화면 확인 후 누적([[feedback_unity_visual_small_increments]]).
-    /// </summary>
+    /// <summary>Post-Panamax 컨테이너선 선체(Hull) 절차적 메시 생성기 — 실제 선형을 로프트로 조형.
+    /// 좌표계 +Z=선수·+Y=상방·흘수선 y=0. 서브메시 0=Topside/1=Bottom/2=Boot/3=Deck. 실척 빌드 후 ModelScale(1/24) 축소.</summary>
     public static class ProceduralShipHull
     {
         // 서브메시 인덱스
@@ -41,9 +27,8 @@ namespace AIXRCrane.Ship
         const float SheerBow    = 2.2f;    // 선수 시어 상승(m)
         const float SheerStern  = 0.8f;    // 선미 시어 상승(m)
 
-        // ── 구상선수(bulbous bow) — 흘수선 아래 전방 돌출 물방울형(1b) ──
-        //   실척 비율: 돌출 0.03·LOA(FP전방), 중심깊이 0.55·흘수, 반높이 0.30·흘수, 반폭 0.09·선폭.
-        //   뿌리(root)는 선체 선수부 안쪽에 임베드되어 한 덩어리로 보임(반폭<선체 반폭).
+        // ── 구상선수(bulbous bow) — 흘수선 아래 전방 돌출 물방울형(1b), 뿌리는 선체 안쪽에 임베드 ──
+        //   비율 정의는 아래 상수 각각 참고(LOA·흘수·선폭 대비).
         const float BulbProtrudeFrac = 0.030f;  // 스템(FP) 전방 돌출량 / LOA
         const float BulbRootInsetFrac = 0.10f;  // 스템 후방 뿌리 임베드 깊이 / LOA
         const float BulbCenterYFrac  = 0.55f;   // 볼브 중심 깊이 / 흘수 (흘수선 아래)
@@ -152,8 +137,7 @@ namespace AIXRCrane.Ship
         }
 
         /// <summary>스테이션 z 의 단면(스타보드 절반) — 킬 중심(0)→갑판 가장자리(S-1).
-        /// 현측에 부트탑 경계(흘수선 ±BootHalf)를 '정확한 정점'으로 꽂아, 그 사이 한 행만 깔끔한 부트 띠가 되게 한다
-        /// (면 행이 흘수선을 비스듬히 가로질러 검은 패치가 계단지던 문제 해소).</summary>
+        /// 부트탑 경계(흘수선 ±BootHalf)를 정점으로 정확히 꽂아야 부트 띠 행이 깨끗하게 나온다.</summary>
         static Vector2[] Section(float z)
         {
             float b  = HalfBeam(z);

@@ -81,10 +81,8 @@ public class CubeReset : MonoBehaviour
 
         Vector3 right = Vector3.Cross(Vector3.up, forward).normalized;
 
-        // 리그가 1/24로 축소되면 카메라(플레이어)도 축소된다. '플레이어 앞 거리'와 '절대 배치 높이'는
-        //   1:1 가정값(0.5m/1.4m)이라 그대로 쓰면 작아진 플레이어 기준 컨테이너가 크레인 높이로 떠버린다.
-        //   → 플레이어 기준 거리·높이를 리그 스케일에 맞춘다. (스케일 1이면 기존과 동일 — 하위호환.)
-        //   단 horizontalOffset/verticalOffset(2x2 그리드 간격)은 이미 모델(1/24) 치수라 스케일하지 않는다.
+        // 리그가 축소되면 카메라도 축소되므로 거리/절대높이(1:1 가정값)를 rigScale로 맞춘다.
+        // horizontalOffset/verticalOffset은 이미 모델 치수라 스케일하지 않는다.
         float rigScale = cam.lossyScale.y;
         Vector3 pos = cam.position + forward * (distanceFromCamera * rigScale) + right * horizontalOffset;
         if (useAbsoluteHeight)

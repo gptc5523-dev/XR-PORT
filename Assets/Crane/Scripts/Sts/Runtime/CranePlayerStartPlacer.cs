@@ -1,24 +1,10 @@
 using UnityEngine;
-using Unity.Netcode;   // 접속 완료 후 1회 재배치(클라이언트가 원점에 방치되는 것 방지). Assembly-CSharp가 Netcode를 참조하므로 사용 가능.
+using Unity.Netcode;   // 접속 완료 후 재배치용(Netcode 참조 가능)
 
 namespace AIXRCrane.Crane.Sts
 {
-    /// <summary>
-    /// 시작 위치 배치 — 씬 진입 시(그리고 네트워크 접속 직후) 로컬 플레이어 리그(XR Origin)를 시작 지점으로 옮긴다.
-    ///
-    ///   ★ 목표: 호스트가 어디에 있든, 호스트·참가자 '모두' 항상 Quay_Ground(부두 걷는 면) '안'에서 시작한다.
-    ///     - 시작 마커(CranePlayerStartPoint)가 있으면 그 위치·방향을 쓴다(디자이너 지정).
-    ///     - 마커가 없거나 부두 밖이어도 forceInsideQuay가 켜져 있으면 걷는 면 XZ 범위로 끌어들인다(클램프).
-    ///     - 마커가 아예 없으면 저장된 시작점(PortConfig.PlayerStart* — STS 레일 사이 · 선석 중앙)에서 바다를 바라보게 한다.
-    ///
-    ///   ★ 네트워크 보정: 클라이언트는 접속 동기화 과정에서 리그가 원점(0,0,0)에 방치되는 경우가 있다
-    ///     (= 관전자가 '호스트 자리까지 걸어가야 크레인이 보이던' 증상). 그래서 로컬 접속이 완료되면
-    ///     한 번 더 부두 안으로 재배치한다.
-    ///
-    ///   ※ 위치만 만진다 — 리그 스케일(CranePlayerRigScale)·카메라 오프셋(CraneViewHeightAdjuster)과 독립.
-    /// 마커는 'Container > Create Player Start Point' 메뉴로 만들어 씬에 두면 된다.
-    /// 씬에 안 붙여도 [RuntimeInitializeOnLoadMethod]로 자동 스폰.
-    /// </summary>
+    /// <summary>시작 위치 배치 — 씬 진입·네트워크 접속 직후 로컬 리그(XR Origin)를 부두 안 시작 지점으로 옮긴다.
+    /// 마커(CranePlayerStartPoint) 우선, 없으면 저장 좌표. forceInsideQuay 로 항상 부두 안으로 클램프.</summary>
     [AddComponentMenu("AI-XR Crane/STS Crane/Crane Player Start Placer")]
     [DisallowMultipleComponent]
     public sealed class CranePlayerStartPlacer : MonoBehaviour
@@ -54,19 +40,8 @@ namespace AIXRCrane.Crane.Sts
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void AutoSpawn() => CraneHud.EnsureSpawned<CranePlayerStartPlacer>("PlayerStartPlacer");
 
-        // 부두 밖 이탈 차단 — 스폰 때만 걸던 ClampToBounds 를 '이동 중에도' 매 프레임 적용한다.
-        //
-        //   [왜 콜라이더로는 못 막는가] 플레이어는 CharacterController·중력·솔리드 콜라이더를 전부 쓰지 않는다
-        //   (CranePlayerRigScale.BypassCharacterControllerLocomotion + PlayerColliderPolicy). 평면 모드는
-        //   FlatPlayerRig 가 transform.position 을 직접 더하고, VR 은 XRI 가 XR Origin 을 직접 옮긴다.
-        //   그래서 바닥 콜라이더를 아무리 정확히 깔아도 안벽 밖·바다 위·허공으로 계속 걸어 나갈 수 있었다.
-        //   막는 건 콜라이더가 아니라 '이 경계'다.
-        //
-        //   [운전실 시점은 제외] 트롤리는 아웃리치만큼 바다 위로 나가고 시점이 그걸 따라간다
-        //   (FlatCraneController.LateUpdate / StsCraneVRController.FollowTrolley). 그때 클램프하면
-        //   시점이 안벽에 붙어 끌린다. 두 컨트롤러가 각자 내거는 신호(MovementLocked / CabView)로 쉰다.
-        //
-        //   [LateUpdate 인 이유] 위 두 추종이 LateUpdate 라 같은 단계에서 판정해야 한 프레임 어긋남이 없다.
+        // 부두 밖 이탈 차단 — 스폰 때만 걸던 클램프를 매 프레임 적용. 콜라이더가 아니라 이 경계로 막는다
+        // (리그는 CharacterController/콜라이더를 안 쓴다). 운전실 시점(트롤리가 바다 위로 나감)은 제외.
         void LateUpdate()
         {
             if (!keepOnQuay) return;
@@ -165,9 +140,7 @@ namespace AIXRCrane.Crane.Sts
 
             float rigYBefore = rig.position.y;            // QA: 재배치 전 높이(접속 후 원점 방치 복구 확인용)
             // 시작 XZ·바라보는 방향 결정 — 계산은 TryComputeSpawn() 한 곳에만 둔다.
-            //   ★ 에디터 표식(리스폰 체스말, QuayPartsPlacer.PlaceSpawnPawn)이 같은 식을 읽어야
-            //     눈에 보이는 자리와 실제 리스폰 자리가 일치한다. 계산이 두 벌이 되면 반드시 갈라지고,
-            //     그러면 그 표식으로 읽은 좌표가 거짓이 된다.
+            // 에디터 표식(QuayPartsPlacer.PlaceSpawnPawn)도 같은 식을 읽어야 자리가 일치한다.
             if (!TryComputeSpawn(out Vector3 xz, out Vector3 faceDir, out bool hasLand, out Bounds land,
                                  out var marker, forceInsideQuay, quayEdgeInset, rig.forward))
                 return false;                             // 마커도 부두도 아직 없음 — 재시도(없으면 maxAttempts에서 포기).
@@ -179,16 +152,13 @@ namespace AIXRCrane.Crane.Sts
             rig.SetPositionAndRotation(pos, Quaternion.LookRotation(faceDir, Vector3.up));
             if (debugLog)
             {
-                // 좌표는 실척(m)을 앞에 찍는다 — 오너 지시 2026-09-17 "실척 좌표로 해줘".
-                //   모델 단위는 1 unit = 24 m 라 숫자가 1/24 로 눌려 사람이 못 읽는다(−0.5417 vs −13.00m).
+                // 좌표는 실척(m)을 앞에 찍는다 — 모델 단위(1u=24m)는 숫자가 눌려 사람이 못 읽는다.
                 Vector3 real = pos * StsConfig.InvModelScale;
                 Debug.Log($"[PlayerStartPlacer] 시작 배치 — 실척 X {real.x:F2}m · Z {real.z:F2}m (모델 {pos.x:F4}, {pos.y:F4}, {pos.z:F4}), " +
                           $"facing {faceDir}, 기준={(marker != null ? "마커" : "저장좌표")}, 부두클램프={(forceInsideQuay && hasLand)}.");
             }
 
-            // QA 콘솔 판정(문서/QA_테스트시나리오.md 그룹 A)
-            //   S-START-2: 걷는 면(최대 수평면적 렌더러) 선택 — 부두 '구조물 꼭대기'(레일 등)와 대비해 보고.
-            //   S-START-1: 발 높이(rigY)가 걷는 면 윗면(floorY)에 닿고, 거대증상 기준(구조물 꼭대기) 위가 아님.
+            // QA 콘솔 판정(문서/QA_테스트시나리오.md 그룹 A) — 걷는 면 선택과 발 높이가 구조물 꼭대기 위가 아닌지 확인.
             float structureTop = QuayStructureTopY();
             bool flatQuay = (structureTop - floorY) < 0.1f;        // 레일/구조물이 없거나 낮은 평탄 부두 — 거대 가드 완화
             if (hasLand)
@@ -213,12 +183,8 @@ namespace AIXRCrane.Crane.Sts
         /// <summary>기본 부두 가장자리 인셋(m·모델 단위) — 인스펙터 기본값과 에디터 표식이 같은 값을 쓴다.</summary>
         public const float DefaultQuayEdgeInset = 0.1f;
 
-        /// <summary>시작 XZ·바라보는 방향을 결정한다 — 런타임 배치와 에디터 표식이 공유하는 <b>단 하나의</b> 계산.
-        ///
-        /// 순서: 마커(CranePlayerStartPoint) → 없으면 저장 좌표(PortConfig.PlayerStart*) → 걷는 땅 안으로 클램프.
-        /// ★ 마커 좌표를 그대로 쓰면 안 된다. 마커가 부두 밖이면 클램프가 값을 바꾸므로, '마커 자리' 와
-        ///   '실제 리스폰 자리' 가 다르다(xr-port-c8 지적 2026-09-17). 반환값은 클램프까지 끝난 최종 좌표다.
-        /// ★ Y 는 여기서 안 정한다 — 호출부가 걷는 면 윗면(또는 레이캐스트 폴백)에 맞춘다.</summary>
+        /// <summary>시작 XZ·바라보는 방향 — 런타임과 에디터 표식이 공유하는 단 하나의 계산.
+        /// 순서: 마커 → 저장 좌표(PortConfig) → 클램프. 반환은 클램프까지 끝난 최종 좌표, Y 는 안 정한다.</summary>
         public static bool TryComputeSpawn(out Vector3 xz, out Vector3 faceDir, out bool hasLand, out Bounds land,
                                            out CranePlayerStartPoint marker, bool forceInsideQuay = true,
                                            float inset = DefaultQuayEdgeInset, Vector3 fallbackForward = default)
@@ -274,15 +240,8 @@ namespace AIXRCrane.Crane.Sts
             return marker;
         }
 
-        // 걷는 땅 = 부두 아래 '두껍고 넓은 판'(케이슨 함 17개 + 야드 포장)의 합집합. 윗면은 둘 다 y=0.
-        //   ★ 종전엔 '수평 면적이 가장 큰 렌더러 하나'를 골랐다. 야드 포장(53.7×340m)이 케이슨 함 하나(30×20m)보다
-        //     커서 야드가 뽑혔고, 에이프런(x −30~0)에 있는 시작 마커가 야드 끝(−32.4m)으로 끌려갔다.
-        //     이탈 차단도 같은 판을 써서 에이프런·안벽에 발을 들일 수 없었다.
-        //   땅 덩어리 = '데크 아래(해저 쪽)로 1m 넘게 뻗고 짧은 변 ≥ 2m'. 케이슨·포장은 해저(−19m)까지 내려간다.
-        //   데크 '위에 얹힌' 것 — 야드 컨테이너(2.59m 높이·2.44m 폭이라 두께·폭 조건만으론 통과한다)·레일·연석·
-        //   계선주·차선·블록 도색 — 은 아래로 안 뻗어 탈락한다. 컨테이너가 끼면 바닥이 컨테이너 윗면(2.6m 공중)이 된다.
-        //   ★ 부두 '전체' bounds.max.y는 구조물 꼭대기라 '거대' 증상이 났다 — 땅 덩어리만 모으면 윗면이 데크(0)다.
-        //   바다(수심 15m·폭 60m)도 아래로 뻗고 넓어 조건을 통과하므로 조상 이름으로 뺀다(물 위 걷기 방지).
+        // 걷는 땅 = 데크 아래로 1m 넘게 뻗고 짧은 변 ≥2m 인 렌더러의 합집합(케이슨+야드 포장, 윗면 y=0).
+        // 레일·연석·컨테이너처럼 얹힌 것은 탈락. 바다는 조상 이름으로 제외(물 위 걷기 방지).
         internal static bool TryGetLand(out Bounds land)
         {
             land = default;
@@ -306,9 +265,7 @@ namespace AIXRCrane.Crane.Sts
             return false;
         }
 
-        // 부두 '구조물 전체'의 최고 윗면 y(레일·차선 등 포함) — 걷는 면(아스팔트 ≈0)과 대비.
-        //   QA 전용: 시작 높이가 이 구조물 꼭대기(≈0.22)에 서면 '거대증상' 재발이므로 가드 기준으로 쓴다.
-        //   (배치 로직 자체는 TryGetLand의 '걷는 땅'만 사용 — 이 값은 판정에만 쓰고 배치엔 안 쓴다.)
+        // 부두 구조물 전체의 최고 윗면 y(레일 등 포함) — QA 전용 거대증상 가드 기준. 배치엔 안 쓴다.
         static float QuayStructureTopY()
         {
             var quay = GameObject.Find(QuayName);

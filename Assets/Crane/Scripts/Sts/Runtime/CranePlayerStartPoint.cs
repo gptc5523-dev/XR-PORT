@@ -2,13 +2,8 @@ using UnityEngine;
 
 namespace AIXRCrane.Crane.Sts
 {
-    /// <summary>
-    /// 시작 위치 마커 — 이 오브젝트의 '위치'와 '바라보는 방향(파란 Z축, forward)'을 CranePlayerStartPlacer가
-    /// 읽어 씬 진입 시 로컬 플레이어 리그를 그 지점·방향으로 배치한다.
-    ///   사용법: 씬에서 이 마커를 원하는 곳(예: 레인 끝)에 끌어다 두고, 파란 Z축을 항구쪽으로 돌리면 끝.
-    ///   (좌표를 코드에 박지 않고 디자이너가 씬에서 직접 보고 맞추는 WYSIWYG 방식)
-    /// 런타임에는 아무 일도 안 한다 — 순수 마커. 에디터에서만 기즈모로 보인다.
-    /// </summary>
+    /// <summary>시작 위치 마커 — 위치·파란 Z축(forward) 방향을 CranePlayerStartPlacer가 읽어 씬 진입 시 플레이어를 배치한다.
+    /// 씬에서 마커를 끌어다 놓고 Z축을 원하는 방향으로 돌리면 끝(WYSIWYG). 런타임엔 아무 일도 안 하는 순수 마커.</summary>
     [AddComponentMenu("AI-XR Crane/STS Crane/Crane Player Start Point")]
     [DisallowMultipleComponent]    public sealed class CranePlayerStartPoint : MonoBehaviour
     {

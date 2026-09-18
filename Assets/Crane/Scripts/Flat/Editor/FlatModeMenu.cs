@@ -3,14 +3,8 @@ using UnityEngine;
 
 namespace AIXRCrane.Crane.Flat.EditorTools
 {
-    /// <summary>
-    /// 평면 모드(XREAL One Pro·모니터) 강제 지정 메뉴 — 기본은 '자동'(헤드셋이 붙어 있으면 VR).
-    ///
-    /// 에디터에서 Play 를 눌렀을 때 어느 경로로 갈지 강제할 때 쓴다. 값은 PlayerPrefs 에 저장되므로
-    /// 같은 PC 의 빌드 실행에도 그대로 적용된다. 빌드 실행 인자 -flat / -vr 이 이 값보다 우선한다.
-    ///
-    /// 메뉴 위치는 프로젝트 규약(Tool/)을 따른다.
-    /// </summary>
+    /// <summary>평면 모드(XREAL One Pro·모니터) 강제 지정 메뉴 — 기본은 자동(헤드셋 붙어 있으면 VR).
+    /// PlayerPrefs 저장이라 빌드 실행에도 적용되며, 실행 인자 -flat/-vr 이 이 값보다 우선한다.</summary>
     static class FlatModeMenu
     {
         const string Root = "Tool/평면 모드 (XREAL·모니터)/";

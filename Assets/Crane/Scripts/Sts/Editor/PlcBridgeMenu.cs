@@ -6,11 +6,8 @@ using AIXRCrane.Crane.Sts.Plc;
 
 namespace AIXRCrane.Crane.Sts.EditorTools
 {
-    /// <summary>
-    /// 가상 PLC 시연용 에디터 메뉴 — 씬의 StsCrane에 <see cref="PlcBridge"/>를 부착·구동/원복한다.
-    /// 부착·구동은 Active=true(가상 PLC가 3축 자동 운전 + PlcDriven=true, 가속알람 1021/2021/3021 유효),
-    /// 원복은 컴포넌트 제거(직접조종 VR 복귀). 비파괴 — 언제든 원복 가능.
-    /// </summary>
+    /// <summary>가상 PLC 시연용 에디터 메뉴 — 씬의 StsCrane 에 PlcBridge 를 부착·구동/원복한다.
+    /// 구동은 Active=true(3축 자동 운전, 가속알람 1021/2021/3021 유효), 원복은 컴포넌트 제거(비파괴).</summary>
     public static class PlcBridgeMenu
     {
         [MenuItem("PLC/가상 PLC 부착·구동", false, 2)]
@@ -75,8 +72,8 @@ namespace AIXRCrane.Crane.Sts.EditorTools
                       "▶Play 진입 → 기록된 시나리오대로 크레인이 재현됩니다. 원복은 Inspector에서 PlcBridge 제거.");
         }
 
-        /// <summary>통합서버에서 읽은 PLC 데이터로 구동 — 오너 2026-09-17 "서버에서 데이터 읽어서 크레인 움직이게".
-        /// 서버에 데이터가 들어와야 움직인다(실 PLC 전엔 <c>python3 Server/xrcrane_db.py feed &lt;csv&gt; --loop</c>).</summary>
+        /// <summary>통합서버에서 읽은 PLC 데이터로 구동. 서버에 데이터가 들어와야 움직인다
+        /// (실 PLC 전엔 <c>python3 Server/xrcrane_db.py feed &lt;csv&gt; --loop</c>).</summary>
         [MenuItem("PLC/서버 데이터로 구동", false, 4)]
         public static void AttachAndDriveFromServer()
         {
@@ -127,7 +124,6 @@ namespace AIXRCrane.Crane.Sts.EditorTools
         }
 
         // 대상 크레인 — 선택한 크레인이 우선(RTG 재생은 'RTG 크레인_1' 을 선택하고 실행). 선택이 없으면 STS.
-        //   종전 FindFirstObjectByType 은 순서 보장이 없어 씬에 RTG 가 2대 있으면 RTG 에 붙기도 했다.
         static StsCrane Target()
         {
             var sel = Selection.activeGameObject != null ? Selection.activeGameObject.GetComponentInParent<StsCrane>() : null;
@@ -137,8 +133,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             return null;
         }
 
-        // 분리는 Inspector에서 PlcBridge 컴포넌트를 떼면 된다 — PlcBridge.OnDisable이 PlcDriven=false를
-        // 자동 복원하므로 가속 오경보 잔류 없이 안전(과거 이 메뉴가 하던 정리를 컴포넌트에 내재화).
+        // 분리는 Inspector 에서 PlcBridge 컴포넌트를 떼면 된다 — OnDisable 이 PlcDriven=false 를 자동 복원한다.
     }
 }
 #endif

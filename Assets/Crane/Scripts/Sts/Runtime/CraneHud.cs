@@ -4,16 +4,11 @@ using UnityEngine.UI;
 
 namespace AIXRCrane.Crane.Sts
 {
-    /// <summary>
-    /// 크레인 HUD들이 공유하는 생성 유틸. 4개 HUD(상태/모드선택/조작안내/부위라벨)가
-    /// 각자 복붙하던 ▸한글 폰트 후보 배열 ▸world-space Canvas+배경+Text 생성 ▸자동 스폰을 한 곳에 모음.
-    /// 각 HUD는 자신만의 BuildText()와 배치 오프셋만 가지면 됨.
-    /// </summary>
+    /// <summary>크레인 HUD 공용 생성 유틸 — 한글 폰트 후보·world-space Canvas+배경+Text 생성·자동 스폰을 한 곳에 모음.
+    /// 각 HUD는 BuildText()와 배치 오프셋만 가지면 된다.</summary>
     internal static class CraneHud
     {
-        // 디자인 토큰 (HUD 공용 시각 언어)
-        // 패널 배경 알파·의미색을 한 곳에 모아 7개 HUD가 같은 시각 언어를 쓰게 한다.
-        //   기존엔 HUD마다 배경 알파(0.55~0.85)·강조 hex(#7FFF7F 등)가 흩어져 통일감이 약했다.
+        // 디자인 토큰(HUD 공용 시각 언어) — 패널 배경 알파·의미색을 한 곳에 모아 여러 HUD가 같은 언어를 쓰게 한다.
         //   ColorUtility.ToHtmlStringRGB(=Hex)로 rich-text 인라인 색에도 같은 값을 끌어쓴다.
         public const float PanelBgAlpha = 0.82f;   // 패널 배경 검정 알파 표준(예외: ArrowHUD는 배경 덜 가리려 더 투명)
         public const float HudDistance = 0.85f;     // 모든 head-locked HUD의 표준 거리(z, m) — 거리감 통일(StatusHUD 기준)
@@ -39,14 +34,12 @@ namespace AIXRCrane.Crane.Sts
             "Arial Unicode MS", "Arial"
         };
 
-        // 동적 폰트는 크기별로 1개만 만들어 공유 — 예전엔 Text마다 새로 만들어(HUD ~9개) 폰트 인스턴스·
-        // 글리프 아틀라스가 따로 떠 Quest에서 메모리·텍스처 리빌드 낭비였다.
+        // 동적 폰트는 크기별로 1개만 생성해 공유 — Text마다 새로 만들면 폰트 인스턴스·글리프 아틀라스가 따로 떠
+        //   Quest에서 메모리·텍스처 리빌드가 낭비된다.
         static readonly Dictionary<int, Font> _fontCache = new();
 
-        // 번들 OFL 한글 폰트(나눔고딕, SIL OFL=상업·번들 자유) — OS 폰트 매칭 실패 시 폴백.
-        //   라틴 전용 LegacyRuntime.ttf 대신 써서 '한글 전멸(두부 □)' 최악 케이스를 제거한다.
-        //   ※ 1순위는 여전히 단말 OS 폰트. 나눔고딕엔 ⚠ █ ░ ✓ ⊘ ▸ 글리프가 없어, 폴백 경로에선 그 기호가 □가 될 수 있다
-        //     (한글·화살표·●·━·•는 포함). 폰트를 주 폰트로 승격하려면 그 기호들을 스프라이트 아이콘/Image 게이지로 먼저 분리해야 함.
+        // 번들 OFL 한글 폰트(나눔고딕) — OS 폰트 매칭 실패 시 폴백, '한글 전멸(두부 □)' 방지.
+        //   ⚠█░✓⊘▸ 글리프가 없어 폴백 경로에서 □로 보일 수 있다 — 주 폰트로 쓰려면 그 기호부터 아이콘으로 분리할 것.
         static Font _bundledKr;
         static bool _bundledKrTried;
         const string BundledKrFontPath = "Fonts/NanumGothic-Regular";   // Assets/Crane/Resources/Fonts/
@@ -64,13 +57,8 @@ namespace AIXRCrane.Crane.Sts
             return f;
         }
 
-        /// <summary>
-        /// world-space 패널 1개 생성: Canvas + 반투명 BG Image + 안쪽 여백(inset) 둔 Text.
-        /// 반환=Canvas, out=Text. inset은 대칭(좌우 inset.x, 상하 inset.y).
-        /// fitToText=false: BG가 panelPixels 고정 크기로 꽉 참(기존 동작).
-        /// fitToText=true : BG가 글자 크기에 맞춰 자동 축소 — inset이 배경~글자 사이 여백(padding)이 됨.
-        ///                  panelPixels는 무시(중심 기준으로 자라므로 배치 오프셋은 그대로 유지).
-        /// </summary>
+        /// <summary>world-space 패널 1개 생성: Canvas + 반투명 BG + inset 여백 Text. 반환=Canvas, out=Text.
+        /// fitToText=false면 BG가 panelPixels 고정 크기, true면 글자 크기에 맞춰 자동 축소(중심 기준, inset=패딩).</summary>
         public static Canvas BuildPanel(
             Transform parent, string canvasName, Vector2 panelPixels, float worldScale,
             Color bgColor, int fontSize, Color textColor, TextAnchor align, Vector2 inset,
@@ -132,14 +120,8 @@ namespace AIXRCrane.Crane.Sts
             return canvas;
         }
 
-        // VR 오클루전 해소(깊이 무시, 항상 최상단)
-        // world-space 캔버스는 기본 깊이테스트(LEqual)라 크레인 부재 등 3D 오브젝트가 HUD 앞에 오면
-        //   HUD가 그 뒤로 그려져 가려진다("object랑 겹쳐 글자 안 보임"의 직접 원인).
-        // [1순위] ZTest를 셰이더에 박은 전용 오버레이(Container/CraneHudOverlay) 사용 — 머티리얼 ZTest
-        //   오버라이드(unity_GUIZTestMode)는 world-space 캔버스+URP/Quest 빌드에서 누락되어 가림이 남았다.
-        //   셰이더에 ZTest Always + Queue Overlay를 박아 환경/스트립에 의존하지 않고 항상 위에 그린다.
-        // [폴백] 전용 셰이더 부재 시 기존 UI/Default + unity_GUIZTestMode 트릭.
-        //   모든 HUD 그래픽이 이 머티리얼 하나를 공유 → 배칭 유지, GC 없음.
+        // VR 오클루전 해소 — world-space 캔버스는 기본 깊이테스트라 3D 오브젝트에 가려진다. 머티리얼 ZTest 오버라이드만으론
+        //   URP/Quest에서 가림이 남아, 셰이더에 ZTest Always를 박은 전용 오버레이로 항상 위에 그린다(없으면 GUIZTestMode 폴백).
         static Material _overlayMat;
         public static Material OverlayMaterial()
         {
@@ -196,9 +178,8 @@ namespace AIXRCrane.Crane.Sts
 
         static Sprite _roundedBg;
 
-        // 둥근 사각 배경 스프라이트를 절차 생성(한 번 만들어 캐시).
-        //   유니티 내장 "UI/Skin/Background.psd"는 빌트인 'extra' 리소스라 런타임 Resources.GetBuiltinResource로
-        //   못 읽고 "could not be loaded" 오류를 뱉었다(에디터 전용 AssetDatabase로만 접근). → 직접 만들어 의존 제거.
+        // 둥근 사각 배경 스프라이트를 절차 생성(캐시) — 유니티 내장 "UI/Skin/Background.psd"는 에디터 전용 리소스라
+        //   런타임 Resources.GetBuiltinResource로 못 읽으므로 직접 만들어 의존을 없앤다.
         static Sprite RoundedBgSprite()
         {
             if (_roundedBg != null) return _roundedBg;
@@ -226,10 +207,8 @@ namespace AIXRCrane.Crane.Sts
             return _roundedBg;
         }
 
-        /// <summary>
-        /// 컨트롤러 등 앵커 '위'(월드 up 방향 worldHeight m)에 패널을 띄우고, 항상 카메라를 정면으로 향하게(빌보드).
-        /// 컨트롤러를 손으로 기울여도 패널은 안 꺾이고 사용자를 바라본다. 위치는 매 프레임 앵커 기준 재계산.
-        /// </summary>
+        /// <summary>앵커 위(월드 up 방향 worldHeight m)에 패널을 띄우고 항상 카메라를 향하게(빌보드).
+        /// 앵커가 기울어도 패널은 안 꺾이며 위치는 매 프레임 재계산.</summary>
         public static void FaceCameraAbove(Transform canvas, Transform anchor, float worldHeight, Camera cam)
         {
             if (canvas == null || anchor == null || cam == null) return;
@@ -246,9 +225,8 @@ namespace AIXRCrane.Crane.Sts
             }
         }
 
-        /// <summary>카메라(부모)의 자식인 캔버스가 카메라를 정면으로 향하게 하는 '로컬' 회전을 설정.
-        /// localOffset이 고정이면 결과가 상수이므로 부착 시 1회만 호출하면 된다(매 프레임 재계산 불필요).
-        /// 180° Y플립으로 거울 효과 해소, tilt로 시야각 기울임. (앵커를 따라다니는 경우는 FaceCameraAbove 사용.)</summary>
+        /// <summary>카메라(부모) 자식 캔버스가 카메라를 향하게 하는 로컬 회전 — localOffset이 고정이면 결과가 상수라 부착 시 1회만 호출.
+        /// 180° Y플립으로 거울 효과 해소, tilt로 시야각 기울임(앵커를 따라다니면 FaceCameraAbove 사용).</summary>
         public static void FaceCameraChild(Transform canvas, Vector3 localOffset, float tiltPitch = 0f, float tiltYaw = 0f)
         {
             if (canvas == null) return;
@@ -318,14 +296,8 @@ namespace AIXRCrane.Crane.Sts
             return _vrController;
         }
 
-        /// <summary>
-        /// 이름으로 좌/우 컨트롤러 Transform 탐색 — ArrowHUD·ModeSelectorHUD 공유.
-        /// 전역 스캔 '첫 매치'는 'Left Controller Stabilized' 같은 정적 보조 객체나 비활성 데모를
-        /// 먼저 잡아 HUD가 바닥에 깔리거나 안 보이던 원인이었다. 그래서:
-        ///   ① 카메라 리그(Camera.main.root) 하위로 범위를 좁히고,
-        ///   ② side+"controller" & "hand" 없음 & 원점 아님 후보 중 이름이 가장 짧은 것(=컨트롤러 본체)을 고른다.
-        /// side 는 "left" 또는 "right".
-        /// </summary>
+        /// <summary>이름으로 좌/우 컨트롤러 Transform 탐색 — ArrowHUD·ModeSelectorHUD 공유. 카메라 리그 하위로 범위를 좁히고
+        /// side+"controller"·손 아님·원점 아님 후보 중 이름이 가장 짧은 것을 고른다(정적 보조 객체 오인 방지).</summary>
         public static Transform FindController(string side)
         {
             Transform rig = Camera.main != null ? Camera.main.transform.root : null;
@@ -344,9 +316,8 @@ namespace AIXRCrane.Crane.Sts
                 //   XR Origin Hands 리그는 컨트롤러 객체 이름이 'Right Hand'라 'controller' 단어가 없다.
                 if (!NameHas(t.name, StsPartNames.ControllerNameHint) && !NameHas(t.name, StsPartNames.HandNameHint)) continue;
                 if (requireHandless && NameHas(t.name, StsPartNames.HandNameHint)) continue;   // 1·2차는 controller 전용, 3차 폴백서 hand 허용
-                // 미추적 컨트롤러는 리그 로컬 원점(=리그 루트 위치)에 머문다. 리그가 1/24로 축소되면 추적된 손도
-                //   리그에 바짝 붙으므로, 월드 원점이 아니라 '리그 루트로부터의 거리'를 스케일에 맞춰 본다.
-                //   (scope=리그, 스케일 1이면 0.2m로 기존과 동일 — 하위호환.)
+                // 미추적 컨트롤러는 리그 로컬 원점(=리그 루트 위치)에 머문다 — 리그가 축소되면 추적된 손도 원점에 붙으므로
+                //   '리그 루트로부터의 거리'를 스케일에 맞춰 본다(스케일 1이면 0.2m로 기존과 동일).
                 float minD = 0.2f * (scope != null ? Mathf.Max(scope.lossyScale.x, 1e-4f) : 1f);
                 Vector3 refP = scope != null ? scope.position : Vector3.zero;
                 if ((t.position - refP).sqrMagnitude < minD * minD) continue;   // 리그 원점 근처(미추적) 제외

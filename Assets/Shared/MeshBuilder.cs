@@ -3,14 +3,7 @@ using UnityEngine;
 
 namespace Procedural
 {
-    /// <summary>
-    /// 절차적 메시 빌더 — 정점/노멀/UV/서브메시 삼각형을 모아 Mesh로 굽는다.
-    /// 면마다 정점을 새로 추가하는 flat-shading 방식. 65535 초과 시 UInt32 인덱스로 자동 전환.
-    ///
-    /// ProceduralContainerMesh(AIXRCrane)·ProceduralCraneMesh(CraneProject)가
-    /// 글자 그대로 동일한 구현을 각자 중첩 클래스로 보유하던 것을 한곳으로 합친 것.
-    /// 두 생성기 모두 `using Procedural;` 로 이 타입을 공유한다.
-    /// </summary>
+    /// <summary>절차적 메시 빌더 — 면마다 정점을 새로 넣는 flat-shading. 65535 초과 시 UInt32 인덱스로 자동 전환.</summary>
     public sealed class MeshBuilder
     {
         readonly List<Vector3> _verts   = new List<Vector3>(8192);
@@ -73,10 +66,7 @@ namespace Procedural
             AddQuad(submesh, ia, ib, ic, id);
         }
 
-        /// <param name="tangents">
-        /// 탄젠트 생성 여부. 기본 true(기존 동작 불변). 노멀맵을 쓰지 않는 저폴리 LOD 는 false 로 —
-        /// 정점이 48 B → 32 B 가 되어 GPU 처리율 구간이 달라진다(문서/컨테이너_규격.md Part 5 §11.7 실측).
-        /// </param>
+        /// <param name="tangents">탄젠트 생성 여부(기본 true). 노멀맵 없는 저폴리 LOD 는 false — 정점 48 B → 32 B.</param>
         public Mesh ToMesh(string name, bool tangents = true)
         {
             var mesh = new Mesh { name = name };

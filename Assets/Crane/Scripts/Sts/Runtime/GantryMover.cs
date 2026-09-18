@@ -3,20 +3,14 @@ using UnityEngine;
 
 namespace AIXRCrane.Crane.Sts
 {
-    /// <summary>
-    /// 갠트리 주행 — 크레인 루트를 안벽 방향(Z축)으로 슬라이딩.
-    /// 트롤리(X)·호이스트(Y)와 동일하게 IAxisMover로 추상화 → 상위(VR/Operator)는 어떤 축인지 모르고 일관되게 호출.
-    ///
-    /// RTG는 고무 타이어라 <see cref="RtgBogieSteering"/>가 보기를 90° 꺾으면 주행축이 로컬 Z→X로 바뀐다(레인 이동).
-    /// STS는 레일 위라 Z 고정 — 기본값이 Z이므로 STS 동작은 그대로다.
-    /// </summary>
+    /// <summary>갠트리 주행 — 크레인 루트를 안벽 방향(로컬 Z)으로 슬라이딩, 트롤리·호이스트와 동일하게 IAxisMover로 추상화.
+    /// RTG는 <see cref="RtgBogieSteering"/>가 보기를 90° 꺾으면 주행축이 Z→X로 바뀐다(레인 이동). STS는 Z 고정.</summary>
     [AddComponentMenu("AI-XR Crane/STS Crane/Gantry Mover")]
     [DisallowMultipleComponent]
     public sealed class GantryMover : AxisMoverBase
     {
-        /// <summary>주행 축(로컬). Z=기본 주행(STS 안벽 / RTG 스택 길이방향), X=RTG 레인 이동(스티어링 90°).
-        /// ※ Z를 0번으로 두는 건 의도적 — 기존 씬/프리팹의 GantryMover엔 이 필드가 직렬화돼 있지 않아
-        ///   기본값으로 떨어지는데, X가 0번이면 옛 STS 크레인이 전부 레인 모드(범위 0~0)로 깨어나 주행이 멎는다.</summary>
+        /// <summary>주행 축(로컬). Z=기본 주행(STS 안벽/RTG 스택 길이방향), X=RTG 레인 이동(스티어링 90°).
+        /// Z가 0번인 건 의도적 — X가 0번이면 옛 씬의 GantryMover가 전부 레인 모드(범위 0~0)로 깨어나 주행이 멎는다.</summary>
         public enum TravelAxis { Z, X }
 
         [Header("주행 범위 (로컬 Z, 미터)")]
@@ -70,9 +64,8 @@ namespace AIXRCrane.Crane.Sts
         float nextLegResolve;   // 빈 캐시일 때만 ~1s마다 재탐색(매 프레임 전체 탐색 방지)
         bool legWarned;
 
-        // 크레인 간 충돌방지 (같은 레일 2대)
-        //   진행방향에 다른 STS가 안전간격 안으로 들어오면 그 방향 주행만 막는다(멀어지는 건 허용 → 둘 다 중앙 접근 가능, 안 부딪침).
-        //   Z만 비교하면 야드 RTG 등 다른 X의 크레인을 오인하므로 '같은 레일(X 근접)'만 본다.
+        // 크레인 간 충돌방지(같은 레일 2대) — 진행방향에 다른 STS가 안전간격 안으로 들어오면 그 방향만 막는다(멀어지는 건 허용).
+        //   Z만 비교하면 다른 X의 크레인(야드 RTG 등)을 오인하므로 '같은 레일(X 근접)'만 본다.
         const float SafeGapMeters = 22f;   // 크레인 중심간 최소 간격(포털 ≈18m + 여유 4m)
         GantryMover[] others;
         float nextOtherResolve;
@@ -89,9 +82,8 @@ namespace AIXRCrane.Crane.Sts
 
         bool BlockedByOtherCrane(float target)
         {
-            // 레인 이동(RTG 90°)은 이 규칙 밖 — '같은 레일 위 두 STS가 Z로 서로 접근'을 막는 로직이라
-            //   X로 레인을 건너는 RTG엔 기준(같은 레일=X 근접 / 간격=Z 차)이 통째로 뒤집힌다.
-            //   RTG끼리의 야드 간섭이 필요해지면 X 기준으로 따로 설계할 것(지금은 미대상).
+            // 레인 이동(RTG 90°)은 이 규칙 밖 — '같은 레일에서 두 STS가 Z로 접근'을 막는 로직이라 X로 레인 건너는 RTG엔 안 맞는다.
+            //   RTG끼리 야드 간섭이 필요해지면 X 기준으로 따로 설계할 것.
             if (IsLane) return false;
 
             ResolveOthersIfNeeded();
@@ -148,9 +140,8 @@ namespace AIXRCrane.Crane.Sts
                 {
                     if (hit.collider == null) continue;
                     if (hit.collider.transform.IsChildOf(transform)) continue;   // 자기(크레인·잡은 화물) 제외
-                    // 컨테이너면 자유/고정 무관 장애물. ContainerInstance 단독 판정은 메뉴/씬의 테스트
-                    //   컨테이너(ContainerInstance 미부착, Rigidbody+BoxCollider만)를 전부 놓쳐 감지가 무력화됐었다.
-                    //   → ContainerInstance 또는 Rigidbody 보유면 컨테이너로 인정. 둘 다 없는 바닥/안벽/리그 등 정적 구조물만 무시.
+                    // 컨테이너 판정은 ContainerInstance 또는 Rigidbody 보유 여부 — ContainerInstance만 보면
+                    //   그게 없는 테스트 컨테이너(Rigidbody+BoxCollider만)를 놓친다. 둘 다 없는 정적 구조물만 무시.
                     if (hit.collider.GetComponentInParent<AIXRCrane.ContainerInstance>() == null
                         && hit.collider.attachedRigidbody == null) continue;
                     QaBlockEdge(true, target, hit.collider.name);   // QA S-PHYS-4: 막힘 검출(밀지 않음) — 엣지에서만

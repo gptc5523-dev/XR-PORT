@@ -3,13 +3,8 @@ using UnityEngine;
 
 namespace AIXRCrane.Crane.Sts
 {
-    /// <summary>
-    /// 폭풍 계류 결박 봉(Tiedown_Rod)을 갠트리 주행에 연동한다.
-    ///   - 갠트리가 움직이면 봉을 살짝 들어올려 부두 앵커에서 분리(결박 해제)
-    ///   - 멈추면 다시 내려와 박힘(결박)
-    /// 봉만 움직이고 러그(크레인쪽)·앵커(부두쪽)는 고정. 동작은 SmoothDamp로 부드럽게.
-    /// 참조를 비워두면 Start에서 같은 오브젝트의 StsCrane + 자식 중 "Tiedown_Rod*"를 자동 수집한다.
-    /// </summary>
+    /// <summary>폭풍 계류 결박 봉(Tiedown_Rod)을 갠트리 주행에 연동 — 주행 중엔 살짝 들어 앵커에서 분리, 멈추면 다시 박힘.
+    /// 봉만 움직이고 러그·앵커는 고정(SmoothDamp). 참조 비우면 자식 "Tiedown_Rod*" 자동 수집.</summary>
     [AddComponentMenu("AI-XR Crane/STS Crane/Tiedown Controller")]
     public sealed class TiedownController : MonoBehaviour
     {

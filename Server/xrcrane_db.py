@@ -1,18 +1,12 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-XR 크레인 통합서버 v0.5 — PLC 이력 수집·저장·조회 (WBS 2.6 최소 골격)
+XR 크레인 통합서버 v0.5 — PLC 이력 수집·저장·조회. 파트ID 매핑·WebSocket 전파·실 PLC 어댑터는 범위 밖.
 
-계획서가 요구하는 '중앙 통합 서버'(PLC 수집 → DB 저장·이력 → 조회) 중 **수집·저장·조회**만 세운다.
-파트ID 매핑·WebSocket 전파(WBS 3.4)·실 PLC 어댑터(S7/OPC UA)는 범위 밖이다.
+의존성 0 — 표준 라이브러리(http.server+sqlite3)만 쓴다. 엔드포인트 5개에 FastAPI 는 과투자.
 
-★ 의존성 0 — 표준 라이브러리(http.server + sqlite3)만 쓴다.
-  FastAPI/uvicorn 을 넣으면 pip·이미지 빌드가 따라붙는데, 엔드포인트 5개에 그럴 이유가 없다.
-  나중에 동시 접속이 수백으로 늘면 그때 갈아타면 된다(그 전엔 과투자).
-
-스키마 — PlcSim CSV 45컬럼을 그대로 받는다(새로 설계하지 않는다. 데이터가 이미 정본이다).
-  자주 조회하는 6개만 컬럼으로 승격해 인덱스를 걸고, 나머지 전량은 raw(JSON)에 보존한다.
-  → 벤더가 태그를 추가해도 스키마 변경 없이 그대로 쌓인다.
+스키마: PlcSim CSV 45컬럼을 그대로 받는다. 자주 쓰는 6개만 컬럼 승격+인덱스, 나머지는 raw(JSON) 보존
+  → 벤더가 태그를 추가해도 스키마 변경 없이 쌓인다.
 
 엔드포인트
   GET  /health                                  살아있는지 + 적재 행 수
@@ -25,10 +19,8 @@ XR 크레인 통합서버 v0.5 — PLC 이력 수집·저장·조회 (WBS 2.6 �
 
 CLI
   python3 xrcrane_db.py serve [--port 5006] [--db /data/xrcrane.db]
-  python3 xrcrane_db.py import <csv...> [--crane STS_Crane] [--source S02/run_01]
-    ─ Unity 를 건드리지 않고 기존 PlcSim CSV 를 그대로 적재한다(1차 수집 경로).
-  python3 xrcrane_db.py feed <csv> [--url http://127.0.0.1:5006] [--crane STS_Crane] [--loop]
-    ─ PLC 대역. CSV 를 t_ms 간격 그대로 /ingest 에 한 행씩 보낸다(실 PLC 어댑터가 오기 전까지).
+  python3 xrcrane_db.py import <csv...> [--crane STS_Crane] [--source S02/run_01]   기존 PlcSim CSV 적재
+  python3 xrcrane_db.py feed <csv> [--url http://127.0.0.1:5006] [--crane STS_Crane] [--loop]   CSV 를 실시간 속도로 /ingest 전송
 """
 
 import argparse

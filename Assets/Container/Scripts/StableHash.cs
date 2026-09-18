@@ -1,16 +1,7 @@
 namespace AIXRCrane
 {
-    /// <summary>
-    /// 결정적(deterministic) FNV-1a 해시 단일 유틸 — 같은 입력 = 같은 출력(비트 단위 재현).
-    /// string.GetHashCode는 런타임마다 달라져 재현성이 깨지므로 사용하지 않는다.
-    /// (이전엔 ContainerLoad/ContainerInstance/ContainerIdGenerator/VRTestMenu 4곳에 복제돼 있던 것을 통합.
-    ///  알고리즘·상수·믹싱 순서는 한 글자도 바꾸지 않고 그대로 이식 — '구현 단일화'이지 '값 변경'이 아님.)
-    ///
-    /// 시그니처가 셋인 이유(서로 출력 계약이 다름 — 통합 불가, 각 사본을 그대로 보존):
-    ///   · Hash01(s)         : 무염(無salt). 빈 문자열은 avalanche 전에 0f로 조기 반환.
-    ///   · Hash01(s, salt)   : salt를 offset basis에 XOR. 빈 문자열도 avalanche를 거침(조기 반환 없음).
-    ///   · Seed(s)           : finalizer(avalanche) 없는 순수 FNV-1a 32bit, System.Random 시드용 int 반환.
-    /// </summary>
+    /// <summary>결정적 FNV-1a 해시 단일 유틸 — 같은 입력은 항상 같은 출력. string.GetHashCode는 런타임마다 달라져 쓰지 않는다.
+    /// Hash01(s)는 무염 조기반환, Hash01(s,salt)는 salt로 채널 분리, Seed(s)는 avalanche 없는 순수 해시(System.Random 시드용).</summary>
     public static class StableHash
     {
         /// <summary>결정적 해시 → 0~1. (string.GetHashCode는 런타임마다 달라져 재현성 깨짐 → FNV-1a + avalanche)</summary>

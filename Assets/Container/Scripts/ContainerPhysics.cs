@@ -3,14 +3,8 @@ using UnityEngine;
 
 namespace AIXRCrane
 {
-    /// <summary>
-    /// 컨테이너 적층 안정화(방식 A) — 1/24 미니어처라 PhysX 기본값(접촉 오프셋·솔버·마찰)이 실척 기준이라
-    /// 안 맞아 3단부터 기우는 문제를, 전역 물리 설정은 안 건드리고 '컨테이너에만' 값을 박아 해결.
-    ///
-    /// 두 경로로 전부 적용:
-    ///   ① 생성 시: VRTestMenu.BuildOne 이 ContainerPhysics.Apply 호출 → 새로 만드는 컨테이너에 즉시 적용
-    ///   ② 기존 씬: ContainerPhysicsStabilizer 가 플레이 시작 시 씬의 모든 'Container' 강체를 찾아 일괄 적용
-    /// </summary>
+    /// <summary>컨테이너 적층 안정화 — 1/24 미니어처라 PhysX 기본값(접촉 오프셋·솔버·마찰)이 실척 기준이라 3단부터
+    /// 기운다. 전역 물리는 안 건드리고 컨테이너에만 값을 박는다(생성 시 즉시 적용 + 씬 전체 일괄 적용).</summary>
     public static class ContainerPhysics
     {
         // 1/24 컨테이너(폭 ≈0.10, 높이 ≈0.11 units) 기준으로 잡은 값.
@@ -58,24 +52,17 @@ namespace AIXRCrane
         }
     }
 
-    /// <summary>
-    /// 씬에 이미 구워진 컨테이너 전부에 적층 안정화를 일괄 적용 — 플레이 시작 시 1회.
-    /// 이름에 "Container"가 들어가고 Rigidbody를 가진 오브젝트를 대상으로 한다(Yard_Container_*, Container_Procedural_* 등).
-    /// 씬에 안 붙여도 [RuntimeInitializeOnLoadMethod]로 자동 스폰.
-    /// </summary>
+    /// <summary>씬의 모든 'Container' Rigidbody 에 적층 안정화를 일괄 적용 — 플레이 시작 시 1회.
+    /// 씬에 안 붙여도 [RuntimeInitializeOnLoadMethod]로 자동 스폰.</summary>
     [AddComponentMenu("AI-XR Crane/Container Physics Stabilizer")]
     [DisallowMultipleComponent]
     public sealed class ContainerPhysicsStabilizer : MonoBehaviour
     {
         [SerializeField] bool debugLog = true;
 
-        // 바닥 관통 방지(하드 클램프) — 스프레더가 잡은(kinematic·무한질량) 컨테이너로 바닥의 동적 컨테이너를
-        //   '강제로 눌러도' 바닥 콜라이더(부두 슬래브 Asphalt)를 뚫고 빠지지 않게, 매 FixedUpdate에서
-        //   컨테이너 '콜라이더 밑면'을 바닥 윗면으로 되돌린다.  ▸ 크레인에 매달린 것만 제외(공중 이송 정상).
-        //   ▸ 토플/적층은 X·Z·회전이라 무관.
-        //   2026-09-16 구멍 2개를 막음(오너 "컨테이너가 바닥을 뚫는다"): ①kinematic 이면 무조건 건너뛰어
-        //   놓은 뒤 남은 컨테이너·야드 배치가 무방비였다 ②Start 목록만 봐서 런타임에 강체가 붙는 것을 못 봤다.
-        const float FloorGuardSkin = 0.004f;   // 정착 시 자연 침투(≈ContactOffset 0.001)보다 크게 — 떨림 없이 깊은 관통만 교정
+        // 바닥 관통 방지(하드 클램프) — kinematic 컨테이너가 동적 컨테이너를 눌러도 바닥(부두 슬래브)을
+        //   뚫지 않게, 매 FixedUpdate 에서 콜라이더 밑면을 바닥 윗면으로 되돌린다. 크레인에 매달린 것만 제외.
+        const float FloorGuardSkin = 0.004f;   // 자연 침투(ContactOffset 0.001)보다 크게 — 깊은 관통만 교정
         // 런타임에 강체가 붙는 컨테이너(PortDemoDirector.MakeGrabbable·PlcCargoReplay.MakeBox)는 Start 목록에 없다 →
         //   주기적으로 다시 모은다. CargoSleepManager 의 rescanInterval 과 같은 5초.
         const float RescanInterval = 5f;
@@ -141,8 +128,8 @@ namespace AIXRCrane
                 }
             }
 
-            // QA S-PHYS-3: 바닥가드 보정이 시작/종료된 순간만 한 줄(매틱 폭주 방지).
-            //   PASS = 보정 시점 침투가 반높이(0.054) 미만 — 즉 매틱 잡아 깊은 관통을 안 허용(구버전 회귀 아님).
+            // QA S-PHYS-3: 바닥가드 보정이 시작/종료된 순간만 한 줄(로그 폭주 방지).
+            //   PASS = 보정 시점 침투가 반높이(0.054) 미만.
             if (AIXRCrane.Crane.Sts.QaLog.Enabled && anyCorr != qaGuardActive)
             {
                 qaGuardActive = anyCorr;
@@ -155,10 +142,8 @@ namespace AIXRCrane
             }
         }
 
-        // 바닥 윗면의 월드 y. 레거시 'VirtualFloor'가 남아 있으면 그것을, 없으면 데크 y=0(=부두
-        // 슬래브 Asphalt 윗면) 규약을 쓴다. 두 값은 같다 — 데크 y=0 은 StsConfig 의 못 움직이는 기준.
-        //   ★ 바닥 높이의 단일 출처(SSOT) — 통과방지 클램프(SpreaderGrabber)·배치 검사도 이걸 쓴다.
-        //     GameObject.Find 를 타므로 호출자는 Start 에서 한 번 받아 캐시할 것(매 틱 호출 금지).
+        // 바닥 윗면의 월드 y(SSOT) — 'VirtualFloor' 있으면 그것을, 없으면 데크 y=0(부두 슬래브 Asphalt 윗면).
+        //   GameObject.Find 를 타므로 호출자는 Start 에서 한 번 캐시할 것(매 틱 호출 금지).
         public static float FindFloorTopY(out bool found)
         {
             found = false;
@@ -171,9 +156,8 @@ namespace AIXRCrane
             return 0f;
         }
 
-        // 컨테이너 이름 규약 — 절차/씬 생성분은 "…Container…"(ShipContainer_*, Container_Procedural_*),
-        //   야드 FBX 배치분은 "Cont40_00"·"Cont20_03". 야드 규약이 빠져 있어 바닥가드가 야드 컨테이너
-        //   20개를 통째로 못 보고 있었다(2026-09-16). PortDemoDirector·StsGrabProbe 와 같은 규약.
+        // 컨테이너 이름 규약 — 절차/씬 생성분 "…Container…", 야드 FBX 배치분 "Cont40_00"/"Cont20_03".
+        //   PortDemoDirector·StsGrabProbe 와 같은 규약.
         static bool IsContainerName(string n) =>
             n.IndexOf("Container", System.StringComparison.OrdinalIgnoreCase) >= 0
             || n.StartsWith("Cont20_") || n.StartsWith("Cont40_");

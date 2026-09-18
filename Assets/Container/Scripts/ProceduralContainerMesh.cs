@@ -1,18 +1,16 @@
 using System.Collections.Generic;
 using UnityEngine;
-using Procedural;   // 공유 MeshBuilder (ProceduralCraneMesh와 중복이던 것을 합침)
+using Procedural;   // 공유 MeshBuilder (크레인 생성기와 공유)
 
 namespace AIXRCrane
 {
     /// <summary>
-    /// 20ft Dry 컨테이너 절차적 메시 생성기.
-    /// 기본 출력은 VR 미니어처 스케일(1/24, 약 0.252 × 0.102 × 0.108 m),
-    /// 메시 중심(0,0,0)이 컨테이너의 가운데(잡기 좋은 위치). Forward: +Z = 도어.
-    /// 서브메시: 0=Body, 1=Door, 2=Frame, 3=Castings, 4=Marking(ID/CSC 플레이트 — 본체색 미적용용 분리).
+    /// 20ft Dry 컨테이너 절차적 메시 생성기. 기본 출력 1/24 미니어처, 중심 피벗, Forward +Z=도어.
+    /// 서브메시: 0=Body,1=Door,2=Frame,3=Castings,4=Marking(ID/CSC용 분리).
     /// </summary>
     public static partial class ProceduralContainerMesh
     {
-        // 기본 출력 스케일: VR 미니어처 (기존 SpawnContainers Std20과 동일 사이즈)
+        // 기본 출력 스케일: VR 미니어처(1/24)
         public const float DefaultMiniatureScale = 1f / 24f;
 
         // 빌더 내부에서 사용하는 ISO 668 실측 (m). 마지막에 일괄 스케일됨.
@@ -31,7 +29,7 @@ namespace AIXRCrane
         // 프레임 / 캐스팅 / 패널 치수
         const float CornerCastW = 0.178f;
         const float CornerCastH = 0.135f;
-        const float CornerCastTopH = 0.135f;  // = CornerCastH(대칭) — 상단 캐스팅 top이 정확히 Height에 맞아 외고 = 2.591 ISO 표준(스택 정합).
+        const float CornerCastTopH = 0.135f;  // = CornerCastH(대칭), top이 Height(2.591)와 일치(스택 정합)
         const float CornerCastD = 0.162f;
         // ISO 1161 코너 캐스팅 구멍 (외측 3면) — 가로 장공 124.5 × 63.5mm.
         //   면별 long/short 매핑은 AddCornerCastingWithHoles 에서 처리(상면·측면 long축 = 컨테이너 길이/폭).
@@ -40,14 +38,12 @@ namespace AIXRCrane
         const float CastWallThick = 0.018f;  // 벽 두께 — 구멍이 안쪽으로 들어가는 recess 깊이
         const float RailH       = 0.092f;
         const float CornerPostW = 0.098f;
-        // 패널 base가 컨테이너 외측에서 안쪽으로 들어간 깊이.
-        // corrugated 외측 평면(+CorrDepth)이 컨테이너 외측면과 일치하도록 = CorrDepth와 같게.
-        // 이러면 corrugated 산이 코너 캐스팅·포스트와 같은 평면 → 외관 시 틈이 사라짐.
+        // 패널 base가 외측에서 안쪽으로 들어간 깊이 = CorrDepth.
+        // 주름 외측 평면이 캐스팅·포스트와 같은 평면이 되어 틈이 사라짐.
         const float PanelInset  = 0.028f;
 
-        // 주름판 (vertical corrugation)
-        // 실측 ISO 주름은 바깥 크라운(flatOut)이 안쪽 밸리(flatIn)보다 좁은 비대칭 사다리꼴 →
-        //   정면광에서 산이 더 또렷한 그림자 라인을 만든다. period(=fIn+slope+fOut+slope)는 0.20 유지(산 개수 불변).
+        // 주름판(vertical corrugation) — 바깥 크라운(flatOut)이 안쪽 밸리(flatIn)보다 좁은 비대칭 사다리꼴.
+        // period(=fIn+slope+fOut+slope)는 0.20 유지(산 개수 불변).
         const float CorrDepth   = 0.028f;
         const float CorrFlatIn  = 0.070f;   // 안쪽 밸리(넓게)
         const float CorrFlatOut = 0.050f;   // 바깥 크라운(좁게)
@@ -83,21 +79,12 @@ namespace AIXRCrane
         // 지붕 코르게이션
         const float RoofCorrDepth = 0.020f;  // 지붕 코르게이션 깊이 (산이 캐스팅 top 직전까지 솟음)
 
-        /// <summary>
-        /// 절차적 메시 생성.
-        /// 기본 출력: 미니어처 스케일(1/24) + 중심 피봇 + X축이 긴 방향(도어=+X).
-        /// 이는 기존 SpawnContainers Std20과 동일 좌표계.
-        /// 현재 Length/Width/Height 상수 기반 — 다른 사이즈는 BuildSized() 사용.
-        /// </summary>
-        /// <summary>
-        /// 감축 단계. 0 = 원본(기본, 이 값이 SSOT 동작). 1 이상은 배경 프롭용 저폴리.
-        /// 실루엣·외곽 치수·서브메시 구성은 유지하고 화면에서 1 px 미만인 요소만 뺀다.
-        ///   1: 골판/도어 홈을 평판으로(외측 크라운 평면 유지) · 언더프레임 생략
-        /// ★ 판정 근거는 문서/컨테이너_규격.md Part 5 §11.9 — 배경 화물 허용치가 대당 1,100~3,100 tris 다.
-        /// ★ 정점 포맷도 같이 줄여야 효과가 난다(§11.7: 정점 12B→60B 에서 처리율 4배 하락).
-        /// </summary>
+        /// <summary>감축 단계(LOD). 0=원본(SSOT), 1+=배경 프롭용 저폴리 — 실루엣·서브메시는 유지.
+        /// 1: 골판/도어 홈 평판화, 언더프레임 생략.</summary>
         public static int LodLevel = 0;
 
+        /// <summary>절차적 메시 생성. 기본 출력 1/24 스케일, 중심 피벗, X축=긴 방향(도어=+X).
+        /// Length/Width/Height 상수 기반 — 다른 사이즈는 BuildSized() 사용.</summary>
         public static Mesh Build(
             string meshName = "Container_20ft_Procedural",
             float scale = DefaultMiniatureScale,
@@ -171,8 +158,7 @@ namespace AIXRCrane
                     normals[i] = new Vector3(n.z, n.y, -n.x);
                 }
                 mesh.normals = normals;
-                // LOD1+ 는 탄젠트를 만들지 않는다 — 배경 화물 재질에 노멀맵이 없어 쓰이지 않는 데이터이고,
-                //   정점이 48 B → 32 B 로 줄어 처리율 구간이 달라진다(문서 §11.7 실측: 44 B 1.82 → 28 B 2.60 G tris/s).
+                // LOD1+는 탄젠트를 생략 — 노멀맵 미사용 + 정점 크기 축소(48B→32B)로 처리율 개선.
                 if (LodLevel < 1) mesh.RecalculateTangents();
             }
             mesh.RecalculateBounds();
@@ -183,9 +169,8 @@ namespace AIXRCrane
         {
             float hx = Width  * 0.5f;
             float hz = Length * 0.5f;
-            // 8개 캐스팅: 위(+Y top) / 아래(0 bottom), 4 모서리. 외측 3면에 ISO 1161 구멍.
-            // 상단은 CornerCastTopH(=CornerCastH 0.135, 대칭) — 아래 면 Height-CornerCastH, top이 정확히 Height(외고 2.591).
-            // 하단은 CornerCastH(0.135) 유지.
+            // 8개 캐스팅: 위/아래 4모서리, 외측 3면에 ISO 1161 구멍.
+            // 상단 CornerCastTopH=CornerCastH(대칭), top이 정확히 Height(2.591)와 일치.
             for (int sx = -1; sx <= 1; sx += 2)
             for (int sz = -1; sz <= 1; sz += 2)
             for (int sy = 0; sy <= 1; sy++)
@@ -254,9 +239,8 @@ namespace AIXRCrane
                     CastHoleShort / size.x, CastHoleLong / size.z, CastWallThick);
         }
 
-        // 사각형 면 (c00→c10→c11→c01 CCW from +normal) 에 사각 구멍을 뚫고,
-        // holeDepth 만큼 안쪽으로 들어간 뒤 닫는 recess 생성.
-        // holeRightFrac/holeUpFrac: 구멍 크기 (face dimension 대비 0~1, 중앙 정렬)
+        // 사각형 면(c00→c10→c11→c01 CCW)에 구멍을 뚫고 holeDepth만큼 들어간 recess 생성.
+        // holeRightFrac/holeUpFrac: 구멍 크기(0~1, 중앙 정렬).
         static void AddFaceWithRectHole(MeshBuilder b, int submesh,
             Vector3 c00, Vector3 c10, Vector3 c11, Vector3 c01, Vector3 normal,
             float holeRightFrac, float holeUpFrac, float holeDepth)
@@ -300,7 +284,7 @@ namespace AIXRCrane
             AddFlatQuad(b, submesh, bhBL, bhBR, bhTR, bhTL, normal);  // 뒷면 (recess 바닥)
         }
 
-        // 4-vertex flat quad (CCW from +normal). 기존 MeshBuilder.AddFace 와 동일 기능을 외부에서 호출 가능하게 노출.
+        // 4-vertex flat quad (CCW from +normal) — MeshBuilder.AddFace와 동일 기능을 외부 노출.
         static void AddFlatQuad(MeshBuilder mb, int submesh,
             Vector3 a, Vector3 b, Vector3 c, Vector3 d, Vector3 normal)
         {
@@ -356,10 +340,8 @@ namespace AIXRCrane
             }
         }
 
-        // 바닥 사이드 레일 + 지게차 포켓(공유)
-        //   단일메시 BuildFrame(submesh 2)·분해 Kit 모두 호출해 동일 형상 보장.
-        //   20ft급(Length<9m)이면 사이드 레일을 포켓 구간에서 3분할하고, X 전관통 터널(상·하판+Z양벽)을 추가한다.
-        //   포켓 Z위치·폭은 언더프레임 하우징(ForkPocketZ/ForkPocketWidth)과 동일, 개구 높이는 레일상단~하우징 바닥(~109mm).
+        // 바닥 사이드 레일 + 지게차 포켓(단일메시·분해 Kit 공유).
+        // 20ft급(Length<9m)은 3분할 + X 전관통 터널. 포켓 위치/폭은 언더프레임과 동일.
         static void AddBottomSideRailsWithForkPockets(MeshBuilder b, int submesh)
         {
             float hx          = Width * 0.5f;
@@ -393,9 +375,8 @@ namespace AIXRCrane
             }
 
             if (!hasPockets) return;
-            // 포켓 터널 — X 전관통, 상·하판 + Z 양벽(X양끝 개방)
-            //   개구는 바닥 사이드 레일과 동일 높이(상·하단 일치) → Mid 레일과 턱 없이 정렬.
-            //   더 깊은 보강 하우징은 언더프레임 ForkPocketDepth 박스가 별도로 표현(아래로 매달림).
+            // 포켓 터널 — X 전관통, 상하판+Z양벽. 개구는 사이드 레일과 동일 높이로 턱 없이 정렬.
+            // 보강 하우징은 언더프레임 ForkPocketDepth 박스가 별도로 표현.
             float tunXSpan   = hx * 2f;                       // = Width (전관통)
             float pocketTopY = bottomRailY + RailH * 0.5f;    // 레일 상단
             float pocketBotY = bottomRailY - RailH * 0.5f;    // 레일 하단(= Mid 레일 바닥과 일치)
@@ -462,21 +443,16 @@ namespace AIXRCrane
                 depth:  CorrDepth);
         }
 
-        /// <summary>
-        /// 수직 주름판(corrugated panel) 한 장을 생성.
-        /// origin = 좌하단 모서리, right = 폭 방향, up = 높이 방향.
-        /// outward 법선은 Cross(right, up) 방향이어야 하므로 호출자가 그렇게 right/up을 선택해야 함.
-        /// </summary>
+        /// <summary>수직 주름판(corrugated panel) 생성. origin=좌하단, right=폭 방향, up=높이 방향.
+        /// outward 법선=Cross(right,up) — 호출자가 그 방향으로 right/up을 선택해야 함.</summary>
         static void BuildCorrugatedPanel(MeshBuilder b, int submesh,
             Vector3 origin, Vector3 right, Vector3 up,
             float width, float height, float depth)
         {
             Vector3 outDir = Vector3.Cross(right, up).normalized;
 
-            // LOD1+ : 골판을 외측 크라운 평면(+depth)의 평판 1장으로 대체.
-            //   크라운 평면을 쓰는 이유는 그 면이 코너 캐스팅·포스트와 같은 평면이라(상단 주석 참조)
-            //   실루엣과 이웃 부재와의 정합이 그대로 유지되기 때문이다. 골 깊이 28 mm 는
-            //   전환거리 33 m 에서 0.03 px 라 보이지 않는다(문서 §11.9).
+            // LOD1+: 골판을 외측 크라운 평면(+depth)의 평판 1장으로 대체.
+            // 크라운 평면이 캐스팅·포스트와 같은 평면이라 실루엣·정합이 유지된다.
             if (LodLevel >= 1)
             {
                 Vector3 o = origin + outDir * depth;
@@ -498,13 +474,7 @@ namespace AIXRCrane
             float fOut = CorrFlatOut * scale;
             float slp  = CorrSlope   * scale;
 
-            // 단면을 따라 (x = 진행 거리, d = 깊이) 노드 생성. 각 노드는 (offset, outwardOffset, normal).
-            // 4 segments per period:
-            //   [0] flatIn   (d=0,     normal=outDir)
-            //   [1] slope ↑  (d=depth, normal=outDir tilted)
-            //   [2] flatOut  (d=depth, normal=outDir)
-            //   [3] slope ↓  (d=0,     normal=outDir tilted)
-            // 마지막 폐쇄 노드 추가 (안쪽으로 복귀)
+            // 단면 노드(along, outOffset, normal) 생성 — 주기당 4구간: flatIn·slope↑·flatOut·slope↓.
 
             var profile = new List<(float along, float outOff, Vector3 normal)>();
             float along = 0f;
@@ -554,10 +524,8 @@ namespace AIXRCrane
             }
         }
 
-        // 도어 면 전용: 평평한 외측 면(z=outer 평판)에 큰 가로 홈 grooves개를 균등 배치(세로 3등분 등).
-        //   각 홈은 사다리꼴 단면(평탄 외측 → 경사 진입 → 평탄 바닥(grooveDepth만큼 안쪽) → 경사 탈출 → 평탄 외측).
-        //   홈 중심은 길이를 grooves등분한 각 밴드의 중앙(=맨위/중간/맨아래). 단면은 'right' 진행축으로 흐르고
-        //   판은 'up' 축 전폭을 덮어 가로로 흐른다. 외측 법선 = Cross(right, up).
+        // 도어 면 전용: 평탄 외측 면에 가로 홈 grooves개 균등 배치(사다리꼴 단면: 평탄→경사→바닥→경사→평탄).
+        // right=단면 진행축, up=전폭 방향, 외측 법선=Cross(right,up).
         static void BuildGroovedDoorPanel(MeshBuilder b, int submesh,
             Vector3 origin, Vector3 right, Vector3 up,
             float length, float span, float grooveDepth,
@@ -632,9 +600,8 @@ namespace AIXRCrane
             float railTopY = Height - CornerCastH * 0.5f + RailH * 0.5f;
             float baseY = railTopY - RoofCorrDepth - 0.005f;  // 골 + 깊이 + 5mm 여유 = 산이 rail top 보다 5mm 낮음
 
-            // 산/골이 폭(X) 방향으로 길게 흐름 — 문에서 봤을 때 가로 줄무늬로 보임.
-            // right=+Z (코르게이션 프로파일이 길이 방향으로 진행), up=+X (각 산이 -X→+X로 길게 흐름)
-            // outDir = Cross(+Z, +X) = +Y (지붕은 위로 향함)
+            // 산/골이 폭(X) 방향으로 흐름(문에서 보면 가로 줄무늬) — right=+Z, up=+X.
+            // outDir=Cross(+Z,+X)=+Y(지붕 위로 향함).
             BuildCorrugatedPanel(b, submesh: 0,
                 origin: new Vector3(-hx, baseY, -hz),
                 right:  new Vector3(0f, 0f, 1f),
@@ -651,9 +618,8 @@ namespace AIXRCrane
             float hx = Width  * 0.5f;
             float hz = Length * 0.5f;
 
-            // 외측 바닥 (normal -Y, 컨테이너 아래에서 보임)
-            // 천장이 rail top 5mm 아래로 들어간 것과 대칭 — 바닥도 rail bottom 5mm 위로 올림.
-            // 끝 레일/사이드 레일이 외측에서 바닥 가장자리를 덮어줌 (앞뒤/좌우 마감).
+            // 외측 바닥(normal -Y) — 천장과 대칭으로 rail bottom 5mm 위로 올림.
+            // 끝/사이드 레일이 바닥 가장자리를 덮어 마감.
             float yOut = CornerCastH * 0.5f - RailH * 0.5f + 0.005f;  // = railBottomY + 5mm
             int a = b.AddVertex(new Vector3(-hx, yOut, -hz), Vector3.down, new Vector2(0f, 0f));
             int b1 = b.AddVertex(new Vector3( hx, yOut, -hz), Vector3.down, new Vector2(1f, 0f));
@@ -673,11 +639,8 @@ namespace AIXRCrane
             b.AddQuad(0, e, h, g, f);
         }
 
-        // 바닥 하부 구조 (언더프레임)
-        // ISO1496 정규 부재: 바텀 사이드레일 사이를 가로지르는 횡단 크로스멤버가 바닥판을 받친다.
-        //   현재 증분 = 크로스멤버(횡단 리브)만. 포크포켓·구스넥 터널은 후속 증분(스크린샷 수렴 후).
-        //   바닥 외측판(yOut) 바로 아래에 매달리는 리브 → 밑에서 보면 가로 리브가 줄지어 보임.
-        //   서브메시 2(Frame 회색). 코너 캐스팅 밑면(y=0)보다 위에 머물러 컨테이너는 여전히 캐스팅으로 안착.
+        // 바닥 하부 구조(언더프레임) — ISO1496 크로스멤버가 바닥판을 받치고, 포크포켓·구스넥 터널도 포함.
+        // 바닥 외측판 바로 아래 매달림(서브메시 2). 코너 캐스팅 밑면(y=0) 위에 머물러 안착 유지.
         const float CrossMemberSpacing = 0.30f;   // 실측 중심 간격(~300mm)
         const float CrossMemberThick   = 0.05f;   // Z 두께(C채널 플랜지 폭 근사)
         const float CrossMemberDepth   = 0.018f;  // 바닥판 아래로 매달리는 깊이
@@ -720,9 +683,8 @@ namespace AIXRCrane
                 b.AddBox(submesh, new Vector3(s * GooseneckHalfW, gnY, gnZc), new Vector3(0.02f, GooseneckDepth, GooseneckLen));
         }
 
-        // 캠킵 키퍼 — 상/하 캠이 도어 헤더/실에 물려 도어를 닫아주는 ㄷ자 리텐션 브래킷.
-        //   캠 바깥(+Z)에 백월 + 캠 위·아래 두 암 = C형. 캠(원기둥)이 도어면과 백월 사이에 들어앉아 회전 잠금.
-        //   submesh: 단일메시 Build()는 2(Frame), 분해 Kit은 파트당 단일 머티라 0.
+        // 캠 키퍼 — 상/하 캠이 도어 헤더/실에 물려 잠그는 ㄷ자 리텐션 브래킷(백월+위아래 암, C형).
+        // submesh: 단일메시 Build()는 2(Frame), 분해 Kit은 0.
         static void AddCamKeeper(MeshBuilder b, int submesh, float x, float camCenterY, float lockBarZ, float doorZ)
         {
             float camR      = LockCamSize * 0.5f;
@@ -744,9 +706,8 @@ namespace AIXRCrane
             }
         }
 
-        // cam-lock 회전 핸들 — 허브(바 클램프)+레버암+수직 그립+도어 캐치(잠금/봉인부).
-        //   단일메시 Build()와 분해 Kit가 좌표·치수까지 공유(형상 단일화). 정점 생성 순서: 허브→레버암→그립→캐치.
-        //   x=락바 중심 X, panelMidY=락바 중앙 높이, lockBarZ=락바 축 Z, handleSide=레버 뻗는 방향(±1, 한 도어 두 바는 동일 외측).
+        // cam-lock 회전 핸들 — 허브+레버암+수직 그립+도어 캐치(잠금/봉인부). 단일메시·Kit 공유.
+        // x=락바 중심X, panelMidY=락바 중앙 높이, lockBarZ=락바 축Z, handleSide=레버 방향(±1).
         static void AddCamLockHandle(MeshBuilder b, int submesh, float x, float panelMidY, float lockBarZ, float handleSide)
         {
             b.AddBox(submesh, new Vector3(x, panelMidY, lockBarZ + 0.008f),
@@ -760,11 +721,8 @@ namespace AIXRCrane
                 new Vector3(0.028f, 0.030f, 0.052f));                                              // 도어 캐치(그립 밑동이 물림·봉인부)
         }
 
-        // 도어 리프 — 실물(ISO 드라이 컨테이너 후면도어) 레퍼런스 형태:
-        //   평판 강재 둘레 프레임(세로 내·외측 레일 + 가로 상·하 레일) 안에 평평한 강판,
-        //   그 면을 세로 3등분해 큰 가로 홈(swage) 3개를 맨위·중간·맨아래에 눌러 넣는다.
-        //   외측면(doorZ)에 프레임·평판 면이 닿고, 홈 바닥만 GrooveDepth만큼 안쪽으로 리세스.
-        //   submesh: 단일메시 Build()는 1(Door), 분해 Kit은 0.
+        // 도어 리프 — 둘레 프레임(평판 강재) 안에 강판, 세로 3등분해 가로 홈(swage) 3개 삽입.
+        // 외측면(doorZ)에 프레임·평판이 닿고 홈 바닥만 리세스. submesh: Build()=1(Door), Kit=0.
         static void BuildFramedDoorLeaf(MeshBuilder b, int submesh, float x0, float yBot, float width, float height, float doorZ)
         {
             const float borderW   = 0.055f;  // 둘레 프레임 레일 폭(평판 강재)
@@ -784,9 +742,8 @@ namespace AIXRCrane
             b.AddBox(submesh, new Vector3(x0 + borderW * 0.5f, yBot + height * 0.5f, proudZc),         new Vector3(borderW, sideH, proudZsize));
             b.AddBox(submesh, new Vector3(x0 + width - borderW * 0.5f, yBot + height * 0.5f, proudZc), new Vector3(borderW, sideH, proudZsize));
 
-            // 2) 평판 면 + 큰 가로 홈 3개(세로 3등분: 맨위/중간/맨아래).
-            //    right=-Y(단면이 Y로 흐름, origin=상단에서 아래로 sweep)·up=+X(판이 가로 전폭으로 흐름)
-            //    → 외측 법선 +Z, 평탄 면은 doorZ, 홈 바닥만 GrooveDepth 안쪽.
+            // 평판 면 + 가로 홈 3개(세로 3등분). right=-Y(위→아래 sweep), up=+X(가로 전폭).
+            // 외측 법선 +Z, 평탄면=doorZ, 홈 바닥만 GrooveDepth 안쪽.
             float secBot = yBot + borderW;
             float secTop = yBot + height - borderW;
             BuildGroovedDoorPanel(b, submesh,
@@ -801,9 +758,8 @@ namespace AIXRCrane
                 grooveSlopeFrac:  0.10f);  // 밴드 내 진입/탈출 경사 폭 비율(작게)
         }
 
-        // 도어 힌지 1개 — 스윙 축(핀 배럴)을 도어 외측 세로 모서리(=코너 포스트 라인)에 두고,
-        //   배럴 위/아래에서 스트랩 2장이 도어 면(빔)으로 뻗어 볼트되는 실물 형태.
-        //   barrelX=도어 외측 모서리 X, beamX=측면 빔 중심 X(스트랩이 닿는 안쪽), yCenter=힌지 높이, doorZ=후면 외측면.
+        // 도어 힌지 — 스윙 축(핀 배럴)을 외측 세로 모서리에 두고, 배럴 위/아래에서 스트랩 2장이 빔으로 뻗어 볼트.
+        // barrelX=외측 모서리X, beamX=측빔 중심X, yCenter=힌지 높이, doorZ=후면 외측면.
         static void AddDoorHinge(MeshBuilder b, int submesh, float barrelX, float beamX, float yCenter, float doorZ)
         {
             const float barrelR = 0.020f;                 // 핀 배럴 반지름(굵게)
@@ -856,7 +812,7 @@ namespace AIXRCrane
                 center: new Vector3(rightBeamX, panelMidY, doorZ - PanelInset * 0.5f),
                 size:   new Vector3(SideBeamW, panelHeight, PanelInset));
 
-            // 도어 리프 = 프레임 패널(A안): 돋은 테두리 + 중간 레일 + 상/하 리세스 패널 (각 도어 빔 옆 corrWidth)
+            // 도어 리프(프레임 패널): 테두리+중간레일+상하 리세스 패널(도어 빔 옆 corrWidth)
             BuildFramedDoorLeaf(b, submesh: 1, doorStartLeft + SideBeamW, panelBottom, corrWidth, panelHeight, doorZ);
             BuildFramedDoorLeaf(b, submesh: 1, doorStartLeft + doorWidth + DoorGap, panelBottom, corrWidth, panelHeight, doorZ);
 
@@ -894,8 +850,7 @@ namespace AIXRCrane
                     AddCamKeeper(b, 2, x, panelTop - LockCamSize * 0.5f, lockBarZ, doorZ);
                     AddCamKeeper(b, 2, x, panelBottom + LockCamSize * 0.5f, lockBarZ, doorZ);
 
-                    // cam-lock 회전 핸들 (락바 중앙 — 한 도어의 두 바는 같은 외측 방향)
-                    //   허브+레버암+수직 그립+도어 캐치. 단일메시·Kit 공유 헬퍼(좌표·치수 단일화).
+                    // cam-lock 회전 핸들 — 락바 중앙(한 도어 두 바는 같은 외측 방향).
                     float handleSide = (doorSide == 0) ? -1f : 1f;
                     AddCamLockHandle(b, 2, x, panelMidY, lockBarZ, handleSide);
 

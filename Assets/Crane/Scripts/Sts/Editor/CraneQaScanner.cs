@@ -6,13 +6,8 @@ using UnityEngine;
 
 namespace AIXRCrane.Crane.Sts.EditorTools
 {
-    /// <summary>
-    /// 크레인 오브젝트 정밀 검사 — 렌더러 바운즈를 계산해 세 가지를 자동 탐지, 콘솔에 리스트로 출력한다.
-    ///   ① 겹침(Overlap): 서로 다른 부재가 깊게 관통(작은 쪽 부피의 OverlapFrac 이상). 부모-자식은 제외.
-    ///   ② 부양(Floating): 주변 FloatGap 안에 다른 오브젝트가 하나도 없어 공중에 떠 있는(붙지 않은) 오브젝트.
-    ///   ③ 중복(Duplicate): 이름 접두사가 같은데 바운즈가 거의 겹치는(같은 자리 이중 생성) 오브젝트.
-    /// 화면을 못 보는 상태에서 겹침·부양·중복을 '전수' 찾는 유일한 정확한 방법. 실행 후 콘솔 리스트대로 수정한다.
-    /// </summary>
+    /// <summary>크레인 렌더러 바운즈로 겹침·부양·중복을 자동 탐지해 콘솔에 출력한다.
+    /// 겹침=다른 부재가 깊게 관통, 부양=주변에 이웃 없이 떠있음, 중복=같은 접두사+바운즈 거의 일치.</summary>
     public static class CraneQaScanner
     {
         const float OverlapFrac = 0.35f;   // 작은 쪽 부피의 35% 이상 관통 = 딥 겹침(구조 조인트의 정상 접촉은 대개 이하)

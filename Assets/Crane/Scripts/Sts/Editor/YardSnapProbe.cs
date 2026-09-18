@@ -8,25 +8,13 @@ using UnityEngine;
 
 namespace AIXRCrane.Crane.Sts.EditorTools
 {
-    /// <summary>
-    /// 야드 칸(라인) 정렬 실측 — 오너 2026-09-16 "컨테이너 내릴 때 바닥 라인 안 지키고 그냥 내려놓는다. 수식으로 계산해서 수정".
-    ///   Unity -batchmode -nographics -projectPath &lt;클론&gt; -executeMethod AIXRCrane.Crane.Sts.EditorTools.YardSnapProbe.Run -logFile &lt;log&gt;
-    ///
-    /// 두 가지를 잰다(플레이 모드 없이 씬만 열어서 — 몇 초).
-    ///   ① 씬에 실제로 놓인 야드 컨테이너가 <b>PortConfig 수식으로 유도한 칸 격자</b> 위에 있는가.
-    ///      → 이게 안 맞으면 스냅을 수식에 맞추는 순간 컨테이너가 눈에 보이는 라인에서 더 벗어난다. 고치기 전에 반드시 확인.
-    ///   ② 방향(yaw)이 격자 축(월드 X/Z)에 맞는가 — 칸에 비뚤게 걸친 것 판정.
-    ///
-    /// 격자 유도는 생산부 QuayPartsPlacer 와 같은 식이지만 <b>좌표를 복사하지 않고</b> PortConfig(런타임 SSOT)에서 다시 유도한다:
-    ///   cell.x = YardBlockCenterX(lane) − YardBlockWidthM/2  + RowPitchM·(r + 0.5)
-    ///   cell.z = YardBlockCenterZ(block) − YardBlockLengthM/2 + BayPitchM·(b + 0.5)
-    ///   20ft 는 한 베이에 앞뒤 2개 → cell.z ± (20ft길이 + Yard20ftGapM)/2 도 후보에 넣는다.
-    /// </summary>
+    /// <summary>야드 칸 정렬 실측(배치 전용, 플레이 모드 없이 몇 초) — 씬 야드 컨테이너가 PortConfig 격자 위에 있는지·yaw 가 격자 축인지.
+    ///   -executeMethod AIXRCrane.Crane.Sts.EditorTools.YardSnapProbe.Run</summary>
     public static class YardSnapProbe
     {
         const string ScenePath = StsPartNames.PortScenePath;
 
-        // 판정 허용(실척 m). 행 간 틈이 RowGapM 0.4m 라, 칸 중심에서 0.2m 를 넘으면 틈을 먹기 시작한다 = 라인 침범.
+        // 판정 허용(실척 m) — 행 틈 0.4m 의 절반. 넘으면 라인 침범.
         const float TolM = 0.2f;
         const float YawTolDeg = 2f;
 
@@ -74,12 +62,8 @@ namespace AIXRCrane.Crane.Sts.EditorTools
                       $"칸 벗어남 {off}개(허용 {TolM:F2}m), 최대 이탈 {maxD:F3}m ← {worst}, " +
                       $"방향 틀어짐 {yawOff}개(허용 {YawTolDeg:F0}°), 최대 {maxYaw:F1}° ← {worstYaw}");
 
-            // ★ 감도 시험 — 이 계측이 '벗어난 것'을 실제로 잡는지 본다.
-            //   초록만 관측한 기준은 공허할 수 있다: 스모크의 야드 칸 기준(PortDemoMenu.YardCellMaxErrM)은 첫 실행 때
-            //   이미 라운딩(6d28561)이 들어간 HEAD 였어서 FAIL 을 한 번도 못 봤다. 같은 수식(YardGrid.TrySnapXZ)을 쓰는
-            //   여기서 일부러 칸에서 밀어 놓고 '검출되는지'를 확인한다 — 플레이 모드 없이 몇 초, 메모리도 안 먹는다.
-            //   (배치 스모크로 end-to-end 를 보려 했으나 시스템 메모리 부족으로 죽었다. 이건 그 대체가 아니라 계측 감도만 본다.)
-            float probeM = 0.6f;   // 실척 0.6m — 허용 0.2m 의 3배. 이만큼 밀면 반드시 잡혀야 한다.
+            // 감도 시험 — 일부러 칸에서 밀어 놓고 YardGrid.TrySnapXZ 가 검출하는지 본다(초록만 보면 기준이 공허할 수 있다).
+            float probeM = 0.6f;   // 실척 0.6m — 허용의 3배, 반드시 잡혀야 한다.
             int sensed = 0, tried = 0;
             foreach (var t in boxes)
             {
@@ -131,7 +115,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             return cells;
         }
 
-        // 생산부(QuayPartsPlacer:242)의 20ft 틈과 같은 값 — 생산부가 Editor 라 런타임 SSOT 가 없다. 어긋나면 여기와 그쪽을 같이 고칠 것.
+        // QuayPartsPlacer 의 20ft 틈과 같은 값.
         const float Yard20ftGapM = 0.30f;
 
         static bool TryBounds(Transform t, out Bounds b)

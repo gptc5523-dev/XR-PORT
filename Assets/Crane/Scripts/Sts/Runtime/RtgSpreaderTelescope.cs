@@ -2,18 +2,8 @@ using UnityEngine;
 
 namespace AIXRCrane.Crane.Sts
 {
-    /// <summary>
-    /// RTG(FBX) 스프레더 텔레스코픽 — 20 / 40 / 45ft. STS <see cref="SpreaderTelescope"/>와 달리
-    /// **빔을 스케일(늘이기)하지 않고 슬라이드(밀기)** 한다. FBX 계층이 TeleBeam_F/B → EndBeam →
-    /// 트위스트락·플리퍼로 물려 있어, TeleBeam만 신축축으로 밀면 끝빔·트위스트락이 **왜곡 없이** 딸려온다.
-    ///
-    /// 원칙(요청 스펙):
-    ///  • 신축축은 두 빔의 위치차(restF−restB)에서 **자동 검출** — Blender(Z-up)→Unity(Y-up) 임포트로
-    ///    축이 Y→Z 등으로 바뀌어도 안전(Vector3.up/right 하드코딩 금지).
-    ///  • 후퇴/신장량은 미터 하드코딩 대신 **측정된 두 빔 간격 × ISO 규격 비율**로 산출 → FBX 임포트
-    ///    단위(m/cm)·루트 스케일에 무관하게 정확.
-    ///  • MainFrame(센터 슬리브)·EndBeam·트위스트락·플리퍼는 **직접 이동 금지**(TeleBeam만 움직임).
-    /// </summary>
+    /// <summary>RTG(FBX) 스프레더 텔레스코픽 — 20/40/45ft. 빔을 스케일 대신 슬라이드해 끝빔·트위스트락이 왜곡 없이 딸려온다.
+    /// 신축축·이동량은 두 빔 간격에서 자동 검출(축·단위 하드코딩 금지) — MainFrame·EndBeam·트위스트락은 직접 이동 금지.</summary>
     [AddComponentMenu("AI-XR Crane/STS Crane/RTG Spreader Telescope")]
     [DisallowMultipleComponent]
     [ExecuteAlways]   // 에디터에서도 Size 토글 시 신축이 보이도록(Play 없이 확인 가능)
@@ -40,9 +30,8 @@ namespace AIXRCrane.Crane.Sts
         const float Half20 = 5.853f  * 0.5f;   // 2.9265
         const float Half40 = 11.985f * 0.5f;   // 5.9925 (기준자세)
         const float Half45 = 13.716f * 0.5f;   // 6.858
-        // Blender 40ft 기준자세에서 두 TeleBeam의 축방향 간격(m) — 실측 loc.y ±2.893 → 5.786.
-        //   (측정 간격[Unity]) / 5.786 = 임포트 스케일 k. 빔 변위를 이 k로 환산해 단위 무관하게.
-        //   ※ 옛 값 5.80은 반올림 추정이라 k에 0.24% 오차가 났다 — 문서/크레인_동적데이터/RTG_크레인_동적데이터.md §7.
+        // Blender 40ft 기준자세에서 두 TeleBeam 의 축방향 간격(m) — 실측 loc.y ±2.893 → 5.786.
+        // (측정 간격[Unity]) / 5.786 = 임포트 스케일 k. 옛값 5.80 은 반올림이라 k 에 0.24% 오차가 났다.
         const float SpanBlender40 = 5.786f;
 
         float cur;   // 현재 F빔의 축방향 변위(Unity 로컬단위). 40ft=0, +=신장 / −=후퇴.
@@ -111,8 +100,8 @@ namespace AIXRCrane.Crane.Sts
             return d.sqrMagnitude > 1e-9f ? d.normalized : Vector3.up;
         }
 
-        // 규격별 F빔 변위(Unity 로컬단위). k = (측정 두 빔 간격)/5.80(m)로 임포트 스케일 자동반영.
-        //   빔과 트위스트락은 강체(부모-자식)로 함께 이동하므로, 코너 반길이 차 = 빔 변위.
+        // 규격별 F빔 변위(Unity 로컬단위). k = (측정 두 빔 간격)/SpanBlender40 으로 임포트 스케일 자동반영.
+        // 빔과 트위스트락은 강체(부모-자식)로 함께 이동하므로, 코너 반길이 차 = 빔 변위.
         float DeltaFor(Size s)
         {
             float span = (restF - restB).magnitude;

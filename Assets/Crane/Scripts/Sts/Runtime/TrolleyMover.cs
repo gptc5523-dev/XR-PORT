@@ -2,10 +2,8 @@ using UnityEngine;
 
 namespace AIXRCrane.Crane.Sts
 {
-    /// <summary>
-    /// 트롤리(Trolley)를 붐 위 레일을 따라 X축으로 슬라이딩.
-    /// 스프레더는 트롤리의 X를 따라가야 하므로 호이스트 참조를 받아 동기화한다.
-    /// </summary>
+    /// <summary>트롤리를 붐 위 레일을 따라 X축으로 슬라이딩.
+    /// 스프레더는 트롤리 X를 따라가야 하므로 참조를 받아 동기화한다.</summary>
     [AddComponentMenu("AI-XR Crane/STS Crane/Trolley Mover")]
     [DisallowMultipleComponent]
     public sealed class TrolleyMover : AxisMoverBase
@@ -29,9 +27,8 @@ namespace AIXRCrane.Crane.Sts
             transform.localPosition = p;
         }
 
-        // 스프레더가 트롤리의 자식이면(예: FBX RTG 계층 Trolley→Spreader) 트롤리가 이동할 때 부모를 따라
-        //   자동으로 딸려온다 → 여기서 X를 또 쓰면 이중 적용(두 배 이동·프레임 불일치로 정렬 깨짐).
-        //   자식이 아닐 때(STS: 스프레더 루트가 트롤리의 형제)만 수동 동기화한다. 참조가 바뀔 때만 1회 재판정.
+        // 스프레더가 트롤리의 자식이면 이동에 자동으로 딸려오므로 X를 또 쓰면 이중 적용된다.
+        // 자식이 아닐 때만 수동 동기화 — 참조가 바뀔 때만 1회 재판정.
         Transform syncCheckedFor;
         bool spreaderIsDescendant;
 
@@ -83,9 +80,8 @@ namespace AIXRCrane.Crane.Sts
             {
                 if (hit.collider == null) continue;
                 if (hit.collider.transform.IsChildOf(transform)) continue;   // 자기(트롤리·잡은 화물) 제외
-                // 컨테이너면 자유/고정 무관 장애물. ContainerInstance 단독 판정은 메뉴/씬의 테스트
-                //   컨테이너(ContainerInstance 미부착, Rigidbody+BoxCollider만)를 전부 놓쳐 감지가 무력화됐었다.
-                //   → ContainerInstance 또는 Rigidbody 보유면 컨테이너로 인정. 둘 다 없는 바닥·안벽·리그 등 정적 구조물만 무시.
+                // 컨테이너면 자유/고정 무관 장애물로 본다.
+                // ContainerInstance 또는 Rigidbody 보유 시 컨테이너로 인정, 둘 다 없으면 정적 구조물로 무시.
                 if (hit.collider.GetComponentInParent<AIXRCrane.ContainerInstance>() == null
                     && hit.collider.attachedRigidbody == null) continue;
                 return true;

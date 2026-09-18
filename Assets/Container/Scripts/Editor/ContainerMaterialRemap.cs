@@ -7,16 +7,8 @@ using UnityEngine;
 
 namespace AIXRCrane.EditorTools
 {
-    /// <summary>컨테이너 FBX 머티리얼 리맵 — 내장본 대신 Final4 의 .mat 을 쓰게 한다.
-    ///
-    /// 왜 필요한가 (2026-09-08 실측):
-    ///   컨테이너 FBX 는 externalObjects 가 비어 있어 Unity 가 FBX 내장 머티리얼을 만든다.
-    ///   그 내장본은 base 0.12 무텍스처라 근거리(LOD0)에서 컨테이너가 새까맣게 보였다.
-    ///     LOD0 Body  base 0.12 · map 없음                     ← 내장본
-    ///     LOD1 Body  base 1.00 · map Container_Body_BaseColor ← Final4/Body.mat
-    ///   이름은 양쪽이 같으므로 이름으로 리맵하면 둘이 같은 외형이 된다.
-    ///
-    /// 오너 방침 — 메뉴는 무조건 Model > FBX 아래.</summary>
+    /// <summary>컨테이너 FBX 머티리얼 리맵 — 내장 머티리얼 대신 Final4 의 .mat 을 쓰게 한다.
+    /// FBX 내장본은 무텍스처라 근거리(LOD0)에서 컨테이너가 새까맣게 보이는 문제를 이름 매칭으로 막는다.</summary>
     internal static class ContainerMaterialRemap
     {
         const string ModelDir = "Assets/Container/Models";

@@ -4,15 +4,8 @@ using Procedural;
 
 namespace AIXRCrane.Ship
 {
-    /// <summary>
-    /// 컨테이너선 상부구조 절차 생성 — 2~4단계(솔리드 마스, 미세 디테일은 6단계).
-    ///   · BuildHatches      : 화물구 해치(코밍+커버) 격자 — 컨테이너가 안착할 면
-    ///   · BuildForecastle   : 선수루(상승 갑판) + 현측벽 + 방파판(breakwater)
-    ///   · BuildAccommodation: 거주구 타워 + 항해선교(브리지 윙) + 펀넬
-    ///
-    /// 폭·갑판높이는 선체 곡선(ProceduralShipHull.HalfBeam/DeckY)을 직접 읽어 선형에 정합.
-    /// 좌표/스케일은 선체와 동일(실척 m → ModelScale 1/24). 각 파트는 자체 서브메시(머티리얼)를 가짐.
-    /// </summary>
+    /// <summary>컨테이너선 상부구조 절차 생성 — BuildHatches(해치)·BuildForecastle(선수루)·BuildAccommodation(거주구+펀넬).
+    /// 폭·갑판높이는 선체 곡선(HalfBeam/DeckY)에서 읽어 정합. 좌표/스케일은 선체와 동일(실척 m → 1/24).</summary>
     public static class ProceduralShipStructures
     {
         const float Scale = ShipConfig.ModelScale;
@@ -115,9 +108,8 @@ namespace AIXRCrane.Ship
             return mb.ToMesh("ContainerShip_Hatches");
         }
 
-        // ── 5단계: 갑판 컨테이너 적재 — 해치 커버 위 베이×로우×티어 ──
-        // 레이아웃은 BuildHatches와 동일(동일 베이/로우 산출) → 커버 위에 정확히 안착.
-        // 서브메시 0~7 = 컨테이너 색 팔레트(패치워크). 가장자리 낮은 크라운 프로파일·베이별 변주.
+        // ── 5단계: 갑판 컨테이너 적재 — 해치 커버 위 베이×로우×티어(레이아웃은 BuildHatches와 동일) ──
+        // 서브메시 0~7 = 컨테이너 색 팔레트(패치워크).
         public const int CargoPalette = 8;
         public const float CargoTierH = 2.591f;   // 컨테이너 적층 피치(Std, 실척 m)
 
@@ -142,12 +134,10 @@ namespace AIXRCrane.Ship
                 float halfW = rows * Wc * 0.5f;
                 float baseY = ProceduralShipHull.DeckY(zc) + coamH + coverH;   // 커버 윗면=적재 기준
 
-                // 스택 높이 = 길이방향 램프: 선미(뒷부분) 최대단 → 선수(앞부분) 1단 계단 하강(랜덤 아님).
-                //   i=0=선미(CargoAftZ), i 증가 → 선수(CargoFwdZ). 폭 방향은 균일.
-                //   최대단은 ShipConfig.DeckMaxTiers — 종전엔 3 고정이었다(오너 지시 2026-09-07 로 2).
+                // 스택 높이 = 길이방향 램프: 선미(CargoAftZ, i=0) 최대단 → 선수(CargoFwdZ) 1단 계단 하강. 폭 방향은 균일.
                 float v = (bays > 1) ? (float)i / (bays - 1) : 0f;     // 0(선미)~1(선수)
                 int maxT  = Mathf.Max(1, ShipConfig.DeckMaxTiers);
-                //   램프를 최대단 수에 맞춰 균등 분할 — 3단이면 3구간, 2단이면 2구간.
+                // 램프를 최대단 수에 맞춰 균등 분할.
                 int tiers = maxT - Mathf.Min(maxT - 1, Mathf.FloorToInt(v * maxT));
 
                 for (int r = 0; r < rows; r++)
@@ -165,8 +155,7 @@ namespace AIXRCrane.Ship
         }
 
         // ── 3단계: 선수루(forecastle) — 연속 로프트 솔리드 + 둘러싼 불워크 + 방파판 ──
-        // 서브메시: 0=상승갑판, 1=현측벽·불워크·방파판
-        // 박스 적층(계단형) 폐기 → 이어진 갑판 + 매끈한 현측벽 + 가장자리 불워크로 마감.
+        // 서브메시: 0=상승갑판, 1=현측벽·불워크·방파판. 박스 적층 아닌 이어진 갑판+매끈한 현측벽으로 마감.
         public static Mesh BuildForecastle()
         {
             var mb = new MeshBuilder();
@@ -241,8 +230,7 @@ namespace AIXRCrane.Ship
         }
 
         // ── 4단계: 거주구 타워 + 브리지 + 펀넬 ─────────────────────────────────
-        // 서브메시: 0=하우스, 1=창문대, 2=펀넬, 3=펀넬 식별 밴드
-        // 높이는 SOLAS 전방시야로 역산(브리지 눈높이 ≥ 주갑판+20m → 9층). 폭28>길이22 타워형.
+        // 서브메시: 0=하우스,1=창문대,2=펀넬,3=밴드. 높이는 SOLAS 전방시야로 역산(브리지 눈높이≥주갑판+20m→9층).
         public static Mesh BuildAccommodation()
         {
             var mb = new MeshBuilder();

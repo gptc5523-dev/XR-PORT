@@ -7,13 +7,8 @@ using UnityEngine.Rendering;
 
 namespace AIXRCrane.Crane.Sts.EditorTools
 {
-    /// <summary>렌더 비용 측정 — 최적화 전후를 같은 잣대로 비교하기 위한 도구.
-    ///
-    /// 왜 있는가: 최적화는 '했다'가 아니라 '얼마나 줄었다'로 말해야 한다.
-    /// 산식으로 추정하지 말고 이걸 돌려서 숫자를 남긴다.
-    ///
-    /// 주의 — 여기 숫자는 에디터 씬 통계지 프레임타임이 아니다.
-    ///   최종 판단은 서버 빌드에서 해야 한다(맥 에디터가 버벅인다고 서버도 버벅이는 건 아니다).</summary>
+    /// <summary>렌더 비용 측정 — 최적화 전후를 같은 잣대로 비교하는 도구. 산식 추정 대신 돌려서 숫자를 남긴다.
+    /// 여기 숫자는 에디터 씬 통계지 프레임타임이 아니다 — 최종 판단은 서버 빌드에서.</summary>
     internal static class RenderCostAudit
     {
         [MenuItem("Model/FBX/항구/렌더 비용 측정", priority = 30)]

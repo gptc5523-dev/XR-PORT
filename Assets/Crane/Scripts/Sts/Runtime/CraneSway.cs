@@ -2,22 +2,8 @@ using UnityEngine;
 
 namespace AIXRCrane.Crane.Sts
 {
-    /// <summary>
-    /// 흔들림 물리 — 스프레더와 그 부모 사이에 노드(<see cref="NodeName"/>)를 끼우고 그 노드만 수평으로 옮긴다.
-    /// 스프레더 아래 전부(트위스트락·푸셔·잡은 컨테이너·RTG 시브)가 같이 흔들린다. 무버는 아무도 이 노드를 쓰지 않고,
-    /// 노드는 회전·스케일 항등이라 스프레더 로컬 자세·WorldAxis 는 끼우기 전과 같다(STS·FBX RTG 배선 차이와 무관).
-    ///
-    /// 식은 <see cref="SwayDynamics"/>(자체검사 통과). 입력은 실척 SI:
-    ///   · 매달림점 가속 a = 트롤리 월드 위치의 2차 차분 — 트롤리 횡행과 갠트리 주행이 다 들어간다.
-    ///   · 로프 길이 L = 트롤리 − 스프레더 높이차, L̇ = 그 차분(권상).
-    ///   · 바람 F = ½·ρ·Cd·A·v|v| 를 축마다 — X 로 부는 바람은 컨테이너 (길이z × 높이) 면, Z 로 부는 바람은 (폭x × 높이) 면.
-    ///     풍속은 PlcBridge 가 켜져 있으면 PLC 스냅샷, 아니면 <see cref="WindMps"/>·<see cref="WindFromDeg"/> + 돌풍.
-    ///     방위: +Z = 북 · +X = 동, '불어오는' 방위(기상 관례) — 270°(서풍)는 +X 로 분다.
-    ///   · 질량 m = 스프레더·헤드블록 + 잡은 컨테이너 표시 하중.
-    /// 멈춤: 받침에 얹혔거나(SpreaderGrabber.IsLanded)·권상 하한이면 플리퍼·셀가이드가 잡듯 <see cref="LandTau"/> 시정수로 0,
-    ///   옆으로 부딪히면(LoadCollision) 흔들림 속도 0.
-    /// 빈 스프레더는 바람을 안 받는다고 둔다 — 격자 프레임이라 받는 면적이 작다(가속 흔들림은 받는다).
-    /// </summary>
+    /// <summary>흔들림 물리 — 스프레더-부모 사이에 노드(<see cref="NodeName"/>)를 끼워 그 노드만 수평 이동시킨다.
+    /// 스프레더 아래 전부가 같이 흔들린다. 식은 <see cref="SwayDynamics"/>, 입력은 실척 SI. 바람은 기상 관례(불어오는 방위) — 270°(서풍)는 +X로 분다.</summary>
     [DefaultExecutionOrder(40)]   // 축 무버(PlcBridge −100 · VR 0) 뒤 · SpreaderGrabber 통과방지(50) 앞
     [DisallowMultipleComponent]
     public sealed class CraneSway : MonoBehaviour

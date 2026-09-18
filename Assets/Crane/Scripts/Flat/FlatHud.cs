@@ -4,18 +4,8 @@ using AIXRCrane.Crane.Sts;
 
 namespace AIXRCrane.Crane.Flat
 {
-    /// <summary>
-    /// 평면 모드 HUD — 화면 고정(Screen Space Overlay).
-    ///
-    /// ★ 기존 VR HUD들(CraneStatusHUD·CraneAlarmHUD 등)은 world-space 캔버스를 머리/컨트롤러에 붙이는
-    ///   head-locked 방식이라 평면 화면에선 안 읽힌다. 그쪽을 고치지 않고 여기서 화면 고정 HUD를 따로 만든다.
-    ///
-    /// ★ 안전 여백(safeInset): XREAL One Pro 는 대각 57°로 시야가 좁아 화면 '끝'이 잘 안 보인다.
-    ///   그래서 HUD를 가장자리에 딱 붙이지 않고 안쪽으로 들인다. 일반 모니터에서도 손해가 없다.
-    ///
-    /// 갱신은 CraneHud.TextHz(8Hz)로 스로틀하고, 문자열이 바뀔 때만 대입해 캔버스 리빌드를 줄인다
-    /// (VR HUD들과 같은 규약).
-    /// </summary>
+    /// <summary>평면 모드 HUD — 화면 고정(Screen Space Overlay). VR HUD 는 head-locked 라 평면에선 안 읽혀 따로 둔다.
+    /// safeInset: XREAL One Pro 시야(대각 57°)에서 가장자리가 잘리지 않게 안쪽으로 들인다.</summary>
     [AddComponentMenu("AI-XR Crane/Flat Mode/Flat HUD")]
     [DisallowMultipleComponent]
     public sealed class FlatHud : MonoBehaviour

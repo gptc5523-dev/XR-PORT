@@ -6,14 +6,8 @@ using AIXRCrane.Crane.Sts.Plc;
 
 namespace AIXRCrane.Crane.Sts.EditorTools
 {
-    /// <summary>
-    /// 배치 스모크 — 통합서버에서 읽은 PLC 데이터로 STS 크레인 축이 움직이는지.
-    ///   Unity -batchmode -nographics -projectPath &lt;클론&gt; -executeMethod AIXRCrane.Crane.Sts.EditorTools.PlcServerSmoke.Run -logFile srv.log
-    ///   서버에 데이터가 흘러야 PASS 다 — 먼저 <c>python3 Server/xrcrane_db.py feed &lt;csv&gt; --url … --loop</c> 를 띄울 것.
-    ///   PASS(종료 0) = 서버 소스 연결 · 측정 구간에서 PLC 위치가 0.5m 이상 변하고 축도 따라 움직임 · 예외 0.
-    ///   ★ 감도: 피더 없이 돌리면 최신 1행 자세에서 멈춰 FAIL 이어야 한다. PASS 면 서버가 아닌 곳에서 움직임이 온 것이다.
-    /// 오너 에디터와 같은 EditorPrefs 를 쓰므로 원래 값을 두었다가 끝나면 되돌린다.
-    /// </summary>
+    /// <summary>배치 스모크 — 통합서버 PLC 데이터로 STS 크레인 축이 움직이는지 확인(-executeMethod ...Run, 먼저 서버 피더 필요).
+    /// PASS(종료 0) = 서버 연결·위치 변화 ≥0.5m·축 이동·예외 0. ★ 피더 없이 돌리면 FAIL 이어야 한다 — PASS 면 다른 곳에서 움직임이 온 것.</summary>
     [InitializeOnLoad]
     public static class PlcServerSmoke
     {

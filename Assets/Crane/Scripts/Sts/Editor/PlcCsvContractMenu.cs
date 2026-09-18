@@ -9,27 +9,8 @@ using UnityEngine;
 
 namespace AIXRCrane.Crane.Sts.EditorTools
 {
-    /// <summary>
-    /// PLC CSV 스키마 계약 검사 — Python 생성기와 C# 소비자 사이의 컬럼명 계약을 대조한다.
-    ///
-    /// 이 결합은 함수 호출이 아니라 "디스크의 CSV 헤더 문자열"이라 컴파일러도 IDE도 못 잡는다.
-    /// generate.py에서 컬럼명 하나만 바뀌어도 <see cref="Plc.CsvReplaySource"/>는 그 태그를 0으로 폴백해
-    /// 크레인이 조용히 안 움직인다(축 정지·알람 미발생). 그 침묵 실패를 사전에 판정하는 게 목적.
-    ///
-    /// 3자 대조:
-    ///   ① 생산자 선언 : PlcSim/generate.py 의 CSV_FIELDS 리스트
-    ///   ② 생산자 산출 : PlcSim/output/&lt;Sxx&gt;/run_NN.csv 의 실제 헤더 행
-    ///   ③ 소비자 기대 : CsvReplaySource.cs 의 F("..")/I("..")/B("..") 호출 키
-    ///
-    /// 판정(grep 키 "[QA]", "=> FAIL"):
-    ///   C1 ①파싱      — CSV_FIELDS를 읽었고 중복/빈 이름이 없다
-    ///   C2 ③파싱      — 소비자 키를 1개 이상 추출했다
-    ///   C3 ③⊆①       — 소비자가 기대하는 키가 전부 생산된다   ★침묵 실패 방지 핵심
-    ///   C4 ②==①      — 실제 CSV 헤더가 선언과 순서까지 일치한다(전 파일)
-    ///   I5 ①∖③       — 생성만 되고 안 쓰이는 컬럼(정보성 — 확장 여지이지 결함 아님)
-    ///
-    /// 정적 검사라 씬·Play 모드가 필요 없다. 파일이 없으면 FAIL이 아니라 경고 후 중단(환경 문제와 계약 위반 구분).
-    /// </summary>
+    /// <summary>PLC CSV 스키마 계약 검사 — Python 생성기(generate.py)와 C# 소비자(CsvReplaySource) 사이의
+    /// 컬럼명 계약을 3자 대조(선언/산출/기대)한다. 어긋나면 축이 조용히 정지·알람 미발생.</summary>
     public static class PlcCsvContractMenu
     {
         const string GeneratorRel = "PlcSim/generate.py";

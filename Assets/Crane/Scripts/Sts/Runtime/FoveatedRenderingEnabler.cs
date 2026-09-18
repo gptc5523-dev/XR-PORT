@@ -5,14 +5,8 @@ using UnityEngine.XR;
 
 namespace AIXRCrane.Crane.Sts
 {
-    /// <summary>
-    /// Quest 고정 포비티드 렌더링(FFR) 활성화 — 시야 주변부의 셰이딩 해상도를 낮춰 GPU 부하를 줄인다.
-    ///   · 중심 시야는 또렷, 사람이 잘 못 보는 주변부만 거칠게 → 체감 화질 손실 거의 없음, GPU 절감 큼(Quest 표준 최적화).
-    ///   · Quest 3는 시선추적 기본 미사용 → '고정(Fixed)' FFR(FoveatedRenderingFlags.None).
-    ///   · XR 디스플레이가 'running' 상태가 돼야 적용되므로 코루틴으로 대기 후 1회 설정.
-    /// 부하가 GPU 바운드일 때만 효과가 있다(드로우콜/CPU 바운드면 다른 레버 필요).
-    /// 끄려면 이 파일 삭제 또는 level=0.
-    /// </summary>
+    /// <summary>Quest 고정 포비티드 렌더링(FFR) — 시야 주변부 셰이딩 해상도를 낮춰 GPU 부하를 줄인다(화질 손실 거의 없음).
+    /// Quest 3는 시선추적 미사용이라 고정 FFR 사용. GPU 바운드일 때만 효과 있음. 끄려면 파일 삭제 또는 level=0.</summary>
     [DisallowMultipleComponent]
     public sealed class FoveatedRenderingEnabler : MonoBehaviour
     {

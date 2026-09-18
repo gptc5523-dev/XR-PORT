@@ -4,14 +4,8 @@ using UnityEngine.UI;
 
 namespace AIXRCrane.Crane.Sts
 {
-    /// <summary>
-    /// 성능 측정 도구(측정 전용). 출력 2가지 — ① 콘솔 [PERF] 한 줄 로그(기본, adb logcat), ② HMD 좌상단 HUD(옵션).
-    ///   - 스터터 진단의 핵심은 평균 FPS가 아니라 '최악 프레임타임(worst frame)' → 최우선 측정.
-    ///   - CPU/GPU 프레임타임은 FrameTimingManager(플레이어 설정 Frame Timing Stats=ON 필요)에서 읽음.
-    ///   - GC 빈도(gen0 수집/초)·관리 힙 크기·동적 강체 수 = '버벅임' 원인 후보를 직접 확인.
-    /// 콘솔만 쓰면 showHud=off 권장(캔버스 리빌드 부하/관찰자효과 제거 → 측정 정확). 측정 끝나면 이 스크립트만 지우면 됨.
-    /// CraneStatusHUD(우상단)와 같은 head-locked 패턴/헬퍼(CraneHud) 재사용.
-    /// </summary>
+    /// <summary>성능 측정 도구 — 콘솔 [PERF] 로그(기본) + HMD HUD(옵션). 최악 프레임타임을 최우선 지표로,
+    /// CPU/GPU/GC/강체 수를 함께 본다. 측정 끝나면 이 스크립트만 지우면 됨.</summary>
     [AddComponentMenu("AI-XR Crane/STS Crane/Crane Perf HUD")]
     [DisallowMultipleComponent]
     public sealed class CranePerfHUD : MonoBehaviour

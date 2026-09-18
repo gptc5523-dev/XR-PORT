@@ -2,31 +2,11 @@ using AIXRCrane.Crane.Sts;   // StsConfig.ModelScale (미니어처 환산비 SSO
 
 namespace AIXRCrane.Ship
 {
-    /// <summary>
-    /// 컨테이너선(Post-Panamax급) 전역 치수의 단일 출처(SSOT).
-    ///
-    /// ★ 모든 값은 실척(미터). 절차 메시는 실척으로 빌드한 뒤 마지막에 ModelScale(=1/24)로 축소한다
-    ///   (크레인·컨테이너와 동일 환산비 — StsConfig.ModelScale 공유, [[reference_unity_package_versions]]와 무관).
-    ///
-    /// ── 치수 근거 (수학팀 검산 · 추측 금지 방침) ─────────────────────────────────
-    ///   Post-Panamax 컨테이너선 표준 비율로 역산. STS 아웃리치(45m) > 선폭(40m) 이라
-    ///   크레인이 선박 전폭을 덮는다(실물 정합, [[feedback_match_real_world_reference]]).
-    ///
-    ///   | 비율        | 실제 정상범위 | 본 선박                    |
-    ///   |-------------|--------------|---------------------------|
-    ///   | L/B         | 6.5 ~ 8.0    | 294/39.53 = 7.44 ✓        |
-    ///   | B/D         | 1.5 ~ 1.9    | 39.53/24  = 1.65 ✓        |
-    ///   | L/D         | 11 ~ 13      | 294/24 = 12.25 ✓          |
-    ///   | 건현/흘수    | —            | 11/13 (건현 11m)           |
-    ///   ※ 선폭은 컨테이너 15열 역산값(39.53m, 아래 DeckRows 참조).
-    ///
-    ///   ※ 흘수선 y=0 기준: 킬 바닥 = −Draft, 주갑판 = +Freeboard. 선체 길이방향 = +Z(선수),
-    ///     선폭 = ±X, 상방 = +Y. 미드십(z=0)·중심선(x=0)·흘수선(y=0)이 메시 피벗.
-    /// </summary>
+    /// <summary>컨테이너선(Post-Panamax급) 전역 치수 SSOT. 값은 전부 실척(m), 절차 메시는 실척으로 빌드 후
+    /// ModelScale(1/24)로 축소(크레인·컨테이너와 공유). 흘수선 y=0, 킬=−Draft, 주갑판=+Freeboard, 선수=+Z, 선폭=±X, 위=+Y.</summary>
     public static class ShipConfig
     {
-        /// <summary>컨테이너선 루트 오브젝트 이름 — 생성부(ShipCreator)·접안부(ShipBerthMenu)·
-        /// 부두 재생성(StsQuayGroundCreator)이 공유하는 SSOT. 각자 문자열을 박아두면 재접안이 조용히 끊긴다.</summary>
+        /// <summary>컨테이너선 루트 이름 — 생성부(ShipCreator)·접안부(ShipBerthMenu)가 공유한다.</summary>
         public const string ShipRootName = "ContainerShip";
 
         /// <summary>실척 m × ModelScale = 모델 단위. 크레인·컨테이너와 동일한 1/24 미니어처 환산비.</summary>
@@ -35,10 +15,8 @@ namespace AIXRCrane.Ship
         /// <summary>전장 LOA(길이) — 실척 m.</summary>
         public const float LoaMeters = 294f;
 
-        // ── 선폭(Beam)은 임의값이 아니라 컨테이너 적재 열수에서 역산(오너 지시 2026-06-19) ──
-        //   크레인에 있는 그 컨테이너(폭 = ProceduralContainerMesh.StdWidth)를 그대로 적층하므로,
-        //   선폭 = 열수×컨테이너폭 + (열수−1)×라싱간격 + 양현 사이드데크.
-        //   크레인 아웃리치 45m 고정 → 15열(39.53m)이 전폭을 안전하게 커버([[feedback_calculate_before_placing]]).
+        // 선폭(Beam)은 임의값이 아니라 컨테이너 적재 열수에서 역산 — 크레인의 그 컨테이너 폭을 그대로 적층.
+        //   선폭 = 열수×컨테이너폭 + (열수−1)×라싱간격 + 양현 사이드데크. 아웃리치 45m 고정 → 15열(39.53m)이 전폭 커버.
 
         /// <summary>갑판 컨테이너 적재 열수(횡방향). 선폭 역산의 입력.</summary>
         public const int DeckRows = 15;
@@ -56,12 +34,8 @@ namespace AIXRCrane.Ship
         public const float BeamMeters =
             DeckRows * ContainerWidthM + (DeckRows - 1) * RowGapM + 2f * SideDeckM;   // = 39.53
 
-        /// <summary>갑판 적재 최대 단수. 오너 지시 2026-09-07 "배에 컨테이너 최대 2단으로" →
-        /// 재차 "그냥 전부 한 줄로 깔자" → 1단(쌓지 않음).
-        /// 선미→선수 계단 램프의 가장 높은 단이다. 1 이면 램프가 평탄해져 전 구간 1단.
-        /// 재차 "2단은 전부 다 하지 말고 랜덤하게 배치" → 2단으로 두되 윗단은 확률로 얹는다
-        /// (DeckSecondTierRatio). 램프 자체는 SOLAS V/22 선교 시야 요건을 반영한 구조라
-        /// 선수쪽이 낮게 유지된다 — 실제 컨테이너선이 그렇게 싣는다.</summary>
+        /// <summary>갑판 적재 최대 단수 — 선미→선수 계단 램프의 최고단(1이면 전 구간 평탄 1단).
+        /// 윗단은 DeckSecondTierRatio 확률로 얹는다. 선수가 낮은 건 SOLAS V/22 선교 시야 요건 반영.</summary>
         public const int DeckMaxTiers = 2;
 
         /// <summary>윗단(2단째)을 얹을 확률 0~1. 아래 단은 항상 전부 채운다.
@@ -71,11 +45,8 @@ namespace AIXRCrane.Ship
         /// <summary>윗단 무늬 시드 — 같은 값이면 같은 무늬가 재현된다. 0 이면 매번 다르다.</summary>
         public const int DeckStackSeed = 20260907;
 
-        /// <summary>갑판에 실을 컨테이너 수. <b>0 이면 슬롯 전부</b>.
-        /// 오너 지시 2026-09-07 "컨테이너선에 컨테이너 첫 줄 전부 채우라고" → 0(전부).
-        /// 1단(DeckMaxTiers=1)이라 슬롯 = 열 = 193개.
-        /// 정밀 FBX(1개 110,134 삼각형)를 쓰므로 대수가 곧 렌더 예산이다 — 193개 ≈ 2,130만 삼각형.
-        /// 줄이려면 여기에 원하는 개수를 넣으면 갑판 전체에 고르게 분산된다.</summary>
+        /// <summary>갑판에 실을 컨테이너 수. 0이면 슬롯 전부(슬롯=열=193개).
+        /// 정밀 FBX 1개 110,134 삼각형이라 개수가 곧 렌더 예산(193개≈2,130만 삼각형) — 줄이려면 개수 지정.</summary>
         public const int DeckCargoCount = 0;
 
         /// <summary>형심 Depth(킬 바닥→주갑판) — 실척 m.</summary>

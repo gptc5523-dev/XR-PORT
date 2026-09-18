@@ -31,14 +31,8 @@ namespace AIXRCrane.Crane.Sts
         public AlarmEntry[] entries;
     }
 
-    /// <summary>
-    /// 알람 코드북(170개) 단일 출처(SSOT). Resources의 JSON을 1회 로드해 코드→항목으로 색인.
-    /// ※ 코드·심각도·메시지는 임의 정의 금지 — 항상 이 데이터(=㈜엠비이 코드북)를 따른다.
-    /// 개정 시 JSON만 교체하면 런타임 전체에 반영됨.
-    ///
-    /// 표시·라벨 규칙은 코드북 §7(우선순위/색)·§8(AI 라벨)을 따르며,
-    /// 색/등급 매핑은 [[CraneFault]]의 SevColor/ToGrade를 재사용해 단일화한다.
-    /// </summary>
+    /// <summary>알람 코드북(170개) SSOT — Resources JSON을 1회 로드해 코드→항목 색인. 코드·심각도·메시지는 임의 정의 금지, 항상 이 데이터를 따른다.
+    /// 표시·색 규칙은 CraneFault.SevColor 재사용.</summary>
     public static class AlarmCodebook
     {
         const string ResourcePath = "Sts/AlarmCodebook";   // Assets/Crane/Resources/Sts/AlarmCodebook.json
@@ -80,11 +74,8 @@ namespace AIXRCrane.Crane.Sts
             if (!_loadOk)
                 Debug.LogError($"[AlarmCodebook] 코드북이 비어 있음(파싱 실패 또는 0건) — 알람 시스템 오프라인으로 간주(fail-to-safe).");
 
-            // 코드북 무결성 자가검증(EnsureLoaded는 1회만 실행 — 로그도 1회).
-            //   ① 선언 총량(totalDefined) vs 실제 항목 수 — JSON 편집 누락/중복을 탐지.
-            //   ② 중복 코드로 색인에서 빠진 항목 수 — _all 길이와 색인 수의 차.
-            //   ③ XR 비대상(xr:false) 개수 — 원본 문서(MBE-DOC-2026-XR-002) '23 vs 25' 불일치 추적건.
-            //      실제값을 로깅해 원본 PDF와 대조 가능케 함(어느 쪽이 정본인지는 원본 확인 필요).
+            // 코드북 무결성 자가검증(1회만 실행): 선언 totalDefined vs 실제 항목 수, 중복 코드 누락 수,
+            //   XR 비대상(xr:false) 개수를 로깅 — 원본 문서와 대조용(23 vs 25 불일치 추적 중).
             if (_loadOk && data != null)
             {
                 if (_all.Length != data.totalDefined)
@@ -98,11 +89,8 @@ namespace AIXRCrane.Crane.Sts
             }
         }
 
-        /// <summary>
-        /// 코드북(SSOT)이 정상 로드됐는가 — Count&gt;0 && 파싱 성공. fail-to-safe 게이트.
-        /// false면 알람 정의를 신뢰할 수 없으므로 호출부는 '알람 시스템 오프라인 안전정지'로 전이해야 한다.
-        /// (CraneFault가 이 플래그로 비상 FaultDef를 강제. 정상(true) 시엔 거동 불변.)
-        /// </summary>
+        /// <summary>코드북이 정상 로드됐는가(Count&gt;0, 파싱 성공) — fail-to-safe 게이트.
+        /// false면 호출부는 알람 시스템 오프라인 안전정지로 전이해야 한다.</summary>
         public static bool IsLoaded { get { EnsureLoaded(); return _loadOk; } }
 
         /// <summary>코드로 항목 조회. 없으면 null.</summary>

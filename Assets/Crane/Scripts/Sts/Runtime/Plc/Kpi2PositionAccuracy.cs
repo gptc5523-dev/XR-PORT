@@ -4,31 +4,8 @@ using UnityEngine;
 
 namespace AIXRCrane.Crane.Sts.Plc
 {
-    /// <summary>
-    /// 평가지표 2 — "XR 3D 위치·동작 표시 정확도" 측정 하니스 (1차년도 비중 30%).
-    ///
-    /// <para><b>무엇을 재는가</b> — "PLC 가 지령한 위치대로 3D 크레인이 서 있는가".
-    /// 지령(<see cref="PlcSnapshot"/> 의 실척 m)과 실제 렌더 위치(축 Transform)를 같은 단위로 놓고 뺀다.
-    /// 한 시행 = 한 샘플 시점이고, 3축 오차가 <b>모두</b> 허용 안이면 그 시행은 성공이다.
-    /// 계획서 판정("100회 반복 중 목표 충족 비율")을 그대로 따른다.</para>
-    ///
-    /// <para><b>역변환 근거</b> — PlcBridge 는 <c>MoveToNormalized(realPos / rangeM)</c> 로 축을 몬다.
-    /// 무버는 <c>Current = Lerp(Min, Max, clamp01(t))</c> 이므로 되돌리면
-    ///   <c>렌더 실척 = (Current − Min) × WorldPerUnit / ModelScale</c>
-    /// 이다 — <c>rangeM = (Max − Min) × WorldPerUnit / ModelScale</c> 이 약분돼 range 를 몰라도 된다.
-    /// 클램프가 걸리지 않는 한 이 역변환은 오차 0 이므로, 남는 오차는 아래 셋뿐이다.</para>
-    ///
-    /// <para><b>오차가 나오는 곳(=이 하니스가 잡아내는 것)</b>
-    /// ① 방향 규약 — PlcBridge 는 "0 이 어느 끝인가"를 벤더 미확인으로 남겨뒀다(질의서 대상).
-    ///    반대면 오차가 곧 전체 range 라 즉시 드러난다.
-    /// ② 차단 — <c>AxisMoverBase.MoveTo</c> 는 진행 방향에 장애물이 있으면 이동을 <b>거부</b>한다.
-    ///    지령은 갔는데 3D 는 안 간 상태 = 진짜 표시 오차다.
-    /// ③ 클램프 — 지령이 가동범위 밖이면 잘린다(데이터 range 와 크레인 기하 불일치).
-    /// 실 PLC 가 오면 여기에 통신 지터가 얹힌다. 소스만 갈리고 이 코드는 그대로다.</para>
-    ///
-    /// 붙이는 법: 메뉴 <c>PLC ▸ 지표2 정확도 측정 부착</c>, 또는 STS_Crane 에 직접 추가.
-    /// PlcBridge 가 Active 일 때만 잰다(직접조종 중에는 지령이 없어 잴 것이 없다).
-    /// </summary>
+    /// <summary>지표2 — PLC 지령 위치와 실제 렌더 위치(축 Transform) 오차를 실척 m로 재는 측정 하니스.
+    /// 렌더값 = (Current − Min) × WorldPerUnit / ModelScale (PlcBridge 정규화의 역변환). PlcBridge Active일 때만 잰다.</summary>
     // PlcBridge(-100)가 축을 구동한 뒤에 읽어야 같은 틱의 지령↔결과가 짝이 맞는다.
     [DefaultExecutionOrder(100)]
     [AddComponentMenu("AI-XR Crane/STS Crane/KPI 지표2 (위치·동작 정확도)")]
@@ -95,7 +72,7 @@ namespace AIXRCrane.Crane.Sts.Plc
                 var axis = i == 0 ? crane.Gantry : i == 1 ? crane.Trolley : crane.Spreader;
                 float commanded = i == 0 ? s.GtPosition : i == 1 ? s.TrPosition : s.HoPosition;
 
-                // 렌더 실척 — PlcBridge 정규화의 정확한 역변환(위 주석의 유도).
+                // 렌더 실척 — PlcBridge 정규화의 역변환(클래스 주석 참고).
                 float rendered = (axis.Current - axis.Min) * axis.WorldPerUnit / crane.ModelScale;
                 float err = Mathf.Abs(commanded - rendered);
 

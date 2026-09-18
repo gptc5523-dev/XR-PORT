@@ -4,14 +4,8 @@ using UnityEngine.UI;
 
 namespace AIXRCrane.Crane.Sts
 {
-    /// <summary>
-    /// 모드 선택 패널 — HMD 시야 '우하단'에 고정되는 head-locked HUD.
-    ///   - 이동/운전/갠트리 3모드를 목록으로 보여주고 현재 모드를 강조
-    ///   - 선택은 StsCraneVRController가 처리(오른쪽 스틱 위/아래 또는 B). 이 패널은 표시 전용.
-    ///   - 예전엔 오른쪽 컨트롤러에 빌보드로 붙었으나, 손 위치와 무관하게 항상 같은 자리에
-    ///     두기 위해 카메라(HMD) 자식 '우하단' 고정으로 전환. StatusHUD/ControlHintsHUD와 동일한 패턴.
-    /// 씬에 안 붙여도 [RuntimeInitializeOnLoadMethod]로 자동 스폰. 이미 있으면 스킵.
-    /// </summary>
+    /// <summary>모드 선택 패널 — HMD 우하단에 고정되는 표시 전용 HUD(선택은 StsCraneVRController).
+    /// 씬에 없어도 [RuntimeInitializeOnLoadMethod]로 자동 생성된다.</summary>
     [AddComponentMenu("AI-XR Crane/STS Crane/Crane Mode Selector HUD")]
     [DisallowMultipleComponent]
     public sealed class CraneModeSelectorHUD : MonoBehaviour
@@ -23,10 +17,10 @@ namespace AIXRCrane.Crane.Sts
 
         [Header("HMD 우하단 위치 (카메라 로컬 좌표, m)")]
         [Tooltip("x=오른쪽(+), y=아래(-). z는 CraneHud.HudDistance로 통일. VR에서 보며 미세조정.")]
-        [SerializeField] Vector3 hmdOffset = new Vector3(0.28f, -0.15f, CraneHud.HudDistance);   // STS 크레인 상태 패널 바로 아래·오른쪽 변 정렬(추정값 — 폭이 런타임 결정이라 스크린샷으로 미세조정)
+        [SerializeField] Vector3 hmdOffset = new Vector3(0.28f, -0.15f, CraneHud.HudDistance);   // 상태 패널 바로 아래(추정값 — 실제 x 는 AlignRightToStatus 가 맞춘다)
         [Tooltip("StatusHUD와 동일하게 기울임 보정 — 같은 우측 영역이라 값도 그대로 맞춤(휘어짐 방지).")]
         [SerializeField, Range(-30f, 30f)] float tiltYawDeg = -15f;    // StatusHUD와 동일
-        [SerializeField, Range(-30f, 30f)] float tiltPitchDeg = 8f;    // StatusHUD와 동일(앞서 -8로 뒤집은 게 휘어짐 원인)
+        [SerializeField, Range(-30f, 30f)] float tiltPitchDeg = 8f;    // StatusHUD와 동일
 
         [Header("패널/텍스트")]
         [SerializeField] Vector2 panelPixels = new Vector2(360f, 230f);
@@ -58,8 +52,7 @@ namespace AIXRCrane.Crane.Sts
         {
             if (canvas == null || text == null) return;
 
-            // 표시 조건: (호스트/싱글) 그리고 '조종 활성'일 때만. 관찰(기본)이면 호스트·관전자 모두 숨김 → 처음엔 동일 화면.
-            //   조종 진입은 오른쪽 스틱 클릭. 그래야 관찰/조종이 분리된다.
+            // 표시 조건: 조종 활성일 때만(조종 진입 = 오른쪽 스틱 클릭). 관찰이면 호스트·관전자 모두 숨김.
             if (controller == null || !controller.isActiveAndEnabled) controller = CraneHud.FindVrController();
             var nm = Unity.Netcode.NetworkManager.Singleton;
             bool show = (nm == null || nm.IsServer) && controller != null && controller.ControlActive;
@@ -79,9 +72,7 @@ namespace AIXRCrane.Crane.Sts
                 CraneHud.SetTextIfChanged(text, ref lastText, BuildText());
         }
 
-        // HMD(카메라) 우하단에 고정 부착
-        //   카메라 자식 + 로컬좌표 + 1회 빌보드(FaceCameraChild로 거울/뒤집힘 해소). 매 프레임 추적 불필요 —
-        //   캔버스가 카메라 자식이라 머리를 따라 같은 자리에 그대로 떠 있다(StatusHUD/ControlHintsHUD와 동일).
+        // HMD(카메라) 우하단에 고정 부착 — 카메라 자식이라 매 프레임 추적 없이 머리를 따라온다.
         void AttachToHmd()
         {
             if (canvas == null) return;
@@ -94,10 +85,8 @@ namespace AIXRCrane.Crane.Sts
             attached = true;
         }
 
-        // 오른쪽 변을 STS 크레인 상태 패널에 자동 정렬
-        //   fitToText라 패널 폭이 런타임 결정 → 정적 x로는 못 맞춤. 두 패널 모두 카메라 자식·중심피벗이므로
-        //   상태 패널 오른쪽 변(중심 + 반폭)을 읽어 내 중심을 (그 오른쪽 변 − 내 반폭)으로 잡으면 오른쪽 변이 일치.
-        //   폭(월드) = BG.rect.width × 캔버스 localScale. 상태 패널 없으면(테스트 씬) 정적 hmdOffset 유지.
+        // 오른쪽 변을 상태 패널에 맞춘다 — 폭이 런타임에 정해지므로 중심 = 상태 패널 오른쪽 변 − 내 반폭.
+        //   폭(월드) = BG.rect.width × 캔버스 localScale. 상태 패널이 없으면 hmdOffset 유지.
         void AlignRightToStatus()
         {
             if (canvas == null) return;
@@ -149,12 +138,7 @@ namespace AIXRCrane.Crane.Sts
             for (int i = 0; i < names.Length; i++)
             {
                 string line = $"{i + 1}. {names[i]}";
-                // 글리프(▸·●) 없이 색+굵기만으로 네 상태를 구분한다 — 오너 2026-09-16 정정:
-                //   "스틱후보 내가 지우라고 했어" · "그냥 글자 색으로 하자".
-                //   후보이자 적용 중 = 굵게+초록 · 후보 = 굵게+청록 · 적용 중 = 초록 · 그 외 = 회색.
-                //   ★ 정보 손실 0 이 조건이다: 네 상태가 모두 구별돼야 한다. 색만 빼고 글리프를 지우면
-                //     적용 모드(cur) 표시가 사라진다(▸ 와 청록 굵게는 둘 다 후보 sel 을 표시했다).
-                //   색은 이 파일에 이미 쓰던 토큰 그대로 — 새 상수를 만들지 않는다.
+                // 글리프 없이 색+굵기로 네 상태 구분: 후보이자 적용 = 굵게+초록 · 후보 = 굵게+청록 · 적용 = 초록 · 그 외 = 회색.
                 if (i == sel && i == cur)
                     sb.AppendLine($"<color=#7FFF7F><b>{line}</b></color>");
                 else if (i == sel)
@@ -167,9 +151,8 @@ namespace AIXRCrane.Crane.Sts
             sb.AppendLine();
             sb.AppendLine("<size=13><color=#BBBBBB>트리거 당긴 채 스틱 ↑↓ 선택 · B로 확정</color></size>");
 
-            // 모드별 버튼 안내 — 처음 하는 사람도 어느 버튼이 무슨 동작인지 알게.
-            //   집기/놓기(Y/X)는 모든 모드 공통, 운전실 시점(A)은 조종·갠트리에서만(Move·controller null 제외).
-            //   주의: cur가 -1(controller 일시 null)일 때 (Mode)(-1)==Move가 false라 A가 잘못 떴음 → cur 값으로 명시 비교.
+            // 모드별 버튼 안내 — 집기/놓기(Y/X)는 공통, 운전실 시점(A)은 조종·갠트리에서만.
+            //   cur 가 -1(controller null)이면 (Mode)(-1)==Move 가 false 라 cur 로 명시 비교한다.
             bool cabCapable = cur == (int)StsCraneVRController.Mode.Crane
                            || cur == (int)StsCraneVRController.Mode.Gantry;
             string btns = cabCapable

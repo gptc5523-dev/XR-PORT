@@ -6,17 +6,8 @@ using UnityEngine.XR;          // InputDevices — Quest 컨트롤러 직접 읽
 
 namespace AIXRCrane.Crane.Sts.Net
 {
-    /// <summary>
-    /// 접속 전, 사용자 눈앞에 뜨는 "시작 화면" — 호스트(조종) / 참가(관전)를 컨트롤러로 선택.
-    ///
-    /// IMGUI(NetLanUI.OnGUI)는 VR 헤드셋에 안 그려지므로, 같은 접속 로직(NetLanUI.BeginHost/BeginClient)을
-    /// 월드공간 Canvas + 컨트롤러 입력으로 대체한다. PC 에디터에선 NetLanUI의 IMGUI가 폴백으로 그대로 동작.
-    ///
-    ///   - 오른쪽 스틱 ↑↓ 로 선택, A(primaryButton)로 확정 (기존 조종 입력과 같은 InputDevices 방식)
-    ///   - 메뉴가 떠 있는 동안은 StsCraneVRController를 꺼서 선택 입력이 크레인을 움직이지 않게 한다
-    ///   - 접속되면(IsClient/IsServer) 메뉴를 숨기고, 호스트면 조종 컨트롤러를 다시 켠다(관전자는 꺼둔 채 유지)
-    /// 씬에 안 붙여도 [RuntimeInitializeOnLoadMethod]로 자동 스폰. NetworkManager가 없으면 아무것도 안 한다.
-    /// </summary>
+    /// <summary>접속 전, 사용자 눈앞에 뜨는 시작 화면 — 호스트(조종)/참가(관전)를 컨트롤러로 선택.
+    /// IMGUI(NetLanUI.OnGUI)는 헤드셋에 안 보여 월드공간 Canvas + 컨트롤러 입력으로 대체(PC 는 IMGUI 폴백).</summary>
     [AddComponentMenu("AI-XR Crane/Net/Crane Net Menu HUD")]
     [DisallowMultipleComponent]
     public sealed class CraneNetMenuHUD : MonoBehaviour
@@ -47,7 +38,7 @@ namespace AIXRCrane.Crane.Sts.Net
         bool aPrev, bPrev;
         float nextFind;
         bool ipEntryMode;          // 참가 선택 후, 호스트 IP(마지막 옥텟) 입력 중
-        int joinOctet = NetConfig.DefaultJoinOctet;   // [H3] SSOT. 최종 IP = NetConfig.DefaultSubnetPrefix + joinOctet
+        int joinOctet = NetConfig.DefaultJoinOctet;   // SSOT. 최종 IP = NetConfig.DefaultSubnetPrefix + joinOctet
         bool discoveredPrev;       // 자동 발견 엣지 검출(false→true 순간 한 번만 자동 접속)
         float connectedAt;         // 접속된 시각(무접속이면 0) — 결과 화면을 잠깐 띄우는 데만 쓴다
         const float ResultSeconds = 6f;   // 접속 결과를 보여주는 시간. 더 길면 시야를 가리고, 더 짧으면 헤드셋에서 놓친다
@@ -100,11 +91,8 @@ namespace AIXRCrane.Crane.Sts.Net
             bool connected = nm.IsClient || nm.IsServer;
             if (connected)
             {
-                // 접속됨 — 호스트면 조종 컨트롤러 복구(관전자는 CraneNetSync가 꺼둔 채 유지).
-                // 이동(로코모션)은 모두 복구 — 호스트·관전자 모두 선택 후엔 돌아다닐 수 있게.
-                // 종전엔 여기서 메뉴를 바로 숨겨, 성공했는지 실패했는지는커녕 '눌리긴 했는지'도 알 수 없었다
-                //   (오너 2026-09-16 "호스트 참가가 안 된다" — 서버 관측상 아무도 호스트를 누르지 않은 상태였다).
-                //   접속 직후 ResultSeconds 동안만 결과를 보여주고 닫는다 — 시야를 계속 가리지 않게.
+                // 접속됨 — 호스트면 조종 컨트롤러 복구(관전자는 CraneNetSync 가 꺼둔 채 유지), 로코모션은 모두 복구.
+                // 접속 직후 ResultSeconds 동안만 결과 화면을 보여주고 닫는다(계속 시야를 가리지 않게).
                 if (connectedAt <= 0f) connectedAt = Time.unscaledTime;
                 bool showResult = Time.unscaledTime - connectedAt < ResultSeconds;
                 SetVisible(showResult);
@@ -201,8 +189,7 @@ namespace AIXRCrane.Crane.Sts.Net
         void SuppressController()
         {
             if (controllerSuppressed) return;
-            // 켜진 조종기(Active)를 막는다 — FindAnyObjectByType 은 크레인이 여러 대면 감독이 꺼 둔 RTG 조종기를 집기도 해서,
-            //   호스트 접속 때 그걸 강제로 켜 조종기가 두 대 켜졌다(2026-09-15 RtgControlSmoke: 시작 직후 Active=RTG 크레인_1).
+            // 켜진 조종기(Active)를 막는다 — FindAnyObjectByType 은 크레인이 여럿이면 다른 조종기를 집어 두 대가 켜질 수 있다.
             if (craneController == null) craneController = StsCraneVRController.Active != null ? StsCraneVRController.Active : FindAnyObjectByType<StsCraneVRController>();
             if (craneController != null) { craneController.enabled = false; controllerSuppressed = true; }
         }
@@ -254,7 +241,7 @@ namespace AIXRCrane.Crane.Sts.Net
         }
 
         // 접속 직후 결과 화면 — 내가 호스트인지 관전인지, 운전이 되는지를 한눈에.
-        //   관전자가 "왜 크레인이 안 움직이지"로 막히지 않게 운전 권한을 여기서 명시한다(오너 규칙: 운전은 호스트만).
+        // 관전자가 "왜 크레인이 안 움직이지"로 막히지 않게 운전 권한을 여기서 명시한다.
         string BuildConnectedText(Unity.Netcode.NetworkManager nm)
         {
             sb.Clear();
@@ -310,9 +297,8 @@ namespace AIXRCrane.Crane.Sts.Net
                 else               sb.AppendLine($"<color=#999999>{Options[i]}</color>");
             }
             sb.AppendLine();
-            // 호스트 시작 실패 안내 — 한 머신에 인스턴스가 여러 개면(서버 5개) 먼저 뜬 쪽이 포트를 쥐어 두 번째는 반드시 실패한다.
-            //   종전엔 버튼을 눌러도 화면이 그대로라 오너가 "호스트 참가가 안 된다"로 막혔다. 막힌 자리에서 다음 행동까지 알려준다.
-            //   (#EB332E = HudColor.Danger, #5FE0FF = Accent — 이 파일의 다른 줄과 같은 표기)
+            // 호스트 시작 실패 안내 — 한 머신에 인스턴스가 여러 개면 먼저 뜬 쪽이 포트를 쥐어 다음은 반드시 실패한다.
+            // (#EB332E = HudColor.Danger, #5FE0FF = Accent — 이 파일의 다른 줄과 같은 표기)
             if (ui.HostFailed)
             {
                 sb.AppendLine("<size=17><color=#EB332E><b>호스트 시작 실패</b> — 이 PC 에서 다른 인스턴스가 이미 호스트 중입니다.</color></size>");

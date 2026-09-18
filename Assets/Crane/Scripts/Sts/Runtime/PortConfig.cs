@@ -3,16 +3,8 @@ using AIXRCrane.Ship;
 
 namespace AIXRCrane.Crane.Sts
 {
-    /// <summary>
-    /// 항구 치수 SSOT — 오너 확정 2026-09-07 "파나마스급 1선석".
-    ///
-    /// 여기 앵커(설계선·여유율)만 바꾸면 안벽 길이·에이프런·수심·안벽고가 한꺼번에 따라온다.
-    /// 안벽 길이를 다른 파일에 절대 박지 말 것 — 연석·계선주·레일·케이슨이 전부 이걸 읽는다.
-    ///
-    /// ※ StsConfig 가 아니라 별도 파일인 이유: StsConfig 에 두면 ShipConfig.LoaMeters 를 참조해야 하는데
-    ///   ShipConfig 가 이미 StsConfig.ModelScale 을 참조하고 있어 const 순환 참조가 된다.
-    ///   도메인도 다르다 — StsConfig=크레인 제원, ShipConfig=선박 제원, PortConfig=항구 치수.
-    /// </summary>
+    /// <summary>항구 치수 SSOT. 앵커(설계선·여유율)만 바꾸면 안벽 길이·에이프런·수심·안벽고가 따라온다.
+    /// 안벽 길이는 여기서만 정의(연석·계선주·레일·케이슨이 참조) — StsConfig 와는 순환참조 회피로 분리.</summary>
     public static class PortConfig
     {
         // ═══ ① 앵커 ═══
@@ -45,8 +37,7 @@ namespace AIXRCrane.Crane.Sts
         public static float WaterDepthMeters =>
             Mathf.Ceil(ShipConfig.DraftMeters * DepthAllowanceRatio);
 
-        /// <summary>바다 폭 배수 — 바다 폭 = 에이프런 폭 × 이 값. 오너 지시 2026-09-07
-        /// "부두 기준으로 바다 넓이를 줄여줘". 부두를 앵커로 쓰므로 에이프런이 넓어지면 바다도 넓어진다.</summary>
+        /// <summary>바다 폭 배수 — 바다 폭 = 에이프런 폭 × 이 값(에이프런을 따라 넓어진다).</summary>
         public const float SeaApronRatio = 2f;
 
         /// <summary>바다 폭(안벽 전면 → 바다쪽) — 실척 m. Ceil(30 × 2 / 10) × 10 = 60m.
@@ -54,14 +45,12 @@ namespace AIXRCrane.Crane.Sts
         public static float SeaWidthMeters =>
             Mathf.Ceil(ApronWidthMeters * SeaApronRatio / 10f) * 10f;
 
-        /// <summary>바다 길이(안벽 방향) — 실척 m. 선석 길이와 같다. 340m.
-        /// 오너 지시 2026-09-07 "바다 길이를 부두랑 똑같이".
-        /// 케이슨 실제 끝은 줄눈 때문에 ±169.985m 라, 바다 끝(±170)이 15mm 앞서 나가
-        /// 두 끝면이 겹치지 않는다 → Z-fighting 없음.</summary>
+        /// <summary>바다 길이(안벽 방향) — 선석 길이와 같다. 340m. 케이슨 끝(±169.985m)보다 바다 끝(±170)이
+        /// 15mm 앞서 나가 두 끝면이 겹치지 않는다 → Z-fighting 없음.</summary>
         public static float SeaLengthMeters => BerthLengthMeters;
 
-        // ── 비활성 2026-09-07 (길이를 선석과 동일하게) ──
-        //   선석 양끝으로도 바다폭만큼 더 뻗던 산식. 340 + 60×2 = 460m.
+        // ── 비활성 (선석 양끝으로 바다폭만큼 더 뻗던 산식) ──
+        //   340 + 60×2 = 460m.
         // public static float SeaLengthMeters => BerthLengthMeters + 2f * SeaWidthMeters;
 
         /// <summary>접안한 배가 수면 안에 들어오나 — 바다 폭 &gt; 선폭, 바다 길이 &gt; 설계선 LOA.
@@ -69,14 +58,12 @@ namespace AIXRCrane.Crane.Sts
         public static bool SeaFitsShip =>
             SeaWidthMeters > ShipConfig.BeamMeters && SeaLengthMeters > ShipConfig.LoaMeters;
 
-        // ── 비활성 2026-09-07 (앵커를 선폭 → 부두로 교체) ──
+        // ── 비활성 (앵커를 선폭 → 부두로 교체) ──
         // /// <summary>바다 폭 = 설계선 선폭 × 이 값. 39.53×3 → 120m.</summary>
         // public const float SeaMarginRatio = 3f;
 
-        // ── 비활성 2026-09-07 (오너 선택 B: 바다 축소) ────────────────────────────
-        //   선회장 직경을 바다 앵커로 쓰면 588 × 1,516m 가 나와 부두(30 × 340m)가
-        //   전체 폭의 4.9% 짜리 실선이 된다. 실척으로는 맞지만 확인이 안 된다.
-        //   선회장 자체가 필요해지면(선회 시뮬레이션 등) 주석을 푼다.
+        // ── 비활성 (바다 축소 선택) ────────────────────────────
+        //   선회장 직경(588m)을 바다 앵커로 쓰면 부두가 너무 작아 보인다. 선회 시뮬레이션 등 필요해지면 되살린다.
         //
         // /// <summary>선회장 직경 — 자력 선회 기준 2 × LOA (항만설계기준). 294×2 = 588m.</summary>
         // public static float TurningBasinMeters => 2f * ShipConfig.LoaMeters;
@@ -91,10 +78,9 @@ namespace AIXRCrane.Crane.Sts
         public const float LaneOffsetM = 1.08f;
         /// <summary>안전 차선 폭 — 실척 m.</summary>
         public const float LaneWidthM = 0.34f;
-        //   레일 사이(트럭 주행 구역)에는 차선을 넣지 않는다 — 오너 지시 2026-09-07
-        //   "레인 안쪽은 차선이 없어도 됨".
+        //   레일 사이(트럭 주행 구역)에는 차선을 넣지 않는다.
 
-        // ═══════════ 야드 (오너 확정 2026-09-07: 2레인 × 2블록 = 4블록) ═══════════
+        // ═══════════ 야드 (2레인 × 2블록 = 4블록) ═══════════
         // ① 컨테이너 앵커 — ISO 1AA 40ft. 폭은 ProceduralContainerMesh.StdWidth SSOT 추종.
         /// <summary>40ft 컨테이너 길이 — 실척 m.</summary>
         public const float ContainerLenM = 12.192f;
@@ -114,15 +100,11 @@ namespace AIXRCrane.Crane.Sts
         /// <summary>RTG 다리 박스 단면 한 변 — 실척 m. RtgCraneCreator.LegSec 미러.</summary>
         public const float RtgLegSectionM = 0.9f;
         /// <summary>다리 '안쪽면' 사이 순간격 — 실척 m. 23.6 − 0.9 = 22.7m.
-        /// ★ 스팬은 다리 중심 간격이라 그대로 쓰면 블록·차선이 다리 밑으로 들어간다
-        /// (오너 지적 2026-09-07 "트럭 라인 배치가 오류"). 실제 쓸 수 있는 폭은 이것이다.</summary>
+        /// ★ 스팬(다리 중심 간격)을 그대로 쓰면 블록·차선이 다리 밑으로 들어간다 — 실제 쓸 수 있는 폭은 이것.</summary>
         public static float RtgClearSpanM => RtgSpanM - RtgLegSectionM;
 
-        /// <summary>RTG 구조물이 다리 중심선 '바깥'으로 튀어나오는 폭 — 실척 m.
-        /// 주거더 오버행(0.75)·실빔·보기가 다리보다 바깥에 있다.
-        /// 씬 실측: 전폭 27.25m → 편측 13.83m, 스팬 반(11.8) 을 빼면 2.03m. 여유 포함 2.5.
-        /// ★ 스팬(다리 중심 간격)만 보고 야드를 재면 이만큼이 포장 밖으로 나간다
-        /// (오너 지적 2026-09-07: RTG 다리가 포장을 0.53m 벗어나 허공에 떴다).</summary>
+        /// <summary>RTG 구조물이 다리 중심선 바깥으로 튀어나오는 폭 — 실척 m. 씬 실측 전폭 27.25 → 편측 13.83,
+        /// 스팬 반(11.8) 을 빼면 2.03m, 여유 포함 2.5. ★ 스팬만 보고 야드를 재면 이만큼 포장 밖으로 나간다.</summary>
         public const float RtgOverhangM = 2.5f;
 
         // ③ 블록 구성
@@ -134,10 +116,8 @@ namespace AIXRCrane.Crane.Sts
         /// 이 값은 '야드 밴드 깊이'를 정한다(포장 크기). 실제로 블록을 까는 수는 YardActiveLanes.</summary>
         public const int YardLanes = 2;
 
-        /// <summary>실제로 블록·트럭레인을 까는 레인 수. 오너 지시 2026-09-07
-        /// "크레인 없는 쪽 야드 부분 지우고 크레인 있는 쪽을 안쪽으로 이동".
-        /// 깊이는 YardLanes 로 유지하고 사용만 줄인다 — 에이프런 뒤가 빈 공간으로 남아
-        /// 나중에 레인을 되살릴 자리가 보존된다. YardLanes 로 올리면 원상 복구.</summary>
+        /// <summary>실제로 블록·트럭레인을 까는 레인 수. 깊이는 YardLanes 로 유지하고 사용만 줄인다 —
+        /// 남는 공간에 레인을 되살릴 자리가 보존된다. YardLanes 로 올리면 원상 복구.</summary>
         public const int YardActiveLanes = 1;
 
         /// <summary>블록을 깔기 시작할 레인 인덱스 — 육지쪽부터 채운다. 2 − 1 = 1.</summary>
@@ -152,7 +132,7 @@ namespace AIXRCrane.Crane.Sts
         public const float YardAisleXM = 1.5f;
 
         /// <summary>야드 밴드 양 끝 여유 — 실척 m. RTG 가 포장 밖으로 나가면 안 되므로
-        /// 통로와 오버행 중 큰 값. 종전엔 통로(1.5m)만 써서 0.53m 가 모자랐다.</summary>
+        /// 통로와 오버행 중 큰 값을 쓴다.</summary>
         public static float YardEndMarginM => Mathf.Max(YardAisleXM, RtgOverhangM);
         /// <summary>블록 간 Z 횡단로 — 실척 m. 소방·정비 통로.</summary>
         public const float YardCrossAisleM = 16f;
@@ -186,10 +166,8 @@ namespace AIXRCrane.Crane.Sts
         /// 블록이 스팬 중앙이므로 양쪽에 이만큼씩 남는다.</summary>
         public static float YardBlockLegClearanceM => (RtgClearSpanM - YardBlockWidthM) * 0.5f;
 
-        // ── 비활성 2026-09-07 (오너 선택: RTG 를 블록 중앙으로 되돌림) ──────────────
-        //   블록을 스팬 한쪽으로 몰고 반대쪽에 5.67m 트럭레인을 두는 실물 RTG 방식이었으나,
-        //   RTG 가 블록을 비대칭으로 감싸 어색해 보인다는 판단. 블록은 스팬 중앙으로.
-        //   되살리려면 아래 주석을 풀고 YardBlockCenterX 를 한쪽으로 미는 식으로 되돌린다.
+        // ── 비활성 (RTG 를 블록 중앙으로 되돌림) ──────────────
+        //   블록을 한쪽으로 몰고 반대쪽에 트럭레인 두는 방식은 비대칭이 어색해 중단. 되살리려면 YardBlockCenterX 를 한쪽으로 밀 것.
         //
         // /// <summary>트럭 주행레인 폭 = 다리 순간격 − 블록 폭 = 22.7 − 17.03 = 5.67m.</summary>
         // public static float YardTruckLaneWidthM => RtgClearSpanM - YardBlockWidthM;
@@ -207,23 +185,20 @@ namespace AIXRCrane.Crane.Sts
         public static float YardSpanCenterX(int i) =>
             -(ApronWidthMeters + YardEndMarginM + RtgSpanM * (i + 0.5f) + YardAisleXM * i);
 
-        /// <summary>야드(블록·RTG)를 바다쪽으로 미는 양 — 실척 m. 오너 지시 2026-09-07
-        /// "RTG 크레인이랑 야드 바다 쪽으로 조금만 이동".
-        /// 야드 포장은 그대로 두고 블록만 민다 — RTG 는 블록 존을 읽으므로 자동으로 따라온다.
-        /// 0 이면 레인 슬롯 그대로. 이 숫자만 바꾸면 이동량이 조절된다.</summary>
+        /// <summary>야드(블록·RTG)를 바다쪽으로 미는 양 — 실척 m. 포장은 그대로 두고 블록만 밀며,
+        /// RTG 는 블록 존을 읽으므로 자동으로 따라온다. 0 이면 레인 슬롯 그대로.</summary>
         public const float YardShiftSeawardM = 12f;
 
-        /// <summary>바다쪽 이동 한계 — 실척 m. RTG 해측 끝(스팬반 + 오버행)이
-        /// 에이프런 경계(x = −에이프런폭)를 넘지 않는 값. 현 설정에서 25.10m.
-        /// 넘겨 밀면 크레인이 에이프런으로 튀어나온다.</summary>
+        /// <summary>바다쪽 이동 한계 — 실척 m. RTG 해측 끝(스팬반 + 오버행)이 에이프런 경계를 넘지 않는 값
+        /// (현재 25.10m). 넘겨 밀면 크레인이 에이프런으로 튀어나온다.</summary>
         public static float YardShiftMaxM =>
             -ApronWidthMeters - (YardSpanCenterX(YardLaneStart) + RtgSpanM * 0.5f + RtgOverhangM);
 
         /// <summary>실제 적용되는 이동량 — 한계로 클램프. 설정값이 과하면 조용히 넘어가지 않고 잘린다.</summary>
         public static float YardShiftAppliedM => Mathf.Clamp(YardShiftSeawardM, 0f, YardShiftMaxM);
 
-        /// <summary>블록 중심 X = RTG 스팬 중심 + 바다쪽 이동. 오너 선택 2026-09-07 —
-        /// RTG 가 블록을 대칭으로 감싼다(트럭레인은 포기). 양옆에 2.84m 씩 남는다.</summary>
+        /// <summary>블록 중심 X = RTG 스팬 중심 + 바다쪽 이동. RTG 가 블록을 대칭으로 감싸며
+        /// (트럭레인은 포기) 양옆에 2.84m 씩 남는다.</summary>
         public static float YardBlockCenterX(int i) => YardSpanCenterX(i) + YardShiftAppliedM;
 
         /// <summary>블록 j(0부터) 의 중심 Z — 실척 m. 안벽 중앙 기준 대칭.</summary>
@@ -240,10 +215,8 @@ namespace AIXRCrane.Crane.Sts
         public static float QuayWallHeightMeters =>
             StsConfig.QuayDeckAboveSeaMeters + WaterDepthMeters;
 
-        // ═══ 플레이어 시작점 — 오너 지시 2026-09-14 "좌표만 저장해" ═══
-        //   임시 체스말로 눈으로 확인한 자리 = 씬 PlayerStartPoint 마커 월드 (−0.5417, 0, 0) · yaw 90°.
-        //   숫자로 박지 않고 유도한다 — STS 두 주행레일(−4 / −22m) 한가운데 · 선석 중앙 · 바다(+X)를 바라봄.
-        //   씬에 마커가 있으면 마커가 우선이고(CranePlayerStartPlacer), 이 값은 마커가 없을 때 쓴다.
+        // ═══ 플레이어 시작점 ═══
+        //   씬 PlayerStartPoint 마커가 없을 때 쓰는 기본값 — 두 레일 한가운데·선석 중앙·바다(+X) 를 보도록.
         /// <summary>시작점 X — 실척 m. −(해측여유 4 + 레일게이지 18 ÷ 2) = −13m.</summary>
         public static float PlayerStartXMeters => -(ApronSeawardM + StsConfig.LegGaugeXMeters * 0.5f);
         /// <summary>시작점 Z — 실척 m. 선석(안벽) 중앙.</summary>

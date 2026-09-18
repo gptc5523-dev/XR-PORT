@@ -3,17 +3,8 @@ using UnityEngine;
 
 namespace AIXRCrane.Crane.Sts
 {
-    /// <summary>
-    /// QA 판정용 콘솔 로그 단일 포맷기 — 외부 QA 팀 시나리오(문서/QA_테스트시나리오.md) 검증용.
-    ///
-    ///   포맷:  [QA] SYS/EVENT f=&lt;frame&gt; t=&lt;time&gt; | k1=v1 k2=v2 ... [=&gt; PASS|FAIL]
-    ///
-    /// 오너가 VR 데이터를 직접 못 보고 Console만 보므로, 모든 합격/불합격이 한 줄로 판정되게 한다.
-    ///   · Info : 상태/수치만 찍는다(사람이 기대 키값과 대조).
-    ///   · Check: 조건을 받아 끝에 " => PASS" / " => FAIL"를 붙인다(자체판정). FAIL은 LogError로 띄워 눈에 띄게.
-    ///
-    /// 기존 각 컴포넌트의 debugLog 라인과 독립 — Enabled로만 켜고 끈다(기본 on). grep 키: "[QA]", "=> FAIL".
-    /// </summary>
+    /// <summary>QA 판정용 콘솔 로그 포맷기 — 포맷: [QA] SYS/EVENT f=&lt;frame&gt; t=&lt;time&gt; | k=v ... [=&gt; PASS|FAIL].
+    /// Info는 상태만 찍고, Check는 조건을 자체판정한다(FAIL은 LogError). grep 키: "[QA]", "=&gt; FAIL".</summary>
     public static class QaLog
     {
         /// <summary>QA 라인 전역 on/off. 릴리스 빌드에서 끄려면 false.</summary>

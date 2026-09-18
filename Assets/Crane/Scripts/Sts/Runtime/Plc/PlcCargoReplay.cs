@@ -5,27 +5,8 @@ using UnityEngine;
 
 namespace AIXRCrane.Crane.Sts.Plc
 {
-    /// <summary>
-    /// PLC 재생에 화물을 붙인다 — PlcBridge 는 축만 움직여서 스프레더가 빈손으로 오갔다.
-    ///
-    /// 재생 CSV 옆의 작업 이력(run_NN.history.csv, PlcSim/generate.py)을 읽어
-    ///   ① 출발지에 컨테이너를 놓는다 — 자리는 이력의 집기 시각(pick_t_ms) PLC 자세에서 스프레더 콘 바닥이 오는 곳
-    ///      (PlcBridge.WorldAtPose). 슬롯 좌표를 여기서 다시 계산하지 않으니 생성기와 어긋날 일이 없다.
-    ///   ② PLC 트위스트락 잠금(SP_TwistLock_Locked) 상승에서 집고, 하강에서 놓는다.
-    ///   ③ 트럭 레인(TRUCK/…)엔 쌓이지 않는다 — 놓은 건 트럭이 싣고 떠나고(truckLeaveS 뒤),
-    ///      트럭에서 집는 건 직전 작업을 놓는 순간 트럭이 들여온다.
-    ///   ④ 그 자리에 씬 컨테이너가 이미 있으면(배 갑판 적재 등) 새로 만들지 않고 그걸 집는다 —
-    ///      겹쳐 복제하면 같은 자리에 두 개가 박힌다. 되감기 때 원위치·재활성화한다.
-    /// CSV 가 되감기면 전부 치우고 처음부터 다시 놓는다.
-    ///
-    /// 잡기는 SpreaderGrabber.Grab 을 쓰지 않는다 — 코너 안착 게이트가 PLC 목표 산포와 겹치고,
-    /// 이미 PLC 자세 그대로 놓았으니 월드 자세를 보존한 채 SpreaderAttach 에 붙이기만 하면 된다.
-    /// 모양은 씬 야드의 Cont40_00 / Cont20_00 을 복제한다(스케일·LOD·머티리얼 그대로). 없으면 ISO 치수 박스.
-    ///
-    /// 2026-09-15 Play 검증(PlcReplaySmoke, S14/run_01 20개): 집기·놓기 20/20, 배에서 집은 20개 전부 씬 컨테이너(복제 0),
-    ///   트위스트락↔윗면 중심 평균 0.038m·최대 0.105m, 콘 바닥−윗면 −0.017~+0.039m(생성기 자동 위치결정 σ 30mm 범위).
-    ///   이 컴포넌트는 PlcBridge 가 CSV 재생일 때 스스로 붙인다 — 씬에 저장돼 있지 않아도 된다.
-    /// </summary>
+    /// <summary>PLC 재생에 화물을 붙인다 — PlcBridge 는 축만 움직여 스프레더가 빈손으로 오갔다.
+    /// 작업 이력 CSV 의 트위스트락 잠금 상승/하강에 맞춰 집고 놓으며, 이미 있는 씬 컨테이너는 새로 만들지 않고 쓴다(되감기 때 원위치).</summary>
     [DefaultExecutionOrder(-90)]   // PlcBridge(-100)가 축을 옮긴 뒤 · SpreaderGrabber(50) 클램프 전
     [AddComponentMenu("AI-XR Crane/STS Crane/PLC 화물 재생 (작업 이력)")]
     [RequireComponent(typeof(PlcBridge))]

@@ -8,19 +8,8 @@ using UnityEngine;
 
 namespace AIXRCrane.Crane.Sts.Net.EditorTools
 {
-    /// <summary>
-    /// LAN 멀티플레이 씬 배선을 한 번에 자동 구성:
-    ///   1) 씬에 NetworkManager(+UnityTransport, NetLanUI, LanDiscovery) 생성·연결
-    ///   2) 씬에 CraneNetSync(+NetworkObject) 생성
-    ///   3) 참가자 아바타 프리팹 생성·연결(PlayerPrefab) — 접속하면 1인당 하나씩 자동 스폰
-    /// 메뉴: Scene ▸ LAN 멀티플레이 셋업 (5인)
-    /// ※ 라벨의 "5" = NetConfig.MaxPlayers(고정 정원 5명). MenuItem 어트리뷰트는 const만 받아 자동참조가
-    ///   불가하므로 라벨엔 숫자를 직접 적는다. 정원을 바꾸면 NetConfig.MaxPlayers와 이 라벨을 함께 수정할 것.
-    ///
-    /// 아바타는 '메시 없는 껍데기'로 만들어진다 — Body 자식이 메시 자리다(오너 방침: 메시는 지시가 있을 때만).
-    /// 메시를 Body 밑에 넣기만 하면 그대로 보인다. 비어 있어도 접속·위치 동기화는 정상 동작한다.
-    /// 손으로 NetworkObject를 붙이는 실수 위험을 없앤다. 셋업 후 씬을 저장하면 끝.
-    /// </summary>
+    /// <summary>LAN 멀티플레이 씬 배선 자동 구성 — NetworkManager·CraneNetSync·참가자 아바타 프리팹(메시 없는
+    /// 껍데기, Body 밑에 채우면 표시). 라벨의 "5"=NetConfig.MaxPlayers, 정원 바꾸면 라벨도 같이 고칠 것.</summary>
     public static class NetLanSetup
     {
         /// <summary>참가자 아바타 프리팹 경로. 메시를 붙일 자리(Body)는 이 프리팹 안에 있다.</summary>
@@ -61,20 +50,14 @@ namespace AIXRCrane.Crane.Sts.Net.EditorTools
             if (nm.NetworkConfig == null) nm.NetworkConfig = new NetworkConfig();
             nm.NetworkConfig.NetworkTransport = utp;
             nm.NetworkConfig.PlayerPrefab = avatarPrefab; // 접속 1인당 아바타 하나 자동 스폰(AutoSpawnPlayerPrefabClientSide)
-            nm.NetworkConfig.ConnectionApproval = true;   // 인원 제한(NetConfig.MaxPlayers)용 — 실제 정원 검사는 NetLanUI.ApproveConnection
+            nm.NetworkConfig.ConnectionApproval = true;   // 인원 제한용 — 실제 정원 검사는 NetLanUI.ApproveConnection
 
             EditorUtility.SetDirty(nm);
             return nm;
         }
 
-        /// <summary>참가자 아바타 프리팹 — 없으면 만든다. 이미 있으면 그대로 쓴다(메시 작업분을 덮어쓰지 않는다).
-        ///
-        /// 구성
-        ///   PlayerAvatar            NetworkObject · NetworkTransform(소유자 권위) · PlayerAvatarSync
-        ///                           localScale = ModelScale — 리그가 1/24 라 아바타도 미니어처여야 크기가 맞는다
-        ///     └ Body                메시 자리(비어 있음)
-        ///
-        /// 스케일은 프리팹에 박혀 있어 매 프레임 보낼 이유가 없다 → Sync Scale 을 끈다(대역폭 절약).</summary>
+        /// <summary>참가자 아바타 프리팹 — 없으면 만들고 있으면 그대로 쓴다(메시 작업분 보존).
+        /// NetworkObject·NetworkTransform(소유자 권위)·PlayerAvatarSync, localScale=ModelScale(1/24), Sync Scale은 꺼둔다.</summary>
         static GameObject SetupAvatarPrefab()
         {
             var found = AssetDatabase.LoadAssetAtPath<GameObject>(AvatarPath);

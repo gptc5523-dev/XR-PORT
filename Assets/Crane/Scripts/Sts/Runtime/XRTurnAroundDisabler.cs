@@ -4,14 +4,8 @@ using UnityEngine;
 
 namespace AIXRCrane.Crane.Sts
 {
-    /// <summary>
-    /// 시점변경(걷기) 모드에서 오른손 스틱을 '아래'로 밀면 180° 뒤도는 동작(Turn Around)만 끈다.
-    ///   - 좌우 회전(SnapTurn/ContinuousTurn 좌우)은 그대로 둠 → Turn InputAction을 통째로 끄지 않음
-    ///   - 180° 뒤돌기는 별도 액션이 아니라 회전 Provider의 enableTurnAround 플래그라서, 그 플래그만 false로
-    ///   - MonoBehaviour 아님 → 씬에 부착 불필요. [RuntimeInitializeOnLoadMethod] 로 매 Play 시 자동 실행.
-    /// XRI 3.x: ...Locomotion.Turning.SnapTurnProvider / ContinuousTurnProvider,
-    /// XRI 2.x(레거시): ...SnapTurnProviderBase 모두 public bool enableTurnAround 를 가짐(리플렉션으로 처리).
-    /// </summary>
+    /// <summary>시점변경(걷기) 모드에서 오른손 스틱 '아래' 180° 뒤돌기(Turn Around)만 끈다 — 좌우 회전은 유지.
+    /// enableTurnAround 플래그만 리플렉션으로 false 로(XRI 버전별 타입 차이 대응). MonoBehaviour 아님, 자동 실행.</summary>
     public static class XRTurnAroundDisabler
     {
         const bool DebugLog = true;

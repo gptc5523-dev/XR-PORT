@@ -6,29 +6,8 @@ using UnityEngine;
 
 namespace AIXRCrane.EditorTools
 {
-    /// <summary>
-    /// New Final 4종(20ft · 40ft · 40ftHC · 45ftHC) FBX 를 씬에 꺼내 쓰는 메뉴.
-    ///
-    /// 메뉴는 "생성" 4개뿐이다. 머티리얼은 생성할 때 없으면 자동으로 만든다(최초 1회만 실제로 만들어짐)
-    /// — 별도 빌드/검증 메뉴를 두면 순서를 기억해야 해서 오히려 번거롭다.
-    /// 프리팹은 만들지 않는다. <c>Prefabs/Container_20ft.prefab</c> 은 절차 생성(ContainerInstance·라벨)
-    /// 자산이라 같은 이름으로 저장하면 덮어쓴다.
-    ///
-    /// 전제 — Blender 익스포트 규약 (2026-08-12)
-    ///   축   Blender Y(길이) → Unity X(도어 +X) · Z(높이) → Y · X(폭) → Z
-    ///        (axis_forward='-X', axis_up='Z' · 행렬식 +1 이라 좌우 반전 없음)
-    ///   피봇 바닥면 중앙 (z_min → 0) → 씬에서 y=0 이면 그대로 지면에 앉는다
-    ///   단위 ★FBX 를 **1/24 로 굽는다**(2026-08-12 오너 지시). ContainerModelPostprocessor.globalScale = 1.
-    ///        실측(모델 단위) 20ft 0.25242 · 40ft/40ftHC 0.50792 · 45ftHC 0.57142 (= 실척 ÷ 24)
-    ///
-    /// ★도색은 텍스처에 구워져 있다.
-    ///   Blender 의 PaintTint(MULTIPLY 배율 2.024138/2.011376/1.974708)는 FBX 로 넘어오지 않으므로
-    ///   Textures/Container_Body_BaseColor.png · Container_DoorHardware_BaseColor.png 를
-    ///   리니어 공간에서 배율 적용해 재저장했다(실측 리니어 평균 0.802 / 0.243 · 클립 0).
-    ///   따라서 머티리얼 _BaseColor 는 흰색이며, 여기에 색을 또 곱하면 안 된다.
-    ///
-    /// MetalSmooth 규약 — R = metallic, A = smoothness (URP _MetallicGlossMap 과 동일).
-    /// </summary>
+    /// <summary>Final 4종(20ft·40ft·40ftHC·45ftHC) FBX 배치 메뉴. 머티리얼 없으면 자동 생성, 프리팹은 안 만든다(절차 자산이라 덮어씀).
+    /// Blender 축 Y→X·Z→Y·X→Z, 피봇 바닥 중앙, FBX 1/24 축소(ModelScale=1). 도색은 텍스처에 구워짐(_BaseColor 흰색), MetalSmooth: R=metallic·A=smoothness.</summary>
     public static class ContainerFinal4Builder
     {
         const string ModelDir    = "Assets/Container/Models/";
@@ -128,9 +107,8 @@ namespace AIXRCrane.EditorTools
             { "Etch_Fill",   new Spec { flat = new Color(0.020f, 0.020f, 0.022f), smoothness = 1f - 0.70f, metallic = 0f } },
         };
 
-        /// <summary>없는 머티리얼만 만든다. 하나라도 만들었으면 true(→ 호출부가 FBX 재임포트).</summary>
-        /// <summary>머티리얼이 없으면 만든다(최초 1회만 실제 생성). 야드 적재 등 외부 배치기도
-        /// 컨테이너를 꺼내기 전에 호출해야 머티리얼 미할당으로 나오지 않는다.</summary>
+        /// <summary>없는 머티리얼만 만든다(최초 1회만 생성), 하나라도 만들었으면 true(→ 호출부가 FBX 재임포트).
+        /// 야드 적재 등 외부 배치기도 컨테이너를 꺼내기 전에 호출해야 한다.</summary>
         internal static bool EnsureMaterials()
         {
             var shader = Shader.Find("Universal Render Pipeline/Lit");
@@ -158,7 +136,7 @@ namespace AIXRCrane.EditorTools
 
         static void Apply(Material m, Spec sp)
         {
-            m.SetColor("_BaseColor", Color.white);          // ★도색은 텍스처에 구워져 있다
+            m.SetColor("_BaseColor", Color.white);          // 도색은 텍스처에 구워져 있다
             m.SetFloat("_Smoothness", Mathf.Clamp01(sp.smoothness));
             m.SetFloat("_Metallic",   Mathf.Clamp01(sp.metallic));
             m.SetFloat("_SmoothnessTextureChannel", 0f);    // 0 = MetallicAlpha

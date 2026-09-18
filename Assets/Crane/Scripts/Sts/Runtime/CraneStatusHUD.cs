@@ -4,13 +4,8 @@ using UnityEngine.UI;
 
 namespace AIXRCrane.Crane.Sts
 {
-    /// <summary>
-    /// STS 크레인 상태를 VR HMD 시야 우상단에 고정 표시하는 world-space HUD.
-    ///   - Canvas/Background/TMP 텍스트를 코드로 자동 생성
-    ///   - HMD 카메라(Camera.main)에 자식으로 붙여 머리를 돌려도 같은 위치에 따라옴(head-locked)
-    ///   - 매 프레임 StsCrane(트롤리/호이스트/갠트리, 적재 컨테이너) 상태를 텍스트로 업데이트
-    /// 씬 어디든 한 곳에 컴포넌트 붙이면 됨. crane을 비워두면 씬에서 자동 탐색.
-    /// </summary>
+    /// <summary>STS 크레인 상태를 VR HMD 시야 우상단에 고정 표시하는 world-space HUD(head-locked).
+    /// 씬 아무 곳에 붙이면 됨 — crane을 비워두면 자동 탐색.</summary>
     [AddComponentMenu("AI-XR Crane/STS Crane/Crane Status HUD")]
     [DisallowMultipleComponent]
     public sealed class CraneStatusHUD : MonoBehaviour
@@ -21,8 +16,7 @@ namespace AIXRCrane.Crane.Sts
         [SerializeField] Camera targetCamera;
 
         [Header("HMD 우상단 위치 (카메라 로컬 좌표, m)")]
-        // 우측 ≈15°·위 ≈6°(z=0.85 기준) — 기존 22°/14°는 주변시야라 보기 불편했다. 시야 안쪽으로 당기고
-        //   거리도 0.8→0.85로 살짝 늘려 양안 초점 부담을 줄임. (가림은 CraneHud ZTest Always로 별도 해결.)
+        // 우측 ≈15°·위 ≈6°(z=0.85 기준) — 시야 안쪽으로 당겨 초점 부담을 줄임.
         [SerializeField] Vector3 hmdOffset = new Vector3(0.22f, 0.09f, CraneHud.HudDistance);   // x=오른쪽, y=위, z=공용거리
         [Tooltip("카메라 정면을 기준으로 약간 안쪽으로 기울이기(편안한 시야각). 0이면 정면.")]
         [SerializeField, Range(-30f, 30f)] float tiltYawDeg = -15f;
@@ -45,9 +39,7 @@ namespace AIXRCrane.Crane.Sts
         string lastText;          // 직전 표시 문자열 — 바뀔 때만 Text.text 대입(캔버스 리빌드 절감)
         float nextTextRefresh;    // 다음 텍스트 갱신 시각(CraneHud.TextHz 스로틀 — 매 프레임 문자열 생성/GC 방지)
 
-        // 속도 측정
-        // 크레인이 실척의 1/24로 생성됨(StsCraneCreator.Scale=1/24). 모델 속도(units/s)를 ÷Scale 하면 실척 m/s.
-        // 축척은 StsCrane.ModelScale 단일 소스 참조(모델 units/s ÷ ModelScale = 실척 m/s)
+        // 속도 측정 — 모델 units/s ÷ StsCrane.ModelScale(1/24) = 실척 m/s
         float prevTrolley, prevHoist, prevGantry;   // 직전 프레임 위치(모델 units)
         float spdTrolley, spdHoist, spdGantry;       // 평활된 현재 속도(실척 m/min)
         bool speedPrimed;                            // 첫 프레임 위치 초기화 여부(초기 튐 방지)
@@ -84,7 +76,7 @@ namespace AIXRCrane.Crane.Sts
         {
             if (canvas == null || text == null) return;
 
-            // 조종기를 받는 크레인을 따라간다 — Start 에서 한 번 묶으면 RTG 를 조종해도 첫 크레인(STS) 상태·표시 여부를 보여 줬다.
+            // 조종기를 받는 크레인을 따라간다(Start 1회 바인딩이면 다른 크레인 조종 시 어긋난다).
             var act = StsCraneVRController.Active;
             if (act != null && act != controller)
             {
@@ -93,11 +85,8 @@ namespace AIXRCrane.Crane.Sts
                 if (c != null && c != crane) Bind(c);
             }
 
-            // 조종모드일 때만 표시 — 컨트롤러의 CraneMode를 따른다(걷기/시점변경 모드면 숨김).
-            //   컨트롤러를 못 찾으면(비VR/테스트 씬) 항상 표시(기존 동작 유지).
+            // 조종(ControlActive)일 때만 표시, 관찰이면 숨김 — 컨트롤러 못 찾으면(비VR) 항상 표시.
             if (controller == null) controller = FindController();
-            // 조종(ControlActive)일 때만 표시 — 관찰(기본)이면 숨김. 모드선택 등 다른 조종 HUD와 동일 게이트.
-            //   controller 못 찾으면(비VR/테스트 씬)만 기존처럼 표시.
             bool show = controller == null || controller.ControlActive;
             canvas.enabled = show;
             if (!show) { speedPrimed = false; return; }   // 숨길 땐 갱신 스킵 + 재표시 시 속도 재초기화
@@ -217,8 +206,7 @@ namespace AIXRCrane.Crane.Sts
             string ophex = ColorUtility.ToHtmlStringRGB(CraneOpMode.ModeColor(op));
             sb.AppendLine($"운전모드 <b><color=#{ophex}>● {CraneOpMode.Label(op)}</color></b>");   // 라벨='운전모드'(크레인 운영상태), 값=정지/운전/이상
 
-            // O&M 관찰 뷰 — 조종/관찰·호스트/관전자 무관하게 상세 상태를 '항상' 표시(관찰이 곧 O&M 시각화의 핵심).
-            //   (이전엔 조종모드에서만 상세를 보여 관찰자가 상태를 못 보던 문제 → 관찰 기본 분리 후 항상 표시로 변경.)
+            // O&M 관찰 뷰 — 조종/관찰·호스트/관전자 무관하게 상세 상태를 항상 표시.
             sb.AppendLine();
 
             // 경보를 최상단으로 — 평가지표4(상태 표시 정확도) 핵심이라 '알람 유무'를 가장 먼저 보이게.
@@ -281,7 +269,6 @@ namespace AIXRCrane.Crane.Sts
                 sb.AppendLine("<color=#5FE0FF>● 운전실 시점</color>");
 
             // 모드 선택 — 한 줄 탭(별도 패널 대신 상태판에 합침). 현재 모드=청록 굵게, 스틱 후보=▸.
-            //   현재 모드 뒤 ● 은 삭제(오너 2026-09-16 "조종 옆 동그라미 없애 디자인도 깨지고") — 굵게+청록으로 이미 구분돼 중복이었다.
             if (controller != null)
             {
                 int cur = (int)controller.CurrentMode;

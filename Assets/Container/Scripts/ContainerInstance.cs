@@ -3,10 +3,7 @@ using UnityEngine;
 
 namespace AIXRCrane
 {
-    /// <summary>
-    /// 컨테이너 프리팹 인스턴스. 스폰 시점에 번호·색상을 적용한다.
-    /// 메시는 자식 오브젝트에 들어가 있어야 하며, 번호 라벨은 TMP 텍스트로 구성한다.
-    /// </summary>
+    /// <summary>컨테이너 프리팹 인스턴스 — 스폰 시점에 번호·색상을 적용한다. 메시는 자식 오브젝트, 번호 라벨은 TMP 텍스트.</summary>
     public class ContainerInstance : MonoBehaviour
     {
         [System.Serializable]
@@ -80,9 +77,8 @@ namespace AIXRCrane
         {
             if (bodyRenderers == null) return;
 
-            // 같은 선사색 인스턴스가 '복붙'처럼 보이지 않도록 ID 기반 결정적 미세 변주.
-            //   명도·채도·광택을 살짝 흔들어 햇빛 바램/먼지/세월감을 표현(같은 ID = 항상 같은 외형, 재현 가능).
-            //   bodyRenderers엔 Body·Door만 등록되므로 프레임/캐스팅 회색은 영향 없음(절차강 베이스 유지).
+            // 같은 선사색 인스턴스가 '복붙'처럼 보이지 않도록 ID 기반 결정적 미세 변주(명도·채도·광택).
+            //   같은 ID = 항상 같은 외형. bodyRenderers엔 Body·Door만 등록되므로 프레임/캐스팅 회색은 영향 없음.
             float h1 = StableHash.Hash01(containerId, 0x9E3779B9u);   // 명도/광택 시드
             float h2 = StableHash.Hash01(containerId, 0x85EBCA6Bu);   // 채도 시드
             float h3 = StableHash.Hash01(containerId, 0xC2B2AE35u);   // 색조 시드
