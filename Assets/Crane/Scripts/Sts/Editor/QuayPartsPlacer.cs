@@ -431,62 +431,94 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             var stale = GameObject.Find("Container_40ft");   // 테스트로 꺼낸 낱개 정리
             if (stale != null) Undo.DestroyObjectImmediate(stale);
 
-            // 셀 목록 — 두 블록 전체를 모아 아래에서 섞어 쓴다. 순서대로 쓰면 첫 블록 첫 열이 일자로 다 차버린다
-            //   (실제 야드도 한 줄로 늘어놓지 않는다).
-            var cells = new List<(float x, float z)>();
+            // 셀은 블록마다 따로 모아 섞는다 — 전체를 한꺼번에 섞으면 한 블록에 몰렸다(15:5).
+            var blocks = new List<List<(float x, float z)>>();
             for (int i2 = PortConfig.YardLaneStart; i2 < PortConfig.YardLanes; i2++)
                 for (int j2 = 0; j2 < PortConfig.YardBlocksPerLane; j2++)
                 {
                     float bx = PortConfig.YardBlockCenterX(i2) * StsConfig.ModelScale;
                     float bz = PortConfig.YardBlockCenterZ(j2) * StsConfig.ModelScale;
+                    var cells = new List<(float x, float z)>();
                     for (int r = 0; r < PortConfig.YardRows; r++)
                         for (int b = 0; b < PortConfig.YardBays; b++)
                             cells.Add((bx - halfW + rowPitch * (r + 0.5f),
                                        bz - halfL + bayPitch * (b + 0.5f)));
+                    blocks.Add(cells);
                 }
 
             int pairs20  = Mathf.CeilToInt(YardCount20 / 2f);   // 20ft 는 한 셀에 두 개
             int needCells = YardCount40 + pairs20;
-            if (cells.Count < needCells)
+            int totalCells = 0;
+            foreach (var cells in blocks) totalCells += cells.Count;
+            if (blocks.Count == 0 || totalCells < needCells)
             {
-                Debug.LogError($"[항구] 셀 {cells.Count}개 < 필요 {needCells}개. 적재를 중단합니다.");
+                Debug.LogError($"[항구] 셀 {totalCells}개 < 필요 {needCells}개. 적재를 중단합니다.");
                 return;
             }
 
-            // 결정적 셔플(Fisher-Yates) — 두 블록·모든 열·모든 베이에 고르게 흩어진다.
+            // 블록 안은 베이를 황금비 순서로 돌며 고른다 — 무작위만 쓰면 블록 한쪽 끝에 뭉쳤다(10개 중 9개가 끝 1/3).
             var rng = new System.Random(YardSeed);
-            for (int k = cells.Count - 1; k > 0; k--)
+            foreach (var cells in blocks) SpreadCells(cells, PortConfig.YardRows, PortConfig.YardBays, rng);
+
+            // 20ft 쌍은 블록에 번갈아, 40ft 는 그때 대수가 가장 적은 블록에 — 블록별 대수가 같거나 1 차이.
+            var used = new int[blocks.Count];
+            var count = new int[blocks.Count];
+            int Fewest()
             {
-                int m2 = rng.Next(k + 1);
-                (cells[k], cells[m2]) = (cells[m2], cells[k]);
+                int best = -1;
+                for (int bi = 0; bi < blocks.Count; bi++)
+                    if (used[bi] < blocks[bi].Count && (best < 0 || count[bi] < count[best])) best = bi;
+                return best;
             }
 
-            for (int k = 0; k < YardCount40; k++)
-                Put(f40, d40, root, $"{StsPartNames.Yard40Prefix}{k:00}", cells[k].x, h40 * 0.5f, cells[k].z);
-
-            // 20ft 는 실물처럼 40ft 베이 한 칸에 두 개를 앞뒤로 넣는다.
             float off20 = (len20 + Yard20ftGapM * StsConfig.ModelScale) * 0.5f;
             int made20 = 0;
             for (int k = 0; k < pairs20 && made20 < YardCount20; k++)
             {
-                var c = cells[YardCount40 + k];
-                foreach (float dz in new[] { -off20, off20 })
+                int bi = k % blocks.Count;
+                if (used[bi] >= blocks[bi].Count) bi = Fewest();
+                var c = blocks[bi][used[bi]++];
+                foreach (float dz in new[] { -off20, off20 })   // 실물처럼 40ft 베이 한 칸에 두 개를 앞뒤로
                 {
                     if (made20 >= YardCount20) break;
                     Put(f20, d20, root, $"{StsPartNames.Yard20Prefix}{made20:00}", c.x, h20 * 0.5f, c.z + dz);
                     made20++;
+                    count[bi]++;
                 }
             }
-
-            // 두 블록에 실제로 흩어졌는지 — 한쪽만 차면 배치 로직이 잘못된 것이다.
-            int inBlock0 = 0;
-            foreach (Transform t in root)
-                if (t.localPosition.z < 0f) inBlock0++;
+            for (int k = 0; k < YardCount40; k++)
+            {
+                int bi = Fewest();
+                var c = blocks[bi][used[bi]++];
+                Put(f40, d40, root, $"{StsPartNames.Yard40Prefix}{k:00}", c.x, h40 * 0.5f, c.z);
+                count[bi]++;
+            }
 
             Done(root, $"40ft {YardCount40}개 + 20ft {made20}개(쌍 {pairs20}) = {YardCount40 + made20}개 · " +
-                       $"셀 {needCells}/{cells.Count} · 시드 {YardSeed} 셔플 · " +
-                       $"선미측 블록 {inBlock0} / 선수측 {YardCount40 + made20 - inBlock0} · " +
+                       $"셀 {needCells}/{totalCells} · 시드 {YardSeed} 블록별 셔플 · " +
+                       $"블록별 대수 {string.Join(" / ", count)} · " +
                        $"40ft {len40*inv:F2}L × {wid40*inv:F2}W × {h40*inv:F2}H m · 20ft {len20*inv:F2}L m · 1단");
+        }
+
+        /// <summary>블록 칸(열 r × 베이 b, r 우선 순서)을 고를 순서로 다시 줄 세운다 — 베이는 황금비 저불일치 순서, 열은 베이마다 시드로 섞는다.</summary>
+        static void SpreadCells(List<(float x, float z)> cells, int rows, int bays, System.Random rng)
+        {
+            float phi = (Mathf.Sqrt(5f) - 1f) * 0.5f;
+            var bayOrder = new List<int>();
+            for (int b = 0; b < bays; b++) bayOrder.Add(b);
+            bayOrder.Sort((p, q) => Mathf.Repeat(p * phi, 1f).CompareTo(Mathf.Repeat(q * phi, 1f)));
+            var rowOrder = new int[bays][];
+            for (int b = 0; b < bays; b++)
+            {
+                rowOrder[b] = new int[rows];
+                for (int r = 0; r < rows; r++) rowOrder[b][r] = r;
+                for (int k = rows - 1; k > 0; k--) { int m = rng.Next(k + 1); (rowOrder[b][k], rowOrder[b][m]) = (rowOrder[b][m], rowOrder[b][k]); }
+            }
+            var ordered = new List<(float x, float z)>(cells.Count);
+            for (int pass = 0; pass < rows; pass++)
+                foreach (int b in bayOrder) ordered.Add(cells[rowOrder[b][pass] * bays + b]);
+            cells.Clear();
+            cells.AddRange(ordered);
         }
 
         /// <summary>컨테이너 하나를 LOD0/LOD1 LODGroup으로 놓는다 — 높이는 Fit이 ISO에 맞춘다.</summary>
