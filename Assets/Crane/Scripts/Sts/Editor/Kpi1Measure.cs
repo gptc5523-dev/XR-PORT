@@ -75,7 +75,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             EditorApplication.EnterPlaymode();
         }
 
-        static int Spawn(string root, string args)
+        internal static int Spawn(string root, string args)
         {
             var p = Process.Start(new ProcessStartInfo("python3", args)
             {
@@ -136,7 +136,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             EditorApplication.update -= Tick;
             Application.logMessageReceived -= OnLog;
             if (exceptions > 0) pass = false;
-            KillSpawned();
+            KillSpawned(PidKey);
 
             Debug.Log($"[Kpi1Measure] {(pass ? "PASS" : "FAIL")}" +
                       (kpi != null ? $" — 통과 {kpi.PassCount}/{kpi.Trials}, 평균 {kpi.MeanMs:F0}ms, 최대 {kpi.MaxMs}ms" : "") +
@@ -154,14 +154,14 @@ namespace AIXRCrane.Crane.Sts.EditorTools
         }
 
         // 플레이 진입 도메인 리로드로 Process 핸들이 사라지므로 pid 로 끈다.
-        static void KillSpawned()
+        internal static void KillSpawned(string pidKey)
         {
-            foreach (var s in SessionState.GetString(PidKey, "").Split(','))
+            foreach (var s in SessionState.GetString(pidKey, "").Split(','))
             {
                 if (!int.TryParse(s, out int pid) || pid <= 0) continue;
                 try { Process.GetProcessById(pid).Kill(); } catch { }
             }
-            SessionState.EraseString(PidKey);
+            SessionState.EraseString(pidKey);
         }
 
         static string NewestKpiCsv()

@@ -381,6 +381,10 @@ def cmd_feed(args):
     source = args.source or "feed/" + "/".join(args.csv.replace("\\", "/").split("/")[-2:]).replace(".csv", "")
     url = args.url.rstrip("/") + "/ingest"
     print(f"[xrcrane-db] feed {source} {len(rows)}행 → {url} crane={args.crane}{' 반복' if args.loop else ''}", flush=True)
+    events = open(args.events_out, "w", encoding="utf-8") if args.events_out else None   # 지표6: 보낸 알람 변화(plc_ms, code) — 잃어버린 이벤트도 셀 수 있게
+    if events:
+        events.write("plc_ms,code\n")
+    prev = None
     while True:
         off, rtt = clock_offset(args.url)   # 바퀴마다 다시 — 장시간 반복 중 시계가 흘러도 따라간다
         print(f"[xrcrane-db] feed 시계 차 {off:+d}ms (왕복 {rtt}ms) — plc_ms 를 서버 시계로 맞춰 보냄", flush=True)
@@ -392,6 +396,10 @@ def cmd_feed(args):
             row.update(crane=args.crane, source=source, plc_ms=int(time.time() * 1000) + off)   # PLC 측 송출 시각(서버 시계 epoch ms) — 지표1 시작점
             req = urllib.request.Request(url, json.dumps(row).encode("utf-8"), auth_headers({"Content-Type": "application/json"}))
             urllib.request.urlopen(req, timeout=5).read()
+            code = str(row.get("ALM_Latest_Code", "0")) if str(row.get("ALM_Active", "0")) not in ("0", "") else "0"
+            if events and prev is not None and code != prev:   # 첫 행은 변화가 아니다
+                events.write(f"{row['plc_ms']},{code}\n"); events.flush()
+            prev = code
         if not args.loop:
             break
 
@@ -422,6 +430,7 @@ def main():
     fd.add_argument("--crane", default="STS_Crane")
     fd.add_argument("--source", default=None)
     fd.add_argument("--loop", action="store_true")
+    fd.add_argument("--events-out", default=None, help="보낸 알람 변화(plc_ms, code)를 적을 CSV — 지표6")
     fd.set_defaults(func=cmd_feed)
 
     args = p.parse_args()
