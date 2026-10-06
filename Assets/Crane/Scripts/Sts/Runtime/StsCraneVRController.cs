@@ -237,7 +237,7 @@ namespace AIXRCrane.Crane.Sts
 
             // 모드별 조종 입력 저장 → 실제 축 이동은 FixedUpdate 에서(물리 정합).
             // kinematic 화물을 끄는 축 적분을 PhysX 와 같은 고정틱에서 처리해 터널링을 줄인다.
-            driveRS = rs;
+            driveRS = modeHold ? Vector2.zero : rs;   // 트리거를 쥔 동안은 모드 고르기 전용 — 튕길 때 좌우 성분이 트롤리를 밀지 않게
             driveLS = ls;
         }
 
