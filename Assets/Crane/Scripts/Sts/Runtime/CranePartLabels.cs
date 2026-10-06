@@ -12,7 +12,6 @@ namespace AIXRCrane.Crane.Sts
     public sealed class CranePartLabels : MonoBehaviour
     {
         [Header("참조")]
-        [SerializeField] StsCrane crane;
         [SerializeField] Camera targetCamera;
 
         [Header("배치/크기")]
@@ -43,8 +42,19 @@ namespace AIXRCrane.Crane.Sts
 
         enum Kind { Spreader, Axis, Static }   // Spreader=적재/하중/잠금, Axis=위치%/속도(트롤리·갠트리), Static=이름+역할
 
+        // 크레인 한 대의 말풍선 묶음 — 크레인마다 만들고, 플레이어에게 가장 가까운 한 대만 보인다(5대 × 3개는 난잡).
+        sealed class Rig
+        {
+            public StsCrane crane;
+            public SpreaderAttach attach;
+            public SpreaderLockAnimator lockAnim;
+            public SpreaderGrabber grabber;
+            public Renderer[] rends;   // 크레인 바닥 영역(거리 판정)용 — 한 번만 모은다
+        }
+
         sealed class Label
         {
+            public Rig rig;
             public Kind kind;
             public Canvas canvas;
             public Text text;
@@ -59,61 +69,71 @@ namespace AIXRCrane.Crane.Sts
         }
 
         readonly List<Label> labels = new List<Label>();
+        readonly List<Rig> rigs = new List<Rig>();
+        Rig focus;
+        float nextScan, nextFocus;
         readonly StringBuilder sb = new StringBuilder(160);
         float nextTextRefresh;   // 라벨 텍스트 생성/대입 스로틀(CraneHud.TextHz). 위치/빌보드는 매 프레임 갱신.
-        SpreaderAttach attach;
-        SpreaderLockAnimator lockAnim;
-        SpreaderGrabber grabber;
         Material leaderMat;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void AutoSpawn() => CraneHud.EnsureSpawned<CranePartLabels>("PartLabels");
 
-        bool built;   // 라벨 1회 생성 완료 여부(크레인이 절차 생성이라 늦게 나타날 수 있음 → 폴링 재시도)
+        void Start() => Scan();
 
-        void Start() => EnsureBuilt();
-
-        // 크레인이 아직 없으면(절차 생성 전) 비활성화하지 말고 매 프레임 재시도 → 늦게 생성돼도 라벨이 뜬다.
-        void EnsureBuilt()
+        // 크레인이 늦게 생기거나(절차 생성) 여러 대여도 — 1초마다 새 크레인에 말풍선을 만든다.
+        void Scan()
         {
-            if (built) return;
-            if (crane == null) crane = FindAnyObjectByType<StsCrane>();
-            if (crane == null) return;
-
-            attach = crane.Attach;
-            grabber = crane.GetComponent<SpreaderGrabber>();
-            var spreaderT = (crane.Spreader as Component)?.transform;
-            if (spreaderT != null) lockAnim = spreaderT.GetComponent<SpreaderLockAnimator>();
-            if (lockAnim == null) lockAnim = FindAnyObjectByType<SpreaderLockAnimator>();
-
-            Vector3 up = Vector3.up * labelHeight;
-            // 가동부(실시간) — 트롤리/스프레더는 좌우(Z)로 벌려 겹침 방지(스프레더 올리면 둘이 포개지던 문제 해소)
-            BuildLabel(Kind.Axis, (crane.Trolley as Component)?.transform, crane.Trolley, "트롤리", null,
-                       up + Vector3.forward * sideStagger);
-            BuildLabel(Kind.Spreader, (crane.Spreader as Component)?.transform, crane.Spreader, "스프레더", null,
-                       up - Vector3.forward * sideStagger);
-            // 갠트리 주행 — 위치%/속도(m/min). 다리 포스트에 앵커.
-            //   다리에 박히지 않게 앞(+X=붐 아웃리치/크레인 앞쪽)으로 빼고 조금 더 올림. 지시선이 다리를 가리킴.
-            BuildLabel(Kind.Axis, FindPart(StsPartNames.LegPost), crane.Gantry, "갠트리 주행", null,
-                       up * 1.3f + Vector3.right * 0.22f);
-            // 고정 부품(이름 + 역할) — 쳐다볼 때만 표시. 지금은 주석처리, 복구하려면 해제.
-            // BuildLabel(Kind.Static, FindPart(StsPartNames.MachineryHouse), null, "기계실", "권상기계·전장실", up);
-            // BuildLabel(Kind.Static, FindPart(StsPartNames.OperatorCab), null, "운전실", "운전사 탑승", up);
-            // BuildLabel(Kind.Static, FindPart(StsPartNames.BoomGirder), null, "붐 거더", "트롤리 레일", up);
-            // BuildLabel(Kind.Static, FindPart(StsPartNames.Counterweight), null, "평형추", "붐 균형추", up);
-
-            built = true;
+            nextScan = Time.unscaledTime + 1f;
+            foreach (var c in FindObjectsByType<StsCrane>(FindObjectsSortMode.None))
+            {
+                if (rigs.Exists(r => r.crane == c)) continue;
+                var rig = new Rig { crane = c, attach = c.Attach, grabber = c.GetComponent<SpreaderGrabber>(),
+                                    lockAnim = c.GetComponentInChildren<SpreaderLockAnimator>(true),
+                                    rends = c.GetComponentsInChildren<Renderer>() };
+                rigs.Add(rig);
+                Vector3 up = Vector3.up * labelHeight;
+                // 가동부(실시간) — 트롤리/스프레더는 좌우(Z)로 벌려 겹침 방지
+                BuildLabel(rig, Kind.Axis, (c.Trolley as Component)?.transform, c.Trolley, "트롤리", null,
+                           up + Vector3.forward * sideStagger);
+                BuildLabel(rig, Kind.Spreader, (c.Spreader as Component)?.transform, c.Spreader, "스프레더", null,
+                           up - Vector3.forward * sideStagger);
+                // 갠트리 주행 — 다리(STS) 또는 주행 무버(RTG)를 가리킨다. +X(앞)로 빼고 올려 다리에 안 박히게.
+                var leg = FindPart(c, StsPartNames.LegPost);
+                BuildLabel(rig, Kind.Axis, leg != null ? leg : (c.Gantry as Component)?.transform, c.Gantry, "갠트리 주행", null,
+                           up * 1.3f + Vector3.right * 0.22f);
+            }
         }
 
-        // 크레인 하위에서 이름으로 부품 찾기(첫 매치). 정적 라벨 앵커용.
-        Transform FindPart(string partName)
+        // 플레이어(카메라)에서 바닥 영역(XZ)까지 가장 가까운 크레인 — 루트는 STS 에선 육측 다리라 중심이 아니다.
+        Rig Nearest(Vector3 camPos)
         {
-            foreach (var t in crane.GetComponentsInChildren<Transform>(true))
+            Rig best = null; float bestD = float.MaxValue;
+            foreach (var r in rigs)
+            {
+                if (r.crane == null) continue;
+                bool any = false; Bounds b = default;
+                foreach (var rd in r.rends)
+                {
+                    if (rd == null) continue;
+                    if (any) b.Encapsulate(rd.bounds); else { b = rd.bounds; any = true; }
+                }
+                if (!any) continue;
+                Vector3 q = b.ClosestPoint(new Vector3(camPos.x, b.center.y, camPos.z)) - camPos; q.y = 0f;
+                if (q.sqrMagnitude < bestD) { bestD = q.sqrMagnitude; best = r; }
+            }
+            return best;
+        }
+
+        // 크레인 하위에서 이름으로 부품 찾기(첫 매치).
+        static Transform FindPart(StsCrane c, string partName)
+        {
+            foreach (var t in c.GetComponentsInChildren<Transform>(true))
                 if (CraneHud.BaseName(t.name) == partName) return t;
             return null;
         }
 
-        void BuildLabel(Kind kind, Transform anchor, IAxisMover mover, string title, string role, Vector3 offset)
+        void BuildLabel(Rig rig, Kind kind, Transform anchor, IAxisMover mover, string title, string role, Vector3 offset)
         {
             if (anchor == null) return;
 
@@ -143,7 +163,7 @@ namespace AIXRCrane.Crane.Sts
                 }
             }
 
-            var label = new Label { kind = kind, canvas = canvas, text = text, anchor = anchor, mover = mover,
+            var label = new Label { rig = rig, kind = kind, canvas = canvas, text = text, anchor = anchor, mover = mover,
                                     title = title, role = role, offset = offset, line = line };
             labels.Add(label);
             // 고정 부품(이름+역할)은 내용이 안 변함 → 텍스트 1회만 설정하고 매 프레임 재생성 스킵
@@ -154,7 +174,7 @@ namespace AIXRCrane.Crane.Sts
         //   전용 셰이더가 없으면(폴백) 깊이테스트가 남는 일반 셰이더로 — 지시선만 가릴 수 있으나 표시는 됨.
         static Material MakeLeaderMaterial()
         {
-            Shader sh = Shader.Find("Container/CraneHudOverlay");
+            Shader sh = Shader.Find(CraneHud.OverlayShader);
             if (sh == null) sh = Shader.Find("Sprites/Default");
             if (sh == null) sh = Shader.Find("Unlit/Color");
             if (sh == null) sh = Shader.Find("UI/Default");
@@ -163,7 +183,8 @@ namespace AIXRCrane.Crane.Sts
 
         void LateUpdate()
         {
-            if (!built) { EnsureBuilt(); if (!built) return; }   // 크레인 늦게 생성돼도 라벨 생성 재시도
+            if (Time.unscaledTime >= nextScan) Scan();
+            if (rigs.Count == 0) return;
 
             var cam = targetCamera != null ? targetCamera : Camera.main;
             if (cam == null) return;
@@ -172,10 +193,17 @@ namespace AIXRCrane.Crane.Sts
             Vector3 camFwd = cam.transform.forward;
             float dt = Time.deltaTime;
             float halfH = panelPixels.y * worldScale * 0.5f;   // 말풍선 아래 가장자리(지시선 끝점)
+            if (Time.unscaledTime >= nextFocus) { nextFocus = Time.unscaledTime + 0.5f; focus = Nearest(camPos); }
 
             foreach (var L in labels)
             {
                 if (L.canvas == null || L.anchor == null) continue;
+                if (L.rig != focus)
+                {
+                    L.canvas.enabled = false;
+                    if (L.line != null) L.line.enabled = false;
+                    continue;
+                }
 
                 UpdateSpeed(L, dt);
 
@@ -225,7 +253,7 @@ namespace AIXRCrane.Crane.Sts
             float cur = L.mover.Current;
             if (!L.primed) { L.prevPos = cur; L.primed = true; return; }
             float vModel = Mathf.Abs(cur - L.prevPos) / dt;     // 모델 units/s
-            float vRealMpm = vModel * L.mover.WorldPerUnit / crane.ModelScale * 60f;   // 실척 m/min (×월드/축)
+            float vRealMpm = vModel * L.mover.MetersPerUnit() * 60f;   // 실척 m/min (×월드/축)
             L.speedMpm = Mathf.Lerp(L.speedMpm, vRealMpm, 1f - Mathf.Exp(-dt / 0.15f));
             L.prevPos = cur;
         }
@@ -237,6 +265,8 @@ namespace AIXRCrane.Crane.Sts
             switch (L.kind)
             {
                 case Kind.Spreader:
+                    var attach = L.rig.attach;
+                    var lockAnim = L.rig.lockAnim;
                     bool has = attach != null && attach.HasContainer;
                     sb.AppendLine();
                     if (has)
@@ -259,8 +289,9 @@ namespace AIXRCrane.Crane.Sts
                             sb.Append("잠금 <color=#999999>--</color>");
                     }
                     else sb.Append("<color=#999999>공차(빈 스프레더)</color>");
-                    AppendFault(CraneFault.EvaluateSpreader(crane));   // 과부하/호이스트 끝단
-                    if (grabber != null && grabber.IsLanded)           // 안착(정상 안내)
+                    AppendFault(LabelFault(L));   // 과부하/호이스트 끝단
+                    var grabber = L.rig.grabber;   // 관전자는 그랩 판정이 꺼져 있어 안착을 모른다 — 숨김
+                    if (!PortDemoDirector.Spectator && grabber != null && grabber.IsLanded)
                     {
                         sb.AppendLine();
                         sb.Append("<color=#7FFF7F>✓ 안착</color>");
@@ -280,8 +311,7 @@ namespace AIXRCrane.Crane.Sts
                     sb.Append(Pct(L.mover));
                     sb.Append("  ·  ");
                     sb.Append($"<color=#5FE0FF>{Mathf.RoundToInt(L.speedMpm)} m/min</color>");
-                    AppendFault(L.mover == crane.Trolley ? CraneFault.EvaluateTrolley(crane)
-                                                         : CraneFault.EvaluateGantry(crane));
+                    AppendFault(LabelFault(L));
                     break;
 
                 case Kind.Static:   // 고정 부품 — 역할 설명
@@ -293,6 +323,19 @@ namespace AIXRCrane.Crane.Sts
                     break;
             }
             return sb.ToString();
+        }
+
+        // 이 말풍선 축의 알람. 관전자는 그랩·충돌 판정이 꺼져 있어 호스트가 보낸 코드(최고 심각도 1건)를 쓴다.
+        static FaultDef LabelFault(Label L)
+        {
+            var c = L.rig.crane;
+            bool spreader = L.kind == Kind.Spreader, trolley = !spreader && L.mover == c.Trolley;
+            if (!PortDemoDirector.Spectator)
+                return spreader ? CraneFault.EvaluateSpreader(c) : trolley ? CraneFault.EvaluateTrolley(c) : CraneFault.EvaluateGantry(c);
+            int code = Net.CraneNetSync.Syncs(c) ? Net.CraneNetSync.ActiveAlarmCode(c) : 0;
+            int src = code / 1000;   // 코드북 천 단위 = 소스(1=GT 2=TR 3=HO 4=SP)
+            bool mine = spreader ? src == 3 || src == 4 : trolley ? src == 2 : src == 1;
+            return mine ? CraneFault.FromCodebook(code) : default;
         }
 
         // 부품 말풍선에 활성 알람 한 줄 추가(코드북 Sev색). 없으면 아무것도 안 함.

@@ -33,8 +33,8 @@ namespace AIXRCrane.Crane.Sts.Net
         readonly NetworkVariable<float> nHoistFloor = new(0f, E, S);
         readonly NetworkVariable<bool>  nIs40    = new(false, E, S);
         readonly NetworkVariable<bool>  nLocked  = new(false, E, S);
-        readonly NetworkVariable<int>   nAlarmCode = new(0, E, S);   // 활성 알람(최고 심각도 1건) 코드. 0=이상 없음 — 관전자도 같은 알람을 보도록 동기화.
-        readonly NetworkVariable<int>   nOpMode    = new(0, E, S);   // 운영상태(운전/정지/이상) = (int)OpMode. 호스트 판정을 관전자도 동일하게 보도록 동기화.
+        readonly NetworkVariable<int>   nAlarmCode = new(0, E, S);   // 활성 알람 코드(최고 심각도 1건). 0=이상 없음
+        readonly NetworkVariable<int>   nOpMode    = new(0, E, S);   // (int)OpMode — 호스트 판정
 
         // 적재 4필드를 한 구조체로 원자 전송 — 분리 전송하면 수신 순서 역전으로 부분 갱신된다.
         readonly NetworkVariable<GrabState> nGrab = new(default, E, S);
@@ -43,7 +43,7 @@ namespace AIXRCrane.Crane.Sts.Net
         struct GrabState : INetworkSerializable, System.IEquatable<GrabState>
         {
             public bool    Has;          // 컨테이너를 잡고 있는가
-            public int     Index;        // 잡은 컨테이너의 결정적 인덱스(정확 매칭용). 미상=-1
+            public int     Index;        // 결정적 인덱스. 미상=-1
             public Vector3 GrabWorld;    // 잡는 순간 월드 위치(인덱스 실패 시 폴백)
             public Vector3 AttachLocal;  // attach 기준 로컬 위치
 
@@ -84,7 +84,7 @@ namespace AIXRCrane.Crane.Sts.Net
         List<Transform> containerSnapshot;
         readonly List<XRGrabInteractable> containerGrabs = new();   // snapshot과 인덱스 정렬
         readonly HashSet<int> myOwned = new();              // 내가 손에 든 인덱스
-        readonly HashSet<int> appliedRemote = new();        // 남이 들어 내가 kinematic 적용 중인 인덱스
+        readonly HashSet<int> appliedRemote = new();        // 남이 든 것(내가 kinematic 적용 중)
         readonly Dictionary<int, bool> origKinematic = new();   // 적용 전 원래 isKinematic
         readonly Dictionary<int, float> grabCooldownUntil = new();
         readonly List<int> _tmpA = new(); readonly List<int> _tmpB = new(); readonly HashSet<int> _activeNow = new();
@@ -117,8 +117,10 @@ namespace AIXRCrane.Crane.Sts.Net
         // 스폰된 활성 인스턴스 캐시 — HUD가 매 프레임 Find 하지 않게.
         static CraneNetSync _instance;
 
-        /// <summary>현재 활성 알람 코드(최고 심각도 1건)의 단일 출처. 네트워크 접속 중이면 호스트 권위값
-        /// (관전자 화면도 정확), 아니면 로컬 판정. 알람 배너·부품 말풍선이 공용으로 쓴다. 0=이상 없음.</summary>
+        /// <summary>이 크레인이 네트워크로 동기화되는 크레인인가 — 관전자 말풍선이 호스트 알람을 붙일지 판단.</summary>
+        public static bool Syncs(StsCrane c) => _instance != null && _instance.crane == c;
+
+        /// <summary>활성 알람 코드 SSOT — 접속 중이면 호스트 권위값, 아니면 로컬 판정. 0=이상 없음.</summary>
         public static int ActiveAlarmCode(StsCrane crane)
         {
             var nm = NetworkManager.Singleton;
@@ -161,7 +163,11 @@ namespace AIXRCrane.Crane.Sts.Net
 
         void EnsureRefs()
         {
-            if (crane == null) crane = FindAnyObjectByType<StsCrane>();
+            if (crane == null)   // STS 우선 — 아무 크레인이나 잡으면 RTG 가 동기화돼 관전자 STS 가 멈춘다
+            {
+                var sts = GameObject.Find(StsPartNames.StsCraneRoot);
+                crane = sts != null ? sts.GetComponent<StsCrane>() : FindAnyObjectByType<StsCrane>();
+            }
             if (crane == null) return;
             hoist     = crane.Spreader as SpreaderHoist;
             attach    = crane.Attach;
@@ -269,25 +275,21 @@ namespace AIXRCrane.Crane.Sts.Net
         void ClientAttach(GrabState grab)
         {
             if (attach == null) return;
-            Transform anchor = attach.AttachAnchor;
-            // 1순위: 호스트가 보낸 결정적 인덱스로 그 컨테이너를 바로 집는다(씬이 동일해 인덱스=개체 보장).
-            // 2순위: 인덱스가 없거나 못 찾으면 좌표 근접 매칭으로 폴백.
+            // 결정적 인덱스로 매칭, 실패 시 좌표 근접 폴백.
             Transform target = ContainerByIndex(grab.Index)
                             ?? FindNearestRigidbody(grab.GrabWorld, containerMatchRadius);
             if (target == null) return;
 
-            var rb = target.GetComponent<Rigidbody>();
-            if (rb != null) { rb.isKinematic = true; rb.useGravity = false; }
-            // 호스트 SpreaderAttach 와 동일하게 회전·크기는 그대로 두고 위치만 세팅(각도 바꾸면 컨테이너가 돈다).
-            target.SetParent(anchor, worldPositionStays: true);
-            target.localPosition = grab.AttachLocal;
+            // 호스트와 같은 SpreaderAttach 로 매단다 — 하중·컨테이너 번호가 관전자 말풍선에도 같게 나온다.
+            if (!attach.Attach(target)) return;
+            target.localPosition = grab.AttachLocal;   // 위치만(회전 바꾸면 컨테이너가 돈다)
             clientHeld = target;
         }
 
         void ClientDetach()
         {
             if (clientHeld == null) return;
-            clientHeld.SetParent(null, worldPositionStays: true);
+            attach.Detach();
             var rb = clientHeld.GetComponent<Rigidbody>();
             if (rb != null) { rb.isKinematic = false; rb.useGravity = true; }
             clientHeld = null;
@@ -363,7 +365,7 @@ namespace AIXRCrane.Crane.Sts.Net
                 var g = found[i].GetComponent<XRGrabInteractable>();
                 containerGrabs.Add(g);
                 if (g == null) continue;
-                int idx = i;   // 클로저 캡처
+                int idx = i;
                 g.selectEntered.AddListener(_ => OnLocalGrab(idx));
                 g.selectExited.AddListener(_ => OnLocalRelease(idx));
             }
