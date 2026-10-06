@@ -5,10 +5,7 @@ using UnityEngine.XR.Interaction.Toolkit.Interactables;
 [RequireComponent(typeof(XRGrabInteractable))]
 public class CubeReset : MonoBehaviour
 {
-    public enum PlacementMode { CameraFront, TableSurface, Auto }
-
     [Header("초기 배치")]
-    [SerializeField] PlacementMode placementMode = PlacementMode.Auto;
     [SerializeField] float distanceFromCamera = 0.5f;
     [SerializeField] float verticalOffset = 0f;
     [SerializeField] float horizontalOffset = 0f;
@@ -26,7 +23,6 @@ public class CubeReset : MonoBehaviour
     XRGrabInteractable grab;
     float releasedAt = -1f;
     bool held;
-    bool placedOnTable;
     bool initialPlaced;
 
     void Start()
@@ -50,11 +46,6 @@ public class CubeReset : MonoBehaviour
     void Update()
     {
         if (!initialPlaced) return;
-
-        if (placementMode != PlacementMode.CameraFront && !placedOnTable && !held)
-        {
-            TryPlaceOnTable();
-        }
 
         if (Vector3.Distance(transform.position, startPos) > distanceLimit)
         {
@@ -93,24 +84,6 @@ public class CubeReset : MonoBehaviour
 
         startPos = transform.position;
         startRot = transform.rotation;
-    }
-
-    void TryPlaceOnTable()
-    {
-        var mgr = TablePlacementManager.Instance;
-        if (mgr == null || !mgr.HasSurface) return;
-
-        if (!mgr.TryGetSurfacePose(horizontalOffset, out var pos, out _)) return;
-
-        // 2x2 스택용 — 위 row 는 verticalOffset 만큼 더 높이.
-        pos.y += verticalOffset;
-
-        rb.linearVelocity = Vector3.zero;
-        rb.angularVelocity = Vector3.zero;
-        transform.SetPositionAndRotation(pos, startRot);
-
-        startPos = pos;
-        placedOnTable = true;
     }
 
     void ResetNow()

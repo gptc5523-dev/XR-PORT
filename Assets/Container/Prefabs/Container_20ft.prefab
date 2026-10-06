@@ -195,7 +195,6 @@ GameObject:
   - component: {fileID: 6381892832823498406}
   - component: {fileID: 8866509133629307589}
   - component: {fileID: 923368685711822152}
-  - component: {fileID: 8564825341928091209}
   - component: {fileID: 5883504238183312198}
   m_Layer: 0
   m_Name: Container_20ft
@@ -460,26 +459,6 @@ MonoBehaviour:
   m_LimitAngularVelocity: 0
   m_MaxLinearVelocityDelta: 10
   m_MaxAngularVelocityDelta: 20
---- !u!114 &8564825341928091209
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 2566602732933639049}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: cdd6169f2b0f74a6b9a9d9673916aa0a, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::CubeReset
-  placementMode: 2
-  distanceFromCamera: 0.5
-  verticalOffset: 0
-  horizontalOffset: 0
-  useAbsoluteHeight: 1
-  absoluteHeight: 1.4
-  resetDelayAfterRelease: 60
-  distanceLimit: 50
 --- !u!114 &5883504238183312198
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -505,6 +484,7 @@ MonoBehaviour:
   containerId: 
   displayId: 
   colorName: 
+  loadTons: 0
 --- !u!1 &4834630226929634122
 GameObject:
   m_ObjectHideFlags: 0
