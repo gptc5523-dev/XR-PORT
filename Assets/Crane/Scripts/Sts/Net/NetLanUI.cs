@@ -19,7 +19,7 @@ namespace AIXRCrane.Crane.Sts.Net
         [SerializeField] int maxPlayers = NetConfig.MaxPlayers;          // [H3] SSOT
         [SerializeField] string joinIp = NetConfig.DefaultJoinIp;        // [H3] SSOT
 
-        string localIp = "...";
+        string localIp = "...", vpnIp;
         bool hostDiscovered;
         bool hostFailed;
 
@@ -28,6 +28,10 @@ namespace AIXRCrane.Crane.Sts.Net
 
         // VR 시작 메뉴(CraneNetMenuHUD)가 읽는 정보/조작 진입점.
         public string LocalIp => localIp;
+        /// <summary>Tailscale(100.64/10) 주소 — 없으면 null. 서버·원격 참가자는 VPN 으로만 닿으므로 같이 보여 준다.</summary>
+        public string VpnIp => vpnIp;
+        /// <summary>화면용 — "LAN · VPN 100.x" (VPN 없으면 LAN 만).</summary>
+        public string IpLabel => vpnIp == null || vpnIp == localIp ? localIp : $"{localIp} · VPN {vpnIp}";
         public int MaxPlayers => maxPlayers;
         public string JoinIp { get => joinIp; set { if (!string.IsNullOrEmpty(value)) joinIp = value; } }
         /// <summary>LanDiscovery가 호스트 비콘을 받아 JoinIp를 자동 설정했는지(자동 접속 트리거용).</summary>
@@ -37,7 +41,7 @@ namespace AIXRCrane.Crane.Sts.Net
         /// <summary>직전 '호스트 시작' 실패 여부(대개 같은 PC 다른 인스턴스가 포트 점유). CraneNetMenuHUD 가 알림.</summary>
         public bool HostFailed => hostFailed;
 
-        void Awake() => localIp = GetLocalIPv4();
+        void Awake() => localIp = GetLocalIPv4(out vpnIp);
 
         UnityTransport Transport =>
             NetworkManager.Singleton != null
@@ -146,7 +150,7 @@ namespace AIXRCrane.Crane.Sts.Net
             if (!nm.IsClient && !nm.IsServer)
             {
                 GUILayout.Space(4);
-                GUILayout.Label($"내 IP: <b>{localIp}</b>  (참가자에게 불러주세요)", Rich());
+                GUILayout.Label($"내 IP: <b>{IpLabel}</b>  (참가자에게 불러주세요)", Rich());
                 if (GUILayout.Button("호스트 시작 (조종자)", Big())) StartHost();
 
                 GUILayout.Space(8);
@@ -158,7 +162,7 @@ namespace AIXRCrane.Crane.Sts.Net
             {
                 string role = nm.IsServer ? "호스트(조종자)" : "관전자";
                 GUILayout.Label($"<b>{role}</b> — 접속 인원: {nm.ConnectedClientsIds.Count}/{maxPlayers}", Rich());
-                if (nm.IsServer) GUILayout.Label($"내 IP: <b>{localIp}</b> : {port}", Rich());
+                if (nm.IsServer) GUILayout.Label($"내 IP: <b>{IpLabel}</b> : {port}", Rich());
                 GUILayout.Space(8);
                 if (GUILayout.Button("연결 끊기", Big())) nm.Shutdown();
             }
@@ -174,8 +178,9 @@ namespace AIXRCrane.Crane.Sts.Net
         }
 
         // 폐쇄망(기본 경로 없음)에서도 맞게 — 인터페이스 주소에서 직접 고르고, 라우팅 조회는 같은 후보일 때만 앞세운다(WBS 9.1).
-        static string GetLocalIPv4()
+        static string GetLocalIPv4(out string vpn)
         {
+            vpn = null;
             var cands = new List<IPAddress>();
             try
             {
@@ -183,7 +188,7 @@ namespace AIXRCrane.Crane.Sts.Net
                 {
                     if (ni.OperationalStatus != OperationalStatus.Up || ni.NetworkInterfaceType == NetworkInterfaceType.Loopback) continue;
                     foreach (var ua in ni.GetIPProperties().UnicastAddresses)
-                        if (ua.Address.AddressFamily == AddressFamily.InterNetwork) cands.Add(ua.Address);
+                        if (ua.Address.AddressFamily == AddressFamily.InterNetwork) { cands.Add(ua.Address); if (vpn == null && IsVpn(ua.Address)) vpn = ua.Address.ToString(); }
                 }
             }
             catch { /* 일부 플랫폼은 인터페이스 목록 미지원 — 아래 폴백 */ }
@@ -197,6 +202,7 @@ namespace AIXRCrane.Crane.Sts.Net
             catch { /* 폐쇄망: 기본 경로 없음 */ }
             string pick = PickLanIPv4(cands, routed);
             if (pick != null) return pick;
+            if (vpn != null) return vpn;   // LAN 없이 VPN 만 있는 원격 기기
             try
             {
                 foreach (var ip in Dns.GetHostEntry(Dns.GetHostName()).AddressList)
@@ -215,11 +221,13 @@ namespace AIXRCrane.Crane.Sts.Net
             return best?.ToString();
         }
 
+        static bool IsVpn(IPAddress a) { var b = a.GetAddressBytes(); return b[0] == 100 && b[1] >= 64 && b[1] < 128; }
+
         static int LanRank(IPAddress a)
         {
             if (a.AddressFamily != AddressFamily.InterNetwork) return 0;
             var b = a.GetAddressBytes();
-            if (b[0] == 127 || (b[0] == 169 && b[1] == 254) || (b[0] == 100 && b[1] >= 64 && b[1] < 128) || b[0] == 0) return 0;
+            if (b[0] == 127 || (b[0] == 169 && b[1] == 254) || IsVpn(a) || b[0] == 0) return 0;   // VPN 은 LAN 후보가 아니라 VpnIp 로 따로 보인다
             if (b[0] == 192 && b[1] == 168) return 4;
             if (b[0] == 10) return 3;
             if (b[0] == 172 && b[1] >= 16 && b[1] < 32) return 2;

@@ -250,7 +250,7 @@ namespace AIXRCrane.Crane.Sts.Net
             {
                 int joined = Mathf.Max(0, nm.ConnectedClientsIds.Count - 1);   // 호스트 자신 제외
                 sb.AppendLine("<color=#5FE0FF><b>호스트 중 · 운전 가능</b></color>");
-                sb.AppendLine($"<size=18>내 IP <b>{ui.LocalIp}</b> · 참가 {joined}/{Mathf.Max(0, ui.MaxPlayers - 1)}</size>");
+                sb.AppendLine($"<size=18>내 IP <b>{ui.IpLabel}</b> · 참가 {joined}/{Mathf.Max(0, ui.MaxPlayers - 1)}</size>");
                 sb.AppendLine();
                 sb.AppendLine("<size=16><color=#999999>참가자에게 이 IP 를 불러주세요</color></size>");
             }
@@ -305,7 +305,7 @@ namespace AIXRCrane.Crane.Sts.Net
                 sb.AppendLine();
             }
             if (selected == 0)
-                sb.AppendLine($"<size=16><color=#999999>내 IP <b>{ui.LocalIp}</b> · 최대 {ui.MaxPlayers}인</color></size>");
+                sb.AppendLine($"<size=16><color=#999999>내 IP <b>{ui.IpLabel}</b> · 최대 {ui.MaxPlayers}인</color></size>");
             else if (ui.HostDiscovered)
                 sb.AppendLine($"<size=16><color=#5FE0FF>호스트 발견됨 · A로 접속</color></size>");
             else

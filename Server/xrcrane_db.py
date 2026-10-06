@@ -19,7 +19,7 @@ XR 크레인 통합서버 v0.5 — PLC 이력 수집·저장·조회. 파트ID �
   GET  /since?crane=&after_id=                  크레인이 이어 받는 경로(CSV, X-Last-Id) — Unity ServerPlcSource
 
 접근 제어(WBS 9.2, 폐쇄망 전제 9.1)
-  XRCRANE_ALLOW  허용 대역(쉼표 구분 CIDR). 기본 = 루프백 + 사설망(10/8, 172.16/12, 192.168/16). 밖이면 403.
+  XRCRANE_ALLOW  허용 대역(쉼표 구분 CIDR). 기본 = 루프백 + 사설망(10/8, 172.16/12, 192.168/16) + Tailscale(100.64/10). 밖이면 403.
   XRCRANE_TOKEN  공유 토큰. 설정하면 모든 요청에 X-Auth-Token 헤더가 같아야 한다(아니면 401). 비우면 토큰 검사 안 함.
   클라이언트(feed·plc_s7·load_test·Unity ServerPlcSource)는 같은 환경변수(Unity 는 파일)에서 토큰을 읽어 보낸다.
 
@@ -45,7 +45,7 @@ from urllib.parse import urlparse, parse_qs
 
 DEFAULT_DB = os.environ.get("XRCRANE_DB", "/data/xrcrane.db")
 DEFAULT_PORT = int(os.environ.get("XRCRANE_PORT", "5006"))
-DEFAULT_ALLOW = os.environ.get("XRCRANE_ALLOW", "127.0.0.0/8,::1/128,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16")
+DEFAULT_ALLOW = os.environ.get("XRCRANE_ALLOW", "127.0.0.0/8,::1/128,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,100.64.0.0/10")   # 100.64/10 = Tailscale(서버는 VPN 으로만 닿는다)
 TOKEN_HEADER = "X-Auth-Token"
 
 
@@ -412,7 +412,7 @@ def main():
     s = sub.add_parser("serve", help="REST 서버 기동")
     s.add_argument("--host", default="0.0.0.0")
     s.add_argument("--port", type=int, default=DEFAULT_PORT)
-    s.add_argument("--allow", default=DEFAULT_ALLOW, help="허용 대역 CIDR(쉼표 구분). 기본 루프백+사설망")
+    s.add_argument("--allow", default=DEFAULT_ALLOW, help="허용 대역 CIDR(쉼표 구분). 기본 루프백+사설망+Tailscale(100.64/10)")
     s.add_argument("--retain-hours", type=float, default=float(os.environ.get("XRCRANE_RETAIN_HOURS", "3")),
                    help="이보다 오래된 행 삭제(개발 중 기본 3시간 ≈ 450MB, 0=무기한). 크레인 3대 100ms 면 시간당 약 150MB")
     s.add_argument("--prune-every", type=float, default=600, help="보존 삭제 주기(초)")
