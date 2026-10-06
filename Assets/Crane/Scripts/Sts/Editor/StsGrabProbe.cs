@@ -1,7 +1,6 @@
 #if UNITY_EDITOR
 using System.Collections.Generic;
 using System.Linq;
-using System.Text.RegularExpressions;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -35,7 +34,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
         static void MarkSnapExpectation(Case c)
         {
             snapExpected = false; snapCellWanted = snapCenterBefore = Vector3.zero;
-            if (!CraneDemoRunner.TryBounds(c.box, out var b)) return;
+            if (!SceneUtil.TryBounds(c.box, out var b)) return;
             snapCenterBefore = b.center;
             snapExpected = YardGrid.TrySnapXZ(b.center, Mathf.Max(b.size.x, b.size.z), out snapCellWanted);
         }
@@ -44,7 +43,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
         static void MeasureSnap(Case c)
         {
             measured++;
-            if (!CraneDemoRunner.TryBounds(c.box, out var b)) { fails++; Debug.Log($"[StsGrabProbe] BAD 칸정렬 {c.box.name} — 바운즈 없음"); return; }
+            if (!SceneUtil.TryBounds(c.box, out var b)) { fails++; Debug.Log($"[StsGrabProbe] BAD 칸정렬 {c.box.name} — 바운즈 없음"); return; }
 
             float yawOff = Mathf.Abs(Mathf.DeltaAngle(c.box.eulerAngles.y, Mathf.Round(c.box.eulerAngles.y / 90f) * 90f));
             bool ok; string detail;
@@ -71,7 +70,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
         static int idx, phase, fails, measured, skipped;
         static float waitUntil;
         static Bounds before; static Quaternion rotBefore; static Vector3 posBefore; static Transform parentBefore; static bool kinBefore;
-        static Bounds beforeAll;   // 전 LOD 유니온(비활성 렌더러 포함) 기준선 — 활성 전용 바운즈와 나란히 비교할 때 쓴다
+        static Bounds beforeAll;   // 전 LOD 유니온 기준선(활성 전용 바운즈와 비교)
 
         static StsGrabProbe()
         {
@@ -115,9 +114,9 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             var c = cases[idx];
             switch (phase)
             {
-                case 1:   // 수평은 트위스트락 중심을 윗면 중심에, 높이는 '콘 바닥'을 목표로(원점이 아니라 실측 기하)
-                    CraneDemoRunner.TryBounds(c.box, out before);
-                    TryBoundsAllLods(c.box, out beforeAll);   // LOD 무관 기준선 — 활성 기준만 움직이면 LOD 가 원인
+                case 1:   // 수평은 콘 중심을 윗면 중심에, 높이는 콘 바닥 실측 기준
+                    SceneUtil.TryBounds(c.box, out before);
+                    SceneUtil.TryBounds(c.box, out beforeAll, true);   // LOD 무관 기준선
                     rotBefore = c.box.rotation; posBefore = c.box.position; parentBefore = c.box.parent;
                     var rb = c.box.GetComponent<Rigidbody>(); kinBefore = rb != null && rb.isKinematic;
                     // 재는 동안 kinematic 고정(동적 강체가 내려앉아 측정치가 섞임). phase 5 에서 원복.
@@ -130,7 +129,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
                     MoveBy(c.crane.Gantry, new Vector3(d.x, 0f, d.z));
                     MoveBy(c.crane.Trolley, new Vector3(d.x, 0f, d.z));
                     MoveBy(c.crane.Spreader, new Vector3(0f, d.y, 0f));
-                    phase = 2; Wait(0.4f); return;   // 통과방지 클램프가 되밀어 정착할 시간
+                    phase = 2; Wait(0.4f); return;   // 클램프 정착 대기
                 case 2:   // 수평이 맞았으면 잡기(높이는 클램프가 정한 그대로)
                     Vector3 gp2 = c.grabber.GrabPoint();
                     float missXZ = new Vector2(Top(before).x - gp2.x, Top(before).z - gp2.z).magnitude;
@@ -158,9 +157,9 @@ namespace AIXRCrane.Crane.Sts.EditorTools
                     goto case 5;
                 case 5:
                     bool wasLocked = c.expectLock && c.crane.Attach != null && c.crane.Attach.HasContainer;
-                    if (wasLocked) MarkSnapExpectation(c);   // 이 자리가 야드 칸인지 먼저 판정(기대치가 갈린다)
+                    if (wasLocked) MarkSnapExpectation(c);
                     c.grabber.Release();
-                    if (wasLocked) MeasureSnap(c);   // 야드면 칸 정렬, 야드 밖이면 놓은 자리 유지
+                    if (wasLocked) MeasureSnap(c);
                     c.box.SetParent(parentBefore, true);
                     c.box.SetPositionAndRotation(posBefore, rotBefore);
                     var rb2 = c.box.GetComponent<Rigidbody>();
@@ -171,19 +170,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
 
         static Vector3 Top(Bounds b) => new Vector3(b.center.x, b.max.y, b.center.z);
 
-        // 전 LOD 유니온 바운즈(비활성 렌더러 포함) — 활성만 쓰는 TryBounds 와 나란히 재면 'LOD 전환이 값을 움직였나'가 갈린다.
-        //   전후로 이 값이 안 변하고 활성 기준만 변하면 LOD 가 원인.
-        static bool TryBoundsAllLods(Transform t, out Bounds b)
-        {
-            b = default;
-            var rends = t.GetComponentsInChildren<Renderer>(true);
-            if (rends == null || rends.Length == 0) return false;
-            b = rends[0].bounds;
-            for (int i = 1; i < rends.Length; i++) b.Encapsulate(rends[i].bounds);
-            return true;
-        }
-
-        // SpreaderGrabber.Awake 와 똑같은 이름 규약으로 모은 콘 — RTG 에서 0개면 그랩버가 콘을 못 찾는다는 증거.
+        // SpreaderGrabber.Awake 와 같은 규약으로 모은 콘 — 0개면 그랩버도 콘을 못 찾는다.
         static List<Transform> Cones(StsCrane crane) => crane.GetComponentsInChildren<Transform>(true)
             .Where(t => t.name.StartsWith(StsPartNames.TwistlockCone) || t.name.StartsWith(StsPartNames.SpreaderTwistlockPrefix))   // Span() 과 같은 규약(Numbered 접미사 포함)
             .ToList();
@@ -274,21 +261,14 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             profile = (tipIsWidest ? $"★형상 이상(콘 끝에서 반경 최대 {rMax:F1}mm — 뾰족한 노즈가 아님 ⇒ 이 락 높이는 신뢰 불가) " : "")
                     + $"[최대반경 {rMax:F1}mm @ h={rMaxAt}mm · 끝 버킷 반경 {maxR[keys[0]]:F1}mm · 버킷 {keys.Count}개] "
                     + sb2.ToString().TrimEnd();
-            return true;   // 정점 계측 자체는 성공 — 신뢰 여부는 shapeOk 로 알린다(프로파일은 항상 찍혀야 한다)
+            return true;   // 계측은 성공 — 신뢰 여부는 shapeOk
         }
 
         static float ConeHeightM(StsCrane crane)
         {
             var cones = Cones(crane);
             if (cones.Count == 0) return 0f;
-            bool any = false;
-            Bounds u = default;
-            foreach (var r in cones[0].GetComponentsInChildren<Renderer>())
-            {
-                if (!any) { u = r.bounds; any = true; }
-                else u.Encapsulate(r.bounds);
-            }
-            return any ? u.size.y / StsConfig.ModelScale : 0f;
+            return SceneUtil.TryBounds(cones[0], out var u) ? u.size.y / StsConfig.ModelScale : 0f;
         }
 
         static void MoveBy(IAxisMover a, Vector3 d)
@@ -302,7 +282,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
         {
             var attach = c.crane.Attach;
             bool same = attach != null && attach.HasContainer && attach.AttachedContainer == c.box;
-            CraneDemoRunner.TryBounds(c.box, out var hb);
+            SceneUtil.TryBounds(c.box, out var hb);
             Vector3 gp = c.grabber.GrabPoint();
             float dxz = new Vector2(hb.center.x - gp.x, hb.center.z - gp.z).magnitude;
             float jumpXZ = new Vector2(hb.center.x - before.center.x, hb.center.z - before.center.z).magnitude;
@@ -335,7 +315,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
                       $"활성렌더러 {c.box.GetComponentsInChildren<Renderer>().Length}개 / 전체 {c.box.GetComponentsInChildren<Renderer>(true).Length}개, " +
                       // 전 LOD 유니온 — 이쪽이 같고 활성만 변하면 LOD 전환이 원인.
                       $"[전LOD] 전 size({beforeAll.size.x:F4},{beforeAll.size.y:F4},{beforeAll.size.z:F4}) max.y {beforeAll.max.y:F4} " +
-                      $"→ 후 {(TryBoundsAllLods(c.box, out Bounds nowAll) ? $"size({nowAll.size.x:F4},{nowAll.size.y:F4},{nowAll.size.z:F4}) max.y {nowAll.max.y:F4}" : "측정 실패")}");
+                      $"→ 후 {(SceneUtil.TryBounds(c.box, out Bounds nowAll, true) ? $"size({nowAll.size.x:F4},{nowAll.size.y:F4},{nowAll.size.z:F4}) max.y {nowAll.max.y:F4}" : "측정 실패")}");
 
             // 삽입 실측(양수=박힘) — 콘 기준·스프레더 기준을 같이 찍는다.
             float coneB = BottomY(c.crane, c.box, cones: true), spB = BottomY(c.crane, c.box, cones: false);
@@ -359,19 +339,18 @@ namespace AIXRCrane.Crane.Sts.EditorTools
         static void Setup()
         {
             foreach (var b in Object.FindObjectsByType<PlcBridge>()) b.enabled = false;   // PLC 재생이 축을 잡지 않게
-            var yardRx = new Regex(@"^Cont(20|40)_\d+$");
             var all = Object.FindObjectsByType<LODGroup>().Select(l => l.transform)
-                .Where(t => t.name.StartsWith(StsPartNames.ShipContainer) || yardRx.IsMatch(t.name)).ToList();
+                .Where(t => t.name.StartsWith(StsPartNames.ShipContainer) || StsPartNames.IsYardContainerName(t.name)).ToList();
             var bounds = new Dictionary<Transform, Bounds>();
-            foreach (var t in all) if (CraneDemoRunner.TryBounds(t, out var bb)) bounds[t] = bb;
+            foreach (var t in all) if (SceneUtil.TryBounds(t, out var bb)) bounds[t] = bb;
 
             // 원점 ↔ 바운즈 중심(로컬) — 원점 규약이 다른 컨테이너가 있는지
-            foreach (var t in new[] { all.FirstOrDefault(x => x.name.StartsWith(StsPartNames.ShipContainer)), all.FirstOrDefault(x => x.name == "Cont40_00"), all.FirstOrDefault(x => x.name == "Cont20_00") })
+            foreach (var t in new[] { all.FirstOrDefault(x => x.name.StartsWith(StsPartNames.ShipContainer)), all.FirstOrDefault(x => x.name == StsPartNames.Yard40Prefix + "00"), all.FirstOrDefault(x => x.name == StsPartNames.Yard20Prefix + "00") })
                 if (t != null && bounds.TryGetValue(t, out var ob))
                     Debug.Log($"[StsGrabProbe] 원점↔바운즈 중심 {t.name}: 로컬 {t.InverseTransformPoint(ob.center):F4} · 크기 {ob.size:F4} · 회전 {t.rotation.eulerAngles} · 스케일 {t.lossyScale}");
 
-            // 야드 컨테이너는 콜라이더·강체가 없어 못 집는다 — 시연 감독과 같은 구성으로 붙인다
-            foreach (var t in all.Where(x => yardRx.IsMatch(x.name)))
+            // 야드 컨테이너는 콜라이더·강체가 없어 시연 감독과 같은 구성으로 붙인다
+            foreach (var t in all.Where(x => StsPartNames.IsYardContainerName(x.name)))
             {
                 var ob = bounds[t];
                 if (t.GetComponentInChildren<Collider>() == null)
@@ -393,7 +372,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
                 if (crane.Gantry is GantryMover gm) gm.StopOnObstacle = false;
                 bool rtg = crane.GetComponent<RtgBogieSteering>() != null;
                 Vector3 me = crane.Gantry is Component gc ? gc.transform.position : crane.transform.position;
-                var picks = all.Where(t => bounds.ContainsKey(t) && (rtg ? yardRx.IsMatch(t.name) : t.name.StartsWith(StsPartNames.ShipContainer)))
+                var picks = all.Where(t => bounds.ContainsKey(t) && (rtg ? StsPartNames.IsYardContainerName(t.name) : t.name.StartsWith(StsPartNames.ShipContainer)))
                     .Where(t => Uncovered(t, all, bounds) && Reachable(crane, g, bounds[t]))
                     .OrderBy(t => (bounds[t].center - me).sqrMagnitude).ToList();
                 var chosen = rtg

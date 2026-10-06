@@ -20,7 +20,7 @@ namespace AIXRCrane.EditorTools
             if (scenes.Length == 0)
             {
                 Debug.LogError("[CraneWinBuild] Build Settings에 활성 씬이 없습니다. 씬을 추가하세요.");
-                EditorApplication.Exit(2);
+                if (Application.isBatchMode) EditorApplication.Exit(2);   // 메뉴로 눌렀을 땐 에디터를 끄지 않는다
                 return;
             }
 

@@ -15,9 +15,6 @@ namespace AIXRCrane.Crane.Sts
         public const string TrolleyHead = "Trolley_Head";
         /// <summary>전용 운전실 시점(좌석 눈높이). StsCraneVRController가 우선 탐색.</summary>
         public const string CabViewpoint = "Cab_Viewpoint";
-        /// <summary>운전실 '바닥' 앵커(발밑 화물 내려다보기 눈높이) — 옛 기본값. 생산부가 없어 폴백만 됐다.
-        /// 현재 cabFloorAnchorName 기본값은 실재 부품 <see cref="CabFloorRear"/>로 교체됨.</summary>
-        public const string CabKick = "Cab_Kick";
         /// <summary>운전실 후방 바닥 패널(폴백 셸 생산, BaseName 비교 → 'Cab_Fb_FloorRear_1' 등 매칭).
         /// VR 운전실 시점의 눈 '아래' 기준 — 이 바닥 패널 밑에 카메라를 둬 발밑 화물을 막힘없이 내려다본다.</summary>
         public const string CabFloorRear = "Cab_Fb_FloorRear";
@@ -42,19 +39,14 @@ namespace AIXRCrane.Crane.Sts
         public const string BoomGirder = "Boom_Girder";
         /// <summary>기계실. 정적 라벨 앵커(현재 주석 처리됨).</summary>
         public const string MachineryHouse = "Machinery_House";
-        /// <summary>운전실. 정적 라벨 앵커(현재 주석 처리됨). 'Operator_Cab' 이름의 생산부가 없다(가설).</summary>
-        public const string OperatorCab = "Operator_Cab";
-        /// <summary>평형추. 정적 라벨 앵커(현재 주석 처리됨). 'Counterweight' 생산부는 이미 삭제됨.</summary>
-        public const string Counterweight = "Counterweight";
+        /// <summary>운전실 루트. 생산부 StsCraneCreator.BuildOperatorCab, 소비부 CranePartId(OP).</summary>
+        public const string OperatorCab = "OperatorCab";
 
         // 부두(Quay)
         /// <summary>부두 바닥(걷는 면). StartPlacer/ViewHeightAdjuster/GantryRangeFit/VRTest가 탐색.</summary>
         public const string QuayGround = "Quay_Ground";
         /// <summary>레일 이름 접두사(Rail_Land/Rail_Water/Rail_Sweeper …). 소비부는 StartsWith로 레인 탐색.</summary>
         public const string RailPrefix = "Rail_";
-        /// <summary>부두 걷는 면(아스팔트 슬래브). 지면 Y 산출부(StartPlacer/ViewHeightAdjuster/RTG 배치)가
-        /// '수평 면적 최대' 휴리스틱 대신 이 이름을 1순위로 쓴다 — 바다(Sea)가 슬래브보다 넓어 오선택되던 문제 차단.</summary>
-        public const string QuayAsphalt = "Asphalt";
         /// <summary>바다 수면. 걷는 면이 아니다(수면은 데크 아래 StsConfig.SeaLevelY) — 지면 탐색에서 제외 대상.</summary>
         public const string QuaySea = "Sea";
         /// <summary>부두에 깔린 고정 주행레일. **안벽 위치의 SSOT** — 크레인·배·갠트리 범위가 모두 이 X를 기준으로 정렬한다.
@@ -71,6 +63,13 @@ namespace AIXRCrane.Crane.Sts
         public static bool IsSeaName(string name)
             => name == QuaySea || (name != null && name.StartsWith(QuaySea + "_"));
 
+        /// <summary>배경(PortBackdrop) 이름 접두 — 산·숲·육지. 수 km 짜리라 면적 최대 휴리스틱에 걸린다.</summary>
+        public const string BackdropPrefix = "Backdrop";
+
+        /// <summary>지면 후보에서 뺄 이름 — 바다 + 배경. 면적 최대로 지면을 고르는 곳은 이걸 쓴다.</summary>
+        public static bool IsNotGroundName(string name)
+            => IsSeaName(name) || (name != null && name.StartsWith(BackdropPrefix));
+
         // 플레이어 시작 마커
         /// <summary>플레이어 시작 지점 마커. 타입(CranePlayerStartPoint)으로 못 찾을 때 이름 폴백.</summary>
         public const string PlayerStartPoint = "PlayerStartPoint";
@@ -81,6 +80,16 @@ namespace AIXRCrane.Crane.Sts
         public const string RtgCraneRoot = "RTG 크레인";
         /// <summary>선박 적재 컨테이너. ShipCreator 가 만들고 잡기·수면 관리가 StartsWith 로 찾는다.</summary>
         public const string ShipContainer = "ShipContainer";
+        /// <summary>야드 컨테이너 이름 접두 — QuayPartsPlacer 가 "Cont40_00", "Cont20_03" 식으로 만든다.</summary>
+        public const string Yard40Prefix = "Cont40_", Yard20Prefix = "Cont20_";
+
+        /// <summary>야드 컨테이너 이름인가 — "Cont20_" 또는 "Cont40_" + 숫자.</summary>
+        public static bool IsYardContainerName(string n)
+        {
+            if (n == null || !(n.StartsWith(Yard20Prefix) || n.StartsWith(Yard40Prefix)) || n.Length == Yard20Prefix.Length) return false;
+            for (int i = Yard20Prefix.Length; i < n.Length; i++) if (!char.IsDigit(n[i])) return false;
+            return true;
+        }
         /// <summary>시연 씬 경로. 배치 스모크·프로브가 연다.</summary>
         public const string PortScenePath = "Assets/Scenes/Port.unity";
 

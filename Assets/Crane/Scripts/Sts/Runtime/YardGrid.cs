@@ -9,11 +9,10 @@ namespace AIXRCrane.Crane.Sts
         /// <summary>20ft 앞뒤 배치 틈 — 실척 m. 야드를 까는 QuayPartsPlacer·YardSnapProbe 도 이 값을 읽는다.</summary>
         public const float Gap20ftM = 0.30f;
         /// <summary>20ft 컨테이너 길이 — 실척 m.</summary>
-        public const float Len20ftM = 6.058f;
+        public const float Len20ftM = ProceduralContainerMesh.Length20ft;
 
-        /// <summary>긴 축이 이 길이(모델 단위)를 넘으면 40ft — SpreaderGrabber.sizeThreshold 와 같은 기준.
-        /// 20ft 0.252u 와 40ft 0.508u 사이.</summary>
-        const float Is40ThresholdU = 0.38f;
+        /// <summary>긴 축이 이 길이(모델 단위)를 넘으면 40ft — SpreaderGrabber.sizeThreshold 와 같은 기준.</summary>
+        public const float Is40ThresholdU = 0.38f;
 
         /// <summary>p(월드 바운즈 중심)를 가장 가까운 야드 칸 중심 x·z 로 맞춘다(y 유지). 블록 밖이면 false.
         /// longSideU = 긴 축 길이(모델 단위, 20/40ft 판정).</summary>

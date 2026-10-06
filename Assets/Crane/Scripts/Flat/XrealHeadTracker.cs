@@ -95,7 +95,7 @@ namespace AIXRCrane.Crane.Flat
                         var ar = c.BeginConnect(Ip, Port, null, null);
                         if (!ar.AsyncWaitHandle.WaitOne(1000) || !c.Connected)
                         {
-                            if (!loggedMissing) { loggedMissing = true; Debug.Log("[HeadTracker] 안경(169.254.2.1) 없음 — 3초마다 다시 봅니다."); }
+                            if (!loggedMissing) { loggedMissing = true; Debug.Log($"[HeadTracker] 안경({Ip}) 없음 — 3초마다 다시 봅니다."); }
                             Sleep3(); continue;
                         }
                         c.EndConnect(ar);
@@ -106,10 +106,10 @@ namespace AIXRCrane.Crane.Flat
                 }
                 catch (Exception e)
                 {
-                    // 안경이 없는 기기(서버 등)는 연결 자체가 예외로 실패한다 — 3초마다 로그가 쌓이지 않게 '없음'은 한 번만.
-                    if (!running) { }
+                    // 안경 없는 기기는 연결이 예외로 실패 — '없음' 로그는 한 번만.
+                    if (!running) { }   // 끄는 중 — 소켓 닫힘 예외는 정상
                     else if (Connected) Debug.Log($"[HeadTracker] 끊김: {e.Message}");
-                    else if (!loggedMissing) { loggedMissing = true; Debug.Log($"[HeadTracker] 안경(169.254.2.1) 없음 — 3초마다 다시 봅니다. ({e.Message})"); }
+                    else if (!loggedMissing) { loggedMissing = true; Debug.Log($"[HeadTracker] 안경({Ip}) 없음 — 3초마다 다시 봅니다. ({e.Message})"); }
                 }
                 Interlocked.Exchange(ref ready, 0);
                 Sleep3();
@@ -155,7 +155,7 @@ namespace AIXRCrane.Crane.Flat
                         if (!haveQ) { q = FromUp(a); haveQ = true; zeroPending = true; }
                         q = MahonyStep(q, g - bias, a, dt, kp);
                     }
-                    if (haveQ) Interlocked.Exchange(ref ready, 1);
+                    Interlocked.Exchange(ref ready, 1);
                 }
                 // 처리한 앞부분을 버리고 남은 조각을 앞으로
                 int keep = len - i;

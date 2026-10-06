@@ -34,13 +34,7 @@ namespace AIXRCrane.Crane.Sts
         /// <summary>권상 가속 트립 한계(정격 × k).</summary>
         public const float HoistAccelTrip   = HoistRatedAccel   * TripMargin;   // = 0.833
 
-        // 정격↔트립 마진(트립 ÷ 정격) — 이 파생식이 불일치를 컴파일타임에 드러낸다(SSOT 자기검증).
-        /// <summary>갠트리 트립/정격 마진(=k). 세 축 통일.</summary>
-        public const float GantryTripMargin  = GantryAccelTrip  / GantryRatedAccel;
-        /// <summary>트롤리 트립/정격 마진(=k).</summary>
-        public const float TrolleyTripMargin = TrolleyAccelTrip / TrolleyRatedAccel;
-        /// <summary>권상 트립/정격 마진(=k).</summary>
-        public const float HoistTripMargin   = HoistAccelTrip   / HoistRatedAccel;
+        // 4) 트립 디바운스·히스테리시스(CraneOpMode 채터링 차단). 물리틱(50Hz) 기준.
 
         /// <summary>트립 발동 디바운스 — 한계 초과 연속 틱 수(3틱=60ms).</summary>
         public const int   AccelTripSetN   = 3;

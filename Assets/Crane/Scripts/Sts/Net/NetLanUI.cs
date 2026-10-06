@@ -16,7 +16,7 @@ namespace AIXRCrane.Crane.Sts.Net
         [SerializeField] ushort port = NetConfig.DefaultPort;            // [H3] SSOT
         [Tooltip("호스트 포함 최대 동시 인원")]
         [SerializeField] int maxPlayers = NetConfig.MaxPlayers;          // [H3] SSOT
-        [SerializeField] string joinIp = NetConfig.DefaultJoinIp;        // [H3] SSOT (static readonly — 인스턴스 필드 초기자에서 정적 멤버 참조는 합법)
+        [SerializeField] string joinIp = NetConfig.DefaultJoinIp;        // [H3] SSOT
 
         string localIp = "...";
         bool hostDiscovered;
@@ -104,8 +104,8 @@ namespace AIXRCrane.Crane.Sts.Net
             if (ok) pendingApprovals.Add(req.ClientNetworkId);
         }
 
-        void OnClientJoined(ulong clientId) => pendingApprovals.Remove(clientId);   // 합류 완료 → 이제 ConnectedClientsIds로 카운트됨
-        void OnClientLeft(ulong clientId)   => pendingApprovals.Remove(clientId);   // 합류 전 이탈한 예약 정리(이미 합류했으면 set에 없어 무해)
+        void OnClientJoined(ulong clientId) => pendingApprovals.Remove(clientId);   // 합류 완료 → ConnectedClientsIds 로 카운트
+        void OnClientLeft(ulong clientId)   => pendingApprovals.Remove(clientId);   // 합류 전 이탈 예약 정리
 
         void OnDestroy()
         {

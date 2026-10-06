@@ -18,13 +18,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
                 var root = StsCraneCreator.Create(Vector3.zero);
 
                 var rends = root.GetComponentsInChildren<Renderer>();
-                var b = new Bounds(root.transform.position, Vector3.zero);
-                bool first = true;
-                foreach (var r in rends)
-                {
-                    if (first) { b = r.bounds; first = false; }
-                    else b.Encapsulate(r.bounds);
-                }
+                var b = SceneUtil.BoundsOrPoint(root);
                 // Blender 임포트 후 축·스케일 검증용 실측치 (Unity: Y-up, 1u = 1m)
                 Debug.Log($"[ExportStsFbx] renderers={rends.Length} " +
                           $"size=({b.size.x:F3},{b.size.y:F3},{b.size.z:F3}) " +

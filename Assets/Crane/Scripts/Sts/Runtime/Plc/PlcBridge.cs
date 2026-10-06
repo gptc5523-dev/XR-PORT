@@ -58,7 +58,7 @@ namespace AIXRCrane.Crane.Sts.Plc
         readonly VirtualPlcSource sim = new VirtualPlcSource();
         IPlcSource source;
         float telemetryT;
-        bool rangesResolved;   // 무버 기하로 rangeM을 한 번 산출했는지(첫 틱에 빌더가 무버를 셋업한 뒤 1회).
+        bool rangesResolved;   // 무버 기하로 rangeM을 산출했는지(1회)
 
         // H4 고정 스캔 그리드 — 물리틱 dt를 누산해 scanPeriod 경계에서만 ScanStep을 돈다.
         float scanAccum;
@@ -127,7 +127,9 @@ namespace AIXRCrane.Crane.Sts.Plc
             sourceMode = SourceMode.Virtual; injectAggressive = aggressive; active = true;
         }
         /// <summary>메뉴 선택 복원 키 — 크레인별(전역 키 하나면 STS·RTG가 같은 CSV를 복원해 서로 데이터를 재생한다).</summary>
-        public string PrefKey(string k) => $"PlcBridge.{k}.{gameObject.name}";
+        public string PrefKey(string k) => PrefKeyFor(gameObject.name, k);
+        /// <summary>크레인 이름으로 같은 키 — 배치 스모크가 Play 전에 EditorPrefs 를 쓸 때.</summary>
+        public static string PrefKeyFor(string crane, string k) => $"PlcBridge.{k}.{crane}";
 #endif
 
         // 서버 소스의 폴링 스레드를 멈춘다.
@@ -142,7 +144,7 @@ namespace AIXRCrane.Crane.Sts.Plc
                 if (!string.IsNullOrEmpty(text))
                 {
                     var rep = new CsvReplaySource(text) { Loop = loop };
-                    if (rep.MissingColumns.Count > 0)   // 침묵 실패 방지 — 기대한 태그 컬럼이 CSV 헤더에 없으면 조용히 0이 되던 것을 경고로 노출
+                    if (rep.MissingColumns.Count > 0)   // 침묵 실패 방지 — 헤더에 없는 태그 컬럼을 경고로
                         Debug.LogWarning($"[PlcBridge] CSV 누락 컬럼 {rep.MissingColumns.Count}개 → 0으로 처리됨(벤더 태그명/헤더 확인): {string.Join(", ", rep.MissingColumns)}");
                     if (rep.IsConnected) return rep;
                     Debug.LogWarning("[PlcBridge] CSV 파싱 결과가 비어 Virtual로 폴백.");
@@ -265,7 +267,7 @@ namespace AIXRCrane.Crane.Sts.Plc
         {
             if (axis == null) return 0f;
             float span = axis.Max - axis.Min;        // 모델 가동범위(span, 축 단위)
-            return span > 0f ? span * axis.WorldPerUnit * invScale : 0f; // 실척 range = span × 월드/축 ÷ ModelScale
+            return span > 0f ? span * axis.WorldPerUnit * invScale : 0f; // 실척 range
         }
 
         // 실척 위치(0..rangeM) → 정규화 → 축 모델 좌표(Min..Max). 방향 규약은 벤더 확인 대상(질의서).

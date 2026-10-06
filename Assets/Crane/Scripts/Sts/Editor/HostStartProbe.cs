@@ -1,7 +1,6 @@
 #if UNITY_EDITOR
 using System.Net;
 using System.Net.Sockets;
-using System.Reflection;
 using Unity.Netcode;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -102,18 +101,8 @@ namespace AIXRCrane.Crane.Sts.EditorTools
                     measured++; if (!ok) fails++;
                     Debug.Log($"[HostStartProbe] {(ok ? "OK " : "BAD")} ②포트정상 — HostFailed {failed}(기대 false), IsServer {serverUp}(기대 true)");
 
-                    // ③ 나가기 — NetLanUI.Leave()는 리플렉션으로 호출(직접 호출은 미구현 시 빌드를 깬다).
-                    //   Leave()가 커밋되면 ui.Leave() 직접 호출로 바꿀 것.
-                    var leave = typeof(NetLanUI).GetMethod("Leave", BindingFlags.Public | BindingFlags.Instance);
-                    if (leave == null)
-                    {
-                        measured++; fails++;
-                        Debug.Log("[HostStartProbe] BAD ③나가기 — NetLanUI.Leave() 미구현. 헤드셋에서 세션을 끊을 방법이 없어 " +
-                                  "그 인스턴스가 포트를 쥔 채 남는다(기능이 들어오면 이 줄이 실제 측정으로 바뀐다).");
-                        if (serverUp) NetworkManager.Singleton.Shutdown();
-                        Finish(); return;
-                    }
-                    leave.Invoke(ui, null);
+                    // ③ 나가기
+                    ui.Leave();
                     downDeadline = Time.time + 5f;
                     phase = 4; Wait(1.0f); return;
                 }

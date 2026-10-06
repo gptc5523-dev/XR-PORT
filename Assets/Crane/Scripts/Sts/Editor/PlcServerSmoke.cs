@@ -18,7 +18,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
         static int exceptions, samples;
         static Vector3 posMin, posMax, axMin, axMax;   // x=GT y=TR z=HO — PLC 실척 m / 축 모델값
 
-        static string Pref(string k) => $"PlcBridge.{k}.{Crane}";   // PlcBridge.PrefKey 와 같은 키
+        static string Pref(string k) => PlcBridge.PrefKeyFor(Crane, k);
 
         // 플레이 진입의 도메인 리로드 뒤에도 이어받는다.
         static PlcServerSmoke()

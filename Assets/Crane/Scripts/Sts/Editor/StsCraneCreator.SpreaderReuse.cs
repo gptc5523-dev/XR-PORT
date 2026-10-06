@@ -10,7 +10,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
         /// <summary>holder 아래에 STS 40ft 스프레더를 헤드블록까지 통째로 생성.
         /// 헤드블록 소켓(실척 x±1.2, z±1.8, y9.392)이 RTG 로프점·Spreader_Hose 종단과 정합.</summary>
         public static void BuildSpreaderForReuse(Transform holder)
-            => BuildSpreaderVisual(holder, SpreaderHalf40, includeHead: true);
+            => BuildSpreaderVisual(holder, SpreaderHalf40);
 
         /// <summary>holder 아래에 STS 운전실을 생성(홀더-로컬 자체 오프셋, RTG는 localScale=24 상쇄 후 위치 이동).
         /// mountTopY = 상부 결합면 Y(cab-local model, 기본 −0.05=STS 박스 하단, RTG −0.072).</summary>

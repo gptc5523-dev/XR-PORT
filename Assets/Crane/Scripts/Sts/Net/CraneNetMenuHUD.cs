@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using System.Text;
 using UnityEngine;
 using UnityEngine.UI;
-using UnityEngine.XR;          // InputDevices — Quest 컨트롤러 직접 읽기(기존 조종 컨트롤러와 동일 방식)
+using UnityEngine.XR;          // InputDevices — 컨트롤러 직접 읽기
 
 namespace AIXRCrane.Crane.Sts.Net
 {
@@ -17,7 +17,7 @@ namespace AIXRCrane.Crane.Sts.Net
         [SerializeField] float worldScale = 0.0016f;
 
         [Header("패널/텍스트")]
-        [SerializeField] Color bgColor = new Color(0f, 0f, 0f, CraneHud.PanelBgAlpha);   // 패널 배경 알파 표준(공용 토큰)
+        [SerializeField] Color bgColor = new Color(0f, 0f, 0f, CraneHud.PanelBgAlpha);   // 공용 알파 토큰
         [SerializeField] int fontSize = 26;
 
         [Header("입력 임계값")]
@@ -38,10 +38,10 @@ namespace AIXRCrane.Crane.Sts.Net
         bool aPrev, bPrev;
         float nextFind;
         bool ipEntryMode;          // 참가 선택 후, 호스트 IP(마지막 옥텟) 입력 중
-        int joinOctet = NetConfig.DefaultJoinOctet;   // SSOT. 최종 IP = NetConfig.DefaultSubnetPrefix + joinOctet
-        bool discoveredPrev;       // 자동 발견 엣지 검출(false→true 순간 한 번만 자동 접속)
-        float connectedAt;         // 접속된 시각(무접속이면 0) — 결과 화면을 잠깐 띄우는 데만 쓴다
-        const float ResultSeconds = 6f;   // 접속 결과를 보여주는 시간. 더 길면 시야를 가리고, 더 짧으면 헤드셋에서 놓친다
+        int joinOctet = NetConfig.DefaultJoinOctet;   // 최종 IP = 대역 prefix + joinOctet
+        bool discoveredPrev;       // 자동 발견 엣지(한 번만 자동 접속)
+        float connectedAt;         // 접속 시각(무접속 0) — 결과 화면용
+        const float ResultSeconds = 6f;   // 결과 표시 시간 — 길면 시야를 가리고 짧으면 놓친다
         readonly StringBuilder sb = new StringBuilder(256);
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
@@ -70,7 +70,7 @@ namespace AIXRCrane.Crane.Sts.Net
             if (cam == null) return;
             canvas.transform.SetParent(cam.transform, worldPositionStays: false);
             canvas.transform.localPosition = cameraOffset;
-            CraneHud.FaceCameraChild(canvas.transform, cameraOffset);   // 카메라 향함 + 거울 해소(다른 HUD와 동일) — identity면 뒤집힘 위험
+            CraneHud.FaceCameraChild(canvas.transform, cameraOffset);   // identity면 뒤집힘
             attached = true;
         }
 
@@ -133,8 +133,8 @@ namespace AIXRCrane.Crane.Sts.Net
                 if (stepY != 0) selected = Mathf.Clamp(selected - stepY, 0, Options.Length - 1);  // ↑=위 항목
                 if (aNow && !aPrev)
                 {
-                    if (selected == 0) ui.BeginHost();              // 호스트는 바로 시작
-                    else if (ui.HostDiscovered)                     // 참가 — 이미 자동 발견됐으면 IP 입력 없이 즉시 접속
+                    if (selected == 0) ui.BeginHost();
+                    else if (ui.HostDiscovered)                     // 자동 발견됐으면 IP 입력 없이 접속
                     {
                         discoveredPrev = true;
                         ui.BeginClient();
@@ -149,7 +149,7 @@ namespace AIXRCrane.Crane.Sts.Net
                 discoveredPrev = ui.HostDiscovered;
                 if (justDiscovered)
                 {
-                    ui.BeginClient();   // ui.JoinIp 는 LanDiscovery가 이미 호스트 IP로 채움
+                    ui.BeginClient();   // JoinIp 는 LanDiscovery가 채움
                 }
                 else
                 {
@@ -158,7 +158,7 @@ namespace AIXRCrane.Crane.Sts.Net
                     if (stepX != 0) joinOctet = Mathf.Clamp(joinOctet + stepX * 10, 0, 255);
                     if (aNow && !aPrev)
                     {
-                        ui.JoinIp = IpPrefix() + joinOctet;   // [대역prefix].[joinOctet] (prefix는 IpPrefix(), 폴백 NetConfig.DefaultSubnetPrefix)
+                        ui.JoinIp = IpPrefix() + joinOctet;
                         ui.BeginClient();
                     }
                     else if (bNow && !bPrev) ipEntryMode = false;   // 선택 화면으로 복귀
@@ -173,7 +173,7 @@ namespace AIXRCrane.Crane.Sts.Net
         {
             string ip = ui != null ? ui.LocalIp : null;
             int dot = string.IsNullOrEmpty(ip) ? -1 : ip.LastIndexOf('.');
-            return dot > 0 ? ip.Substring(0, dot + 1) : NetConfig.DefaultSubnetPrefix;   // [H3] 폴백 대역 SSOT
+            return dot > 0 ? ip.Substring(0, dot + 1) : NetConfig.DefaultSubnetPrefix;   // 폴백 대역 SSOT
         }
 
         // 초기 옥텟 — 자동탐색 JoinIp 의 마지막 숫자, 없으면 1.
@@ -204,7 +204,7 @@ namespace AIXRCrane.Crane.Sts.Net
         // 메뉴 중 모든 LocomotionProvider 잠금 — 내가 끈 것만 기억해 복구(StsCraneVRController.ApplyMode 방식).
         void LockLocomotion()
         {
-            if (lockedLoco.Count > 0) return;   // 이미 잠금 상태면 재스캔 불필요
+            if (lockedLoco.Count > 0) return;   // 이미 잠금
             var locoType = LocomotionProviderType;
             if (locoType == null) return;
             foreach (var o in FindObjectsByType(locoType, FindObjectsInactive.Exclude))
@@ -246,7 +246,7 @@ namespace AIXRCrane.Crane.Sts.Net
             sb.AppendLine();
             if (nm.IsServer)
             {
-                int joined = Mathf.Max(0, nm.ConnectedClientsIds.Count - 1);   // 호스트 자신(0번)은 참가자 수에서 뺀다
+                int joined = Mathf.Max(0, nm.ConnectedClientsIds.Count - 1);   // 호스트 자신 제외
                 sb.AppendLine("<color=#5FE0FF><b>호스트 중 · 운전 가능</b></color>");
                 sb.AppendLine($"<size=18>내 IP <b>{ui.LocalIp}</b> · 참가 {joined}/{Mathf.Max(0, ui.MaxPlayers - 1)}</size>");
                 sb.AppendLine();

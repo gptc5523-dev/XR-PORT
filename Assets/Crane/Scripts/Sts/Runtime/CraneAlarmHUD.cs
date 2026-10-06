@@ -153,24 +153,11 @@ namespace AIXRCrane.Crane.Sts
         void TryAttachToCamera()
         {
             if (canvas == null) return;
-            var cam = targetCamera != null ? targetCamera : Camera.main;
-            if (cam == null) cam = FindHMDCamera();
+            var cam = CraneHud.HudCamera(targetCamera);
             if (cam == null) return;
-            canvas.transform.SetParent(cam.transform, worldPositionStays: false);
-            var off = ActiveOffset();
-            canvas.transform.localPosition = off;
+            CraneHud.AttachHeadLocked(canvas.transform, cam, ActiveOffset(), tiltPitchDeg, 0f);
             canvas.transform.localScale = Vector3.one * ActiveScale();   // 역할별 크기
-            CraneHud.FaceCameraChild(canvas.transform, off, tiltPitchDeg, 0f);   // 카메라 향함 — 부착 시 1회
         }
 
-        // Camera.main 실패 시 XR(헤드셋) 카메라 후보 탐색
-        static Camera FindHMDCamera()
-        {
-            foreach (var c in Camera.allCameras)
-                if (c != null && c.stereoEnabled) return c;
-            foreach (var c in Camera.allCameras)
-                if (c != null && c.GetComponent("TrackedPoseDriver") != null) return c;
-            return Camera.allCameras.Length > 0 ? Camera.allCameras[0] : null;
-        }
     }
 }

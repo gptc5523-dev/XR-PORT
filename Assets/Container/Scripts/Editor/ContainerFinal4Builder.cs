@@ -10,9 +10,9 @@ namespace AIXRCrane.EditorTools
     /// Blender 축 Y→X·Z→Y·X→Z, 피봇 바닥 중앙, FBX 1/24 축소(ModelScale=1). 도색은 텍스처에 구워짐(_BaseColor 흰색), MetalSmooth: R=metallic·A=smoothness.</summary>
     public static class ContainerFinal4Builder
     {
-        const string ModelDir    = "Assets/Container/Models/";
-        const string TextureDir  = "Assets/Container/Textures/";
-        const string MaterialDir = "Assets/Container/Materials/Final4/";
+        const string ModelDir    = ContainerModelPostprocessor.ModelDir;
+        const string TextureDir  = ContainerModelPostprocessor.TextureDir;
+        const string MaterialDir = ContainerModelPostprocessor.MaterialDir;
 
         [MenuItem("Model/FBX/컨테이너/20ft 생성",   false, 1)] static void P20()   => Place("Container_20ft");
         [MenuItem("Model/FBX/컨테이너/40ft 생성",   false, 2)] static void P40()   => Place("Container_40ft");
@@ -38,7 +38,7 @@ namespace AIXRCrane.EditorTools
             var sv = SceneView.lastActiveSceneView;
             Vector3 p = Vector3.zero;
             if (sv != null && sv.camera != null)
-                p = sv.camera.transform.position + sv.camera.transform.forward * (Bound(go).size.magnitude * 1.2f);
+                p = sv.camera.transform.position + sv.camera.transform.forward * (SceneUtil.BoundsOrPoint(go, true).size.magnitude * 1.2f);
             p.y = 0f;
             go.transform.position = p;
 
@@ -46,7 +46,7 @@ namespace AIXRCrane.EditorTools
             EditorGUIUtility.PingObject(go);
             if (sv != null) sv.FrameSelected();
 
-            var b = Bound(go);
+            var b = SceneUtil.BoundsOrPoint(go, true);
             float inv = 1f / AIXRCrane.Crane.Sts.StsConfig.ModelScale;   // 모델 단위 → 실척 m
             int missing = 0;
             foreach (var r in go.GetComponentsInChildren<MeshRenderer>(true))
@@ -163,14 +163,6 @@ namespace AIXRCrane.EditorTools
             string.IsNullOrEmpty(name) ? null
             : AssetDatabase.LoadAssetAtPath<Texture2D>(TextureDir + name + ".png");
 
-        static Bounds Bound(GameObject go)
-        {
-            var rs = go.GetComponentsInChildren<Renderer>(true);
-            if (rs.Length == 0) return new Bounds(go.transform.position, Vector3.zero);
-            var b = rs[0].bounds;
-            for (int i = 1; i < rs.Length; i++) b.Encapsulate(rs[i].bounds);
-            return b;
-        }
     }
 }
 #endif

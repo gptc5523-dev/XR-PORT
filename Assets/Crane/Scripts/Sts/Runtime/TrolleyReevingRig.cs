@@ -45,7 +45,7 @@ namespace AIXRCrane.Crane.Sts
             this.arcPer = arcPer;
             this.radius = radius;
             this.spanSag = spanSag;
-            Apply();   // 생성 즉시 1회 배치 — 에디터 정적 씬에서 거대 실린더가 원점에 방치되는 것 방지.
+            Apply();   // 생성 즉시 배치 — 원점에 거대 실린더 방치 방지
         }
 
         void LateUpdate() => Apply();

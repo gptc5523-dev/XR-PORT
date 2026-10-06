@@ -17,24 +17,24 @@ namespace AIXRCrane.Crane.Sts.EditorTools
         public static void Setup()
         {
             var crane = Selection.activeGameObject;
-            if (crane == null || FindDeep(crane.transform, "Trolley") == null)
+            if (crane == null || SceneUtil.FindDeep(crane.transform, "Trolley") == null)
                 crane = GameObject.Find(CraneName);
             if (crane == null) { Dialog($"대상 크레인을 못 찾음. '{CraneName}' 선택 후 다시."); return; }
             var root = crane.transform;
-            var trolley = FindDeep(root, "Trolley");
+            var trolley = SceneUtil.FindDeep(root, "Trolley");
 
             // 옛 리빙 그룹 제거
             foreach (var gname in new[] { GroupName, "HoistRopes", "HoistRopes_Auto" })
             {
                 Transform g; int guard = 0;
-                while ((g = FindDeep(root, gname)) != null && guard++ < 30)
+                while ((g = SceneUtil.FindDeep(root, gname)) != null && guard++ < 30)
                     Undo.DestroyObjectImmediate(g.gameObject);
             }
             // 옛 드럼출구 고정점 제거
             foreach (var c in Corners)
             {
                 Transform de; int guard = 0;
-                while ((de = FindDeep(root, "Hoist_DrumExit_" + c)) != null && guard++ < 8)
+                while ((de = SceneUtil.FindDeep(root, "Hoist_DrumExit_" + c)) != null && guard++ < 8)
                     Undo.DestroyObjectImmediate(de.gameObject);
             }
 
@@ -48,9 +48,9 @@ namespace AIXRCrane.Crane.Sts.EditorTools
 
             foreach (var c in Corners)
             {
-                var sheave = FindDeep(root, "Spreader_HB_Sheave_" + c);
-                var anchor = FindDeep(root, "Hoist_RopeAnchor_" + c);
-                var rope   = FindDeep(root, "Hoist_Rope_" + c);
+                var sheave = SceneUtil.FindDeep(root, "Spreader_HB_Sheave_" + c);
+                var anchor = SceneUtil.FindDeep(root, "Hoist_RopeAnchor_" + c);
+                var rope   = SceneUtil.FindDeep(root, "Hoist_Rope_" + c);
                 if (sheave == null) { diag.AppendLine($"  {c}: 시브 없음 → 건너뜀"); continue; }
 
                 // 드럼출구 = 로프 드럼측 캡 중심 → 트롤리 자식 고정점
@@ -64,14 +64,14 @@ namespace AIXRCrane.Crane.Sts.EditorTools
                     de.transform.SetParent(trolley != null ? trolley : root, false);
                     de.transform.position = exitW;
                     drumExit = de.transform;
-                    if (rr > ropeWorldRadius) ropeWorldRadius = rr;    // 코너간 동일하지만 방어적으로 max
+                    if (rr > ropeWorldRadius) ropeWorldRadius = rr;    // 방어적 max
                     if (ropeMat == null && m != null) ropeMat = m;
                     modeledRopes.Add(rope);
                     wrapR = WrapRadiusWorld(rope, sheave.position, rr);   // 감김 반경도 같은 로프 실측에서
                 }
                 if (wrapR <= 0f)
                 {
-                    wrapR = SheaveRimRadiusWorld(sheave);   // 폴백(로프 메시 없음) — 림 반경이라 실제 감김보다 크다
+                    wrapR = SheaveRimRadiusWorld(sheave);   // 폴백 — 림 반경이라 실제 감김보다 크다
                     Debug.LogWarning($"[RTG] {c}: 로프 메시가 없어 감김 반경을 시브 림({wrapR:F4})으로 폴백 — " +
                                      "로프가 시브 홈이 아니라 림 위를 도는 것처럼 뜬다.");
                 }
@@ -98,7 +98,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             {
                 // 폴백: 시브 비율로 월드 반경 환산(임포트 스케일 무관).
                 float avgSheave = 0f; foreach (var s in sheaveRadii) avgSheave += s;
-                avgSheave = sheaveRadii.Count > 0 ? avgSheave / sheaveRadii.Count : 0.019f;
+                avgSheave /= sheaveRadii.Count;   // 위에서 시브 0개면 이미 반환
                 ropeWorldRadius = 0.0265f * (avgSheave / 0.4439f);
             }
 
@@ -262,13 +262,6 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             if (rend == null) return 0.02f;
             Vector3 e = rend.bounds.extents;
             return Mathf.Max(e.x, Mathf.Max(e.y, e.z));
-        }
-
-        static Transform FindDeep(Transform root, string name)
-        {
-            if (root.name == name) return root;
-            foreach (Transform c in root) { var r = FindDeep(c, name); if (r != null) return r; }
-            return null;
         }
 
         static void Dialog(string msg) => EditorUtility.DisplayDialog("RTG 로프 셋업", msg, "확인");

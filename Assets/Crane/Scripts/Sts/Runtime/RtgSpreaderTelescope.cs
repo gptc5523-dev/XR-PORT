@@ -48,8 +48,8 @@ namespace AIXRCrane.Crane.Sts
             restF = beamF.localPosition; restB = beamB.localPosition;   // 임포트 포즈 = 40ft 기준
 
             // 끝빔 캡처 — TeleBeam 자식이면 자동 추종, 형제로 풀려 있으면 명시 이동 대상.
-            endBeamF = FindDeep(transform, "Spreader_EndBeam_F");
-            endBeamB = FindDeep(transform, "Spreader_EndBeam_B");
+            endBeamF = SceneUtil.FindDeep(transform, "Spreader_EndBeam_F");
+            endBeamB = SceneUtil.FindDeep(transform, "Spreader_EndBeam_B");
             if (endBeamF != null) { restEndF = endBeamF.localPosition; endFIsChild = endBeamF.IsChildOf(beamF); }
             if (endBeamB != null) { restEndB = endBeamB.localPosition; endBIsChild = endBeamB.IsChildOf(beamB); }
 
@@ -65,13 +65,6 @@ namespace AIXRCrane.Crane.Sts
         static string Desc(Transform t, bool isChild) =>
             t == null ? "없음(경고!)" : isChild ? "TeleBeam자식→자동추종" : "형제→명시슬라이드";
 #endif
-
-        static Transform FindDeep(Transform root, string name)
-        {
-            if (root.name == name) return root;
-            foreach (Transform c in root) { var r = FindDeep(c, name); if (r != null) return r; }
-            return null;
-        }
 
         public void SetSize(Size s) => size = s;
 

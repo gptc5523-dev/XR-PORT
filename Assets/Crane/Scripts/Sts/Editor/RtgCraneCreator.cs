@@ -26,7 +26,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
         const float GirderOverX = 0.75f;   // 주거더 X 오버행(양측)
         const float RailH       = 0.10f;   // 트롤리 크레인레일 높이(A75급). 휠 시트 = GirderTopY+RailH (SSOT)
 
-        const float SillTopY    = 2.87f;   // 실빔 윗면(다리 시작). 옛값 2.4f — 이퀄라이저·킹핀 회전 간극 확보, 순양정 불변
+        const float SillTopY    = 2.87f;   // 실빔 윗면(다리 시작) — 이퀄라이저·킹핀 회전 간극, 순양정 불변
         const float SillDepth   = 0.8f;    // 실빔 깊이(Y) → 실빔 2.07~2.87
         const float SillWidthX  = 0.9f;    // 실빔 폭(X)
         const float SillOverZ   = 1.0f;    // 실빔 Z 오버행(양측)
@@ -71,7 +71,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
         static float GirderLenX => SpanX + 2f * GirderOverX;     // 25.1
         static float SillCenterY => SillTopY - SillDepth * 0.5f; // 2.47
         static float SillLenZ   => BaseZ + 2f * SillOverZ;       // 9.5
-        static float SprHeadY   => SprParkY + 1.392f;            // 헤드블록 소켓 높이 = 파킹 + hbY×24(SSOT), 헤드 본체중심 기준. 옛값 1.704
+        static float SprHeadY   => SprParkY + 1.392f;            // 헤드블록 소켓 높이 = 파킹 + hbY×24(SSOT), 헤드 본체중심 기준
 
         // 색(파란 도장 강철 RTG)
         static readonly Color CBlue = new Color(0.10f, 0.30f, 0.62f);  // 구조 파랑(코발트)
@@ -307,8 +307,8 @@ namespace AIXRCrane.Crane.Sts.EditorTools
                     new Vector3(0f, GirderCenterY, sz * LegHalfZ),
                     new Vector3(GirderLenX, GirderDepth, GirderWidthZ), CBlue);
 
-            float tieLenZ = BaseZ + LegSec;         // 8.40=±4.20 — 다리 바깥면까지만 덮음(코너 솔리드). 옛값 BaseZ+GirderWidthZ
-            const float endTieY     = 19.738f;      // 거더중심에서 하강(다리 상단 바로 아래 횡결속). 옛값 21.5
+            float tieLenZ = BaseZ + LegSec;         // 8.40 — 다리 바깥면까지만 덮음(코너 솔리드)
+            const float endTieY     = 19.738f;      // 다리 상단 바로 아래 횡결속
             const float endTieThick = 0.5f;         // 단면 두께 = SideBrace(Strut thick 0.5)와 동일(슬림 결속바)
             foreach (var sx in new[] { -1f, 1f })
                 PbBox(g, "EndTie",
@@ -907,7 +907,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             Renderer best = null; float bestArea = 0f;
             foreach (var r in Object.FindObjectsByType<Renderer>(FindObjectsInactive.Exclude))
             {
-                if (StsPartNames.IsSeaName(r.gameObject.name)) continue;
+                if (StsPartNames.IsNotGroundName(r.gameObject.name)) continue;
                 var e = r.bounds.size;
                 float area = e.x * e.z;
                 if (e.y < e.x && e.y < e.z && area > bestArea) { bestArea = area; best = r; }

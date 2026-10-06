@@ -1,7 +1,6 @@
 #if UNITY_EDITOR
 using System.Collections.Generic;
 using System.Linq;
-using System.Text.RegularExpressions;
 using AIXRCrane.Crane.Sts.Plc;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -71,8 +70,8 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             var c = cases[idx];
             switch (phase)
             {
-                case 1:   // 컨테이너를 콘 밑으로 가져온다(크레인 축 정렬 대신 — 검사 대상은 '잡은 뒤 하강'이다)
-                    if (!CraneDemoRunner.TryBounds(c.box, out var b1)) { Skip(c, "바운즈 없음"); return; }
+                case 1:   // 컨테이너를 콘 밑으로 가져온다(검사 대상은 '잡은 뒤 하강')
+                    if (!SceneUtil.TryBounds(c.box, out var b1)) { Skip(c, "바운즈 없음"); return; }
                     Vector3 gp = c.g.GrabPoint();
                     float topTarget = c.g.ConeBottomY() + c.g.InsertDepthMeters * StsConfig.ModelScale;   // 콘이 박힌 안착 자세
                     Move(c.box, new Vector3(gp.x - b1.center.x, topTarget - b1.max.y, gp.z - b1.center.z));
@@ -82,11 +81,11 @@ namespace AIXRCrane.Crane.Sts.EditorTools
                     c.g.Grab();
                     phase = 3; Wait(0.8f); return;   // 텔레스코프 신축(0.25 m/s)
 
-                case 3:   // 받침이 하나도 없는 자리로 옮긴다 — 여기가 이 검사의 핵심 조건(빈 데크)
+                case 3:   // 받침 없는 자리로 — 이 검사의 핵심 조건(빈 데크)
                     if (c.crane.Attach == null || c.crane.Attach.AttachedContainer != c.box)
                     {
-                        // 왜 게이트에 걸렸는지 숫자로 남긴다 — 이게 없으면 '안 잡힘'이 회귀인지 원래 그런지 구분이 안 된다.
-                        CraneDemoRunner.TryBounds(c.box, out var bs);
+                        // 게이트에 걸린 이유를 숫자로 남긴다 — 회귀인지 원래 그런지 구분하려고.
+                        SceneUtil.TryBounds(c.box, out var bs);
                         float gapMm = (c.g.ConeBottomY() - bs.max.y) / StsConfig.ModelScale * 1000f;   // 음수 = 콘이 박힌 깊이
                         // 잡힌 게 다른 컨테이너면 FindNearest가 옆칸을 고른 것, gap이 크게 양수면 대상이 콘 밑에 없었던 것.
                         var got = c.crane.Attach != null ? c.crane.Attach.AttachedContainer : null;
@@ -96,7 +95,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
                     }
                     var hoist = c.crane.Spreader;
                     hoist.MoveTo(hoist.Current + LiftU / Mathf.Max(hoist.WorldAxis.magnitude, 1e-6f));
-                    if (!CraneDemoRunner.TryBounds(c.box, out var b3) || !MoveToBareSpot(c, b3)) { Skip(c, "빈 자리 없음"); return; }
+                    if (!SceneUtil.TryBounds(c.box, out var b3) || !MoveToBareSpot(c, b3)) { Skip(c, "빈 자리 없음"); return; }
                     phase = 4; Wait(0.4f); return;
 
                 case 4:   // 권상을 하한까지 계속 밀어 내린다(스틱을 계속 내리는 상황)
@@ -107,7 +106,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
                     phase = 5; Wait(0.3f); return;
 
                 case 5:   // 실측 — 바닥 아래로 내려갔나
-                    CraneDemoRunner.TryBounds(c.box, out var b5);
+                    SceneUtil.TryBounds(c.box, out var b5);
                     float pen = floorTop - b5.min.y;
                     bool ok = pen <= TolU;
                     measured++; if (!ok) fails++;
@@ -137,12 +136,12 @@ namespace AIXRCrane.Crane.Sts.EditorTools
                 Vector3 p = sinkBox.position - new Vector3(0f, SinkU, 0f);
                 sinkBox.position = p; rb.position = p;
                 if (!rb.isKinematic) { rb.linearVelocity = Vector3.zero; rb.angularVelocity = Vector3.zero; }
-                CraneDemoRunner.TryBounds(sinkBox, out var sb);
+                SceneUtil.TryBounds(sinkBox, out var sb);
                 Debug.Log($"[FloorClipProbe] ②복구 대상 {sinkBox.name}(kinematic {rb.isKinematic}) — 밑면 {sb.min.y:F4}u 로 내려놓음");
                 phase = 20; Wait(1.5f); return;   // 가드가 매 FixedUpdate 로 끌어올릴 시간
             }
 
-            CraneDemoRunner.TryBounds(sinkBox, out var b);
+            SceneUtil.TryBounds(sinkBox, out var b);
             float pen = floorTop - b.min.y;
             bool ok = pen <= TolU;
             measured++; if (!ok) fails++;
@@ -157,7 +156,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
         {
             var others = Object.FindObjectsByType<Rigidbody>(FindObjectsInactive.Exclude)
                 .Where(rb => rb != null && !rb.transform.IsChildOf(c.crane.transform))
-                .Select(rb => CraneDemoRunner.TryBounds(rb.transform, out var ob) ? (Bounds?)ob : null)
+                .Select(rb => SceneUtil.TryBounds(rb.transform, out var ob) ? (Bounds?)ob : null)
                 .Where(ob => ob.HasValue).Select(ob => ob.Value).ToList();
 
             foreach (var a in new[] { c.crane.Trolley, c.crane.Gantry })
@@ -203,17 +202,16 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             foreach (var b in Object.FindObjectsByType<PlcBridge>()) b.enabled = false;   // PLC 재생이 축을 잡지 않게
             floorTop = ContainerPhysicsStabilizer.FindFloorTopY(out bool hasFloor);
 
-            var yardRx = new Regex(@"^Cont(20|40)_\d+$");
             boxes.Clear();
             boxes.AddRange(Object.FindObjectsByType<LODGroup>().Select(l => l.transform)
-                .Where(t => t.name.StartsWith(StsPartNames.ShipContainer) || yardRx.IsMatch(t.name))
+                .Where(t => t.name.StartsWith(StsPartNames.ShipContainer) || StsPartNames.IsYardContainerName(t.name))
                 .OrderBy(t => t.name));
 
-            // 야드 컨테이너에 콜라이더·강체를 붙인다 — PortDemoDirector.MakeGrabbable 과 같은 구성이고,
-            //   '플레이 시작 뒤에 붙는 kinematic 강체' 자체가 바닥가드의 사각(②의 대상)이다.
-            foreach (var t in boxes.Where(x => yardRx.IsMatch(x.name)))
+            // 야드 컨테이너에 콜라이더·강체를 붙인다(PortDemoDirector.MakeGrabbable과 같은 구성) —
+            //   '플레이 시작 뒤 붙는 kinematic 강체'가 곧 바닥가드의 사각(②의 대상).
+            foreach (var t in boxes.Where(x => StsPartNames.IsYardContainerName(x.name)))
             {
-                if (!CraneDemoRunner.TryBounds(t, out var ob)) continue;
+                if (!SceneUtil.TryBounds(t, out var ob)) continue;
                 if (t.GetComponentInChildren<Collider>() == null)
                 {
                     var s = t.lossyScale; var bc = t.gameObject.AddComponent<BoxCollider>();
@@ -233,9 +231,9 @@ namespace AIXRCrane.Crane.Sts.EditorTools
                 if (crane.Gantry is GantryMover gm) gm.StopOnObstacle = false;
                 bool rtg = crane.GetComponent<RtgBogieSteering>() != null;
                 Vector3 me = crane.Gantry is Component gc ? gc.transform.position : crane.transform.position;
-                var box = boxes.Where(t => rtg ? yardRx.IsMatch(t.name) : t.name.StartsWith(StsPartNames.ShipContainer))
-                    .Where(t => CraneDemoRunner.TryBounds(t, out _))
-                    .OrderBy(t => { CraneDemoRunner.TryBounds(t, out var bb); return (bb.center - me).sqrMagnitude; })
+                var box = boxes.Where(t => rtg ? StsPartNames.IsYardContainerName(t.name) : t.name.StartsWith(StsPartNames.ShipContainer))
+                    .Where(t => SceneUtil.TryBounds(t, out _))
+                    .OrderBy(t => { SceneUtil.TryBounds(t, out var bb); return (bb.center - me).sqrMagnitude; })
                     .FirstOrDefault();
                 if (box == null) continue;
                 cases.Add(new Case { crane = crane, g = g, box = box });

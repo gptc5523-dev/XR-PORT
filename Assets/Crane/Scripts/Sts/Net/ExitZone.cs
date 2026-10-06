@@ -15,7 +15,7 @@ namespace AIXRCrane.Crane.Sts.Net
         [Tooltip("존 반경(실척 m). 걷다가 실수로 들어오지 않게 부두 '모서리'에 둔다.")]
         [SerializeField] float radiusMeters = DefaultRadiusMeters;
         [Tooltip("존 안에 이만큼 서 있어야 나간다(초). 지나가다 스치는 것으로 안 끊기게.")]
-        [SerializeField] float dwellSeconds = 10f;   // 체류시간으로 오조작 방지(옛값 20초)
+        [SerializeField] float dwellSeconds = 10f;   // 체류시간으로 오조작 방지
         [Tooltip("걷는 땅 모서리에서 안쪽으로 띄울 거리(실척 m) — 띠가 경계 밖으로 새지 않게.")]
         [SerializeField] float insetMeters = DefaultInsetMeters;
 
@@ -41,7 +41,7 @@ namespace AIXRCrane.Crane.Sts.Net
 
         /// <summary>표지판 방향 미세 보정(도, 월드 Y). 블렌더 앞면 −Y 가 축 보정 뒤 유니티 +Z 라 0 이 정면.
         /// 반대로 보이면 180, 옆이면 ±90.</summary>
-        const float SignYawOffset = 0f;   // 옛값 90f
+        const float SignYawOffset = 0f;
 
         /// <summary>표지판 실척 높이(m) — 표시판_빌드.py 의 H_TOTAL. FitSign 이 프리팹을 재서 수렴시키므로
         /// 값이 달라도 조용히 깨지지 않는다.</summary>
@@ -217,7 +217,7 @@ namespace AIXRCrane.Crane.Sts.Net
             // 배율을 단정하지 말고 재서 맞춘다 — FBX 마다 단위가 다를 수 있다(100배 차이 사례).
             // axisFix 를 먼저 건 뒤에 재야 한다 — 안 그러면 Y 가 두께가 되어 배율이 튄다.
             sign.transform.localScale = Vector3.one;
-            float h = MeasuredHeight(sign);
+            float h = SceneUtil.TryBounds(sign.transform, out var signB) ? signB.size.y : 0f;
             float targetWorld = SignRealHeightMeters * StsConfig.ModelScale;
             sign.transform.localScale = Vector3.one * (h > 1e-6f ? targetWorld / h : StsConfig.ModelScale);
 
@@ -246,16 +246,6 @@ namespace AIXRCrane.Crane.Sts.Net
                 Debug.Log($"[ExitZone] 표지판 — 실척 바운즈 X {s.x:F1}m · Y {s.y:F1}m · Z {s.z:F1}m " +
                           $"(야우보정 {SignYawOffset:0}°) → {(upright ? "서 있음" : "★ 누웠다")}");
             }
-        }
-
-        /// <summary>렌더러 전체를 합친 월드 높이. 서브메시가 여럿이거나 자식으로 쪼개져 들어와도 같은 값이 나온다.</summary>
-        static float MeasuredHeight(GameObject go)
-        {
-            var rs = go.GetComponentsInChildren<Renderer>();
-            if (rs.Length == 0) return 0f;
-            var b = rs[0].bounds;
-            for (int i = 1; i < rs.Length; i++) b.Encapsulate(rs[i].bounds);
-            return b.size.y;
         }
 
         void BuildBand() { if (band == null) band = CreateBand(transform, radiusMeters); }

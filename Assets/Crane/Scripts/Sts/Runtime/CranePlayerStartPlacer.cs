@@ -1,5 +1,5 @@
 using UnityEngine;
-using Unity.Netcode;   // 접속 완료 후 재배치용(Netcode 참조 가능)
+using Unity.Netcode;   // 접속 후 재배치용
 
 namespace AIXRCrane.Crane.Sts
 {
@@ -16,7 +16,7 @@ namespace AIXRCrane.Crane.Sts
         [Tooltip("켜면 호스트/참가자 모두 항상 Quay_Ground 걷는 면 '안'에서 시작(마커가 없거나 부두 밖이어도 안으로 끌어들임). 끄면 마커 있을 때만 배치.")]
         [SerializeField] bool forceInsideQuay = true;
         [Tooltip("부두 가장자리에서 안쪽으로 들이는 여유(m). 가장자리에 딱 붙어 떨어지는 것 방지.")]
-        [SerializeField] float quayEdgeInset = 0.1f;
+        [SerializeField] float quayEdgeInset = DefaultQuayEdgeInset;
         [Tooltip("켜면 걷는 중에도 항상 부두 안에 머문다(안벽 밖·바다 위·허공 진입 차단). 끄면 자유 비행 점검 가능.")]
         [SerializeField] bool keepOnQuay = true;
         [SerializeField] bool debugLog = true;
@@ -36,7 +36,7 @@ namespace AIXRCrane.Crane.Sts
 
         bool netHooked;             // NetworkManager 접속 콜백 구독 완료.
         bool replacedAfterConnect;  // 접속 후 재배치 1회 완료(중복 방지).
-        bool placingAfterConnect;   // 다음 배치가 '접속 후 재배치'인지(QA START/replace 라인 구분용).
+        bool placingAfterConnect;   // 다음 배치가 접속 후 재배치인지(QA 구분용).
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void AutoSpawn() => CraneHud.EnsureSpawned<CranePlayerStartPlacer>("PlayerStartPlacer");
@@ -83,7 +83,7 @@ namespace AIXRCrane.Crane.Sts
 
         void Update()
         {
-            EnsureNetHook();   // NetworkManager가 뜨면 접속 콜백 구독(접속 후 재배치용). 콜백이 늦게 올 수 있어 Update는 끄지 않는다.
+            EnsureNetHook();   // 접속 콜백 구독 — 늦게 올 수 있어 Update는 끄지 않는다.
 
             // 리그가 바뀌면 다시 세운다 — 평면 모드는 60프레임 뒤 새 리그를 원점에 만들어 시작 자리가 VR 과 달라진다.
             if (!pending && placedRig != null)
@@ -91,7 +91,7 @@ namespace AIXRCrane.Crane.Sts
                 var cam = Camera.main;
                 if (cam != null && cam.transform.root != placedRig) { pending = true; attempts = 0; }
             }
-            if (!pending) return;   // 처리할 배치 없음 — 사실상 무비용.
+            if (!pending) return;
 
             if (TryPlaceRig()) { pending = false; attempts = 0; }
             else if (++attempts > maxAttempts)
@@ -111,7 +111,7 @@ namespace AIXRCrane.Crane.Sts
         {
             if (netHooked) return;
             var nm = NetworkManager.Singleton;
-            if (nm == null) return;                       // 아직 NetworkManager 미생성(단독 플레이 씬이면 영영 null) — 매 프레임 싼 널체크.
+            if (nm == null) return;                       // 미생성(단독 씬은 영영 null)
             nm.OnClientConnectedCallback += OnClientConnected;
             netHooked = true;
         }
@@ -121,9 +121,9 @@ namespace AIXRCrane.Crane.Sts
         {
             var nm = NetworkManager.Singleton;
             if (nm == null || replacedAfterConnect) return;
-            if (clientId != nm.LocalClientId) return;     // 남의 접속은 무시 — 내 리그만 재배치.
+            if (clientId != nm.LocalClientId) return;     // 남의 접속은 무시
             replacedAfterConnect = true;
-            placingAfterConnect = true;   // 다음 TryPlaceRig가 '접속 후 재배치'임을 표시(QA START/replace 판정용)
+            placingAfterConnect = true;
             pending = true; attempts = 0;
             if (debugLog) Debug.Log("[PlayerStartPlacer] 네트워크 접속 완료 — 시작 위치를 부두 안으로 재배치합니다.");
         }
@@ -142,12 +142,11 @@ namespace AIXRCrane.Crane.Sts
             Transform rig = cam.transform.root;           // XR Origin 리그 루트.
             if (rig == null) return false;
 
-            float rigYBefore = rig.position.y;            // QA: 재배치 전 높이(접속 후 원점 방치 복구 확인용)
-            // 시작 XZ·바라보는 방향 결정 — 계산은 TryComputeSpawn() 한 곳에만 둔다.
-            // 에디터 표식(QuayPartsPlacer.PlaceSpawnPawn)도 같은 식을 읽어야 자리가 일치한다.
+            float rigYBefore = rig.position.y;            // QA: 재배치 전 높이
+            // 시작 XZ·방향 SSOT = TryComputeSpawn() — 에디터 표식(QuayPartsPlacer.PlaceSpawnPawn)도 같은 식.
             if (!TryComputeSpawn(out Vector3 xz, out Vector3 faceDir, out bool hasLand, out Bounds land,
                                  out var marker, forceInsideQuay, quayEdgeInset, rig.forward))
-                return false;                             // 마커도 부두도 아직 없음 — 재시도(없으면 maxAttempts에서 포기).
+                return false;                             // 마커도 부두도 없음 — maxAttempts 까지 재시도
 
             // Y: 마커 값 무시, 걷는 면 윗면. 부두를 못 찾으면 레이캐스트→0 폴백.
             float floorY = hasLand ? land.max.y : ResolveFloorYRaycast(xz);
@@ -165,7 +164,7 @@ namespace AIXRCrane.Crane.Sts
 
             // QA 그룹 A(문서/QA_테스트시나리오.md) — 발 높이가 구조물 꼭대기 위가 아닌지.
             float structureTop = QuayStructureTopY();
-            bool flatQuay = (structureTop - floorY) < 0.1f;        // 레일/구조물이 없거나 낮은 평탄 부두 — 거대 가드 완화
+            bool flatQuay = (structureTop - floorY) < 0.1f;        // 평탄 부두 — 거대 가드 완화
             if (hasLand)
                 QaLog.Info("START", "surface",
                     $"chosen=land x({land.min.x:F2}..{land.max.x:F2}) z({land.min.z:F2}..{land.max.z:F2}) chosenMaxY={QaLog.F(floorY)} structureTopY={QaLog.F(structureTop)} giantGap={QaLog.F(structureTop - floorY)}");
@@ -234,14 +233,8 @@ namespace AIXRCrane.Crane.Sts
 
         static CranePlayerStartPoint FindMarker()
         {
-            // 비활성 객체까지 포함(꺼둔 마커도 인식). 타입으로 못 찾으면 이름("PlayerStartPoint")으로도 시도.
-            var marker = FindAnyObjectByType<CranePlayerStartPoint>(FindObjectsInactive.Include);
-            if (marker == null)
-            {
-                var byName = GameObject.Find(StsPartNames.PlayerStartPoint);
-                if (byName != null) marker = byName.GetComponent<CranePlayerStartPoint>();
-            }
-            return marker;
+            // 비활성 객체까지 포함(꺼둔 마커도 인식).
+            return FindAnyObjectByType<CranePlayerStartPoint>(FindObjectsInactive.Include);
         }
 
         // 걷는 땅 = 데크 아래로 1m 넘게 뻗고 짧은 변 ≥2m 인 렌더러 합집합(윗면 y=0).

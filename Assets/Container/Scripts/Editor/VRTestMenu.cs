@@ -57,8 +57,6 @@ namespace AIXRCrane.EditorTools
 
             string name = string.IsNullOrEmpty(suffix) ? "Container_Procedural" : "Container_Procedural_" + suffix;
             var go = BuildOne(PaletteRandom(), name, length);
-            var reset = go.GetComponent<CubeReset>();
-            if (reset != null) reset.SetHorizontalOffset(0f);
 
             Undo.RegisterCreatedObjectUndo(go, "Spawn Procedural");
             Selection.activeGameObject = go;
@@ -70,8 +68,7 @@ namespace AIXRCrane.EditorTools
         }
 
         // 분해형 컨테이너 빌더 — 파트 콜라이더는 끄고 루트 Rigidbody+XRGrabInteractable+단일 BoxCollider 로 동작.
-        // withReset:false 면 CubeReset 미부착(야드 고정 배치용).
-        public static GameObject BuildOne(Color bodyColor, string name, float length = -1f, bool withReset = true)
+        public static GameObject BuildOne(Color bodyColor, string name, float length)
         {
             // 1. 셰이더
             Shader litShader = Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Standard");
@@ -97,15 +94,13 @@ namespace AIXRCrane.EditorTools
                 marking  = MakeMat(litShader, new Color(0.88f, 0.88f, 0.86f), metallic: 0.0f, smoothness: 0.20f, suffix: "_Marking"),
             };
 
-            // 3. 분해형 계층(1/24, 바닥 피봇, X=길이). length 양수면 BuildKitSized, 아니면 20ft BuildKit.
-            GameObject root = length > 0f
-                ? ProceduralContainerMesh.BuildKitSized(length, ProceduralContainerMesh.StdWidth, ProceduralContainerMesh.HeightStd,
-                                                        mats, name, centerPivot: false, addColliders: false)
-                : ProceduralContainerMesh.BuildKit(mats, name, centerPivot: false, addColliders: false);
+            // 3. 분해형 계층(1/24, 바닥 피봇, X=길이).
+            GameObject root = ProceduralContainerMesh.BuildKitSized(length, ProceduralContainerMesh.StdWidth, ProceduralContainerMesh.HeightStd,
+                                                                    mats, name, centerPivot: false, addColliders: false);
 
             // 4. 루트 콜라이더 = 공칭 외형 단일 박스 — 돌출 하드웨어까지 넣으면 관통처럼 보인다.
             const float s = ProceduralContainerMesh.DefaultMiniatureScale;
-            float lenM = (length > 0f ? length : ProceduralContainerMesh.Length20ft) * s;  // X = 길이
+            float lenM = length * s;                                                        // X = 길이
             float widM = ProceduralContainerMesh.StdWidth  * s;                             // Z = 폭
             float hgtM = ProceduralContainerMesh.HeightStd * s;                             // Y = 높이
             var box = root.AddComponent<BoxCollider>();
@@ -118,7 +113,7 @@ namespace AIXRCrane.EditorTools
             // useDynamicAttach: 손이 닿은 지점이 그립 포인트(피봇 스냅 방지)
             var grab = root.AddComponent<XRGrabInteractable>();
             grab.useDynamicAttach = true;
-            if (withReset) root.AddComponent<CubeReset>();
+            root.AddComponent<CubeReset>();
 
             // 6. 적층 안정화(방식 A) — 컨테이너 한정(전역 물리 미변경).
             ContainerPhysics.Apply(rb, box);

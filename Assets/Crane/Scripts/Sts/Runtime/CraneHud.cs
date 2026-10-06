@@ -11,6 +11,7 @@ namespace AIXRCrane.Crane.Sts
         // 디자인 토큰(HUD 공용 시각 언어) — 패널 배경 알파·의미색을 한 곳에 모아 여러 HUD가 같은 언어를 쓰게 한다.
         //   ColorUtility.ToHtmlStringRGB(=Hex)로 rich-text 인라인 색에도 같은 값을 끌어쓴다.
         public const float PanelBgAlpha = 0.82f;   // 패널 배경 검정 알파 표준(예외: ArrowHUD는 배경 덜 가리려 더 투명)
+        public const string OverlayShader = "Container/CraneHudOverlay";   // HUD·라벨 오버레이(가림 무시) 셰이더
         public const float HudDistance = 0.85f;     // 모든 head-locked HUD의 표준 거리(z, m) — 거리감 통일(StatusHUD 기준)
 
         /// <summary>HUD 공용 의미색 — 등급색(ContainerLoad)·알람색(CraneFault)과 톤을 맞춰 한 제품으로 통일.</summary>
@@ -126,7 +127,7 @@ namespace AIXRCrane.Crane.Sts
         public static Material OverlayMaterial()
         {
             if (_overlayMat != null) return _overlayMat;
-            var sh = Shader.Find("Container/CraneHudOverlay");
+            var sh = Shader.Find(OverlayShader);
             if (sh != null)
             {
                 _overlayMat = new Material(sh) { name = "CraneHud_Overlay" };
@@ -235,6 +236,26 @@ namespace AIXRCrane.Crane.Sts
                 Quaternion.LookRotation(toCam.normalized, Vector3.up)
                 * Quaternion.Euler(0f, 180f, 0f)
                 * Quaternion.Euler(tiltPitch, tiltYaw, 0f);
+        }
+
+        /// <summary>캔버스를 카메라 자식으로 붙여 offset 에 두고 카메라를 향하게(head-locked) — 부착 시 1회.</summary>
+        public static void AttachHeadLocked(Transform canvas, Camera cam, Vector3 offset, float tiltPitch, float tiltYaw)
+        {
+            canvas.SetParent(cam.transform, worldPositionStays: false);
+            canvas.localPosition = offset;
+            FaceCameraChild(canvas, offset, tiltPitch, tiltYaw);
+        }
+
+        /// <summary>HUD 를 붙일 카메라 — 지정 > MainCamera > 스테레오(HMD) > TrackedPoseDriver > 첫 카메라. 없으면 null.</summary>
+        public static Camera HudCamera(Camera preferred)
+        {
+            if (preferred != null) return preferred;
+            if (Camera.main != null) return Camera.main;
+            foreach (var c in Camera.allCameras)
+                if (c != null && c.stereoEnabled) return c;
+            foreach (var c in Camera.allCameras)
+                if (c != null && c.GetComponent("TrackedPoseDriver") != null) return c;
+            return Camera.allCameras.Length > 0 ? Camera.allCameras[0] : null;
         }
 
         /// <summary>HUD 텍스트 갱신 주기(Hz) 공통값 — 매 프레임 문자열 생성/캔버스 리빌드 대신 이 빈도로 갱신.</summary>

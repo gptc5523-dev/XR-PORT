@@ -149,10 +149,9 @@ namespace AIXRCrane.Crane.Sts.Plc
                 Pos += Vel * dt;
                 Accel = a;
 
-                // 정착 스냅 — 잔여속도를 0으로 죽여 미세 떨림을 없앤다. 스냅이 만드는 인공 가속 스파이크가
-                // 트립 측정(CraneOpMode.StepAccel)을 오경보하지 않도록, 임계 vSnap = maxAccel×dt(정격 감속
-                // 1틱이 없앨 속도)로 잡아 스파이크를 정상 감속과 구별 불가능하게 한다 — 임계를 올리면 오경보 위험.
-                float vSnap = maxAccel * dt;   // 임의 리터럴로 바꾸지 말 것(축·dt별 자기일관)
+                // 정착 스냅 — 잔여속도 0으로 떨림 제거. 임계 vSnap=maxAccel×dt(정격 감속 1틱)라 스냅 스파이크가
+                // 정상 감속과 같아 CraneOpMode.StepAccel 오경보 없음 — ★ 임계를 올리면 오경보.
+                float vSnap = maxAccel * dt;   // 임의 리터럴 금지(축·dt별 자기일관)
                 float vNow = Vel < 0f ? -Vel : Vel;
                 float dNow = (Target - Pos) < 0f ? -(Target - Pos) : (Target - Pos);
                 if (dNow < 0.01f && vNow < vSnap) { Pos = Target; Vel = 0f; Accel = 0f; }

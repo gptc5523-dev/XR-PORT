@@ -12,11 +12,10 @@ namespace AIXRCrane.Crane.Sts
 
         Transform attached;
         Rigidbody attachedBody;
-        ContainerInstance attachedInstance;   // 잡은 컨테이너의 ID·등급 보유 컴포넌트(부두 배치 등 없을 수 있음).
         bool savedUseGravity;
         bool savedIsKinematic;
-        float attachedLoadKg;   // 잡은 컨테이너의 표시용 하중(kg). ContainerLoad 산출값 — 물리 mass와 분리.
-        string attachedDisplayId;   // 잡는 순간 확정되는 ISO6346 표시 번호(결정적). 안 잡았으면 null → HUD에 식별 미표시.
+        float attachedLoadKg;   // 표시용 하중(kg) — 물리 mass와 분리
+        string attachedDisplayId;   // 잡는 순간 확정되는 ISO6346 번호, 없으면 null
 
         public bool HasContainer => attached != null;
         public Transform AttachedContainer => attached;
@@ -46,7 +45,7 @@ namespace AIXRCrane.Crane.Sts
             attachedBody = container.GetComponent<Rigidbody>();
             // 표시용 하중: ContainerInstance 무게, 없으면 이름 해시로 결정적 산출.
             float tons = 0f;
-            attachedInstance = container.GetComponentInParent<ContainerInstance>();
+            var attachedInstance = container.GetComponentInParent<ContainerInstance>();   // 부두 배치 등 없을 수 있음
             if (attachedInstance != null) tons = attachedInstance.LoadTons;
             if (tons <= 0f) tons = ContainerLoad.WeightTons(container.name);
             attachedLoadKg = tons * 1000f;
@@ -82,7 +81,6 @@ namespace AIXRCrane.Crane.Sts
             var released = attached;
             attached = null;
             attachedBody = null;
-            attachedInstance = null;
             attachedLoadKg = 0f;
             attachedDisplayId = null;   // 놓으면 식별 미표시로 복귀
             return released;

@@ -160,7 +160,7 @@ namespace AIXRCrane.Ship
             for (int i = 0; i <= nB; i++)
             {
                 float z = Mathf.Lerp(zA + 6f, zB - 6f, (float)i / nB);
-                float hw = ProceduralShipHull.HalfBeam(z) - 0.8f;   // 사이드데크 안, 난간선(−0.15) 안쪽: 외측 −0.35
+                float hw = ProceduralShipHull.HalfBeam(z) - 0.8f;   // 난간선(−0.15) 안쪽
                 float dY = ProceduralShipHull.DeckY(z);
                 for (int s = -1; s <= 1; s += 2) Bollard(mb, new Vector3(s * hw, dY, z));
             }

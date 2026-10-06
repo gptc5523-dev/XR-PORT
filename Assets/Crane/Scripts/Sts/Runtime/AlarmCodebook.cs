@@ -17,6 +17,7 @@ namespace AIXRCrane.Crane.Sts
         public string en;         // 영문 약어
         public string scenario;   // MBE-DOC-2026-XR-004 시나리오 ID(빈 문자열=해당 없음)
         public string note;       // 비고(XR 비대상 사유 등)
+        public string part;       // 3D 부품 ID(CranePartId.Parts, 그룹 ID 가능). ""= 부품 없음(통신·로그인·기상 등)
 
         public FaultSeverity Severity => (FaultSeverity)Mathf.Clamp(sev, 0, 3);
 
@@ -88,6 +89,9 @@ namespace AIXRCrane.Crane.Sts
 
         /// <summary>코드북 정상 로드 여부 — fail-to-safe 게이트. false 면 호출부는 알람 오프라인 안전정지로.</summary>
         public static bool IsLoaded { get { EnsureLoaded(); return _loadOk; } }
+
+        /// <summary>전체 항목(로드 실패면 빈 배열).</summary>
+        public static AlarmEntry[] All { get { EnsureLoaded(); return _all; } }
 
         /// <summary>코드로 항목 조회. 없으면 null.</summary>
         public static AlarmEntry Get(int code)

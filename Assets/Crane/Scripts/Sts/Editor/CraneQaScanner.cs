@@ -18,7 +18,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
         static void Scan()
         {
             var crane = GameObject.Find(StsPartNames.StsCraneRoot);
-            if (crane == null) { Debug.LogWarning("[CraneQA] 씬에 'STS_Crane'이 없습니다."); return; }
+            if (crane == null) { Debug.LogWarning($"[CraneQA] 씬에 '{StsPartNames.StsCraneRoot}'이 없습니다."); return; }
 
             var rends = crane.GetComponentsInChildren<MeshRenderer>(false);
             int n = rends.Length;
@@ -62,7 +62,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
                     if (t[j].IsChildOf(t[i]) || t[i].IsChildOf(t[j])) continue;
                     if (bi.Intersects(b[j])) { near = true; break; }
                 }
-                if (!near) floating.Add($"{t[i].name}  @{Fmt(b[i].center)}  (최근접 이웃 > {FloatGap * 24f:F2}m)");
+                if (!near) floating.Add($"{t[i].name}  @{Fmt(b[i].center)}  (최근접 이웃 > {FloatGap * StsConfig.InvModelScale:F2}m)");
             }
 
             overlaps.Sort((a, c) => c.f.CompareTo(a.f));
@@ -74,7 +74,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             foreach (var o in overlaps) sb.AppendLine("  ⚠ " + o.s);
             sb.AppendLine($"\n■ 중복(같은 자리 이중생성) {dups.Count}건");
             foreach (var o in dups) sb.AppendLine("  ✖ " + o.s);
-            sb.AppendLine($"\n■ 부양(주변 {FloatGap * 24f:F2}m 내 이웃 0 → 떠있음) {floating.Count}건");
+            sb.AppendLine($"\n■ 부양(주변 {FloatGap * StsConfig.InvModelScale:F2}m 내 이웃 0 → 떠있음) {floating.Count}건");
             foreach (var f in floating) sb.AppendLine("  ○ " + f);
             sb.AppendLine("\n※ 겹침/부양은 휴리스틱 — 리스트를 근거로 사람이 판정·수정. 좌표는 월드(실척은 ×24 아님, 모델u).");
 

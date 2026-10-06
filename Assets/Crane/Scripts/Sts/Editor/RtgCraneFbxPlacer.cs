@@ -13,7 +13,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
         const string Fbx       = "Assets/Crane/Models/RTG_Crane.fbx";
         const string MatDir    = "Assets/Crane/Materials/RTG";
         const string CraneName = StsPartNames.RtgCraneRoot;
-        const float  RealCraneHeightM = 25.042f;  // Blender 실측 RTG 총높이(m). 목표 크기 = ×ModelScale(1/24)로 절차 크레인과 동일.
+        const float  RealCraneHeightM = 25.042f;  // Blender 실측 RTG 총높이(실척 m)
 
         // name, r, g, b, metallic, smoothness(=1-rough), alpha(<1 투명), emis(0=없음) — Blender Principled 실측값
         //   발광색 = BaseColor × emis (RTG_Lens 는 Emission Color = Base Color 라 일치).
@@ -106,8 +106,8 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             // 스케일 목표 = 실척 높이 × ModelScale → 절차생성 RTG 와 같은 크기.
             //   FBX 가 cm 단위로 임포트되므로 목표/실측 비율로 보정한다.
             go.transform.localScale = Vector3.one;
-            float fbxH = CombinedBounds(go).size.y;
-            float target = RealCraneHeightM * StsConfig.ModelScale;   // 25.76 × 1/24 ≈ 1.073
+            float fbxH = SceneUtil.BoundsOrPoint(go).size.y;
+            float target = RealCraneHeightM * StsConfig.ModelScale;
             float s = fbxH > 1e-4f ? target / fbxH : 1f;
             go.transform.localScale = Vector3.one * s;
             Debug.Log($"[RTG] 스케일 결정 — 목표 {target:F3}(실척 {RealCraneHeightM}m × 1/24) / FBX측정 {fbxH:F3} → localScale {s:F4}");
@@ -137,7 +137,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
                 var gm = go.GetComponent<GantryMover>();
                 if (gm != null)
                 {
-                    float craneZ = CombinedBounds(go).size.z;
+                    float craneZ = SceneUtil.BoundsOrPoint(go).size.z;
                     float half   = Mathf.Max(0.1f, (zone.bounds.size.z - craneZ) * 0.5f);
                     float z0     = go.transform.localPosition.z;   // 루트는 무부모 → 로컬 Z = 월드 Z
                     gm.Configure(z0 - half, z0 + half);
@@ -162,33 +162,19 @@ namespace AIXRCrane.Crane.Sts.EditorTools
                          .OrderBy(r => Mathf.Abs(r.bounds.center.x)).FirstOrDefault();
         }
 
-        // 하위 모든 렌더러를 감싸는 월드 바운즈(현재 스케일 반영).
-        internal static Bounds CombinedBounds(GameObject g)
-        {
-            var rs = g.GetComponentsInChildren<Renderer>();
-            if (rs.Length == 0) return new Bounds(g.transform.position, Vector3.zero);
-            var b = rs[0].bounds;
-            for (int i = 1; i < rs.Length; i++) b.Encapsulate(rs[i].bounds);
-            return b;
-        }
-
         // ── 지면(Quay_Ground) 윗면 중심 위치 — 없으면 가장 넓은 평평 렌더러, 그마저 없으면 씬뷰 XZ·Y0 ──
         static Vector3 GroundPosition()
         {
-            // 면적 최대 휴리스틱만 쓰면 바다가 아스팔트보다 넓어 뽑혀 RTG가 수면 위에 놓인다 — 바다는 제외.
-            //   수면(StsConfig.SeaLevelY)은 데크 아래라 Y도 어긋난다.
-            Renderer best = null;   // 걷는 면 헬퍼 없음 — 아래 면적 최대 휴리스틱으로 폴백
-            if (best == null)
+            // 면적 최대 휴리스틱만 쓰면 바다가 뽑혀 RTG 가 수면(데크 아래) 위에 놓인다 — 바다는 제외.
+            Renderer best = null;
+            float bestArea = 0f;
+            foreach (var r in Object.FindObjectsByType<Renderer>())
             {
-                float bestArea = 0f;
-                foreach (var r in Object.FindObjectsByType<Renderer>())
-                {
-                    if (StsPartNames.IsSeaName(r.gameObject.name)) continue;
-                    var s = r.bounds.size;
-                    if (s.y > Mathf.Max(s.x, s.z) * 0.25f) continue;   // 평평한 지면만
-                    float area = s.x * s.z;
-                    if (area > bestArea) { bestArea = area; best = r; }
-                }
+                if (StsPartNames.IsNotGroundName(r.gameObject.name)) continue;
+                var s = r.bounds.size;
+                if (s.y > Mathf.Max(s.x, s.z) * 0.25f) continue;   // 평평한 지면만
+                float area = s.x * s.z;
+                if (area > bestArea) { bestArea = area; best = r; }
             }
             if (best != null)
                 return new Vector3(best.bounds.center.x, best.bounds.max.y, best.bounds.center.z);

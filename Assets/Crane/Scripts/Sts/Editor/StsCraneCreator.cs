@@ -77,8 +77,8 @@ namespace AIXRCrane.Crane.Sts.EditorTools
         // [인양점 SSOT] 호이스트(헤드/시브/데드엔드/로프/헤드블록 소켓)를 한 상수로 묶어 양끝 정렬(gap=0 by construction).
         //   +X=항구(바다). 트롤리를 실척 ≈7m로 키운 뒤(Option C) 스프레더가 운전실 앞 빈 베이 중앙에 오도록 +X 이동.
         const float HoistX    = 0.027f;   // 인양점 항구쪽 이동 = (운전실전면 −0.062 + 트롤리바다끝 +0.115)/2 ≈ +0.027(≈0.65m)
-        const float HoistSprX = 0.05f;    // 호이스트 폴 X 반간격(트롤리/parent) — 4가닥 분리(기존 0.03)
-        const float HoistSprZ = 0.075f;   // 호이스트 폴 Z 반간격(트롤리/parent) — (기존 0.05)
+        const float HoistSprX = 0.05f;    // 호이스트 폴 X 반간격(트롤리/parent) — 4가닥 분리
+        const float HoistSprZ = 0.075f;   // 호이스트 폴 Z 반간격(트롤리/parent)
 
         // [트롤리 본체 치수 SSOT] Option C 기계실 통합 박스. 여러 메서드(본체/프레임/붐로프 앵커)가 공유.
         const float TrolleyHX = 0.145f;   // 본체 반길이 X: full 0.29 = 실척 6.96m ≈7m
@@ -137,13 +137,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             if (groundGo != null)
             {
                 // 부두 절차 생성기가 없어 걷는 면 조회 헬퍼가 없다 — 부두 FBX 루트 바운즈 중심 Z를 쓴다.
-                var rs = groundGo.GetComponentsInChildren<Renderer>();
-                if (rs.Length > 0)
-                {
-                    var b = rs[0].bounds;
-                    for (int i = 1; i < rs.Length; i++) b.Encapsulate(rs[i].bounds);
-                    centerZ = b.center.z;
-                }
+                if (SceneUtil.TryBounds(groundGo.transform, out var b)) centerZ = b.center.z;
             }
 
             // 기존 STS 전부 제거(2대 새로 배치)
@@ -332,6 +326,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             root.AddComponent<SpreaderGrabber>();
 
             PruneDeletedParts(root.transform);   // 삭제 지정 파츠 일괄 제거(번호 유지)
+            CranePartId.Stamp(root.transform);   // PLC ↔ 3D 부품 ID — 번호가 아니라 위치로 붙인다(생성 순서 무관)
 
             _matCache = null;
             _steelTex = null;   // 텍스처는 머티리얼이 참조 유지 → 캐시 핸들만 해제
@@ -384,7 +379,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
                         var wheelC = new Color(0.05f, 0.05f, 0.06f);
                         // 4륜 오프셋 {-1.5,-0.5,+0.5,+1.5}×p — 트레드 지름 0.026·플랜지 지름 0.0299 < 피치 0.032라 비간섭.
                         const float p  = StsConfig.BogieEqualizerPitch;   // [H2] 보기 4륜 균등 피치 SSOT
-                        float bz = StsConfig.BogieLengthZ;                // [H2] 보기 전장(Z) SSOT (= p × 3.25 ≈ 0.104, 4륜 스팬 0.096 + 마진)
+                        float bz = StsConfig.BogieLengthZ;                // [H2] 보기 전장(Z) SSOT
                         // 메인 이퀄라이저 빔(다리 하단 중앙 피벗으로 매달림) + 피벗 핀(축 X)
                         Box(root, "Bogie_Equalizer", new Vector3(x, by, z),
                             new Vector3(LegSec * 0.5f, 0.014f, bz), CStruct);
@@ -1007,7 +1002,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
                 {
                     Strut(root, "Aframe",
                         new Vector3(apex.x, apex.y, s * apexHalfZ),
-                        new Vector3(lx, LegTopY, s * halfZ), 0.016f, CStruct);   // 0.012→0.016: 지름 0.58→0.77m(현장 0.8~1.2 하한대). 라싱·가새·스테이는 정상이라 유지.
+                        new Vector3(lx, LegTopY, s * halfZ), 0.016f, CStruct);   // 지름 실척 ≈0.77m(현장 0.8~1.2m 하한대)
                 }
             }
 
@@ -1157,24 +1152,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
                 fsBar.Add(bar.transform);
             }
             fsHost.AddComponent<BoomHoistRig>().Configure(fsApex.ToArray(), fsBoom.ToArray(), fsBar.ToArray(), 0.012f);   // 반경 0.012u(≈0.29m)
-            // 정상 후방 연장(아웃리거) 보류(사용자 요청) — A-프레임을 높여(ApexH↑) 정상 시브 하우스에서 바로 내려도 기계실 위를 넘으므로 불필요. 복구하려면 블록주석 제거
-            /*
-            float backMastX = apex.x - 0.22f;
-            float bmY = apex.y - 0.005f;
-            Box(root, "Apex_BackBeam", new Vector3(backMastX, bmY, 0f),
-                new Vector3(0.016f, 0.016f, 2f * GirderGapZ), CStruct);
-            for (int s = -1; s <= 1; s += 2)
-            {
-                float armZ = s * GirderGapZ;
-                Strut(root, "Apex_BackArm", new Vector3(apex.x, apex.y, armZ),
-                    new Vector3(backMastX, bmY, armZ), 0.009f, CStruct);
-                Strut(root, "Apex_BackBrace", new Vector3(backMastX, bmY, armZ),
-                    new Vector3(apex.x, apex.y - 0.09f, armZ), 0.006f, CStruct);
-                Rod(root, "Apex_BackSheave",
-                    new Vector3(backMastX, bmY, armZ - 0.014f),
-                    new Vector3(backMastX, bmY, armZ + 0.014f), 0.013f, CDark);
-            }
-            */
+            // 비활성: 정상 후방 아웃리거 — ApexH↑로 백스테이가 기계실을 넘어 불필요. git 이력 참조
 
             // 백스테이 — 정상 시브 하우스(z=±GirderGapZ)에서 거더 맨뒤(이퀄라이저 빔)로 가는 '주 백스테이'. 짧은 앞 줄은 A-프레임과 겹쳐 제외.
             // [백스테이 = 굵은 강성 타이바] 앞(포어스테이)과 대칭, 양끝 고정(정적) — 정점 끝은 시브 아닌 크로스헤드에 핀.
@@ -1208,11 +1186,11 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             //   +X=바다, −X=육지. 인양점(헤드/시브)은 스프레더 직상 X=HoistX, 본체 중심은 육지쪽으로 TrolleyCX 이동 → 육지절반이 캐빈 통합부.
             float tZ = 0.24f;   // nested 본체 폭(z±0.12 = 바퀴·다운레그와 일치, < 갭/2=0.1325)
             PbBox(trolley, "Trolley_Body", new Vector3(TrolleyCX, -0.025f, 0f),
-                new Vector3(2f * TrolleyHX, 0.05f, tZ), CTrolley, bevel: 0.05f);
+                new Vector3(2f * TrolleyHX, 0.05f, tZ), CTrolley);
             BuildTrolleyBodyFrame(trolley, TrolleyHX, TrolleyCX);   // 1) 본체 프레임화(확장 치수 전달)
             // 헤드(로프 인양점) — 인양점 X=HoistX(항구쪽 이동), 스프레더 직상
             PbBox(trolley, StsPartNames.TrolleyHead, new Vector3(HoistX, -0.06f, 0f),
-                new Vector3(0.07f, 0.025f, tZ * 0.85f), CDark, bevel: 0.2f);
+                new Vector3(0.07f, 0.025f, tZ * 0.85f), CDark);
             // [rail-in-middle] 주행 보기 — 긴 본체 양 끝 근처 2스테이션 × 좌우 레일(Z=±railZ). 레일 위 트레드 접지(중심 0.037).
             //   8륜(2스테이션×2륜×2레일)으로 긴 박스 하중 분산. 다운레그는 레일 안쪽 z=0.10(레일 z=0.12 회피).
             float railZ = GirderGapZ - GirderWidthZ * 0.5f - 0.0125f;   // ≈0.12, 붐 레일·본체와 동일
@@ -1260,7 +1238,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             // 트롤리 양끝 완충 버퍼(적색) — 본체 끝면(TrolleyCX±TrolleyHX)에서 4mm 돌출.
             for (int sx = -1; sx <= 1; sx += 2)
                 PbBox(trolley, "Trolley_Bumper", new Vector3(TrolleyCX + sx * (TrolleyHX + 0.004f), -0.01f, 0f),
-                    new Vector3(0.008f, 0.014f, 0.04f), CWarn, bevel: 0.3f);
+                    new Vector3(0.008f, 0.014f, 0.04f), CWarn);
 
             // 호이스트 윗구간(뒷면→백리치 앵커)은 BuildHoistUpper에서 동적(TrolleyReevingRig)으로 생성.
         }
@@ -1316,21 +1294,20 @@ namespace AIXRCrane.Crane.Sts.EditorTools
 
         // 통짜 강철 셸(CSG, 리플렉션 호출) — ProBuilder CSG/Model이 internal이라 리플렉션으로 Subtract 호출.
         //   임시 큐브를 cab-local 좌표로 빼서(CreatePrimitive) 결과 메시를 cab 자식으로 SetParent(false)해 정위치.
-        static System.Type _csgT;
         static System.Reflection.MethodInfo _csgSub, _csgToMesh;
         static bool _csgResolved, _csgOk;
         static void ResolveCsg()
         {
             if (_csgResolved) return; _csgResolved = true;
-            _csgT = System.Type.GetType("UnityEngine.ProBuilder.Csg.CSG, Unity.ProBuilder.Csg");
+            var csgT = System.Type.GetType("UnityEngine.ProBuilder.Csg.CSG, Unity.ProBuilder.Csg");
             var modelT = System.Type.GetType("UnityEngine.ProBuilder.Csg.Model, Unity.ProBuilder.Csg");
-            if (_csgT == null || modelT == null) return;
+            if (csgT == null || modelT == null) return;
             var bf = System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static;
-            _csgSub = _csgT.GetMethod("Subtract", bf, null, new[] { typeof(GameObject), typeof(GameObject) }, null);
+            _csgSub = csgT.GetMethod("Subtract", bf, null, new[] { typeof(GameObject), typeof(GameObject) }, null);
             foreach (var m in modelT.GetMethods(bf))
                 if (m.Name == "op_Explicit" && m.ReturnType == typeof(Mesh)) { _csgToMesh = m; break; }
             _csgOk = _csgSub != null && _csgToMesh != null;
-            Debug.Log($"[OperatorCab][진단] CSG 리플렉션 해석 — csgType={_csgT != null}, modelType={modelT != null}, Subtract={_csgSub != null}, op_Explicit→Mesh={_csgToMesh != null} ⇒ csgOk={_csgOk}");
+            if (!_csgOk) Debug.LogWarning($"[OperatorCab] CSG 리플렉션 해석 실패 — Subtract={_csgSub != null}, op_Explicit→Mesh={_csgToMesh != null}");
         }
 
         static GameObject CabCsgShell(Transform cab, Vector3 outerC, Vector3 outerS,
@@ -1372,9 +1349,9 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             // 메시 닫힘검사(수학적) — 정점 용접 후 삼각형 1개에만 속한 에지(경계/구멍) 수. watertight면 0.
             //   >0이면 CSG가 면 빠짐/뒤집힘(see-through) → temps 정리 후 throw → watertight 패널 셸로 폴백.
             int boundaryEdges = CountBoundaryEdges(shellMesh);
-            Debug.Log($"[OperatorCab][진단] Cab_Shell 닫힘검사 — verts={shellMesh.vertexCount}, tris={shellMesh.triangles.Length / 3}, boundaryEdges={boundaryEdges} (0이어야 watertight), bounds={shellMesh.bounds.size}");
             if (boundaryEdges > 0)
             {
+                Debug.Log($"[OperatorCab] Cab_Shell 닫힘검사 실패 — verts={shellMesh.vertexCount}, tris={shellMesh.triangles.Length / 3}, boundaryEdges={boundaryEdges}(0이어야 watertight)");
                 foreach (var t in temps) if (t != null) Object.DestroyImmediate(t);
                 throw new System.Exception($"CSG 셸 열림(구멍 {boundaryEdges}개) → watertight 패널 셸로 폴백");
             }
@@ -1485,7 +1462,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
         {
             // 육지쪽 매달림 — 운전실은 스프레더의 '육지쪽(−X)'에 있고 운전자가 '바다쪽(+X=배)'의 화물을 내려다본다.
             //   홀더 회전 identity(캡 Z대칭이라 180°Y와 동일 실루엣) + 평행이동 −0.018로 배치.
-            Transform cab = new GameObject("OperatorCab").transform;
+            Transform cab = new GameObject(StsPartNames.OperatorCab).transform;
             cab.SetParent(trolley, false);
             cab.localRotation = Quaternion.identity;
             // 클리어런스 평행이동도 거울 반전: 스프레더 헤드블록(±0.045)·플랜지(±0.054)와 X그림자 겹침 회피를
@@ -1669,7 +1646,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
 
         // 스프레더 — 중앙 고정부(항상 20ft) + 좌/우 텔레스코픽 암(끝빔 + 트위스트락).
         // spreaderHalf(반길이)로 암 위치를 정함: 20ft=중앙 끝에 밀착, 40ft=바깥으로 신장(텔레스코핑 빔이 연결).
-        static void BuildSpreaderVisual(Transform spreader, float spreaderHalf, bool includeHead = true)
+        static void BuildSpreaderVisual(Transform spreader, float spreaderHalf)
         {
             // 컨테이너 긴 축이 안벽/주행 방향(Z)을 향하도록 스프레더 전체를 90° 회전
             // (부속은 긴 축=로컬 X로 배치 → Y축 90° 회전으로 월드 Z가 긴 축이 됨)
@@ -1686,9 +1663,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
                 Box(spreader, "Beam_Flange", new Vector3(0f, sy * FlangeCenterY, 0f),
                     new Vector3(hl0 * 2f, FlangeThick, hw * 2f + 0.008f), CSpread);
 
-            // 헤드블록 — includeHead=false(예: RTG)면 외부가 자체 헤드블록을 얹으므로 생략
-            if (includeHead)
-            {
+            // 헤드블록
             float hbY = 0.058f;
             for (int sx = -1; sx <= 1; sx += 2)
             for (int sz = -1; sz <= 1; sz += 2)
@@ -1713,7 +1688,6 @@ namespace AIXRCrane.Crane.Sts.EditorTools
                 Rod(spreader, "Head_Rope_Pin",                    // 클레비스 핀(베이스 관통, 양옆 돌출)
                     sk + new Vector3(0f, 0.001f, -0.011f), sk + new Vector3(0f, 0.001f, 0.011f), 0.0022f, CDark);
             }
-            }   // if (includeHead)
 
             // 부속(중앙) — 파워팩/정션박스/작업등
             Vector3[] ppTips = PowerPack(spreader, "Spreader_PowerPack", new Vector3(0.07f, 0.022f, 0f),
@@ -1960,8 +1934,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             float restBotY = SpreaderRestY + attachOffsetY;
 
             var ropes = new List<Transform>();
-            var topAnchors = new List<Vector2>();
-            var botAnchors = new List<Vector2>();
+            var anchors = new List<Vector2>();   // 상·하 정착점이 같은 XZ(수직 로프)
             for (int sx = -1; sx <= 1; sx += 2)
             for (int sz = -1; sz <= 1; sz += 2)
             {
@@ -1970,13 +1943,12 @@ namespace AIXRCrane.Crane.Sts.EditorTools
                 var rope = Rod(spreaderRoot, "Hoist_Rope",
                     new Vector3(x, topY, z), new Vector3(x, restBotY, z), radius, CCable);
                 ropes.Add(rope.transform);
-                topAnchors.Add(new Vector2(x, z));
-                botAnchors.Add(new Vector2(x, z));
+                anchors.Add(new Vector2(x, z));
             }
             // 매 프레임 트롤리↔스프레더 사이로 로프 신축(상≠하 각진 리빙)
             var rig = spreaderRoot.gameObject.AddComponent<HoistRopeRig>();
             rig.Configure(spreader, topY, attachOffsetY, ropes.ToArray(),
-                          topAnchors.ToArray(), botAnchors.ToArray(), radius);
+                          anchors.ToArray(), anchors.ToArray(), radius);
         }
 
         // 호이스트 윗구간(트롤리 뒷면 → 백리치 고정 앵커) — 동적.
@@ -2156,9 +2128,8 @@ namespace AIXRCrane.Crane.Sts.EditorTools
                     new Vector3(MachineryHouseX - 0.065f, 0.085f, sz + 0.028f), 0.014f, CMachine);            // 권상 드럼(기계실 내부)
 
                 // side당 1가닥(총 2) — 윗구간은 드럼 로프라 양정 4-fall과 별개. 트롤리 → 시브 → 기계실 → 드럼
-                foreach (float pole in new[] { 0f })
                 {
-                    float zp = sz + pole;
+                    float zp = sz;
                     Vector3 C    = new Vector3(BackSheaveX, BackSheaveY, zp);
                     Vector3 Pm   = new Vector3(entryX - 0.012f, entryY, zp);
                     Vector3 drum = new Vector3(MachineryHouseX - 0.02f, 0.085f, zp);
@@ -2613,44 +2584,9 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             }
 
 
-            // 갠트리 페스툰 트랙 숨김(사용자 요청) — 복구하려면 주석 해제
-            // float gfZ = -(GaugeZ * 0.5f);
-            // Box(root, "Gantry_Festoon_Track",
-            //     new Vector3((LandLegX + WaterLegX) * 0.5f, 0.088f, gfZ),
-            //     new Vector3(LegSpanX, 0.004f, 0.004f), CDark);
+            // 비활성: 갠트리 페스툰 트랙(사용자 요청 숨김) — git 이력 참조
 
-            // 포털 상단 점검 캣워크 — 사용자 요청으로 제거(Access_Platform / Platform_Rail / RailMid / Toe / Post
-            // + 받침 브래킷 Platform_Bracket). 복구하려면 아래 /* */ 만 지우면 됨.
-            /*
-            float apY = RailH - 0.09f;          // 데크 높이
-            float apHZ = GaugeZ * 0.5f;         // 다리 위치(±)까지
-            float apW = 0.05f;                  // 통로 폭(X)
-            Box(root, "Access_Platform", new Vector3(LandLegX, apY, 0f),
-                new Vector3(apW, 0.004f, apHZ * 2f), CMachine);
-            // 다리에 받침 브래킷(떠 있지 않게) — 양 끝
-            for (int s = -1; s <= 1; s += 2)
-                Strut(root, "Platform_Bracket",
-                    new Vector3(LandLegX, apY - 0.045f, s * apHZ),
-                    new Vector3(LandLegX, apY - 0.002f, s * apHZ * 0.55f), 0.006f, CStruct);
-            // 난간 — 긴 옆면(±X) 양쪽: 상단+중간 레일 + 토보드 + 기둥
-            for (int sx = -1; sx <= 1; sx += 2)
-            {
-                float rx = LandLegX + sx * apW * 0.5f;
-                Box(root, "Platform_Rail", new Vector3(rx, apY + 0.032f, 0f),
-                    new Vector3(0.004f, 0.004f, apHZ * 2f), CSafety);
-                Box(root, "Platform_RailMid", new Vector3(rx, apY + 0.017f, 0f),
-                    new Vector3(0.003f, 0.003f, apHZ * 2f), CSafety);
-                Box(root, "Platform_Toe", new Vector3(rx, apY + 0.006f, 0f),
-                    new Vector3(0.003f, 0.008f, apHZ * 2f), CSafety);
-                int np = 6;
-                for (int i = 0; i <= np; i++)
-                {
-                    float pz = Mathf.Lerp(-apHZ, apHZ, i / (float)np);
-                    Box(root, "Platform_Post", new Vector3(rx, apY + 0.017f, pz),
-                        new Vector3(0.004f, 0.034f, 0.004f), CSafety);
-                }
-            }
-            */
+            // 비활성: 포털 상단 점검 캣워크(Access_Platform 등, 사용자 요청 제거) — git 이력 참조
         }
 
         // 사다리 정상 ↔ 기계실 접근 캣워크 + 기계실 +Z(사다리쪽) 출입문(붐 로컬).
@@ -2783,7 +2719,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
                 Box(parent, "Ladder_Stile", new Vector3(x + s * widthX * 0.5f, midY, z),
                     new Vector3(0.004f, h, 0.004f), CSafety);
             }
-            int rungs = Mathf.Max(2, Mathf.RoundToInt(h / 0.0125f));   // 가로대 간격 실척 0.3m(표준) — 기존 0.04=실척 0.96m라 못 올라감
+            int rungs = Mathf.Max(2, Mathf.RoundToInt(h / 0.0125f));   // 가로대 간격 실척 0.3m(표준)
             for (int i = 0; i <= rungs; i++)
             {
                 float ry = Mathf.Lerp(y0, y1, i / (float)rungs);
@@ -3695,7 +3631,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
 
         // ProBuilder 편집형 박스 — CreatePrimitive 대신 ProBuilder 메시로 생성해 디자이너가 바로 다듬을 수 있다.
         //   euler 주면 회전. 콜라이더는 시각 전용으로 제거(기존 부품과 통일).
-        static GameObject PbBox(Transform parent, string name, Vector3 localPos, Vector3 size, Color color, Vector3 euler = default, float bevel = 0f)
+        static GameObject PbBox(Transform parent, string name, Vector3 localPos, Vector3 size, Color color, Vector3 euler = default)
         {
             var pb = UnityEngine.ProBuilder.ShapeGenerator.GenerateCube(UnityEngine.ProBuilder.PivotLocation.Center, size);
             pb.name = Numbered(name);
@@ -3703,8 +3639,6 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             pb.transform.localPosition = localPos;
             if (euler != Vector3.zero) pb.transform.localRotation = Quaternion.Euler(euler);
             // 베벨 비활성 — 전 모서리 일괄 베벨은 blind로 자기교차해 메시가 산산조각 난다.
-            //   bevel 인자는 호출부 호환 위해 유지하되 무시 — 베벨은 디자이너가 ProBuilder 에디터에서 한다.
-            _ = bevel;
             pb.ToMesh();
             pb.Refresh();
             var mr = pb.GetComponent<MeshRenderer>();
@@ -4069,10 +4003,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
         static bool TryBoomLocalMinX(Transform c, Transform boom, out float localMinX)
         {
             localMinX = 0f;
-            var rends = c.GetComponentsInChildren<Renderer>(true);
-            if (rends == null || rends.Length == 0) return false;
-            Bounds b = rends[0].bounds;
-            for (int i = 1; i < rends.Length; i++) b.Encapsulate(rends[i].bounds);
+            if (!SceneUtil.TryBounds(c, out var b, true)) return false;
             localMinX = b.min.x - boom.position.x;
             return true;
         }

@@ -28,8 +28,6 @@ namespace AIXRCrane.Crane.Sts
         [SerializeField] float trolleyAccelLimit = CraneAxisProfile.TrolleyAccelTrip;
         [Tooltip("권상(호이스트) 가속 트립 한계. SSOT=CraneAxisProfile.HoistAccelTrip (= 정격 0.50 × k 1.667 = 0.833). 정격 가속 ~0.5 m/s².")]
         [SerializeField] float hoistAccelLimit = CraneAxisProfile.HoistAccelTrip;
-        [Tooltip("가속도 EMA 평활 계수(0~1). 위치 2차 미분의 프레임 노이즈를 누르려 작게. 클수록 즉답·노이즈↑. ※표시(HUD)용만 — 트립 판정엔 raw값 사용.")]
-        [SerializeField, Range(0.05f, 1f)] float accelSmoothing = 0.2f;
 
         // 트립은 raw 가속도로 판정(EMA는 피크를 깎아 누락), 히스테리시스+디바운스로 채터링 차단.
         [Tooltip("트립 발동 디바운스 — 한계 초과가 이 틱 수만큼 '연속'돼야 알람(짧은 노이즈 1틱 스파이크 무시). 물리틱(기본 50Hz) 기준. SSOT=CraneAxisProfile.AccelTripSetN.")]
@@ -47,7 +45,6 @@ namespace AIXRCrane.Crane.Sts
         // 가속도 추적은 FixedUpdate에서 — 고정 dt라 2차 미분 노이즈가 작다.
         float fpG, fpT, fpH;     // 직전 FixedUpdate 축 위치(모델 units)
         float vG, vT, vH;        // 직전 실척 속도(m/s)
-        float aG, aT, aH;        // 평활된 실척 가속도 크기(m/s²) — 표시용(HUD)
         bool fPrimed;            // 가속 추적 첫 틱 완료
 
         // 축별 트립 상태머신(raw 가속도 기준). trip=현재 트립, over=연속 초과 틱, under=연속 복귀 틱.
@@ -62,29 +59,16 @@ namespace AIXRCrane.Crane.Sts
         /// 직접조종은 가감속 램프가 없어 오경보라 기본 false.</summary>
         public bool PlcDriven { get; set; }
 
-        /// <summary>축별 현재 가속도 크기(실척 m/s², EMA 평활) — HUD 표시용.</summary>
-        public float GantryAccel  => aG;
-        public float TrolleyAccel => aT;
-        public float HoistAccel   => aH;
-        public float GantryAccelLimit  => gantryAccelLimit;
-        public float TrolleyAccelLimit => trolleyAccelLimit;
-        public float HoistAccelLimit   => hoistAccelLimit;
-
         /// <summary>축별 가속도 트립(디바운스·히스테리시스 적용) — CraneFault 가속 알람(1021/2021/3021) 입력.</summary>
         public bool GantryAccelTripped  => tripG;
         public bool TrolleyAccelTripped => tripT;
         public bool HoistAccelTripped   => tripH;
 
         /// <summary>축 3개 중 하나라도 runCoast 이내에 움직였는지(=운전 중).</summary>
-        public bool IsMoving => Time.unscaledTime - lastMoveTime < runCoast;
+        bool IsMoving => Time.unscaledTime - lastMoveTime < runCoast;
 
-        /// <summary>알람 시스템(코드북) 오프라인 여부 — fail-to-safe 게이트.
-        /// true면 알람 정의를 신뢰할 수 없어 운영상태를 Fault로 강제하고 autoStop.</summary>
-        public bool AlarmSystemOffline => !AlarmCodebook.IsLoaded;
-
-        /// <summary>PLC 자동정지(autoStop) 필요 여부 — 현재 활성 알람의 AutoStop 플래그.
-        /// 코드북 미로드 시엔 비상 FaultDef(AutoStop=true)라 자동 true(안전측 실패).</summary>
-        public bool ShouldAutoStop => CraneFault.Evaluate(crane).AutoStop;
+        /// <summary>알람 시스템(코드북) 오프라인 — fail-to-safe: true면 운영상태 Fault 강제 + autoStop.</summary>
+        bool AlarmSystemOffline => !AlarmCodebook.IsLoaded;
 
         /// <summary>현재 운영상태(자체 판정). PLC 연동 시 이 getter만 교체.</summary>
         public OpMode Current
@@ -119,7 +103,7 @@ namespace AIXRCrane.Crane.Sts
         {
             float dt = Time.fixedDeltaTime;
             if (dt <= 1e-6f || crane == null) return;
-            float toReal = crane.ModelScale > 1e-9f ? 1f / crane.ModelScale : StsConfig.InvModelScale;   // 모델 units → 실척 m (=×24). 폴백 24f=1/ModelScale, SSOT.
+            float toReal = crane.ModelScale > 1e-9f ? 1f / crane.ModelScale : StsConfig.InvModelScale;   // 모델 units → 실척 m
 
             float g = crane.Gantry  != null ? crane.Gantry.Current  : 0f;
             float t = crane.Trolley != null ? crane.Trolley.Current : 0f;
@@ -131,9 +115,9 @@ namespace AIXRCrane.Crane.Sts
 
             if (fPrimed && accelWarmup == 0)
             {
-                StepAccel(g, fpG, ref vG, ref aG, ref tripG, ref overG, ref underG, gantryAccelLimit,  dt, rG);
-                StepAccel(t, fpT, ref vT, ref aT, ref tripT, ref overT, ref underT, trolleyAccelLimit, dt, rT);
-                StepAccel(h, fpH, ref vH, ref aH, ref tripH, ref overH, ref underH, hoistAccelLimit,   dt, rH);
+                StepAccel(g, fpG, ref vG, ref tripG, ref overG, ref underG, gantryAccelLimit,  dt, rG);
+                StepAccel(t, fpT, ref vT, ref tripT, ref overT, ref underT, trolleyAccelLimit, dt, rT);
+                StepAccel(h, fpH, ref vH, ref tripH, ref overH, ref underH, hoistAccelLimit,   dt, rH);
             }
             else if (fPrimed)
             {
@@ -150,14 +134,13 @@ namespace AIXRCrane.Crane.Sts
         /// <summary>가속 추적 재프라임 — CSV 되감기 등 위치 불연속의 인공 스파이크 방지(PlcBridge 호출).</summary>
         public void ResetAccelTracking() => accelWarmup = 2;
 
-        // 위치(모델 units) → 실척 속도(m/s) → 가속도(m/s², 절대값 — 증·감속 모두 한계 대상). prev는 읽기 전용.
-        // 표시값(aSmooth)은 EMA로 평활하되 트립 판정(trip)은 raw aNow로 — EMA가 피크를 깎아 트립 누락 방지.
-        void StepAccel(float cur, float prev, ref float vPrev, ref float aSmooth,
+        // 위치(모델 units) → 실척 속도(m/s) → |가속도|(m/s²). prev는 읽기 전용.
+        // 트립 판정은 raw aNow — 평활하면 피크가 깎여 트립을 놓친다.
+        void StepAccel(float cur, float prev, ref float vPrev,
                        ref bool trip, ref int over, ref int under, float limit, float dt, float toReal)
         {
             float vNow = (cur - prev) * toReal / dt;          // 실척 m/s (부호 유지 — 가속/감속 방향)
             float aNow = Mathf.Abs(vNow - vPrev) / dt;        // 실척 m/s² (raw, 피크 보존)
-            aSmooth += (aNow - aSmooth) * accelSmoothing;     // 표시용 EMA
             vPrev = vNow;
 
             // 트립 디바운스+히스테리시스: 한계 초과 N틱 연속 → set / 한계×frac 이하 M틱 연속 → clear.

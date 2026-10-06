@@ -140,7 +140,7 @@ namespace AIXRCrane.Crane.Sts
             if (m == null) { spd = 0f; return; }
             float cur = m.Current;
             float vModel = Mathf.Abs(cur - prev) / dt;     // 모델 units/s
-            float vRealMpm = vModel * m.WorldPerUnit / crane.ModelScale * 60f;   // 실척 m/min (×월드/축 ÷Scale=×24, ×60=분당)
+            float vRealMpm = vModel * m.MetersPerUnit() * 60f;   // 실척 m/min (×월드/축 ÷Scale=×24, ×60=분당)
             // 지수 평활(약 0.15s 시상수) — 프레임 노이즈로 숫자가 튀지 않게
             spd = Mathf.Lerp(spd, vRealMpm, 1f - Mathf.Exp(-dt / 0.15f));
             prev = cur;
@@ -150,33 +150,17 @@ namespace AIXRCrane.Crane.Sts
         void TryAttachToCamera()
         {
             if (canvas == null) return;
-            var cam = targetCamera != null ? targetCamera : Camera.main;
-            if (cam == null) cam = FindHMDCamera();
+            var cam = CraneHud.HudCamera(targetCamera);
             if (cam == null)
             {
                 if (Time.frameCount % 60 == 0)   // 매 60프레임 한 번씩만 경고(스팸 방지)
                     Debug.LogWarning("[HUD] HMD/Main 카메라를 못 찾음 — XR Origin 활성/카메라 MainCamera 태그 확인.");
                 return;
             }
-            canvas.transform.SetParent(cam.transform, worldPositionStays: false);
-            canvas.transform.localPosition = hmdOffset;
-            CraneHud.FaceCameraChild(canvas.transform, hmdOffset, tiltPitchDeg, tiltYawDeg);   // 카메라 향함 — 부착 시 1회
+            CraneHud.AttachHeadLocked(canvas.transform, cam, hmdOffset, tiltPitchDeg, tiltYawDeg);
 
             Debug.Log($"[HUD] '{cam.name}'(stereoEnabled={cam.stereoEnabled}, MainCamera tag={cam.CompareTag("MainCamera")}) 부착 완료. " +
                       $"localPos={hmdOffset}, 월드={canvas.transform.position:F2}, 카메라 월드={cam.transform.position:F2}");
-        }
-
-        // Camera.main 실패 시 XR(헤드셋) 카메라 후보 탐색
-        static Camera FindHMDCamera()
-        {
-            // stereoEnabled(스테레오 렌더링 중)인 카메라 우선 = HMD
-            foreach (var c in Camera.allCameras)
-                if (c != null && c.stereoEnabled) return c;
-            // TrackedPoseDriver(XR 위치 트래킹) 붙은 카메라
-            foreach (var c in Camera.allCameras)
-                if (c != null && (c.GetComponent("TrackedPoseDriver") != null)) return c;
-            // 마지막 폴백: 씬의 첫 카메라
-            return Camera.allCameras.Length > 0 ? Camera.allCameras[0] : null;
         }
 
         // Canvas/배경/텍스트 자동 생성

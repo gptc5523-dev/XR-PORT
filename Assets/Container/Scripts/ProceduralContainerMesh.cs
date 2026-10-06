@@ -13,15 +13,14 @@ namespace AIXRCrane
 
         // 빌더 내부에서 사용하는 ISO 668 실측 (m). 마지막에 일괄 스케일됨.
         // 기본값 = 20ft Std (22G1). BuildSized() 로 다른 사이즈도 빌드 가능.
-        public static float Length = 6.058f;
-        public static float Width  = 2.438f;
-        public static float Height = 2.591f;
+        public static float Length = Length20ft;
+        public static float Width  = StdWidth;
+        public static float Height = HeightStd;
 
         // 표준 사이즈 프리셋
         public const float Length20ft = 6.058f;
         public const float Length40ft = 12.192f;
         public const float HeightStd  = 2.591f;  // 8'6"
-        public const float HeightHC   = 2.896f;  // 9'6" (High Cube)
         public const float StdWidth   = 2.438f;
 
         // 프레임 / 캐스팅 / 패널 치수
@@ -75,56 +74,6 @@ namespace AIXRCrane
         // 지붕 코르게이션
         const float RoofCorrDepth = 0.020f;  // 지붕 코르게이션 깊이 (산이 캐스팅 top 직전까지 솟음)
 
-        /// <summary>감축 단계(LOD). 0=원본(SSOT), 1+=배경 프롭용 저폴리 — 실루엣·서브메시는 유지.
-        /// 1: 골판/도어 홈 평판화, 언더프레임 생략.</summary>
-        public static int LodLevel = 0;
-
-        /// <summary>절차적 메시 생성. 기본 출력 1/24 스케일, 중심 피벗, X축=긴 방향(도어=+X).
-        /// Length/Width/Height 상수 기반 — 다른 사이즈는 BuildSized() 사용.</summary>
-        public static Mesh Build(
-            string meshName = "Container_20ft_Procedural",
-            float scale = DefaultMiniatureScale,
-            bool centerPivot = true,
-            bool xIsLength = true)
-        {
-            var b = new MeshBuilder();
-
-            BuildCornerCastings(b);
-            BuildFrame(b);
-            BuildBodyPanels(b);
-            BuildRoof(b);
-            BuildFloor(b);
-            if (LodLevel < 1) BuildUnderframe(b);   // 하부 구조 — 갑판 적재 시 영구 은폐
-            BuildDoors(b);
-
-            var mesh = b.ToMesh(meshName, tangents: LodLevel < 1);
-            ApplyTransform(mesh, scale, centerPivot, xIsLength);
-            return mesh;
-        }
-
-        /// <summary>
-        /// 임의 사이즈로 컨테이너 빌드. 표준 사이즈는 Length20ft/Length40ft, HeightStd/HeightHC 상수 사용.
-        /// 내부적으로 정적 Length/Width/Height 를 잠시 바꿔서 Build() 호출 후 복구.
-        /// </summary>
-        public static Mesh BuildSized(
-            float length, float width, float height,
-            string meshName = "Container_Procedural",
-            float scale = DefaultMiniatureScale,
-            bool centerPivot = true,
-            bool xIsLength = true)
-        {
-            float savedL = Length, savedW = Width, savedH = Height;
-            Length = length; Width = width; Height = height;
-            try
-            {
-                return Build(meshName, scale, centerPivot, xIsLength);
-            }
-            finally
-            {
-                Length = savedL; Width = savedW; Height = savedH;
-            }
-        }
-
         static void ApplyTransform(Mesh mesh, float scale, bool centerPivot, bool xIsLength)
         {
             if (scale == 1f && !centerPivot && !xIsLength) return;
@@ -154,35 +103,9 @@ namespace AIXRCrane
                     normals[i] = new Vector3(n.z, n.y, -n.x);
                 }
                 mesh.normals = normals;
-                // LOD1+는 탄젠트를 생략 — 노멀맵 미사용 + 정점 크기 축소(48B→32B)로 처리율 개선.
-                if (LodLevel < 1) mesh.RecalculateTangents();
+                mesh.RecalculateTangents();
             }
             mesh.RecalculateBounds();
-        }
-
-        // 코너 캐스팅
-        static void BuildCornerCastings(MeshBuilder b)
-        {
-            float hx = Width  * 0.5f;
-            float hz = Length * 0.5f;
-            // 8개 캐스팅: 위/아래 4모서리, 외측 3면에 ISO 1161 구멍.
-            // 상단 CornerCastTopH=CornerCastH(대칭), top이 정확히 Height(2.591)와 일치.
-            for (int sx = -1; sx <= 1; sx += 2)
-            for (int sz = -1; sz <= 1; sz += 2)
-            for (int sy = 0; sy <= 1; sy++)
-            {
-                float x = sx * (hx - CornerCastW * 0.5f);
-                float z = sz * (hz - CornerCastD * 0.5f);
-                bool isTop = sy == 1;
-                float castH = isTop ? CornerCastTopH : CornerCastH;
-                float y = isTop
-                    ? Height - CornerCastH + castH * 0.5f  // 상단: 바닥 Y=Height-CornerCastH 고정, 위로 castH만큼
-                    : castH * 0.5f;                        // 하단: Y=0 부터 castH 만큼
-                AddCornerCastingWithHoles(b, submesh: 3,
-                    center: new Vector3(x, y, z),
-                    size:   new Vector3(CornerCastW, castH, CornerCastD),
-                    outX: sx, outZ: sz, outYUp: isTop);
-            }
         }
 
         // 외측 3면 (컨테이너 바깥쪽 X/Z/Y) 에 사각 구멍이 있는 코너 캐스팅.
@@ -291,154 +214,6 @@ namespace AIXRCrane
             mb.AddQuad(submesh, ia, ib, ic, id);
         }
 
-        // 프레임
-        static void BuildFrame(MeshBuilder b)
-        {
-            float hx = Width  * 0.5f;
-            float hz = Length * 0.5f;
-
-            // Bottom side rails (좌/우 길이 방향) — 지게차 포켓 분할/터널 포함(공유 헬퍼)
-            float bottomRailY = CornerCastH * 0.5f;
-            float railZSpan   = Length - CornerCastD * 2f;
-            float endRailXSpan= Width  - CornerCastW * 2f;
-            AddBottomSideRailsWithForkPockets(b, 2);
-            // Top side rails
-            float topRailY = Height - CornerCastH * 0.5f;
-            for (int sx = -1; sx <= 1; sx += 2)
-            {
-                b.AddBox(2,
-                    center: new Vector3(sx * (hx - CornerPostW * 0.5f), topRailY, 0f),
-                    size:   new Vector3(CornerPostW, RailH, railZSpan));
-            }
-            // Bottom end rails (전/후 폭 방향)
-            for (int sz = -1; sz <= 1; sz += 2)
-            {
-                b.AddBox(2,
-                    center: new Vector3(0f, bottomRailY, sz * (hz - CornerPostW * 0.5f)),
-                    size:   new Vector3(endRailXSpan, RailH, CornerPostW));
-            }
-            // Top end rails (header)
-            for (int sz = -1; sz <= 1; sz += 2)
-            {
-                b.AddBox(2,
-                    center: new Vector3(0f, topRailY, sz * (hz - CornerPostW * 0.5f)),
-                    size:   new Vector3(endRailXSpan, RailH, CornerPostW));
-            }
-            // Corner posts (4개, 수직). 두 코너 캐스팅 사이를 정확히 채우도록 컨테이너 정중앙에 배치.
-            float postY = Height * 0.5f;
-            float postHeight = Height - CornerCastH * 2f;
-            for (int sx = -1; sx <= 1; sx += 2)
-            for (int sz = -1; sz <= 1; sz += 2)
-            {
-                b.AddBox(2,
-                    center: new Vector3(sx * (hx - CornerPostW * 0.5f), postY, sz * (hz - CornerPostW * 0.5f)),
-                    size:   new Vector3(CornerPostW, postHeight, CornerPostW));
-            }
-        }
-
-        // 바닥 사이드 레일 + 지게차 포켓(단일메시·분해 Kit 공유).
-        // 20ft급(Length<9m)은 3분할 + X 전관통 터널. 포켓 위치/폭은 언더프레임과 동일.
-        static void AddBottomSideRailsWithForkPockets(MeshBuilder b, int submesh)
-        {
-            float hx          = Width * 0.5f;
-            float bottomRailY = CornerCastH * 0.5f;
-            float railZSpan   = Length - CornerCastD * 2f;
-            bool  hasPockets  = Length < 9.0f;
-            float pHalf       = ForkPocketWidth * 0.5f;
-            float halfRailZ   = railZSpan * 0.5f;
-
-            for (int sx = -1; sx <= 1; sx += 2)
-            {
-                float cx = sx * (hx - CornerPostW * 0.5f);
-                if (hasPockets)
-                {
-                    float[] zb = { -halfRailZ, -ForkPocketZ - pHalf, -ForkPocketZ + pHalf,
-                                    ForkPocketZ - pHalf,  ForkPocketZ + pHalf,  halfRailZ };
-                    var segs = new (float a, float b)[] { (zb[0], zb[1]), (zb[2], zb[3]), (zb[4], zb[5]) };
-                    foreach (var s in segs)
-                    {
-                        float len = s.b - s.a;
-                        if (len <= 0.001f) continue;
-                        b.AddBox(submesh, new Vector3(cx, bottomRailY, (s.a + s.b) * 0.5f),
-                                 new Vector3(CornerPostW, RailH, len));
-                    }
-                }
-                else
-                {
-                    b.AddBox(submesh, new Vector3(cx, bottomRailY, 0f),
-                             new Vector3(CornerPostW, RailH, railZSpan));
-                }
-            }
-
-            if (!hasPockets) return;
-            // 포켓 터널 — X 전관통, 상하판+Z양벽. 개구는 사이드 레일과 동일 높이로 턱 없이 정렬.
-            // 보강 하우징은 언더프레임 ForkPocketDepth 박스가 별도로 표현.
-            float tunXSpan   = hx * 2f;                       // = Width (전관통)
-            float pocketTopY = bottomRailY + RailH * 0.5f;    // 레일 상단
-            float pocketBotY = bottomRailY - RailH * 0.5f;    // 레일 하단(= Mid 레일 바닥과 일치)
-            float pocketH    = pocketTopY - pocketBotY;       // = RailH(0.092)
-            float pocketCy   = (pocketTopY + pocketBotY) * 0.5f;
-            float topPlateY  = pocketTopY - ForkPlateT * 0.5f;
-            float botPlateY  = pocketBotY + ForkPlateT * 0.5f;
-            for (int pz = -1; pz <= 1; pz += 2)
-            {
-                float zc = pz * ForkPocketZ;
-                b.AddBox(submesh, new Vector3(0f, topPlateY, zc), new Vector3(tunXSpan, ForkPlateT, ForkPocketWidth));
-                b.AddBox(submesh, new Vector3(0f, botPlateY, zc), new Vector3(tunXSpan, ForkPlateT, ForkPocketWidth));
-                b.AddBox(submesh, new Vector3(0f, pocketCy, zc - pHalf + ForkPlateT * 0.5f),
-                         new Vector3(tunXSpan, pocketH, ForkPlateT));
-                b.AddBox(submesh, new Vector3(0f, pocketCy, zc + pHalf - ForkPlateT * 0.5f),
-                         new Vector3(tunXSpan, pocketH, ForkPlateT));
-            }
-        }
-
-        // 본체 패널 (좌/우/전)
-        static void BuildBodyPanels(MeshBuilder b)
-        {
-            // 레일 중심 Y = CornerCastH * 0.5f, 높이 = RailH.
-            // 패널이 상/하 레일 안쪽 면과 맞닿게 — 틈 제거.
-            float panelTop    = Height - CornerCastH * 0.5f - RailH * 0.5f;
-            float panelBottom = CornerCastH * 0.5f + RailH * 0.5f;
-            float panelHeight = panelTop - panelBottom;
-
-            // PanelInset은 깊이 방향(외측면에서 안쪽)에만; 길이/폭 방향은 전체 dimension 사용해야
-            // 코너 포스트 안쪽 면까지 패널이 닿음.
-            float depthInsetX = Width  * 0.5f - PanelInset;  // 좌/우 패널 base X (절대값)
-            float depthInsetZ = Length * 0.5f - PanelInset;  // 전면 패널 base Z (절대값)
-            float halfX = Width  * 0.5f;
-            float halfZ = Length * 0.5f;
-
-            // 코너 포스트 안쪽 면에 패널이 거의 맞닿게 (틈 최소화)
-            const float postInset = 0.002f;
-
-            // 좌측면 (x = -depthInsetX, 법선 -X). right=+Z, up=+Y → Cross=-X = outward
-            BuildCorrugatedPanel(b, submesh: 0,
-                origin: new Vector3(-depthInsetX, panelBottom, -halfZ + CornerPostW + postInset),
-                right:  new Vector3(0f, 0f, 1f),
-                up:     new Vector3(0f, 1f, 0f),
-                width:  Length - (CornerPostW + postInset) * 2f,
-                height: panelHeight,
-                depth:  CorrDepth);
-
-            // 우측면 (x = +depthInsetX, 법선 +X). right=-Z, up=+Y → Cross=+X = outward
-            BuildCorrugatedPanel(b, submesh: 0,
-                origin: new Vector3(depthInsetX, panelBottom, halfZ - CornerPostW - postInset),
-                right:  new Vector3(0f, 0f, -1f),
-                up:     new Vector3(0f, 1f, 0f),
-                width:  Length - (CornerPostW + postInset) * 2f,
-                height: panelHeight,
-                depth:  CorrDepth);
-
-            // 전면 고정벽 (z = -depthInsetZ, 법선 -Z). right=-X, up=+Y → Cross=-Z = outward
-            BuildCorrugatedPanel(b, submesh: 0,
-                origin: new Vector3(halfX - CornerPostW - postInset, panelBottom, -depthInsetZ),
-                right:  new Vector3(-1f, 0f, 0f),
-                up:     new Vector3(0f, 1f, 0f),
-                width:  Width - (CornerPostW + postInset) * 2f,
-                height: panelHeight,
-                depth:  CorrDepth);
-        }
-
         /// <summary>수직 주름판(corrugated panel) 생성. origin=좌하단, right=폭 방향, up=높이 방향.
         /// outward 법선=Cross(right,up) — 호출자가 그 방향으로 right/up을 선택해야 함.</summary>
         static void BuildCorrugatedPanel(MeshBuilder b, int submesh,
@@ -446,19 +221,6 @@ namespace AIXRCrane
             float width, float height, float depth)
         {
             Vector3 outDir = Vector3.Cross(right, up).normalized;
-
-            // LOD1+: 골판을 외측 크라운 평면(+depth)의 평판 1장으로 대체.
-            // 크라운 평면이 캐스팅·포스트와 같은 평면이라 실루엣·정합이 유지된다.
-            if (LodLevel >= 1)
-            {
-                Vector3 o = origin + outDir * depth;
-                int f0 = b.AddVertex(o,                          outDir, new Vector2(0f, 0f));
-                int f1 = b.AddVertex(o + right * width,          outDir, new Vector2(1f, 0f));
-                int f2 = b.AddVertex(o + right * width + up * height, outDir, new Vector2(1f, 1f));
-                int f3 = b.AddVertex(o + up * height,            outDir, new Vector2(0f, 1f));
-                b.AddQuad(submesh, f0, f1, f2, f3);
-                return;
-            }
 
             // 한 주기 = flatIn + slope + flatOut + slope
             float period = CorrFlatIn + CorrSlope + CorrFlatOut + CorrSlope;
@@ -526,17 +288,6 @@ namespace AIXRCrane
         {
             Vector3 outDir = Vector3.Cross(right, up).normalized;
 
-            // LOD1+ : 도어 가로 홈을 평판 1장으로. 홈 깊이는 골판보다 얕아 더 일찍 사라진다.
-            if (LodLevel >= 1)
-            {
-                int f0 = b.AddVertex(origin,                              outDir, new Vector2(0f, 0f));
-                int f1 = b.AddVertex(origin + right * length,             outDir, new Vector2(1f, 0f));
-                int f2 = b.AddVertex(origin + right * length + up * span, outDir, new Vector2(1f, 1f));
-                int f3 = b.AddVertex(origin + up * span,                  outDir, new Vector2(0f, 1f));
-                b.AddQuad(submesh, f0, f1, f2, f3);
-                return;
-            }
-
             float band    = length / grooves;
             float bottomW = band * grooveBottomFrac;
             float slopeW  = band * grooveSlopeFrac;
@@ -581,27 +332,6 @@ namespace AIXRCrane
             {
                 b.AddQuad(submesh, loIdx[i], loIdx[i + 1], hiIdx[i + 1], hiIdx[i]);
             }
-        }
-
-        // 지붕 (corrugated)
-        static void BuildRoof(MeshBuilder b)
-        {
-            // ISO 컨테이너 지붕: 산/골이 폭(X) 방향으로 길게 흘러가고, 길이(Z) 방향으로 산/골 반복 (가로 줄무늬).
-            // 천장 산이 rail top 보다 5mm 아래에 위치 — 끝 레일이 천장 끝을 덮어줘서 앞뒤 마감이 깔끔.
-            float hx = Width  * 0.5f;
-            float hz = Length * 0.5f;
-            float railTopY = Height - CornerCastH * 0.5f + RailH * 0.5f;
-            float baseY = railTopY - RoofCorrDepth - 0.005f;  // 골 + 깊이 + 5mm 여유 = 산이 rail top 보다 5mm 낮음
-
-            // 산/골이 폭(X) 방향으로 흐름(문에서 보면 가로 줄무늬) — right=+Z, up=+X.
-            // outDir=Cross(+Z,+X)=+Y(지붕 위로 향함).
-            BuildCorrugatedPanel(b, submesh: 0,
-                origin: new Vector3(-hx, baseY, -hz),
-                right:  new Vector3(0f, 0f, 1f),
-                up:     new Vector3(1f, 0f, 0f),
-                width:  Length,
-                height: Width,
-                depth:  RoofCorrDepth);
         }
 
         // 바닥
@@ -771,127 +501,6 @@ namespace AIXRCrane
                     new Vector3(strapXc, sy, doorZ + HingeBlockD * 0.35f),
                     new Vector3(strapW, strapH, HingeBlockD * 0.7f));
             }
-        }
-
-        // 도어 (후면)
-        static void BuildDoors(MeshBuilder b)
-        {
-            // BuildBodyPanels와 동일 — 상/하 레일 안쪽 면에 맞춤.
-            float panelTop    = Height - CornerCastH * 0.5f - RailH * 0.5f;
-            float panelBottom = CornerCastH * 0.5f + RailH * 0.5f;
-            float panelHeight = panelTop - panelBottom;
-            float panelMidY   = (panelTop + panelBottom) * 0.5f;
-
-            float halfX = Width * 0.5f;
-            float doorZ = Length * 0.5f; // 후면 outer face (+Z); 락바/힌지/플레이트 기준점
-
-            const float postInset = 0.002f;
-            float fullWidth = Width - (CornerPostW + postInset) * 2f;
-            float doorWidth = (fullWidth - DoorGap) * 0.5f;
-            float doorStartLeft = -halfX + CornerPostW + postInset;
-            // 코르게이션 폭 = 도어 폭 - 측면 빔 폭 (각 도어 외측에 빔 1개)
-            float corrWidth = doorWidth - SideBeamW;
-
-            // 도어 측면 빔 (각 도어 외측 모서리의 평평한 세로 띠)
-            float leftBeamX  = doorStartLeft + SideBeamW * 0.5f;
-            float rightBeamX = doorStartLeft + fullWidth - SideBeamW * 0.5f;
-            b.AddBox(1,
-                center: new Vector3(leftBeamX, panelMidY, doorZ - PanelInset * 0.5f),
-                size:   new Vector3(SideBeamW, panelHeight, PanelInset));
-            b.AddBox(1,
-                center: new Vector3(rightBeamX, panelMidY, doorZ - PanelInset * 0.5f),
-                size:   new Vector3(SideBeamW, panelHeight, PanelInset));
-
-            // 도어 리프(프레임 패널): 테두리+중간레일+상하 리세스 패널(도어 빔 옆 corrWidth)
-            BuildFramedDoorLeaf(b, submesh: 1, doorStartLeft + SideBeamW, panelBottom, corrWidth, panelHeight, doorZ);
-            BuildFramedDoorLeaf(b, submesh: 1, doorStartLeft + doorWidth + DoorGap, panelBottom, corrWidth, panelHeight, doorZ);
-
-            // 락바 + 캠(원기둥) + 손잡이 + 가드 + 마운트 브래킷
-            float lockBarZ = doorZ + 0.040f;
-            float camRadius = LockCamSize * 0.5f;
-            for (int doorSide = 0; doorSide < 2; doorSide++)
-            {
-                // 락바는 코르게이션 영역에 분산 — 빔 위가 아니라 코르게이션 위에 위치
-                float corrStartX = (doorSide == 0)
-                    ? doorStartLeft + SideBeamW                    // 좌측: 빔 뒤
-                    : doorStartLeft + doorWidth + DoorGap;         // 우측: 내측 시작
-                for (int bar = 0; bar < LockBarsPerDoor; bar++)
-                {
-                    float t = (bar + 1f) / (LockBarsPerDoor + 1f);
-                    float x = corrStartX + corrWidth * t;
-
-                    // 수직 락바
-                    AddVerticalCylinder(b, submesh: 2,
-                        bottom: new Vector3(x, panelBottom, lockBarZ),
-                        height: panelHeight,
-                        radius: LockBarDiameter * 0.5f);
-
-                    // 상/하 캠 (원기둥 — 락바보다 굵음)
-                    AddVerticalCylinder(b, submesh: 2,
-                        bottom: new Vector3(x, panelBottom, lockBarZ),
-                        height: LockCamSize,
-                        radius: camRadius);
-                    AddVerticalCylinder(b, submesh: 2,
-                        bottom: new Vector3(x, panelTop - LockCamSize, lockBarZ),
-                        height: LockCamSize,
-                        radius: camRadius);
-
-                    // 캠킵 키퍼 (상/하 캠이 헤더·실에 물리는 ㄷ자 리텐션 브래킷)
-                    AddCamKeeper(b, 2, x, panelTop - LockCamSize * 0.5f, lockBarZ, doorZ);
-                    AddCamKeeper(b, 2, x, panelBottom + LockCamSize * 0.5f, lockBarZ, doorZ);
-
-                    // cam-lock 회전 핸들 — 락바 중앙(한 도어 두 바는 같은 외측 방향).
-                    float handleSide = (doorSide == 0) ? -1f : 1f;
-                    AddCamLockHandle(b, 2, x, panelMidY, lockBarZ, handleSide);
-
-                    // 마운트 브래킷 (락바를 도어 표면에 잡아주는 클램프) — 캠과 손잡이 사이에 2개
-                    float bracketCenterZ = doorZ + LockBracketD * 0.5f;
-                    for (int br = 0; br < LockBracketsPerBar; br++)
-                    {
-                        float bt = (br + 1f) / (LockBracketsPerBar + 1f);
-                        float by = panelBottom + panelHeight * bt;
-                        b.AddBox(2,
-                            center: new Vector3(x, by, bracketCenterZ),
-                            size:   new Vector3(LockBracketW, LockBracketH, LockBracketD));
-                    }
-                }
-            }
-
-            // 힌지 (도어 외측 세로 모서리 = 스윙 축에 배럴+스트랩)
-            for (int doorSide = 0; doorSide < 2; doorSide++)
-            {
-                float edgeX = (doorSide == 0) ? doorStartLeft : doorStartLeft + fullWidth;  // 도어 외측 모서리
-                float beamX = (doorSide == 0) ? leftBeamX : rightBeamX;
-                for (int h = 0; h < HingesPerDoor; h++)
-                {
-                    float t = (h + 1f) / (HingesPerDoor + 1f);
-                    float y = panelBottom + panelHeight * t;
-                    AddDoorHinge(b, 2, edgeX, beamX, y, doorZ);
-                }
-            }
-
-            // 도어 헤더 (얇게). X는 두 코너 캐스팅 사이 (≠ 도어 폭 fullWidth — 그러면 캐스팅 안으로 파고듦).
-            // Z는 캐스팅 외측면(doorZ) 안쪽에 배치 — 외측면 밖으로 튀어나오지 않도록.
-            float headerWidth = Width - CornerCastW * 2f;
-            b.AddBox(2,
-                center: new Vector3(0f, panelTop + DoorHeaderHeight * 0.5f, doorZ - DoorHeaderDepth * 0.5f),
-                size:   new Vector3(headerWidth, DoorHeaderHeight, DoorHeaderDepth));
-
-            // ID Plate (우측 도어에 큰 사각 패널 — 컨테이너 번호용)
-            //   0.78f로 우측 코르게이션 바깥쪽 빈 구간(우측 락바~측면빔 사이)에 배치해 로드 회피.
-            float idPlateX = doorStartLeft + doorWidth + DoorGap + doorWidth * 0.78f;
-            float idPlateY = panelTop - IdPlateH * 0.5f - 0.06f;
-            b.AddBox(4,   // submesh 4 = Marking — 본체 선사색이 안 입혀지게 분리(검정 번호 대비 보존)
-                center: new Vector3(idPlateX, idPlateY, doorZ + PlateOut * 0.5f),
-                size:   new Vector3(IdPlateW, IdPlateH, PlateOut));
-
-            // CSC Plate (좌측 도어 하단 — 안전 인증판)
-            //   패널 높이 15% 지점(~0.47m)으로 상향.
-            float cscX = doorStartLeft + doorWidth * 0.5f;
-            float cscY = panelBottom + panelHeight * 0.15f;
-            b.AddBox(4,   // submesh 4 = Marking
-                center: new Vector3(cscX, cscY, doorZ + PlateOut * 0.5f),
-                size:   new Vector3(CscPlateW, CscPlateH, PlateOut));
         }
 
         // 수직 원기둥 (락바)

@@ -111,7 +111,7 @@ namespace AIXRCrane.Crane.Sts
             foreach (var t in rtg ? YardCandidates(site) : ShipCandidates(site))
             {
                 if (jobs.Count == Count) break;
-                if (!TryBounds(t, out var b)) continue;
+                if (!SceneUtil.TryBounds(t, out var b)) continue;
                 var rb = t.GetComponent<Rigidbody>();
                 var j = new Job
                 {
@@ -185,7 +185,7 @@ namespace AIXRCrane.Crane.Sts
             }
             if (!attach.HasContainer)
             {
-                if (!TryBounds(j.box, out var b)) { result = Result.Skip; yield break; }
+                if (!SceneUtil.TryBounds(j.box, out var b)) { result = Result.Skip; yield break; }
                 if ((new Vector3(b.center.x, b.min.y, b.center.z) - dest).sqrMagnitude < Lift * Lift) { result = Result.Done; yield break; }   // 이미 거기
                 Vector3 seat = Seat(b);
                 if (!Reach(seat))
@@ -203,9 +203,9 @@ namespace AIXRCrane.Crane.Sts
             }
             float hang = drop + SeatGapU + j.size.y;   // 부착점 → 든 컨테이너 밑면(집은 자세 그대로 매달림)
             yield return Hoist(clearTopY + hang);       if (Cut()) yield break;
-            bool haveFrom = TryBounds(j.box, out var path);
+            bool haveFrom = SceneUtil.TryBounds(j.box, out var path);
             yield return Travel(dest);                  if (Cut()) yield break;
-            if (haveFrom && TryBounds(j.box, out var to)) { path.Encapsulate(to); CheckClear(path, j.box, "운반 경로"); }
+            if (haveFrom && SceneUtil.TryBounds(j.box, out var to)) { path.Encapsulate(to); CheckClear(path, j.box, "운반 경로"); }
             yield return Align(dest);                   if (Cut()) yield break;
             yield return Hoist(dest.y + Lift + hang);   if (Cut()) yield break;
             yield return Align(dest);                   if (Cut()) yield break;   // 내리며 로프가 길어진 만큼 바람 편향(∝L)도 커졌다
@@ -313,14 +313,14 @@ namespace AIXRCrane.Crane.Sts
                    $"{(steer != null && steer.IsTurning ? " · 보기 조향 중" : "")}";
         }
         static float ErrM(IAxisMover a, float target) =>
-            a == null || float.IsNaN(target) ? 0f : (Mathf.Clamp(target, a.Min, a.Max) - a.Current) * a.WorldPerUnit / StsConfig.ModelScale;
+            a == null || float.IsNaN(target) ? 0f : (Mathf.Clamp(target, a.Min, a.Max) - a.Current) * a.MetersPerUnit();
         static string Blk(IAxisMover a) => a is AxisMoverBase m && m.IsBlocked ? "(장애물 정지)" : "";
 
         // 한 축 한 틱 — 정격 가속으로 붙고, 멈출 거리를 남겨 감속한다(사다리꼴). 목표에 닿았으면 true.
         bool Step(IAxisMover a, float target, float vMax, float acc, ref float v, float dt, ref float left)
         {
             if (a == null || float.IsNaN(target)) return true;
-            float toM = a.WorldPerUnit / StsConfig.ModelScale;   // 축 1 = 실척 몇 m
+            float toM = a.MetersPerUnit();
             if (toM <= 0f) return true;
             float err = (Mathf.Clamp(target, a.Min, a.Max) - a.Current) * toM;
             left += Mathf.Abs(err);
@@ -351,7 +351,7 @@ namespace AIXRCrane.Crane.Sts
         //   안 그러면 들기 시작할 때 통과방지 클램프가 한 번에 밀어 올려 권상 가속이 튄다.
         void LiftToContact(Transform box)
         {
-            if (crane.Spreader == null || !TryBounds(box, out var b)) return;
+            if (crane.Spreader == null || !SceneUtil.TryBounds(box, out var b)) return;
             float top = b.min.y, reach = b.min.y + SupportTolM * StsConfig.ModelScale, area = b.size.x * b.size.z;
             foreach (var o in OtherBounds(box))
             {
@@ -376,9 +376,8 @@ namespace AIXRCrane.Crane.Sts
                           $"({bottom.x * StsConfig.InvModelScale:F2}, {bottom.z * StsConfig.InvModelScale:F2})m · " +
                           $"칸중심 ({cell.x * StsConfig.InvModelScale:F2}, {cell.z * StsConfig.InvModelScale:F2})m · " +
                           $"이탈 {Vector3.Distance(new Vector3(bottom.x, 0f, bottom.z), new Vector3(cell.x, 0f, cell.z)) * StsConfig.InvModelScale:F3}m");
-            // 위 진단은 '명령한 자리'만 재 구조적으로 늘 0 이 나온다 — 결과는 렌더러 AABB 중심 → YardGrid 스냅으로 따로 잰다.
-            //   계획 크기와 측정 크기도 같이 남긴다(스냅은 크기로 격자를 고르므로 갈라지면 다른 칸 기준이 된다).
-            if (TryBounds(c, out var got) && YardGrid.TrySnapXZ(got.center, Mathf.Max(got.size.x, got.size.z), out var gotCell))
+            // 위 진단은 '명령한 자리'라 늘 0 — 결과는 렌더러 AABB 중심으로 따로 잰다(크기가 갈리면 다른 칸 기준).
+            if (SceneUtil.TryBounds(c, out var got) && YardGrid.TrySnapXZ(got.center, Mathf.Max(got.size.x, got.size.z), out var gotCell))
             {
                 float dr = new Vector2(got.center.x - gotCell.x, got.center.z - gotCell.z).magnitude * StsConfig.InvModelScale;
                 if (dr > 0.05f)
@@ -407,7 +406,7 @@ namespace AIXRCrane.Crane.Sts
 
         /// <summary>축의 지금 위치를 PLC 좌표(실척 m, 0 = 무버 Min)로 — PlcSim 시작 자세를 씬과 맞출 때 쓰는 측정값.
         ///   RTG 는 무버 위치가 FBX 기본값이라 씬 파일에 안 남는다(프리팹 오버라이드 없음) → 로그로만 잴 수 있다.</summary>
-        static float PlcM(IAxisMover a) => a == null ? 0f : (a.Current - a.Min) * a.WorldPerUnit / StsConfig.ModelScale;
+        static float PlcM(IAxisMover a) => a == null ? 0f : a.PlcMeters();
 
         void Fail(string what)
         {
@@ -418,7 +417,7 @@ namespace AIXRCrane.Crane.Sts
         void Kin(IAxisMover a, ref float prev, ref float vPrev, float vMax, float acc, float dt, string axis)
         {
             if (a == null || dt <= 0f) return;
-            float toM = a.WorldPerUnit / StsConfig.ModelScale;
+            float toM = a.MetersPerUnit();
             float cur = a.Current, v = (cur - prev) * toM / dt, am = (v - vPrev) / dt;
             float sr = Mathf.Abs(v) / (vMax * speedScale), ar = Mathf.Abs(am) / (acc * speedScale * CraneAxisProfile.TripMargin);
             MaxSpeedRatio = Mathf.Max(MaxSpeedRatio, sr);
@@ -432,14 +431,14 @@ namespace AIXRCrane.Crane.Sts
         float StopAt(IAxisMover a, float target, float v, float acc)
         {
             if (a == null || float.IsNaN(target) || Mathf.Abs(v) < 1e-4f) return float.NaN;
-            float toM = a.WorldPerUnit / StsConfig.ModelScale;
+            float toM = a.MetersPerUnit();
             return a.Current + Mathf.Sign(v) * v * v / (2f * acc * speedScale) / toM;
         }
 
         // ① 집기 직전 — 트위스트락 중심·콘 바닥을 러너 식과 따로 재서 컨테이너 윗면에 맞춘다.
         void CheckPick(Transform box)
         {
-            if (grabber == null || !TryBounds(box, out var b)) return;
+            if (grabber == null || !SceneUtil.TryBounds(box, out var b)) return;
             Vector3 gp = grabber.GrabPoint();
             float dxz = new Vector2(gp.x - b.center.x, gp.z - b.center.z).magnitude / StsConfig.ModelScale;
             float gap = (SpreaderBottomY() - b.max.y) / StsConfig.ModelScale;
@@ -452,7 +451,7 @@ namespace AIXRCrane.Crane.Sts
         //   되돌린 자리는 원래 자세(home)라 받침이 배 해치·아래 단이다 — 겹침만 본다.
         void CheckPlaced(Transform c, bool toAway)
         {
-            if (!TryBounds(c, out var b)) return;
+            if (!SceneUtil.TryBounds(c, out var b)) return;
             var others = OtherBounds(c);
             if (toAway)
             {
@@ -477,8 +476,8 @@ namespace AIXRCrane.Crane.Sts
         {
             var list = new List<Bounds>();
             if (site == null) return list;
-            foreach (var t in site.ship) if (t != null && t != self && TryBounds(t, out var ob)) list.Add(ob);
-            foreach (var t in site.yard) if (t != null && t != self && TryBounds(t, out var ob)) list.Add(ob);
+            foreach (var t in site.ship) if (t != null && t != self && SceneUtil.TryBounds(t, out var ob)) list.Add(ob);
+            foreach (var t in site.yard) if (t != null && t != self && SceneUtil.TryBounds(t, out var ob)) list.Add(ob);
             return list;
         }
 
@@ -529,7 +528,7 @@ namespace AIXRCrane.Crane.Sts
             var list = new List<(Transform t, int bay, float toLand)>();
             foreach (var t in site.ship)
             {
-                if (site.claimed.Contains(t) || !TryBounds(t, out var b) || !Uncovered(b, site.occupied) || !Reach(Seat(b))) continue;
+                if (site.claimed.Contains(t) || !SceneUtil.TryBounds(t, out var b) || !Uncovered(b, site.occupied) || !Reach(Seat(b))) continue;
                 int bay = Mathf.RoundToInt(Mathf.Abs(Vector3.Dot(b.center - a, gd)) / Mathf.Max(Extent(b.size, gd), 1e-5f));
                 float c = Vector3.Dot(b.center, td);
                 list.Add((t, bay, Mathf.Abs(c - Mathf.Clamp(c, Mathf.Min(l0, l1), Mathf.Max(l0, l1)))));
@@ -545,7 +544,7 @@ namespace AIXRCrane.Crane.Sts
             var list = new List<(Transform t, float d)>();
             foreach (var t in site.yard)
             {
-                if (site.claimed.Contains(t) || !TryBounds(t, out var b) || !Uncovered(b, site.occupied) || !Reach(Seat(b))) continue;
+                if (site.claimed.Contains(t) || !SceneUtil.TryBounds(t, out var b) || !Uncovered(b, site.occupied) || !Reach(Seat(b))) continue;
                 float d = HDist(b.center, me);
                 bool mine = true;
                 foreach (var o in site.rtgs) if (o != crane && HDist(b.center, MoverPos(o)) < d) { mine = false; break; }
@@ -561,14 +560,17 @@ namespace AIXRCrane.Crane.Sts
         {
             Vector3 td = TrolleyDir();
             float step = Extent(j.size, td) + slotGapMeters * StsConfig.ModelScale;
-            float skin = 0.01f * StsConfig.ModelScale;
+            float skin = OverlapSkinM * StsConfig.ModelScale;
             TrolleyReach(out float lo, out float hi);
             float home = Vector3.Dot(j.home, td);
+            bool rtg = steer != null;
+            float origin = rtg ? home
+                : Vector3.Dot(transform.TransformPoint(StsConfig.LegGaugeXMeters * StsConfig.ModelScale * 0.5f, 0f, 0f), td);
             int n = Mathf.CeilToInt((hi - lo) / step) + 1;
-            for (int k = 1; k <= n; k++)
+            for (int k = rtg ? 1 : 0; k <= n; k++)
                 foreach (int sgn in Signs)
                 {
-                    float s = home + sgn * k * step;
+                    float s = origin + sgn * k * step;
                     if (s < lo || s > hi) continue;
                     Vector3 bottom = j.home + td * (s - home);
                     bottom.y = groundY;
@@ -671,17 +673,5 @@ namespace AIXRCrane.Crane.Sts
         static bool InsideXZ(Bounds a, Bounds land) =>
             a.min.x >= land.min.x && a.max.x <= land.max.x && a.min.z >= land.min.z && a.max.z <= land.max.z;
 
-        /// <summary>렌더러 바운즈 합(월드). 렌더러가 없으면 false.</summary>
-        public static bool TryBounds(Transform t, out Bounds b)
-        {
-            b = default;
-            bool any = false;
-            foreach (var r in t.GetComponentsInChildren<Renderer>())
-            {
-                if (any) b.Encapsulate(r.bounds);
-                else { b = r.bounds; any = true; }
-            }
-            return any;
-        }
     }
 }

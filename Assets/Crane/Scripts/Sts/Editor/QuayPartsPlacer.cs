@@ -44,20 +44,20 @@ namespace AIXRCrane.Crane.Sts.EditorTools
 
         // 이름은 Blender 빌드 스크립트가 만든 머티리얼 이름과 정확히 일치해야 리맵이 걸린다.
         //   smooth = 1 − roughness.
-        static readonly (string n, float r, float g, float b, float metal, float smooth, string normal)[] Mats =
+        static readonly (string n, float r, float g, float b, float metal, float smooth)[] Mats =
         {
-            ("Quay_Caisson",      0.56f, 0.55f, 0.52f, 0.00f, 0.10f, null),   // 해수 얼룩 콘크리트
-            ("Quay_DeckAsphalt",  0.16f, 0.16f, 0.17f, 0.00f, 0.06f, null),   // 에이프런 아스팔트(매트)
-            ("Curb_Concrete",     0.70f, 0.69f, 0.66f, 0.00f, 0.15f, null),   // 프리캐스트 연석(밝게 — 가장자리 인지)
-            ("Bollard_CastSteel", 0.13f, 0.14f, 0.15f, 0.60f, 0.35f, null),   // 계선주 주강(차콜)
-            ("Rail_Steel",        0.34f, 0.34f, 0.36f, 1.00f, 0.55f, null),   // 압연강 레일
-            ("Sea_Water",         0.045f,0.115f,0.145f,0.00f, 0.92f, null),   // 항내 해수 — 잔잔해 반사 높게
-            ("Sea_Bed",           0.05f, 0.07f, 0.08f, 0.00f, 0.05f, null),   // 해저·측면(거의 안 보임)
-            ("Yard_Asphalt",      0.19f, 0.19f, 0.20f, 0.00f, 0.08f, null),   // 야드 포장 — 에이프런보다 살짝 밝게 구분
-            ("Yard_Fill",         0.48f, 0.46f, 0.43f, 0.00f, 0.08f, null),   // 야드 성토 측면
-            ("Yard_Paint",        0.85f, 0.68f, 0.08f, 0.00f, 0.30f, null),   // 블록 도색(황색)
-            ("Lane_Paint",        0.88f, 0.74f, 0.10f, 0.00f, 0.25f, null),   // 안전 차선(안전 노랑 — 블록보다 밝게)
-            ("StartMarker_Red",   0.80f, 0.12f, 0.10f, 0.00f, 0.65f, null),   // 체스말(임시) — 회색 부두에서 튀게.
+            ("Quay_Caisson",      0.56f, 0.55f, 0.52f, 0.00f, 0.10f),   // 해수 얼룩 콘크리트
+            ("Quay_DeckAsphalt",  0.16f, 0.16f, 0.17f, 0.00f, 0.06f),   // 에이프런 아스팔트(매트)
+            ("Curb_Concrete",     0.70f, 0.69f, 0.66f, 0.00f, 0.15f),   // 프리캐스트 연석(밝게 — 가장자리 인지)
+            ("Bollard_CastSteel", 0.13f, 0.14f, 0.15f, 0.60f, 0.35f),   // 계선주 주강(차콜)
+            ("Rail_Steel",        0.34f, 0.34f, 0.36f, 1.00f, 0.55f),   // 압연강 레일
+            ("Sea_Water",         0.045f,0.115f,0.145f,0.00f, 0.92f),   // 항내 해수 — 잔잔해 반사 높게
+            ("Sea_Bed",           0.05f, 0.07f, 0.08f, 0.00f, 0.05f),   // 해저·측면(거의 안 보임)
+            ("Yard_Asphalt",      0.19f, 0.19f, 0.20f, 0.00f, 0.08f),   // 야드 포장 — 에이프런보다 살짝 밝게 구분
+            ("Yard_Fill",         0.48f, 0.46f, 0.43f, 0.00f, 0.08f),   // 야드 성토 측면
+            ("Yard_Paint",        0.85f, 0.68f, 0.08f, 0.00f, 0.30f),   // 블록 도색(황색)
+            ("Lane_Paint",        0.88f, 0.74f, 0.10f, 0.00f, 0.25f),   // 안전 차선(안전 노랑 — 블록보다 밝게)
+            ("StartMarker_Red",   0.80f, 0.12f, 0.10f, 0.00f, 0.65f),   // 체스말(임시) — 회색 부두에서 튀게.
         };
 
         /// <summary>FBX 별로 리맵할 머티리얼 — 그 FBX 에 없는 이름을 리맵하면 .meta 만 지저분해진다.</summary>
@@ -273,7 +273,6 @@ namespace AIXRCrane.Crane.Sts.EditorTools
         [MenuItem("Model/FBX/항구/연석 배치 (Quay_Curb)", false, 1)]
         static void PlaceCurb()
         {
-            if (!BerthReady("연석")) return;
             var fbx = Load(CurbFbx, "연석"); if (fbx == null) return;
 
             float pitch = CurbPitchM * StsConfig.ModelScale;
@@ -298,7 +297,6 @@ namespace AIXRCrane.Crane.Sts.EditorTools
         [MenuItem("Model/FBX/항구/계선주 배치 (Quay_Bollard)", false, 2)]
         static void PlaceBollard()
         {
-            if (!BerthReady("계선주")) return;
             var fbx = Load(BollardFbx, "계선주"); if (fbx == null) return;
 
             // 구간 '중앙'에 놓는다 — 끝점 배치(z=±안벽/2)는 계선주 반지름만큼 허공으로 나간다.
@@ -323,7 +321,6 @@ namespace AIXRCrane.Crane.Sts.EditorTools
         [MenuItem("Model/FBX/항구/안벽 배치 (Quay_Caisson)", false, 0)]
         static void PlaceCaisson()
         {
-            if (!BerthReady("안벽")) return;
             var fbx = Load(CaissonFbx, "안벽"); if (fbx == null) return;
 
             float pitch = CaissonPitchM * StsConfig.ModelScale;
@@ -355,7 +352,6 @@ namespace AIXRCrane.Crane.Sts.EditorTools
         [MenuItem("Model/FBX/항구/레일 배치 (Quay_Rail)", false, 3)]
         static void PlaceRail()
         {
-            if (!BerthReady("레일")) return;
             var fbx = Load(RailFbx, "레일"); if (fbx == null) return;
 
             float pitch = RailPitchM * StsConfig.ModelScale;
@@ -394,7 +390,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
         /// <summary>배치 무늬 시드 — 같은 값이면 같은 무늬. 0 이면 매번 다르다.</summary>
         const int    YardSeed    = 20260907;
         /// <summary>ISO 컨테이너 표준 높이 — 실척 m. 실측 스케일 기준값.</summary>
-        const float  ContainerHeightM = 2.591f;
+        const float  ContainerHeightM = ProceduralContainerMesh.HeightStd;
         const float  Yard20ftGapM = YardGrid.Gap20ftM;   // 한 베이 안 20ft 두 개 사이 틈 — 실척 m
 
         /// <summary>야드 블록에 컨테이너를 놓는다 — 40ft·20ft 지정 개수만큼, 셀 순서대로 결정적으로.
@@ -402,7 +398,6 @@ namespace AIXRCrane.Crane.Sts.EditorTools
         [MenuItem("Model/FBX/항구/컨테이너 적재 (야드)", false, 7)]
         static void StackYardContainers()
         {
-            if (!BerthReady("야드 적재")) return;
             ContainerFinal4Builder.EnsureMaterials();
             var f40 = AssetDatabase.LoadAssetAtPath<GameObject>(YardFbx40);
             var f20 = AssetDatabase.LoadAssetAtPath<GameObject>(YardFbx20);
@@ -459,7 +454,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             }
 
             // 결정적 셔플(Fisher-Yates) — 두 블록·모든 열·모든 베이에 고르게 흩어진다.
-            var rng = YardSeed == 0 ? new System.Random() : new System.Random(YardSeed);
+            var rng = new System.Random(YardSeed);
             for (int k = cells.Count - 1; k > 0; k--)
             {
                 int m2 = rng.Next(k + 1);
@@ -467,7 +462,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             }
 
             for (int k = 0; k < YardCount40; k++)
-                Put(f40, d40, root, $"Cont40_{k:00}", cells[k].x, h40 * 0.5f, cells[k].z);
+                Put(f40, d40, root, $"{StsPartNames.Yard40Prefix}{k:00}", cells[k].x, h40 * 0.5f, cells[k].z);
 
             // 20ft 는 실물처럼 40ft 베이 한 칸에 두 개를 앞뒤로 넣는다.
             float off20 = (len20 + Yard20ftGapM * StsConfig.ModelScale) * 0.5f;
@@ -478,7 +473,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
                 foreach (float dz in new[] { -off20, off20 })
                 {
                     if (made20 >= YardCount20) break;
-                    Put(f20, d20, root, $"Cont20_{made20:00}", c.x, h20 * 0.5f, c.z + dz);
+                    Put(f20, d20, root, $"{StsPartNames.Yard20Prefix}{made20:00}", c.x, h20 * 0.5f, c.z + dz);
                     made20++;
                 }
             }
@@ -522,14 +517,13 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             var go = (GameObject)PrefabUtility.InstantiatePrefab(src);
             go.name = name;
             go.transform.SetParent(parent, worldPositionStays: false);
-            float m = RtgCraneFbxPlacer.CombinedBounds(go).size.y;
+            float m = SceneUtil.BoundsOrPoint(go).size.y;
             float t = ContainerHeightM * StsConfig.ModelScale;
             if (m > 1e-6f) go.transform.localScale *= t / m;
 
-            // 원점 규약이 FBX마다 다르다 — 정밀본은 '바닥', LOD1은 '중앙'. 래퍼는 y를 '중앙 높이'로 놓으므로
-            //   바닥 원점 FBX는 반통(2.591/2=1.296m)만큼 떠오른다 — LOD가 바뀌는 순간 컨테이너가 튀어오른다.
-            //   피봇을 바운즈 중앙으로 통일하면 어느 규약이든 같은 자리에 앉는다.
-            go.transform.position += parent.position - RtgCraneFbxPlacer.CombinedBounds(go).center;
+            // 원점 규약이 FBX마다 다르다(정밀본 '바닥', LOD1 '중앙') — 그대로 두면 LOD 전환 때 반통만큼 튄다.
+            //   피봇을 바운즈 중앙으로 통일한다.
+            go.transform.position += parent.position - SceneUtil.BoundsOrPoint(go).center;
             return go;
         }
 
@@ -538,10 +532,10 @@ namespace AIXRCrane.Crane.Sts.EditorTools
         static float Probe(GameObject src, out float len, out float wid)
         {
             var p = (GameObject)PrefabUtility.InstantiatePrefab(src);
-            float m = RtgCraneFbxPlacer.CombinedBounds(p).size.y;
+            float m = SceneUtil.BoundsOrPoint(p).size.y;
             float t = ContainerHeightM * StsConfig.ModelScale;
             if (m > 1e-6f) p.transform.localScale *= t / m;
-            var b = RtgCraneFbxPlacer.CombinedBounds(p);
+            var b = SceneUtil.BoundsOrPoint(p);
             len = b.size.z; wid = b.size.x;
             float h = b.size.y;
             Object.DestroyImmediate(p);
@@ -553,7 +547,6 @@ namespace AIXRCrane.Crane.Sts.EditorTools
         [MenuItem("Model/FBX/항구/차선 배치 (Lane)", false, 6)]
         static void PlaceLane()
         {
-            if (!BerthReady("차선")) return;
             var fbx = Load(LaneFbx, "차선"); if (fbx == null) return;
 
             float pitch = LanePitchM * StsConfig.ModelScale;
@@ -582,7 +575,6 @@ namespace AIXRCrane.Crane.Sts.EditorTools
         [MenuItem("Model/FBX/항구/야드 배치 (Yard)", false, 5)]
         static void PlaceYard()
         {
-            if (!BerthReady("야드")) return;
             var pave  = Load(YardPaveFbx,  "야드 포장");  if (pave  == null) return;
             var block = Load(YardBlockFbx, "야드 블록");  if (block == null) return;
 
@@ -611,10 +603,6 @@ namespace AIXRCrane.Crane.Sts.EditorTools
                           new Vector3(PortConfig.YardBlockCenterX(i) * StsConfig.ModelScale, 0f,
                                       PortConfig.YardBlockCenterZ(j) * StsConfig.ModelScale), bScale);
 
-            // 트럭 주행레인 도색은 제거했다(RTG를 블록 중앙으로) — 전에 깔았던 그룹이 남아 있으면 지운다.
-            var stale = GameObject.Find("Yard_TruckLane");
-            if (stale != null) Undo.DestroyObjectImmediate(stale);
-
             Selection.activeGameObject = bRoot.gameObject;
             SceneView.lastActiveSceneView?.FrameSelected();
             Debug.Log($"[항구] 야드 — 포장 {depth:F1} × {BerthLenM:F0}m · 블록 {n}개" +
@@ -632,7 +620,6 @@ namespace AIXRCrane.Crane.Sts.EditorTools
         [MenuItem("Model/FBX/항구/바다 배치 (Sea)", false, 4)]
         static void PlaceSea()
         {
-            if (!BerthReady("바다")) return;
             var fbx = Load(SeaFbx, "바다"); if (fbx == null) return;
 
             // 바다를 줄이다 보면 접안한 배가 물 밖으로 나간다. 조용히 넘어가지 않게 여기서 잡는다.
@@ -732,17 +719,6 @@ namespace AIXRCrane.Crane.Sts.EditorTools
 
         // ── 공용 ──
 
-        /// <summary>안벽 길이가 아직 안 정해졌으면 배치를 막는다 — 옛 값을 조용히 되살리는 대신 새 숫자를 요구한다.</summary>
-        static bool BerthReady(string label)
-        {
-            if (BerthLenM > 0f) return true;
-            EditorUtility.DisplayDialog(label + " 배치",
-                "항구 치수가 아직 정해지지 않았습니다.\n\n" +
-                "QuayPartsPlacer.BerthLenM (안벽 길이, 실척 m) 에 값을 넣어주세요.\n" +
-                "기존 값(344m)은 오너 지시로 삭제했습니다.", "확인");
-            return false;
-        }
-
         static GameObject Load(string path, string label)
         {
             var fbx = AssetDatabase.LoadAssetAtPath<GameObject>(path);
@@ -790,24 +766,6 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             mat.SetColor("_BaseColor", new Color(d.r, d.g, d.b, 1f));
             mat.SetFloat("_Metallic", d.metal);
             mat.SetFloat("_Smoothness", d.smooth);
-            if (!string.IsNullOrEmpty(d.normal))
-            {
-                var nrm = AssetDatabase.LoadAssetAtPath<Texture2D>(d.normal);
-                if (nrm != null)
-                {
-                    // 노멀맵으로 임포트돼 있어야 정상 반영된다(멱등).
-                    if (AssetImporter.GetAtPath(d.normal) is TextureImporter ti &&
-                        ti.textureType != TextureImporterType.NormalMap)
-                    {
-                        ti.textureType = TextureImporterType.NormalMap;
-                        ti.SaveAndReimport();
-                        nrm = AssetDatabase.LoadAssetAtPath<Texture2D>(d.normal);
-                    }
-                    mat.SetTexture("_BumpMap", nrm);
-                    mat.EnableKeyword("_NORMALMAP");
-                }
-                else Debug.LogWarning($"[항구] 노멀맵 없음: {d.normal}");
-            }
             mat.enableInstancing = true;   // 같은 메시+머티리얼 반복이라 인스턴싱이 그대로 먹는다
             AssetDatabase.CreateAsset(mat, path);
             return mat;
@@ -860,7 +818,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
         {
             var probe = (GameObject)PrefabUtility.InstantiatePrefab(fbx);
             probe.transform.localScale = Vector3.one;
-            float h = RtgCraneFbxPlacer.CombinedBounds(probe).size.y;   // 기존 헬퍼 재사용
+            float h = SceneUtil.BoundsOrPoint(probe).size.y;   // 기존 헬퍼 재사용
             Object.DestroyImmediate(probe);
             return h > 1e-5f ? realHeightM * StsConfig.ModelScale / h : 1f;
         }

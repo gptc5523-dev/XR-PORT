@@ -221,9 +221,7 @@ namespace AIXRCrane.Crane.Sts
                 if (cam == null && Camera.allCameras.Length > 0) cam = Camera.allCameras[0];
             }
             if (cam == null) return;
-            canvas.transform.SetParent(cam.transform, worldPositionStays: false);
-            canvas.transform.localPosition = hmdOffset;
-            CraneHud.FaceCameraChild(canvas.transform, hmdOffset, tiltPitchDeg, tiltYawDeg);
+            CraneHud.AttachHeadLocked(canvas.transform, cam, hmdOffset, tiltPitchDeg, tiltYawDeg);
         }
     }
 }

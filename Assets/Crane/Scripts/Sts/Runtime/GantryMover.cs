@@ -60,7 +60,7 @@ namespace AIXRCrane.Crane.Sts
         [SerializeField] LayerMask obstacleMask = ~0;
 
         Collider[] legColliders;
-        float nextLegResolve;   // 빈 캐시일 때만 ~1s마다 재탐색(매 프레임 전체 탐색 방지)
+        float nextLegResolve;   // 빈 캐시일 때만 ~1s마다 재탐색
         bool legWarned;
 
         // 크레인 간 충돌방지 — 같은 레일(X 근접)의 다른 STS 쪽으로 안전간격 안에 들어가는 이동만 막는다.
@@ -95,9 +95,9 @@ namespace AIXRCrane.Crane.Sts
                 if (g == null) continue;
                 if (Mathf.Abs(g.transform.position.x - curX) > 1.0f) continue;   // 같은 레일(X 근접)만 — 야드 RTG 제외
                 float otherZ = g.transform.position.z;
-                if (Mathf.Abs(targetZ - otherZ) < Mathf.Abs(curZ - otherZ) &&    // 그 크레인 쪽으로 가까워지는 이동이고
-                    Mathf.Abs(targetZ - otherZ) < safeGap)                        // 이동 후 간격이 안전간격 미만이면
-                    return true;                                                  // → 막음
+                if (Mathf.Abs(targetZ - otherZ) < Mathf.Abs(curZ - otherZ) &&    // 가까워지는 이동이고
+                    Mathf.Abs(targetZ - otherZ) < safeGap)                        // 이동 후 안전간격 미만
+                    return true;
             }
             return false;
         }
@@ -113,7 +113,7 @@ namespace AIXRCrane.Crane.Sts
 
             if (!stopOnObstacle) return false;
             ResolveLegsIfNeeded();
-            if (legColliders == null || legColliders.Length == 0) return false;   // 콜라이더 못 찾음 — 정지 기능 비활성(경고 후 주기 재시도)
+            if (legColliders == null || legColliders.Length == 0) return false;   // 콜라이더 없음 — 정지 비활성(주기 재시도)
 
             float d = target - ReadAxis();
             if (Mathf.Abs(d) < 1e-5f) return false;
@@ -138,7 +138,7 @@ namespace AIXRCrane.Crane.Sts
                     // 컨테이너 = ContainerInstance 또는 Rigidbody 보유(테스트 컨테이너 포함). 정적 구조물은 무시.
                     if (hit.collider.GetComponentInParent<AIXRCrane.ContainerInstance>() == null
                         && hit.collider.attachedRigidbody == null) continue;
-                    QaBlockEdge(true, target, hit.collider.name);   // QA S-PHYS-4: 막힘 검출(밀지 않음) — 엣지에서만
+                    QaBlockEdge(true, target, hit.collider.name);   // QA S-PHYS-4
                     return true;
                 }
             }

@@ -109,16 +109,13 @@ namespace AIXRCrane.Ship
         }
 
         // ── 5단계: 갑판 컨테이너 적재 — 해치 커버 위 베이×로우×티어(레이아웃은 BuildHatches와 동일) ──
-        // 서브메시 0~7 = 컨테이너 색 팔레트(패치워크).
-        public const int CargoPalette = 8;
-        public const float CargoTierH = 2.591f;   // 컨테이너 적층 피치(Std, 실척 m)
 
         // 갑판 컨테이너 슬롯 — 컨테이너 중심(실척 m).
         // 레이아웃은 BuildHatches와 동일 산출 → 커버 위에 정확히 안착. 적재용 메뉴가 이 좌표에 그랩 컨테이너를 배치.
-        public static List<Vector4> CargoSlots()
+        public static List<Vector3> CargoSlots()
         {
-            var slots = new List<Vector4>(1024);
-            float Wc = ShipConfig.ContainerWidthM, Hc = CargoTierH;
+            var slots = new List<Vector3>(1024);
+            float Wc = ShipConfig.ContainerWidthM, Hc = ProceduralContainerMesh.HeightStd;   // 적층 피치(Std)
             float cargoLen = ShipConfig.CargoFwdZ - ShipConfig.CargoAftZ;
             int bays = Mathf.Max(1, Mathf.RoundToInt(cargoLen / (Len40 + 2f)));
             float pitch = cargoLen / bays;
@@ -146,8 +143,7 @@ namespace AIXRCrane.Ship
                     for (int t = 0; t < tiers; t++)
                     {
                         float y = baseY + (t + 0.5f) * Hc;
-                        int sub = ((i * 7 + r * 13 + t * 5) % CargoPalette + CargoPalette) % CargoPalette;
-                        slots.Add(new Vector4(x, y, zc, sub));
+                        slots.Add(new Vector3(x, y, zc));
                     }
                 }
             }

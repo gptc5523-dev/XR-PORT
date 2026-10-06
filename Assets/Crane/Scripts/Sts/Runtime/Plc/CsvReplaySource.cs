@@ -78,10 +78,7 @@ namespace AIXRCrane.Crane.Sts.Plc
             s.TrVelocity = a.TrVelocity + (b.TrVelocity - a.TrVelocity) * f;
             s.HoVelocity = a.HoVelocity + (b.HoVelocity - a.HoVelocity) * f;
             s.HoLoad     = a.HoLoad     + (b.HoLoad     - a.HoLoad)     * f;
-            s.GtAccel    = a.GtAccel    + (b.GtAccel    - a.GtAccel)    * f;
-            s.TrAccel    = a.TrAccel    + (b.TrAccel    - a.TrAccel)    * f;
-            s.HoAccel    = a.HoAccel    + (b.HoAccel    - a.HoAccel)    * f;
-            s.WindSpeed  = a.WindSpeed  + (b.WindSpeed  - a.WindSpeed)  * f;   // 풍향(0/360 wrap)은 보류 라인 — 단순 선형.
+            s.WindSpeed  = a.WindSpeed  + (b.WindSpeed  - a.WindSpeed)  * f;   // 풍향(0/360 wrap)은 보간 안 함
             return s;
         }
 

@@ -59,14 +59,14 @@ namespace AIXRCrane.Crane.Sts
         [Tooltip("위 부품 기준 카메라 오프셋(크레인 로컬 m, 스케일 무관). x=앞뒤(-=기계실/육지, +=바다), y=상하, z=좌우.")]
         [SerializeField] Vector3 cabLocalOffset = new Vector3(-0.035f, -0.03f, -0.05f);
         [Tooltip("운전실 '바닥' 부품 이름 — 전용 시점일 때 눈 위치를 이 바닥 '아래'에 둔다(발밑 화물 내려다보기). 못 찾으면 좌석 눈높이(Cab_Viewpoint) 유지.")]
-        [SerializeField] string cabFloorAnchorName = StsPartNames.CabFloorRear;   // 옛 Cab_Kick은 생산부 없어 좌석 안에 갇혔음
+        [SerializeField] string cabFloorAnchorName = StsPartNames.CabFloorRear;   // Cab_Kick 은 생산부 없음 — 쓰지 말 것
         [Tooltip("바닥 부품 '아래'로 카메라를 내릴 거리(크레인 로컬 m, 스케일 무관). 바닥 패널 밑에서 발밑 화물을 막힘없이 내려다본다. VR에서 미세조정.")]
         [SerializeField, Range(0f, 0.04f)] float cabFloorDropDown = 0.008f;   // 바닥 반두께(~0.003) + 여유(~0.005). 실척 ≈ 0.008×24 ≈ 0.19m
 
         StsCrane crane;
         SpreaderGrabber grabber;
 
-        Mode mode = Mode.Crane;
+        Mode mode;
         /// <summary>현재 적용된 모드(B로 확정된 것). HUD가 '현재' 표시에 사용.</summary>
         public Mode CurrentMode => mode;
         /// <summary>스틱으로 가리키는 선택 후보 인덱스(아직 미적용). HUD가 커서(▸) 표시에 사용.</summary>
@@ -147,7 +147,7 @@ namespace AIXRCrane.Crane.Sts
             Active = this;
             mode = startInCraneMode ? Mode.Crane : Mode.Move;
             selectedIndex = (int)mode;
-            ApplyMode();   // 로코모션 + 자동/수동(이동모드=자동, 운전/갠트리=수동) 연동
+            EnforceLocomotion();   // 로코모션 + 자동/수동(이동모드=자동, 운전/갠트리=수동) 연동
             ApplyWalkSpeed();
             if (debugLog) Debug.Log($"[Crane] VRController 활성 — 시작 모드 {ModeNames[(int)mode]}");
         }
@@ -156,7 +156,7 @@ namespace AIXRCrane.Crane.Sts
         {
             if (cabView) ExitCabView();   // 운전실 시점이면 시점 원위치 복귀
             mode = Mode.Move;   // 컨트롤러 끄면 로코모션 복구
-            ApplyMode();
+            EnforceLocomotion();
             if (Active == this) Active = null;
         }
 
@@ -209,7 +209,7 @@ namespace AIXRCrane.Crane.Sts
             if (Mathf.Abs(rs.y) < 0.3f) stickCentered = true;
             if (modeHold && stickCentered && Mathf.Abs(rs.y) > modeFlickThreshold && Mathf.Abs(rs.x) < 0.5f)
             {
-                selectedIndex = Mathf.Clamp(selectedIndex + (rs.y > 0f ? -1 : 1), 0, 2);
+                selectedIndex = Mathf.Clamp(selectedIndex + (rs.y > 0f ? -1 : 1), 0, ModeNames.Length - 1);
                 Haptic(right, 0.2f, 0.02f);   // 후보 이동 — 가벼운 진동
                 stickCentered = false;
             }
@@ -331,7 +331,7 @@ namespace AIXRCrane.Crane.Sts
             if (m == mode) return;   // m=(Mode)selectedIndex 이므로 같으면 커서도 이미 mode와 동기화 상태
             mode = m;
             selectedIndex = (int)mode;
-            ApplyMode();
+            EnforceLocomotion();
             Haptic(InputDevices.GetDeviceAtXRNode(XRNode.RightHand), 0.4f, 0.05f);
             if (debugLog) Debug.Log($"[Crane] 모드 → {ModeNames[(int)mode]}");
         }
@@ -452,12 +452,7 @@ namespace AIXRCrane.Crane.Sts
             => d.isValid && d.TryGetFeatureValue(usage, out bool v) && v;
 
         // 로코모션은 '이동모드 + 높이조절 중 아님'일 때만 켠다. 캐시된 프로바이더에 매 프레임
-        // 목표 상태를 직접 강제하는 선언적 방식(디스에이블/이네이블 큐 방식은 상태가 어긋났었다).
-        void ApplyMode()
-        {
-            EnforceLocomotion();
-        }
-
+        // 목표 상태를 직접 강제하는 선언적 방식(토글 큐 방식은 상태가 어긋남).
         void EnforceLocomotion()
         {
             EnsureLocoProviders();
@@ -492,12 +487,12 @@ namespace AIXRCrane.Crane.Sts
         {
             if (viewHeight == null) viewHeight = FindAnyObjectByType<CraneViewHeightAdjuster>();
             return viewHeight != null && viewHeight.HeightHold;
-        // 'moveSpeed' 가진 로코모션 프로바이더(ContinuousMove 등)에 리플렉션으로 적용 — XRI 버전 무관.
         }
 
         /// <summary>리그 스케일 변경 뒤 걷기 속도 재적용(호환용 — 스케일 무관, walkSpeed 그대로).</summary>
         public void ReapplyWalkSpeed() => ApplyWalkSpeed();
 
+        // 'moveSpeed' 가진 로코모션 프로바이더(ContinuousMove 등)에 리플렉션으로 적용 — XRI 버전 무관.
         void ApplyWalkSpeed()
         {
             if (walkSpeed <= 0f) return;

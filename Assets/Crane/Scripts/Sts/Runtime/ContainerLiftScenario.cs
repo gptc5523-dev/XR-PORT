@@ -42,7 +42,7 @@ namespace AIXRCrane.Crane.Sts
         {
             crane   = GetComponentInChildren<StsCrane>();
             grabber = GetComponentInChildren<SpreaderGrabber>();
-            spreadT = FindDeep(transform, "Spreader");
+            spreadT = SceneUtil.FindDeep(transform, "Spreader");
             hoist   = spreadT != null ? spreadT.GetComponent<SpreaderHoist>() : null;
             if (crane == null || hoist == null || grabber == null || spreadT == null)
             {
@@ -56,8 +56,8 @@ namespace AIXRCrane.Crane.Sts
 
         void SpawnContainer()
         {
-            // 잡기 기준점 = 트위스트락 중심. 여기에 정렬해야 안착(IsSeatedOver가 컨테이너 중심 vs 기준점 비교).
-            TwistlockFootprint(out Vector3 twCenter, out float twLong, out _);
+            // 잡기 기준점 = 트위스트락 중심 — IsSeatedOver 가 컨테이너 중심과 비교한다.
+            TwistlockFootprint(out Vector3 twCenter, out float twLong);
             float groundY = transform.position.y;
 
             GameObject go;
@@ -104,8 +104,8 @@ namespace AIXRCrane.Crane.Sts
             Debug.Log($"[컨테이너테스트] 컨테이너 배치 — {(containerPrefab ? "프리팹" : "큐브")} 트위스트락중심 {twCenter} pos {go.transform.position} 크기(긴변 {twLong:F3}, 높이 {halfH*2f:F3}).");
         }
 
-        // 트위스트락(Spreader_Twistlock_*) 4개의 월드 중심 + X/Z 스팬(긴변/짧은변). = 그랩버 잡기 기준점.
-        void TwistlockFootprint(out Vector3 center, out float longSpan, out float shortSpan)
+        // 트위스트락(Spreader_Twistlock_*) 4개의 월드 중심 + 긴변 스팬. = 그랩버 잡기 기준점.
+        void TwistlockFootprint(out Vector3 center, out float longSpan)
         {
             var pts = new System.Collections.Generic.List<Vector3>();
             foreach (var t in spreadT.GetComponentsInChildren<Transform>(true))
@@ -116,9 +116,9 @@ namespace AIXRCrane.Crane.Sts
                 foreach (var p in pts) { mn = Vector3.Min(mn, p); mx = Vector3.Max(mx, p); }
                 center = (mn + mx) * 0.5f;
                 float sx = mx.x - mn.x, sz = mx.z - mn.z;
-                longSpan = Mathf.Max(sx, sz); shortSpan = Mathf.Min(sx, sz);
+                longSpan = Mathf.Max(sx, sz);
             }
-            else { center = spreadT.position; longSpan = containerSize.x; shortSpan = containerSize.z; }
+            else { center = spreadT.position; longSpan = containerSize.x; }
         }
 
         // 긴변(X 또는 Z)을 target에 맞춰 균일 스케일(비율 보존).
@@ -133,12 +133,8 @@ namespace AIXRCrane.Crane.Sts
 
         static Bounds WorldBounds(GameObject go, out bool ok)
         {
-            var rs = go.GetComponentsInChildren<Renderer>();
-            ok = rs.Length > 0;
-            if (!ok) return new Bounds(go.transform.position, Vector3.one * 0.1f);
-            Bounds b = rs[0].bounds;
-            for (int i = 1; i < rs.Length; i++) b.Encapsulate(rs[i].bounds);
-            return b;
+            ok = SceneUtil.TryBounds(go.transform, out var b);
+            return ok ? b : new Bounds(go.transform.position, Vector3.one * 0.1f);
         }
 
         bool Grabbed() => crane.Attach != null && crane.Attach.HasContainer;
@@ -225,11 +221,5 @@ namespace AIXRCrane.Crane.Sts
             }
         }
 
-        static Transform FindDeep(Transform r, string n)
-        {
-            if (r.name == n) return r;
-            foreach (Transform c in r) { var x = FindDeep(c, n); if (x) return x; }
-            return null;
-        }
     }
 }

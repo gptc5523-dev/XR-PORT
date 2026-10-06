@@ -66,8 +66,7 @@ namespace Procedural
             AddQuad(submesh, ia, ib, ic, id);
         }
 
-        /// <param name="tangents">탄젠트 생성 여부(기본 true). 노멀맵 없는 저폴리 LOD 는 false — 정점 48 B → 32 B.</param>
-        public Mesh ToMesh(string name, bool tangents = true)
+        public Mesh ToMesh(string name)
         {
             var mesh = new Mesh { name = name };
             if (_verts.Count > 65535)
@@ -88,7 +87,7 @@ namespace Procedural
                     mesh.SetTriangles(System.Array.Empty<int>(), s);
             }
 
-            if (tangents) mesh.RecalculateTangents();
+            mesh.RecalculateTangents();
             mesh.RecalculateBounds();
             return mesh;
         }

@@ -80,7 +80,7 @@ namespace AIXRCrane.Crane.Flat
             var scaler = canvasGo.AddComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = new Vector2(RefW, RefH);
-            scaler.matchWidthOrHeight = 1f;   // 높이 기준 — 폰(20:9)처럼 옆으로 긴 화면에서도 글자 크기가 안 줄어든다
+            scaler.matchWidthOrHeight = 1f;   // 높이 기준 — 옆으로 긴 폰에서도 글자가 안 줄게
             canvasGo.AddComponent<GraphicRaycaster>();
 
             float ix = RefW * safeInset, iy = RefH * safeInset;

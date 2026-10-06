@@ -54,8 +54,6 @@ namespace AIXRCrane.Crane.Sts
 
         /// <summary>잠금 지령 상태(목표). 라벨/HUD 표시용.</summary>
         public bool Locked => target > 0.5f;
-        /// <summary>실제 잠금 진행도 0..1(애니메이션 중간값). 1=완전 잠금.</summary>
-        public float LockProgress => locked01;
 
         void Update()
         {

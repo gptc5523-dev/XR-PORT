@@ -19,8 +19,8 @@ namespace AIXRCrane.Crane.Sts
         /// <summary>돌풍 — 평균풍속에 ±이 비율을 펄린 잡음(주기 ~5초)으로 얹는다. 난류강도 0.15~0.2 가 항만 통상.</summary>
         public static float Gust = 0.2f;
 
-        const double SpreaderMassKg = 13000;   // 텔레스코픽 스프레더 ~10t + 헤드블록 ~3t (카탈로그 범위 — 벤더 확정 시 교체)
-        const float TeleportMps = 20f;         // 매달림점·로프가 이보다 빠르면 순간이동(CSV 되감기·네트워크 스냅) — 흔들림 초기화
+        const double SpreaderMassKg = 13000;   // 스프레더 ~10t + 헤드블록 ~3t(카탈로그 범위, 벤더 확정 시 교체)
+        const float TeleportMps = 20f;         // 이보다 빠르면 순간이동으로 보고 흔들림 초기화
         const float LandTau = 0.2f;
 
         StsCrane crane;
@@ -70,7 +70,7 @@ namespace AIXRCrane.Crane.Sts
             node = new GameObject(NodeName).transform;
             node.SetParent(parent, false);
             node.SetSiblingIndex(spreader.GetSiblingIndex());
-            spreader.SetParent(node, false);   // 노드가 항등이라 로컬 자세·스케일 그대로 = 월드 자세 그대로
+            spreader.SetParent(node, false);   // 노드가 항등이라 월드 자세 그대로
             gustSeed = Random.value * 100f;
         }
 
@@ -97,7 +97,7 @@ namespace AIXRCrane.Crane.Sts
             double mass = SpreaderMassKg, fx = 0, fz = 0, fx0 = 0, fz0 = 0;
             var attach = crane.Attach;
             var held = attach != null ? attach.AttachedContainer : null;
-            if (held != sizedFor) { sizedFor = held; heldSizeM = held != null && CraneDemoRunner.TryBounds(held, out var hb) ? hb.size * inv : Vector3.zero; }
+            if (held != sizedFor) { sizedFor = held; heldSizeM = held != null && SceneUtil.TryBounds(held, out var hb) ? hb.size * inv : Vector3.zero; }
             if (held != null)
             {
                 mass += attach.AttachedMassKg;

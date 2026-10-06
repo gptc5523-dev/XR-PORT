@@ -1,7 +1,6 @@
 #if UNITY_EDITOR
 using System.Collections.Generic;
 using System.Linq;
-using System.Text.RegularExpressions;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -25,7 +24,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             var cells = CellsU();
             var boxes = Object.FindObjectsByType<LODGroup>(FindObjectsInactive.Exclude)
                 .Select(l => l.transform)
-                .Where(t => Regex.IsMatch(t.name, @"^Cont(20|40)_\d+$"))
+                .Where(t => StsPartNames.IsYardContainerName(t.name))
                 .ToList();
 
             float inv = StsConfig.InvModelScale;
@@ -35,7 +34,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
 
             foreach (var t in boxes)
             {
-                if (!TryBounds(t, out Bounds b)) continue;
+                if (!SceneUtil.TryBounds(t, out Bounds b)) continue;
 
                 float best = float.MaxValue;
                 foreach (var c in cells)
@@ -68,12 +67,12 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             foreach (var t in boxes)
             {
                 if (tried >= 2) break;
-                if (!TryBounds(t, out Bounds b0)) continue;
+                if (!SceneUtil.TryBounds(t, out Bounds b0)) continue;
                 if (!YardGrid.TrySnapXZ(b0.center, Mathf.Max(b0.size.x, b0.size.z), out _)) continue;
                 tried++;
                 Vector3 was = t.position;
                 t.position = was + new Vector3(probeM * StsConfig.ModelScale, 0f, 0f);
-                if (TryBounds(t, out Bounds b1)
+                if (SceneUtil.TryBounds(t, out Bounds b1)
                     && YardGrid.TrySnapXZ(b1.center, Mathf.Max(b1.size.x, b1.size.z), out Vector3 cell1))
                 {
                     float d = new Vector2(b1.center.x - cell1.x, b1.center.z - cell1.z).magnitude * inv;
@@ -116,15 +115,6 @@ namespace AIXRCrane.Crane.Sts.EditorTools
         }
 
 
-        static bool TryBounds(Transform t, out Bounds b)
-        {
-            b = default;
-            var rends = t.GetComponentsInChildren<Renderer>();
-            if (rends == null || rends.Length == 0) return false;
-            b = rends[0].bounds;
-            for (int i = 1; i < rends.Length; i++) b.Encapsulate(rends[i].bounds);
-            return true;
-        }
     }
 }
 #endif

@@ -22,9 +22,9 @@ namespace AIXRCrane.Crane.Sts
 
         [Header("화살표")]
         [SerializeField] int fontSize = 46;
-        [SerializeField] Color arrowColor = new Color(0.373f, 0.878f, 1f, 1f);   // #5FE0FF (Accent 토큰과 정합)
-        [SerializeField] Color bgColor = new Color(0f, 0f, 0f, 0.55f);   // 예외: 화살표는 부두/하늘 배경 덜 가리려 표준(PanelBgAlpha)보다 투명
-        [SerializeField] float worldScale = 0.00042f;   // 화살표가 너무 컸음
+        [SerializeField] Color arrowColor = CraneHud.HudColor.Accent;
+        [SerializeField] Color bgColor = new Color(0f, 0f, 0f, 0.55f);   // 예외: 배경 덜 가리려 PanelBgAlpha 보다 투명
+        [SerializeField] float worldScale = 0.00042f;
 
         Canvas leftCanvas, rightCanvas;
         Text leftText, rightText;
@@ -64,7 +64,7 @@ namespace AIXRCrane.Crane.Sts
                 TryAttach();
             }
 
-            var mode = controller != null ? controller.CurrentMode : StsCraneVRController.Mode.Move;
+            var mode = controller.CurrentMode;
             string l, r;
             ArrowsFor(mode, out l, out r);
 

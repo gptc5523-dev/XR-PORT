@@ -130,9 +130,9 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             {
                 var t = lg.transform;
                 // 이름 규약으로 야드 컨테이너만 — Regex 를 쓰면 이 파일에 using 이 없어 컴파일이 깨진다.
-                if (!t.name.StartsWith("Cont20_") && !t.name.StartsWith("Cont40_")) continue;
+                if (!t.name.StartsWith(StsPartNames.Yard20Prefix) && !t.name.StartsWith(StsPartNames.Yard40Prefix)) continue;
                 // 조건을 나눠 쓴다 — || 로 묶으면 단축 평가 때문에 컴파일러가 out 변수 할당을 증명하지 못한다(CS0165).
-                if (!CraneDemoRunner.TryBounds(t, out var b)) continue;
+                if (!SceneUtil.TryBounds(t, out var b)) continue;
                 if (!YardGrid.TrySnapXZ(b.center, Mathf.Max(b.size.x, b.size.z), out Vector3 cell)) { outside++; continue; }
                 measured2++;
                 float d = new Vector2(b.center.x - cell.x, b.center.z - cell.z).magnitude * StsConfig.InvModelScale;

@@ -27,7 +27,7 @@ namespace AIXRCrane.Crane.Sts
                 if (Mathf.Abs(c.GetContact(i).normal.y) < sideNormalMaxY)   // 수평성분 우세 = 측면/바닥 충돌
                 {
                     owner.NotifyContact();
-                    other.WakeUp();   // sleep 방지 — 가만히 대고 있어도 Stay 계속 오게(가만히 대면 신호 끊기던 문제)
+                    other.WakeUp();   // sleep 방지 — 가만히 대고 있어도 Stay가 계속 오게
                     return;
                 }
             }

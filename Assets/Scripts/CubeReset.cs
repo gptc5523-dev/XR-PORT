@@ -29,8 +29,6 @@ public class CubeReset : MonoBehaviour
     bool placedOnTable;
     bool initialPlaced;
 
-    public void SetHorizontalOffset(float offset) => horizontalOffset = offset;
-
     void Start()
     {
         rb = GetComponent<Rigidbody>();

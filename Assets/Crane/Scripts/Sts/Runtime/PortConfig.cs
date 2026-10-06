@@ -8,9 +8,7 @@ namespace AIXRCrane.Crane.Sts
     public static class PortConfig
     {
         // ═══ ① 앵커 ═══
-        /// <summary>선석 수. 파나마스급 1선석.</summary>
-        public const int BerthCount = 1;
-        //   설계선 = ShipConfig.LoaMeters(294m 파나마스) · ShipConfig.DraftMeters(13m)
+        //   설계선 = ShipConfig.LoaMeters(294m) · ShipConfig.DraftMeters(13m)
 
         // ═══ ② 여유율 (PIANC/항만설계기준 관행) ═══
         /// <summary>선석 길이 여유율 — 안벽 길이 = 설계선 LOA × 이 값. 통상 1.10~1.15.</summary>
@@ -68,10 +66,9 @@ namespace AIXRCrane.Crane.Sts
         public const float LaneWidthM = 0.34f;
         //   레일 사이(트럭 주행 구역)에는 차선을 넣지 않는다.
 
-        // ═══════════ 야드 (2레인 × 2블록 = 4블록) ═══════════
-        // ① 컨테이너 앵커 — ISO 1AA 40ft. 폭은 ProceduralContainerMesh.StdWidth SSOT 추종.
-        /// <summary>40ft 컨테이너 길이 — 실척 m.</summary>
-        public const float ContainerLenM = 12.192f;
+        // ═══════════ 야드 (2레인 × 2블록) ═══ ① 컨테이너 앵커 — ISO 1AA 40ft
+        /// <summary>40ft 컨테이너 길이 — 실척 m. 폭은 ProceduralContainerMesh.StdWidth SSOT.</summary>
+        public const float ContainerLenM = ProceduralContainerMesh.Length40ft;
         /// <summary>열 간 간격 — 실척 m. RTG 야드 표준.</summary>
         public const float RowGapM = 0.4f;
         /// <summary>베이 간 간격 — 실척 m.</summary>

@@ -1,6 +1,5 @@
 using System.Collections;
 using System.Collections.Generic;
-using System.Text.RegularExpressions;
 using UnityEngine;
 using AIXRCrane.Crane.Sts.Plc;
 
@@ -83,7 +82,7 @@ namespace AIXRCrane.Crane.Sts
             var ringMat = RingMaterial();
             foreach (var c in FindObjectsByType<StsCrane>())
             {
-                foreach (var b in c.GetComponents<PlcBridge>()) b.enabled = false;   // PLC 재생 말고 시나리오 — OnDisable 이 PlcDriven 도 끈다
+                foreach (var b in c.GetComponents<PlcBridge>()) b.enabled = false;   // OnDisable 이 PlcDriven 도 끈다
                 var ctrl = c.GetComponent<StsCraneVRController>();
                 if (ctrl == null) ctrl = c.gameObject.AddComponent<StsCraneVRController>();   // RTG 도 VR 조종
                 var e = new Entry
@@ -106,13 +105,12 @@ namespace AIXRCrane.Crane.Sts
             yield return null;   // 그랩버·무버·보기 조향이 Start 를 마친 뒤에 잰다
 
             var site = new CraneDemoRunner.Site();
-            var yardName = new Regex(@"^Cont(20|40)_\d+$");
             foreach (var lg in FindObjectsByType<LODGroup>())
             {
                 var t = lg.transform;
-                bool ship = t.name.StartsWith(StsPartNames.ShipContainer), yard = !ship && yardName.IsMatch(t.name);
+                bool ship = t.name.StartsWith(StsPartNames.ShipContainer), yard = !ship && StsPartNames.IsYardContainerName(t.name);
                 if (!ship && !yard) continue;
-                if (!CraneDemoRunner.TryBounds(t, out var b)) continue;
+                if (!SceneUtil.TryBounds(t, out var b)) continue;
                 if (yard) MakeGrabbable(t, b);   // 야드 컨테이너는 콜라이더·강체가 없어 VR 로 못 집는다
                 (ship ? site.ship : site.yard).Add(t);
                 site.occupied.Add(b);
@@ -141,7 +139,7 @@ namespace AIXRCrane.Crane.Sts
 
         void Update()
         {
-            foreach (var e in cranes)   // 띠는 매 프레임 주행을 따라간다 — 판정 주기(0.2초)로 옮기면 VR 에서 뚝뚝 끊긴다
+            foreach (var e in cranes)   // 띠는 매 프레임 추종 — 판정 주기로 옮기면 VR 에서 끊긴다
             {
                 Vector3 o = e.mover.position;
                 e.ring.transform.position = new Vector3(o.x, e.groundY + 0.1f * StsConfig.ModelScale, o.z);   // 바닥과 z-파이팅 방지 실척 0.1m
@@ -151,7 +149,7 @@ namespace AIXRCrane.Crane.Sts
             bool spectator = Spectator;
             foreach (var e in cranes)
             {
-                e.ring.enabled = !spectator;   // 관전자는 띠 숨김(카메라 없어 아래 판정이 스킵되는 프레임까지 커버)
+                e.ring.enabled = !spectator;   // 관전자는 띠 숨김
                 if (spectator && e.ctrl.enabled) { e.ctrl.ControlActive = false; e.ctrl.enabled = false; }   // 접속 순간 켜진 조종기까지 끈다
             }
             var cam = Camera.main;
@@ -200,7 +198,7 @@ namespace AIXRCrane.Crane.Sts
         static void Footprint(Entry e)
         {
             Vector3 o = e.mover.position;
-            if (!CraneDemoRunner.TryBounds(e.crane.transform, out var b)) b = new Bounds(o, Vector3.zero);
+            if (!SceneUtil.TryBounds(e.crane.transform, out var b)) b = new Bounds(o, Vector3.zero);
             e.fpMin = new Vector2(b.min.x - o.x, b.min.z - o.z);
             e.fpMax = new Vector2(b.max.x - o.x, b.max.z - o.z);
             e.groundY = b.min.y;
@@ -225,7 +223,7 @@ namespace AIXRCrane.Crane.Sts
             const int seg = 12;   // 모서리 1/4 원 분할
             float r = approachMeters * StsConfig.ModelScale;
             lr.positionCount = 4 * (seg + 1);
-            for (int k = 0; k < 4; k++)   // 모서리 순서: (+x,+z) → (-x,+z) → (-x,-z) → (+x,-z), 각 모서리는 k·90° 에서 시작
+            for (int k = 0; k < 4; k++)   // 모서리 k 는 k·90° 에서 시작
             {
                 float cx = k == 0 || k == 3 ? e.fpMax.x : e.fpMin.x;
                 float cz = k < 2 ? e.fpMax.y : e.fpMin.y;
@@ -249,7 +247,7 @@ namespace AIXRCrane.Crane.Sts
                 tex.SetPixel(0, i, new Color(1f, 1f, 1f, Mathf.Exp(-6f * v * v)));
             }
             tex.Apply();
-            return new Material(Shader.Find("Sprites/Default")) { mainTexture = tex };   // GraphicsSettings 항상 포함 셰이더 — 빌드에서도 찾힌다
+            return new Material(Shader.Find("Sprites/Default")) { mainTexture = tex };   // 항상 포함 셰이더라 빌드에서도 찾힌다
         }
     }
 }

@@ -76,14 +76,6 @@ namespace AIXRCrane.Crane.Sts
         /// <summary>주입 결함 — 설정되면 자연 발생 알람보다 우선 반환(데모/검증용). 기본 무효, 사용 후 default 로 클리어.</summary>
         public static FaultDef Injected;
 
-        /// <summary>심각도 → AI 라벨(정상/주의/이상). 코드북 섹션 8 매핑.</summary>
-        public static LoadGrade ToGrade(FaultSeverity s) => s switch
-        {
-            FaultSeverity.Info    => LoadGrade.Normal,   // 정상
-            FaultSeverity.Warning => LoadGrade.Caution,  // 주의
-            _                     => LoadGrade.Over,     // Critical/Fatal → 이상
-        };
-
         /// <summary>심각도 → 표시색. 코드북 섹션 7(Fatal 적색 / Critical 주황 / Warning 노랑 / Info 회색).</summary>
         public static Color SevColor(FaultSeverity s) => s switch
         {
@@ -91,15 +83,6 @@ namespace AIXRCrane.Crane.Sts
             FaultSeverity.Critical => new Color(0.95f, 0.55f, 0.15f),
             FaultSeverity.Warning  => new Color(0.95f, 0.80f, 0.20f),
             _                      => new Color(0.65f, 0.65f, 0.68f),
-        };
-
-        /// <summary>심각도 한글 표기.</summary>
-        public static string SevLabel(FaultSeverity s) => s switch
-        {
-            FaultSeverity.Fatal    => "심각",
-            FaultSeverity.Critical => "위험",
-            FaultSeverity.Warning  => "주의",
-            _                      => "정보",
         };
 
         /// <summary>HUD 한 줄 표기: "[3012] HO 과부하 (정격 초과)".</summary>

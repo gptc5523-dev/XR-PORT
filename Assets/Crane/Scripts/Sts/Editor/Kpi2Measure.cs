@@ -23,7 +23,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
         static string summary = "";
         static int exceptions;
 
-        static string Pref(string k) => $"PlcBridge.{k}.{Crane}";   // PlcBridge.PrefKey 와 같은 키
+        static string Pref(string k) => PlcBridge.PrefKeyFor(Crane, k);
 
         // 플레이 진입의 도메인 리로드 뒤에도 이어받는다.
         static Kpi2Measure()

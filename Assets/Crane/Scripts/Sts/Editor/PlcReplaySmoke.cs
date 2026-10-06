@@ -24,7 +24,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
         static float maxDxz;
         static readonly Regex DxzRx = new Regex(@"중심 ([0-9.]+)m");
 
-        static string Pref(string k) => $"PlcBridge.{k}.{Crane}";   // PlcBridge.PrefKey 와 같은 키
+        static string Pref(string k) => Plc.PlcBridge.PrefKeyFor(Crane, k);
 
         // 플레이 진입의 도메인 리로드 뒤에도 이어받는다.
         static PlcReplaySmoke()

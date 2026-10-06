@@ -123,10 +123,10 @@ namespace AIXRCrane.Ship.EditorTools
             // 정밀 FBX 규약: 프리팹 루트가 자체 스케일, 길이축 Z, 피봇 중앙 높이(CargoSlots의 y와 일치) — 스케일·회전 건드리지 않는다.
             // 프로브도 실제 배치와 같은 보정을 걸어 재야 크기 오진을 피한다.
             var probe = (GameObject)PrefabUtility.InstantiatePrefab(src);
-            float pm = AIXRCrane.Crane.Sts.EditorTools.RtgCraneFbxPlacer.CombinedBounds(probe).size.y;
+            float pm = SceneUtil.BoundsOrPoint(probe).size.y;
             float pt = ProceduralContainerMesh.HeightStd * ShipConfig.ModelScale;
             if (pm > 1e-6f) probe.transform.localScale *= pt / pm;
-            var pb = AIXRCrane.Crane.Sts.EditorTools.RtgCraneFbxPlacer.CombinedBounds(probe);
+            var pb = SceneUtil.BoundsOrPoint(probe);
             Object.DestroyImmediate(probe);
 
             float ms = ShipConfig.ModelScale;
@@ -149,15 +149,13 @@ namespace AIXRCrane.Ship.EditorTools
             int want = ShipConfig.DeckCargoCount <= 0
                      ? slots.Count
                      : Mathf.Clamp(ShipConfig.DeckCargoCount, 0, slots.Count);
-            var picked = new List<Vector4>();
-            float cstep = columns.Count > 0 ? (float)columns.Count / Mathf.Max(1, columns.Count) : 1f;
+            var picked = new List<Vector3>();
             // 필요한 컨테이너 수를 채울 때까지 열을 균등 간격으로 고른다.
             int needCols = Mathf.Clamp(Mathf.CeilToInt(want / Mathf.Max(1f, (float)slots.Count / Mathf.Max(1, columns.Count))),
                                        0, columns.Count);
-            cstep = needCols > 0 ? (float)columns.Count / needCols : 1f;
+            float cstep = needCols > 0 ? (float)columns.Count / needCols : 1f;
             // 윗단은 확률로 얹는다 — 아래 단은 항상 넣는다(빠지면 윗단이 허공에 뜬다).
-            var rng = ShipConfig.DeckStackSeed == 0
-                    ? new System.Random() : new System.Random(ShipConfig.DeckStackSeed);
+            var rng = new System.Random(ShipConfig.DeckStackSeed);
             int upper = 0;
             var used = new HashSet<int>();
             for (int k = 0; k < needCols && picked.Count < want; k++)
@@ -217,13 +215,13 @@ namespace AIXRCrane.Ship.EditorTools
             var go = (GameObject)PrefabUtility.InstantiatePrefab(src);
             go.name = name;
             go.transform.SetParent(parent, false);
-            float m = AIXRCrane.Crane.Sts.EditorTools.RtgCraneFbxPlacer.CombinedBounds(go).size.y;
+            float m = SceneUtil.BoundsOrPoint(go).size.y;
             float t = ProceduralContainerMesh.HeightStd * ms;
             if (m > 1e-6f) go.transform.localScale *= t / m;
 
             // 원점 규약이 FBX 마다 다르다(정밀본 바닥, LOD1 중앙) — 피봇을 바운즈 중앙으로 통일해 LOD 전환 튐 방지.
             go.transform.position += parent.position
-                - AIXRCrane.Crane.Sts.EditorTools.RtgCraneFbxPlacer.CombinedBounds(go).center;
+                - SceneUtil.BoundsOrPoint(go).center;
             return go;
         }
 

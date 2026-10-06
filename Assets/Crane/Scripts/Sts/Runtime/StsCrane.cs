@@ -31,9 +31,8 @@ namespace AIXRCrane.Crane.Sts
         public CraneOpMode OpMode =>
             opMode != null ? opMode : (opMode = GetComponent<CraneOpMode>() ?? gameObject.AddComponent<CraneOpMode>());
 
-        /// <summary>모델 축척(실척의 1/24, StsConfig.ModelScale과 동일). 속도/거리를 m 단위로 환산할 때
-        /// 각자 상수를 두지 말고 이 값을 참조한다(SSOT).</summary>
-        public float ModelScale => StsConfig.ModelScale;   // SSOT — 값(1/24)은 StsConfig 단일 정의
+        /// <summary>모델 축척(SSOT = StsConfig.ModelScale). m 환산 시 각자 상수 두지 말 것.</summary>
+        public float ModelScale => StsConfig.ModelScale;
 
         /// <summary>Builder 가 참조를 한 번에 주입(인스펙터 지정과 동일).</summary>
         public void Configure(Transform boom, TrolleyMover trolley,

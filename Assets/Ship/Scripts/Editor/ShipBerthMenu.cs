@@ -125,21 +125,12 @@ namespace AIXRCrane.Ship.EditorTools
             foreach (var t in root.GetComponentsInChildren<Transform>(true))
             {
                 if (!t.name.StartsWith(namePrefix)) continue;
-                float x = TryWorldBounds(t, out Bounds b) ? b.center.x : t.position.x;
+                float x = SceneUtil.TryBounds(t, out Bounds b, true) ? b.center.x : t.position.x;
                 worldX = found ? Mathf.Max(worldX, x) : x;   // 바다측 = +X 관례
                 found = true;
             }
             return found;
         }
 
-        static bool TryWorldBounds(Transform t, out Bounds b)
-        {
-            b = default;
-            var rends = t.GetComponentsInChildren<Renderer>(true);
-            if (rends == null || rends.Length == 0) return false;
-            b = rends[0].bounds;
-            for (int i = 1; i < rends.Length; i++) b.Encapsulate(rends[i].bounds);
-            return true;
-        }
     }
 }

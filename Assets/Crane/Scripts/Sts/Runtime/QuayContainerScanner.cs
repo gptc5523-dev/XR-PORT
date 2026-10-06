@@ -27,7 +27,7 @@ namespace AIXRCrane.Crane.Sts
         [Tooltip("스캔 결과를 콘솔에 표로 출력.")]
         [SerializeField] bool logResults = true;
         [Tooltip("긴축(모델) 길이가 이 값을 넘으면 40ft로 인식 (20ft≈0.25 / 40ft≈0.51).")]
-        [SerializeField] float fortyFtThreshold = 0.38f;
+        [SerializeField] float fortyFtThreshold = YardGrid.Is40ThresholdU;
         [Tooltip("Scene 뷰에 등급색 박스+라벨 표시.")]
         [SerializeField] bool drawGizmos = true;
 
@@ -48,7 +48,7 @@ namespace AIXRCrane.Crane.Sts
                 if (rb == null) continue;
                 if (rb.GetComponentInParent<StsCrane>() != null) continue;   // 크레인 부속 제외
                 Transform t = rb.transform;
-                if (!TryBounds(t, out Bounds b)) continue;                    // 렌더러 없는 강체 제외
+                if (!SceneUtil.TryBounds(t, out Bounds b)) continue;                    // 렌더러 없는 강체 제외
                 found.Add(Recognize(t, b));
             }
             if (logResults) LogTable();
@@ -120,16 +120,6 @@ namespace AIXRCrane.Crane.Sts
             LoadGrade.Caution => "주의",
             _                 => "이상",
         };
-
-        static bool TryBounds(Transform t, out Bounds b)
-        {
-            b = default;
-            var rends = t.GetComponentsInChildren<Renderer>();
-            if (rends == null || rends.Length == 0) return false;
-            b = rends[0].bounds;
-            for (int i = 1; i < rends.Length; i++) b.Encapsulate(rends[i].bounds);
-            return true;
-        }
 
 #if UNITY_EDITOR
         void OnDrawGizmos()

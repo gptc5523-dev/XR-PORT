@@ -130,7 +130,7 @@ namespace AIXRCrane.Crane.Sts.Plc
         //   그리고 씬 컨테이너를 집었는지 새로 만든 건지. 배(SHIP/)에서 '새로 만듦'이면 PLC 자세가 실제 적재와 0.5m 넘게 어긋난 것이다.
         void LogPick(int i, Transform c)
         {
-            var b = WorldBounds(c.gameObject);
+            var b = SceneUtil.BoundsOrPoint(c.gameObject);
             Vector3 gp = grabber != null ? grabber.GrabPoint() : ((Component)crane.Spreader).transform.position;
             float dxz = new Vector2(gp.x - b.center.x, gp.z - b.center.z).magnitude / StsConfig.ModelScale;
             float gap = (gp.y - grabDrop - b.max.y) / StsConfig.ModelScale;
@@ -170,12 +170,12 @@ namespace AIXRCrane.Crane.Sts.Plc
             if (have != null) { adopted[have] = (have.position, have.rotation, have.parent); return have; }
             var go = MakeBox(m.ft40);
             go.name = m.id;
-            var b = WorldBounds(go);
+            var b = SceneUtil.BoundsOrPoint(go);
             go.transform.position += top - new Vector3(b.center.x, b.max.y, b.center.z);
             return go.transform;
         }
 
-        const float ContainerHeightM = 2.591f;   // ISO 1AA — 배 갑판·야드 컨테이너와 같다
+        const float ContainerHeightM = ProceduralContainerMesh.HeightStd;   // ISO 1AA — 배 갑판·야드 컨테이너와 같다
 
         // 중심 center 에 이미 있는 컨테이너 — 크레인 밖 강체 중 가장 가까운 것. 반경 0.5m(실척). 없으면 null.
         Transform CargoAt(Vector3 center)
@@ -193,17 +193,18 @@ namespace AIXRCrane.Crane.Sts.Plc
 
         static GameObject MakeBox(bool ft40)
         {
-            var tpl = GameObject.Find(ft40 ? "Cont40_00" : "Cont20_00");
+            var tpl = GameObject.Find((ft40 ? StsPartNames.Yard40Prefix : StsPartNames.Yard20Prefix) + "00");
             GameObject go;
             if (tpl != null) go = Instantiate(tpl, tpl.transform.parent);   // 야드와 같은 부모 = 같은 스케일·방향
             else
             {
                 go = GameObject.CreatePrimitive(PrimitiveType.Cube);          // 야드 없는 씬 — ISO 치수(콜라이더 포함)
-                go.transform.localScale = new Vector3(2.438f, 2.591f, ft40 ? 12.192f : 6.058f) * StsConfig.ModelScale;
+                go.transform.localScale = new Vector3(ProceduralContainerMesh.StdWidth, ProceduralContainerMesh.HeightStd,
+                    ft40 ? ProceduralContainerMesh.Length40ft : ProceduralContainerMesh.Length20ft) * StsConfig.ModelScale;
             }
             if (go.GetComponentInChildren<Collider>() == null)
             {
-                var b = WorldBounds(go);
+                var b = SceneUtil.BoundsOrPoint(go);
                 var s = go.transform.lossyScale;
                 var bc = go.AddComponent<BoxCollider>();
                 bc.center = go.transform.InverseTransformPoint(b.center);
@@ -229,14 +230,6 @@ namespace AIXRCrane.Crane.Sts.Plc
             float y = sp.position.y;
             foreach (var r in sp.GetComponentsInChildren<Renderer>()) y = Mathf.Min(y, r.bounds.min.y);
             return y;
-        }
-
-        static Bounds WorldBounds(GameObject go)
-        {
-            var rs = go.GetComponentsInChildren<Renderer>();
-            var b = rs.Length > 0 ? rs[0].bounds : new Bounds(go.transform.position, Vector3.zero);
-            for (int i = 1; i < rs.Length; i++) b.Encapsulate(rs[i].bounds);
-            return b;
         }
 
         static Move[] ReadHistory(string path)

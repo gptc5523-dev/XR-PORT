@@ -92,7 +92,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
                     Log($"접속 직후 — 켜진 조종기 {on}대(=1), Active {Name(StsCraneVRController.Active)}, 상태 HUD {Name(HudCrane())} ({(hudSts ? "OK" : "FAIL")})");
                     var cam = Camera.main;
                     if (cam == null) { Log("Camera.main 없음"); fail = true; Finish(); return; }
-                    CraneDemoRunner.TryBounds(rtg.transform, out var b);
+                    SceneUtil.TryBounds(rtg.transform, out var b);
                     cam.transform.root.position += new Vector3(b.center.x - cam.transform.position.x, 0f, b.center.z - cam.transform.position.z);
                     Log($"리그 → {rtg.name} 발치 {b.center:F3}");
                     Next(); return;

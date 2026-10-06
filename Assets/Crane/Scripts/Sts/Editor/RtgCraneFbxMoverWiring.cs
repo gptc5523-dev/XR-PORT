@@ -13,7 +13,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
         public static void Wire()
         {
             var crane = Selection.activeGameObject;
-            if (crane == null || FindDeep(crane.transform, "Trolley") == null)
+            if (crane == null || SceneUtil.FindDeep(crane.transform, "Trolley") == null)
                 crane = GameObject.Find(CraneName);
             if (crane == null)
             {
@@ -23,8 +23,8 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             }
 
             var root     = crane.transform;
-            var trolleyT = FindDeep(root, "Trolley");
-            var spreadT  = FindDeep(root, "Spreader");
+            var trolleyT = SceneUtil.FindDeep(root, "Trolley");
+            var spreadT  = SceneUtil.FindDeep(root, "Spreader");
             if (trolleyT == null || spreadT == null)
             {
                 EditorUtility.DisplayDialog("무버 배선",
@@ -50,20 +50,18 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             //   실측(같은 문서 §5): 헤드룸 9.624m → 상한 19.893.
             float headroom = Headroom(root, spreadT, out string limitPair);
             float hyMax = spreadT.position.y + headroom;
-            // 하한 = 그랩 평면(트위스트락 콘 바닥 = 스프레더 최저점)이 지면에 닿는 높이. 상한과 같은 방식으로 실지오메트리에서 산출.
-            //   실측(§5): 그랩 평면은 스프레더 원점보다 0.3275 아래, 하한 월드 z 0.3275(행정 19.566).
-            float grabDrop = spreadT.position.y - CombinedBounds(spreadT.gameObject).min.y;
+            // 하한 = 그랩 평면(트위스트락 콘 바닥)이 지면에 닿는 높이. 실측(§5) 0.3275, 행정 19.566.
+            float grabDrop = spreadT.position.y - SceneUtil.BoundsOrPoint(spreadT.gameObject).min.y;
             float hyMin = root.position.y + grabDrop;
             if (hyMin > hyMax - 0.1f) hyMin = hyMax - 0.1f;         // 최소 여유(퇴화 방지)
 
             // Gantry Z: 크레인 Z 길이의 ±2배 주행(월드 단위 — 루트는 무부모라 로컬Z=월드Z).
-            float craneZ = CombinedBounds(crane).size.z;
+            float craneZ = SceneUtil.BoundsOrPoint(crane).size.z;
             float gz = root.localPosition.z, gRange = Mathf.Max(0.5f, craneZ * 2f);
             float gzMin = gz - gRange, gzMax = gz + gRange;
 
-            // Gantry X(레인 이동, 스티어링 90°): RTG는 타이어 주행이라 물리 한계가 없다 —
-            //   범위는 야드 레이아웃이 정하는 몫이라 주행(Z)과 같은 관례(크레인 치수 ±2배)로 잡는다.
-            float craneX = CombinedBounds(crane).size.x;
+            // Gantry X(레인 이동, 스티어링 90°): 타이어 주행이라 물리 한계 없음 — 주행(Z)과 같은 ±2배 관례.
+            float craneX = SceneUtil.BoundsOrPoint(crane).size.x;
             float gx = root.localPosition.x, gxRange = Mathf.Max(0.5f, craneX * 2f);
             float gxMin = gx - gxRange, gxMax = gx + gxRange;
 
@@ -132,9 +130,9 @@ namespace AIXRCrane.Crane.Sts.EditorTools
         static void HoistTo(float t01, string label)
         {
             var crane = Selection.activeGameObject;
-            if (crane == null || FindDeep(crane.transform, "Spreader") == null)
+            if (crane == null || SceneUtil.FindDeep(crane.transform, "Spreader") == null)
                 crane = GameObject.Find(CraneName);
-            var spreader = crane != null ? FindDeep(crane.transform, "Spreader") : null;
+            var spreader = crane != null ? SceneUtil.FindDeep(crane.transform, "Spreader") : null;
             var hoist = spreader != null ? spreader.GetComponent<SpreaderHoist>() : null;
             if (hoist == null)
             {
@@ -186,9 +184,9 @@ namespace AIXRCrane.Crane.Sts.EditorTools
         public static void AttachContainerTest()
         {
             var crane = Selection.activeGameObject;
-            if (crane == null || FindDeep(crane.transform, "Trolley") == null)
+            if (crane == null || SceneUtil.FindDeep(crane.transform, "Trolley") == null)
                 crane = GameObject.Find(CraneName);
-            if (crane == null || FindDeep(crane.transform, "Spreader") == null)
+            if (crane == null || SceneUtil.FindDeep(crane.transform, "Spreader") == null)
             {
                 EditorUtility.DisplayDialog("컨테이너 잡기 테스트 부착",
                     $"'{CraneName}'(Spreader 포함)을 찾지 못했습니다.\n크레인을 선택하거나 씬에 두고 다시 실행하세요.", "확인");
@@ -213,23 +211,8 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             return c != null ? c : Undo.AddComponent<T>(go);
         }
 
-        // 하위에서 이름으로 트랜스폼 탐색(BFS).
-        static Transform FindDeep(Transform root, string name)
-        {
-            if (root.name == name) return root;
-            foreach (Transform c in root)
-            {
-                var r = FindDeep(c, name);
-                if (r != null) return r;
-            }
-            return null;
-        }
-
-        // 호이스트 상한 헤드룸(월드 단위) = min over (장애물 삼각형 T, 스프레더 부품 S | XZ 겹치고 T가 S 위) (T밑면 − S상단).
-        //   ① 트롤리가 아니라 크레인 전체를 훑는다(주거더는 트롤리 자식이 아님). ② 장애물은 렌더러 AABB가 아니라
-        //   삼각형 단위로 본다. ③ 스프레더도 부품 단위로 본다(통짜 bbox면 슬롯을 막힌 걸로 오판).
-        //   실측(문서/크레인_동적데이터/RTG_크레인_동적데이터.md §5): 한계쌍 GantryFrame_Body(20.500)↔TeleBeam_F(10.876)
-        //   → 헤드룸 9.624, 상한 19.893 · 하한 0.3275 · 행정 19.566.
+        // 헤드룸(월드) = min(장애물 삼각형 밑면 − 그 아래 XZ 겹치는 스프레더 부품 상단). 크레인 전체를 훑고,
+        //   장애물은 삼각형 단위·스프레더는 부품 단위(통짜 bbox면 슬롯 오판). 실측 9.624(문서 §5).
         static float Headroom(Transform root, Transform spreader, out string limitPair)
         {
             limitPair = "(장애물 없음)";
@@ -313,17 +296,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
         // 정적/동적 로프 모두 제외(이름으로 판정) — 로프를 장애물로 세면 헤드룸이 0이 된다.
         static bool IsRope(Transform t) => t.name.StartsWith("Hoist_Rope");
 
-        static Bounds CombinedBounds(GameObject g)
-        {
-            var rs = g.GetComponentsInChildren<Renderer>();
-            if (rs.Length == 0) return new Bounds(g.transform.position, Vector3.zero);
-            var b = rs[0].bounds;
-            for (int i = 1; i < rs.Length; i++) b.Encapsulate(rs[i].bounds);
-            return b;
-        }
-
-        // 트롤리 로컬X 범위: 휠 외측면이 레일 끝에 닿을 때가 한계 → x ∈ [railMin−(wMin−x0), railMax−(wMax−x0)].
-        //   실측(문서 §4): 레일 ±12.550 − 휠 그룹 반폭 2.455 = ±10.095.
+        // 트롤리 로컬X 범위: 휠 외측면이 레일 끝에 닿을 때가 한계. 실측(문서 §4) ±10.095.
         static bool TrolleyRange(Transform root, Transform trolley, out float min, out float max)
         {
             min = max = 0f;
@@ -371,7 +344,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
         // 크레인 월드 AABB의 8코너를 frame 로컬로 변환해 axis(0/1/2) 반폭(로컬 단위) 산출.
         static float LocalHalfExtent(GameObject crane, Transform frame, int axis)
         {
-            var b = CombinedBounds(crane);
+            var b = SceneUtil.BoundsOrPoint(crane);
             Vector3 c = b.center, e = b.extents;
             float mn = float.MaxValue, mx = float.MinValue;
             for (int i = 0; i < 8; i++)

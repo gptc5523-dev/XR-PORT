@@ -31,8 +31,6 @@ namespace AIXRCrane.Crane.Sts
 
         /// <summary>현재 지령 모드(목표). HUD/라벨 표시용.</summary>
         public Mode Current => mode;
-        /// <summary>실제 보기 각(도) — 0..90. 전환 중 중간값.</summary>
-        public float Angle => angle;
         /// <summary>보기가 꺾이는 중(주행 잠금 상태)인지.</summary>
         public bool IsTurning => !Mathf.Approximately(angle, TargetAngle);
         /// <summary>배선된 보기 수 — 정상은 4. 배선툴 로그 확인용.</summary>
@@ -55,7 +53,7 @@ namespace AIXRCrane.Crane.Sts
             var found = new System.Collections.Generic.List<Transform>();
             foreach (var n in new[] { "Bogie_LF", "Bogie_LB", "Bogie_RF", "Bogie_RB" })
             {
-                var t = FindDeep(root, n);
+                var t = SceneUtil.FindDeep(root, n);
                 if (t != null) found.Add(t);
             }
             bogies = found.ToArray();
@@ -66,13 +64,6 @@ namespace AIXRCrane.Crane.Sts
             angle = 0f;
             Apply();
             SyncGantry();
-        }
-
-        static Transform FindDeep(Transform root, string name)
-        {
-            if (root.name == name) return root;
-            foreach (Transform c in root) { var r = FindDeep(c, name); if (r != null) return r; }
-            return null;
         }
 
         public void SetMode(Mode m) => mode = m;

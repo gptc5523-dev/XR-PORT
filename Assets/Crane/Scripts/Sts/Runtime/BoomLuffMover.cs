@@ -13,21 +13,11 @@ namespace AIXRCrane.Crane.Sts
         [SerializeField] float maxDeg  = 83f;   // 기립(스토우) 각 — 최대각(회의 확정 83°)
         [SerializeField] float current = 0f;    // 현재 각(0 = 수평)
 
-        public float Rest => restDeg;
-        public float Max  => maxDeg;
-
         /// <summary>현재 러핑 각(도). rest~max로 클램프 후 자세 반영.</summary>
         public float Current
         {
             get => current;
             set { current = Mathf.Clamp(value, restDeg, maxDeg); Apply(); }
-        }
-
-        /// <summary>0~1 정규화 위치(0=수평, 1=완전 기립).</summary>
-        public float Normalized
-        {
-            get => Mathf.Approximately(maxDeg, restDeg) ? 0f : (current - restDeg) / (maxDeg - restDeg);
-            set => Current = Mathf.Lerp(restDeg, maxDeg, Mathf.Clamp01(value));
         }
 
         public void Configure(float rest, float max)

@@ -15,11 +15,11 @@ namespace AIXRCrane.Crane.Sts.EditorTools
         public static void Setup()
         {
             var crane = Selection.activeGameObject;
-            if (crane == null || FindDeep(crane.transform, "Spreader") == null)
+            if (crane == null || SceneUtil.FindDeep(crane.transform, "Spreader") == null)
                 crane = GameObject.Find(CraneName);
             if (crane == null) { Dialog($"대상 크레인을 못 찾음. '{CraneName}' 선택 후 다시 실행하세요."); return; }
 
-            var spreader = FindDeep(crane.transform, "Spreader");
+            var spreader = SceneUtil.FindDeep(crane.transform, "Spreader");
             var beamF = FindBeam(crane.transform, BeamF);
             var beamB = FindBeam(crane.transform, BeamB);
             if (spreader == null || beamF == null || beamB == null)
@@ -57,9 +57,9 @@ namespace AIXRCrane.Crane.Sts.EditorTools
         static void Resize(RtgSpreaderTelescope.Size s, string label)
         {
             var crane = Selection.activeGameObject;
-            if (crane == null || FindDeep(crane.transform, "Spreader") == null)
+            if (crane == null || SceneUtil.FindDeep(crane.transform, "Spreader") == null)
                 crane = GameObject.Find(CraneName);
-            var spreader = crane != null ? FindDeep(crane.transform, "Spreader") : null;
+            var spreader = crane != null ? SceneUtil.FindDeep(crane.transform, "Spreader") : null;
             var tele = spreader != null ? spreader.GetComponent<RtgSpreaderTelescope>() : null;
             if (tele == null || !tele.IsConfigured)
             {
@@ -84,9 +84,9 @@ namespace AIXRCrane.Crane.Sts.EditorTools
         static void SetLock(bool locked, string label)
         {
             var crane = Selection.activeGameObject;
-            if (crane == null || FindDeep(crane.transform, "Spreader") == null)
+            if (crane == null || SceneUtil.FindDeep(crane.transform, "Spreader") == null)
                 crane = GameObject.Find(CraneName);
-            var spreader = crane != null ? FindDeep(crane.transform, "Spreader") : null;
+            var spreader = crane != null ? SceneUtil.FindDeep(crane.transform, "Spreader") : null;
             var la = spreader != null ? spreader.GetComponent<AIXRCrane.Crane.Sts.SpreaderLockAnimator>() : null;
             if (la == null)
             {
@@ -106,14 +106,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
 
         // 노드명이 접미사(_D 등) 붙어 임포트될 수 있어 정확일치 → 접두어일치 순으로 탐색.
         static Transform FindBeam(Transform root, string name) =>
-            FindDeep(root, name) ?? FindDeepPrefix(root, name);
-
-        static Transform FindDeep(Transform root, string name)
-        {
-            if (root.name == name) return root;
-            foreach (Transform c in root) { var r = FindDeep(c, name); if (r != null) return r; }
-            return null;
-        }
+            SceneUtil.FindDeep(root, name) ?? FindDeepPrefix(root, name);
 
         static Transform FindDeepPrefix(Transform root, string prefix)
         {
