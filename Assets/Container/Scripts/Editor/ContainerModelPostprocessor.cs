@@ -31,6 +31,7 @@ namespace AIXRCrane.EditorTools
             imp.importBlendShapes = false;
             imp.importCameras     = false;
             imp.importLights      = false;
+            imp.addCollider       = false;
             imp.importAnimation   = false;
             imp.importVisibility  = false;
             imp.animationType     = ModelImporterAnimationType.None;
@@ -39,7 +40,7 @@ namespace AIXRCrane.EditorTools
             imp.isReadable        = false;   // 런타임 메시 읽기 불필요 → CPU 사본 제거(메모리 절반)
             imp.optimizeMeshVertices  = true;
             imp.optimizeMeshPolygons  = true;
-            imp.weldVertices      = false;   // Blender 에서 이미 정리됨. 켜면 하드에지가 뭉개진다.
+            imp.weldVertices      = true;    // 노멀을 Import 하므로 위치·노멀·UV 가 모두 같은 정점만 합친다 — 하드에지 유지.
             imp.generateSecondaryUV = false; // 라이트맵 미사용
 
             // 머티리얼은 OnAssignMaterialModel 이 프로젝트 에셋으로 연결한다.

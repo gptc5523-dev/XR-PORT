@@ -6,11 +6,10 @@ namespace Sts.Art
     /// (애니메이션/콜라이더 OFF, 노멀=Import·탄젠트 MikkTSpace, useFileScale=true). bakeAxisConversion·머티리얼 리맵은 모델마다 달라 안 건드림.</summary>
     public class BlenderModelPostprocessor : AssetPostprocessor
     {
-        // 화이트리스트: 내가 Blender로 만든 모델 폴더만. Unity 샘플 패키지(XR Hands/Interaction 등)는 절대 제외.
+        // 화이트리스트: 내가 Blender로 만든 모델 폴더만. 컨테이너 폴더는 ContainerModelPostprocessor 단독(두 개가 같은 폴더를 반대로 설정하던 충돌, WBS 9.7).
         static readonly string[] MyModelRoots =
         {
             "Assets/Crane/Models/",
-            "Assets/Container/Models/",
         };
 
         void OnPreprocessModel()
