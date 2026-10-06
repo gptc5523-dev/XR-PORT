@@ -23,7 +23,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
         const float RailH    = 44f   * Scale;      // 붐(트롤리 레일) 높이 = 다리 높이 ≈ 실척 44m (Post-Panamax). 양정 39.2m
         const float ApexH    = 27.5f * Scale;      // A-프레임 정상 높이 — 레그 비율 0.625 유지 필요(백스테이 클리어런스·실루엣 비례).
         const float GaugeZ   = StsConfig.GantryBaseZMeters * Scale;   // 갠트리 베이스(Z, 레일 게이지 아님). SSOT=StsConfig.GantryBaseZMeters(16m).
-        const float LegSpanX = StsConfig.LegGaugeXMeters   * Scale;   // 레일 게이지(X, 육지/바다 다리 간격). SSOT=StsConfig.LegGaugeXMeters(15m).
+        const float LegSpanX = StsConfig.LegGaugeXMeters   * Scale;   // 레일 게이지(X, 육지/바다 다리 간격). SSOT=StsConfig.LegGaugeXMeters(18m).
         const float LegSec   = 1.0f * Scale;       // 다리 단면 한 변. footprint 1.70m, 세장비 44/1.70=25.9:1(현장 22~28)
         const float LegTopY  = RailH + 0.088f;     // 포털 다리/상부 크로스빔/A프레임 베이스 공통 상단 — 붐 거더 윗면보다 살짝 위(거더가 크로스빔에 붙는다).
         // 트윈(더블 박스) 거더 — 두 박스 거더를 z=±GirderGapZ에 두고 사이를 횡프레임·평면 대각으로 결속.
