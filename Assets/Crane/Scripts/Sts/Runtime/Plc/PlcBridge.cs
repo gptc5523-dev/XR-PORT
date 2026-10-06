@@ -74,6 +74,8 @@ namespace AIXRCrane.Crane.Sts.Plc
         public string CsvPath => ResolveCsvPath(csvPath);
         /// <summary>정규화 range 를 무버 기하에서 산출했는지. 산출 전엔 WorldAtPose 가 틀린다.</summary>
         public bool RangesResolved => rangesResolved;
+        /// <summary>PLC 위치 정규화 분모(실척 m) — x 갠트리 · y 트롤리 · z 권상.</summary>
+        public Vector3 RangesM => new Vector3(gtRangeM, trRangeM, hoRangeM);
 
         /// <summary>최신 스냅샷(없으면 default) — HUD·WebSocket 송신(추후 항목) 공용 출처.</summary>
         public PlcSnapshot Latest => source != null && source.TryRead(out var s) ? s : default;
@@ -105,6 +107,11 @@ namespace AIXRCrane.Crane.Sts.Plc
                 serverUrlFixed = UnityEditor.EditorPrefs.HasKey(PrefKey("serverUrl"));   // 측정 중엔 기기 설정보다 측정 도구가 먼저
             }
 #endif
+            if (PlcLiveMode.On)   // 라이브 PLC — 씬의 재생 설정보다 먼저, 모든 크레인을 통합서버 데이터로
+            {
+                sourceMode = SourceMode.Server; active = true;
+                if (!string.IsNullOrEmpty(PlcLiveMode.EditorUrl)) { serverUrl = PlcLiveMode.EditorUrl; serverUrlFixed = true; }
+            }
             source = BuildSource();
             // CSV 재생이면 화물 재생도 붙인다 — 안 붙이면 '축은 재생되는데 스프레더는 빈손'. 작업 이력이 없으면 스스로 꺼진다.
             if (active && source is CsvReplaySource && GetComponent<PlcCargoReplay>() == null) gameObject.AddComponent<PlcCargoReplay>();
