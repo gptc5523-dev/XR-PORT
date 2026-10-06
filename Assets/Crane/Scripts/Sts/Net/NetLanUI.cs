@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Net;
+using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using Unity.Netcode;
 using Unity.Netcode.Transports.UTP;
@@ -172,26 +173,57 @@ namespace AIXRCrane.Crane.Sts.Net
             return s;
         }
 
+        // 폐쇄망(기본 경로 없음)에서도 맞게 — 인터페이스 주소에서 직접 고르고, 라우팅 조회는 같은 후보일 때만 앞세운다(WBS 9.1).
         static string GetLocalIPv4()
         {
-            // 1순위: UDP connect(패킷 안 나감, 라우팅만)로 실제 LAN 인터페이스 IP — Quest/Android 에서 더 정확.
+            var cands = new List<IPAddress>();
+            try
+            {
+                foreach (var ni in NetworkInterface.GetAllNetworkInterfaces())
+                {
+                    if (ni.OperationalStatus != OperationalStatus.Up || ni.NetworkInterfaceType == NetworkInterfaceType.Loopback) continue;
+                    foreach (var ua in ni.GetIPProperties().UnicastAddresses)
+                        if (ua.Address.AddressFamily == AddressFamily.InterNetwork) cands.Add(ua.Address);
+                }
+            }
+            catch { /* 일부 플랫폼은 인터페이스 목록 미지원 — 아래 폴백 */ }
+            IPAddress routed = null;
             try
             {
                 using var s = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
-                s.Connect("8.8.8.8", 65530);
-                if (s.LocalEndPoint is IPEndPoint ep && !IPAddress.IsLoopback(ep.Address))
-                    return ep.Address.ToString();
+                s.Connect("8.8.8.8", 65530);   // 패킷은 안 나간다 — 기본 경로가 없으면 여기서 예외
+                routed = (s.LocalEndPoint as IPEndPoint)?.Address;
             }
-            catch { /* 폴백으로 진행 */ }
-            // 2순위: DNS 조회(일부 플랫폼 미지원 가능).
+            catch { /* 폐쇄망: 기본 경로 없음 */ }
+            string pick = PickLanIPv4(cands, routed);
+            if (pick != null) return pick;
             try
             {
                 foreach (var ip in Dns.GetHostEntry(Dns.GetHostName()).AddressList)
-                    if (ip.AddressFamily == AddressFamily.InterNetwork && !IPAddress.IsLoopback(ip))
-                        return ip.ToString();
+                    if (LanRank(ip) > 0) return ip.ToString();
             }
             catch { /* 일부 플랫폼은 GetHostEntry 미지원 */ }
             return "127.0.0.1";
+        }
+
+        /// <summary>LAN 주소 고르기 — 192.168 > 10 > 172.16 > 그 밖, 루프백·링크로컬(169.254, 안경 USB)·CGNAT(100.64/10, Tailscale) 제외. 라우팅 결과가 후보면 그것.</summary>
+        public static string PickLanIPv4(IList<IPAddress> cands, IPAddress routed)
+        {
+            if (routed != null && LanRank(routed) > 0 && cands.Contains(routed)) return routed.ToString();
+            IPAddress best = null;
+            foreach (var c in cands) if (LanRank(c) > (best == null ? 0 : LanRank(best))) best = c;
+            return best?.ToString();
+        }
+
+        static int LanRank(IPAddress a)
+        {
+            if (a.AddressFamily != AddressFamily.InterNetwork) return 0;
+            var b = a.GetAddressBytes();
+            if (b[0] == 127 || (b[0] == 169 && b[1] == 254) || (b[0] == 100 && b[1] >= 64 && b[1] < 128) || b[0] == 0) return 0;
+            if (b[0] == 192 && b[1] == 168) return 4;
+            if (b[0] == 10) return 3;
+            if (b[0] == 172 && b[1] >= 16 && b[1] < 32) return 2;
+            return 1;
         }
     }
 }
