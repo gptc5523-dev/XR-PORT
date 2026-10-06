@@ -27,6 +27,9 @@ namespace AIXRCrane.Crane.Sts
         [SerializeField] Color boxColor = new Color(0.373f, 0.878f, 1f, 0.9f);   // HudColor.Accent
 
         sealed class Entry { public CranePartId part; public Renderer[] rends; public StsCrane crane; }
+        float tapAt; Vector2 tapPos; bool tapOnUi;
+        [Tooltip("모바일 탭 판정 — 누른 자리에서 이 픽셀 넘게 움직이면 탭이 아니다.")]
+        [SerializeField] float tapSlopPx = 12f;
 
         readonly List<Entry> entries = new List<Entry>();
         readonly StringBuilder sb = new StringBuilder(256);
@@ -95,13 +98,30 @@ namespace AIXRCrane.Crane.Sts
 
         void PcInput()
         {
-            if (Flat.FlatModeBootstrap.Mobile) return;   // 모바일 탭은 날기 — 이번 범위 밖
+            if (Flat.FlatModeBootstrap.Mobile) { TapInput(); return; }
             var mouse = Mouse.current;
             if (mouse == null || !mouse.leftButton.wasPressedThisFrame) return;
             if (EventSystem.current != null && EventSystem.current.IsPointerOverGameObject()) return;
             var cam = Camera.main;
             if (cam == null) return;
             Select(Pick(cam.ScreenPointToRay(mouse.position.ReadValue())));
+        }
+
+        // 모바일: 짧게 탭(누름 < TapMaxS, 이동 < tapSlopPx)이면 선택 — 길게 누르면 비행(FlatPlayerRig), 버튼 위 누름은 무시.
+        void TapInput()
+        {
+            var p = Pointer.current;
+            if (p == null) return;
+            if (p.press.wasPressedThisFrame)
+            {
+                tapAt = Time.unscaledTime; tapPos = p.position.ReadValue();
+                tapOnUi = EventSystem.current != null && EventSystem.current.IsPointerOverGameObject();
+            }
+            if (!p.press.wasReleasedThisFrame || tapOnUi) return;
+            Vector2 pos = p.position.ReadValue();
+            if (Time.unscaledTime - tapAt > Flat.FlatPlayerRig.TapMaxS || (pos - tapPos).magnitude > tapSlopPx) return;
+            var cam = Camera.main;
+            if (cam != null) Select(Pick(cam.ScreenPointToRay(pos)));
         }
 
         // 그립을 누른 동안 광선·후보 상자 표시, 놓으면 선택. 그립으로 컨테이너를 잡았으면(XRI) 고르지 않는다.
@@ -191,7 +211,7 @@ namespace AIXRCrane.Crane.Sts
             string id = e.part.id;
             sb.Clear();
             string note = "";
-            foreach (var p in CranePartId.Parts) if (p.id == id) { note = p.note; break; }
+            foreach (var p in CranePartId.PartsFor(e.crane != null ? e.crane.transform : null)) if (p.id == id) { note = p.note; break; }
             sb.Append("<b>").Append(note).Append("</b>\n<color=#999999>").Append(id).Append("</color>");
 
             var crane = e.crane;

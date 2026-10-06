@@ -23,7 +23,7 @@ namespace AIXRCrane.Crane.Sts
             public Tag(string tag, string address, string type, string part, string note) { this.tag = tag; this.address = address; this.type = type; this.part = part; this.note = note; }
         }
 
-        /// <summary>STS 부품 — id, 생성 이름(번호 뗀 것), 위치(""=유일), 설명.</summary>
+        /// <summary>STS 부품 — id, 생성 이름(번호 뗀 것, ""=크레인 루트), 위치(""=유일), 설명.</summary>
         public static readonly Part[] Parts =
         {
             new Part("GT",             StsPartNames.StsCraneRoot, "",   "갠트리 주행 전체(크레인 루트, GantryMover)"),
@@ -58,6 +58,50 @@ namespace AIXRCrane.Crane.Sts
             new Part("SYS.MH",         StsPartNames.MachineryHouse, "",   "기계실(전원·PLC·안전 CPU·화재감지)"),
             new Part("ENV.ANEMO",      "Anemo_Hub",          "",   "풍속계(아펙스 상부)"),
         };
+
+        /// <summary>RTG(FBX) 부품 — STS 와 같은 ID 라 알람 코드북·태그·강조·선택이 그대로 맞는다. 이름 끝 '*' = 그 접두 부품들 중 위치로 하나.
+        /// 위치 코드는 STS 와 같은 기하(L/S = −X/+X, 1/2 = −Z/+Z). 모델에 없는 부품은 <see cref="RtgAbsent"/>.</summary>
+        public static readonly Part[] RtgParts =
+        {
+            new Part("GT",             "",                      "",   "갠트리 주행 전체(크레인 루트, GantryMover)"),
+            new Part("GT.BOGIE.L1",    "Bogie_*",               "L1", "주행 보기(타이어 4륜) — −X −Z"),
+            new Part("GT.BOGIE.L2",    "Bogie_*",               "L2", "주행 보기 — −X +Z"),
+            new Part("GT.BOGIE.S1",    "Bogie_*",               "S1", "주행 보기 — +X −Z"),
+            new Part("GT.BOGIE.S2",    "Bogie_*",               "S2", "주행 보기 — +X +Z"),
+            new Part("TR",             "Trolley",               "",   "트롤리 전체(TrolleyMover)"),
+            new Part("TR.DRIVE",       "Trolley_EHouse",        "",   "횡행 구동부(트롤리 전기실 — 인버터·모터 제어)"),
+            new Part("TR.WHEEL.L1",    "Trolley_Wheel",         "L1", "트롤리 차륜 — −X −Z"),
+            new Part("TR.WHEEL.L2",    "Trolley_Wheel",         "L2", "트롤리 차륜 — −X +Z"),
+            new Part("TR.WHEEL.S1",    "Trolley_Wheel",         "S1", "트롤리 차륜 — +X −Z"),
+            new Part("TR.WHEEL.S2",    "Trolley_Wheel",         "S2", "트롤리 차륜 — +X +Z"),
+            new Part("HO",             "Reeving",               "",   "권상 로프 계통(RtgRopeTube)"),
+            new Part("HO.HEADBLOCK",   "Spreader_Headblock",    "",   "헤드블록 — 권상 위치·하중이 실리는 곳"),
+            new Part("HO.DRIVE.1",     "Drum_Drive_*",          "1",  "권상 구동부(드럼 모터) — −Z"),
+            new Part("HO.DRIVE.2",     "Drum_Drive_*",          "2",  "권상 구동부(드럼 모터) — +Z"),
+            new Part("HO.DRUM.1",      "Hoist_Drum_*",          "1",  "권상 드럼 — −Z"),
+            new Part("HO.DRUM.2",      "Hoist_Drum_*",          "2",  "권상 드럼 — +Z"),
+            new Part("HO.LOADCELL.L1", "Hoist_RopeAnchor_*",    "L1", "로드셀 #1(가정) — 로프 고정단 −X −Z"),
+            new Part("HO.LOADCELL.L2", "Hoist_RopeAnchor_*",    "L2", "로드셀 #2(가정) — −X +Z"),
+            new Part("HO.LOADCELL.S1", "Hoist_RopeAnchor_*",    "S1", "로드셀 #3(가정) — +X −Z"),
+            new Part("HO.LOADCELL.S2", "Hoist_RopeAnchor_*",    "S2", "로드셀 #4(가정) — +X +Z"),
+            new Part("SP",             "Spreader",              "",   "스프레더 전체(텔레스코프·잠금 애니)"),
+            new Part("SP.TELE.1",      "Spreader_TeleBeam_*",   "1",  "텔레스코픽 빔 — −Z"),
+            new Part("SP.TELE.2",      "Spreader_TeleBeam_*",   "2",  "텔레스코픽 빔 — +Z"),
+            new Part("SP.TWL.L1",      "Spreader_Twistlock_*",  "L1", "트위스트락 — −X −Z"),
+            new Part("SP.TWL.L2",      "Spreader_Twistlock_*",  "L2", "트위스트락 — −X +Z"),
+            new Part("SP.TWL.S1",      "Spreader_Twistlock_*",  "S1", "트위스트락 — +X −Z"),
+            new Part("SP.TWL.S2",      "Spreader_Twistlock_*",  "S2", "트위스트락 — +X +Z"),
+            new Part("OP",             "OperatorCab_ArmConsole", "",  "운전실(콘솔·비상정지·운전모드)"),
+            new Part("SYS.MH",         "MachineHouse_Root",     "",   "기계실(발전기·전원·PLC)"),
+        };
+
+        /// <summary>RTG 모델에 해당 부품이 없는 ID — 이 알람은 RTG 에서 강조할 부품이 없다(풍속계·트롤리 페스툰 미모델링).</summary>
+        public static readonly string[] RtgAbsent = { "ENV.ANEMO", "TR.FESTOON" };
+
+        static bool IsRtg(Transform root) => root.GetComponent<RtgBogieSteering>() != null;
+
+        /// <summary>이 크레인의 부품 표 — RTG 면 RtgParts, 아니면 STS Parts.</summary>
+        public static Part[] PartsFor(Transform root) => root != null && IsRtg(root) ? RtgParts : Parts;
 
         /// <summary>PLC 태그 — ㈜엠비이 데이터 포인트 리스트(MBE-DOC-2026-XR-002) DB100/DB101 의 XR 대상 31개(CsvReplaySource 열 이름).
         /// 주소는 IPlcSource 에 적힌 4개만 안다 — 나머지는 원본 확인 필요. part ""= 부품이 아니다.</summary>
@@ -108,9 +152,18 @@ namespace AIXRCrane.Crane.Sts
                 l.Add(t);
             }
             int missing = 0;
-            foreach (var p in Parts)
+            foreach (var p in PartsFor(root))
             {
-                var hit = byBase.TryGetValue(p.baseName, out var all) ? Select(root, all, p.at) : null;
+                List<Transform> all = null;
+                if (p.baseName.EndsWith("*"))
+                {
+                    string pre = p.baseName.Substring(0, p.baseName.Length - 1);
+                    all = new List<Transform>();
+                    foreach (var kv in byBase) if (kv.Key.StartsWith(pre)) all.AddRange(kv.Value);
+                }
+                else if (p.baseName == "") all = new List<Transform> { root };   // 빈 이름 = 크레인 루트(RTG 는 루트 이름이 대마다 다르다)
+                else byBase.TryGetValue(p.baseName, out all);
+                var hit = all != null && all.Count > 0 ? Select(root, all, p.at) : null;
                 if (hit == null) { missing++; Debug.LogWarning($"[PartId] {p.id}: '{p.baseName}' {p.at} 없음 또는 여러 개"); continue; }
                 hit.gameObject.AddComponent<CranePartId>().id = p.id;
             }
@@ -121,14 +174,17 @@ namespace AIXRCrane.Crane.Sts
         static Transform Select(Transform root, List<Transform> all, string at)
         {
             if (at == "") return all.Count == 1 ? all[0] : null;
+            // 수평면 기준 — X = 루트 오른쪽, Z = 그에 수직. 루트가 축 변환된 FBX(RTG)여도 같은 뜻(STS 는 루트 로컬과 같다).
+            Vector3 ax = Vector3.ProjectOnPlane(root.right, Vector3.up).normalized, az = Vector3.Cross(ax, Vector3.up);
             Vector3 c = Vector3.zero;
-            foreach (var t in all) c += root.InverseTransformPoint(t.position);
+            foreach (var t in all) c += t.position;
             c /= all.Count;
             Transform hit = null;
             foreach (var t in all)
             {
-                Vector3 d = root.InverseTransformPoint(t.position) - c;
-                string code = at.Length == 2 ? (d.x < 0 ? "L" : "S") + (d.z < 0 ? "1" : "2") : (d.z < 0 ? "1" : "2");
+                Vector3 d = t.position - c;
+                float dx = Vector3.Dot(d, ax), dz = Vector3.Dot(d, az);
+                string code = at.Length == 2 ? (dx < 0 ? "L" : "S") + (dz < 0 ? "1" : "2") : (dz < 0 ? "1" : "2");
                 if (code != at) continue;
                 if (hit != null) return null;
                 hit = t;
@@ -149,29 +205,31 @@ namespace AIXRCrane.Crane.Sts
         /// <summary>표 ↔ 씬 대조 — 부품 ID 는 정확히 1개, 태그·알람 부품은 1개 이상 찾아져야 한다. 문제 목록(빈 문자열 = 통과).</summary>
         public static string Verify(Transform root)
         {
-            if (root.GetComponentInChildren<CranePartId>(true) == null) return "ID 없음 — 메뉴 PLC/부품 ID 부여 (STS) 후 씬 저장";
+            if (root.GetComponentInChildren<CranePartId>(true) == null) return "ID 없음 — 메뉴 PLC/부품 ID 부여 후 씬 저장";
             var sb = new StringBuilder();
-            foreach (var p in Parts)
+            bool rtg = IsRtg(root);
+            foreach (var p in PartsFor(root))
             {
                 int n = 0;
                 foreach (var x in root.GetComponentsInChildren<CranePartId>(true)) if (x.id == p.id) n++;
                 if (n != 1) sb.Append($"{p.id}×{n} ");
             }
             foreach (var t in Tags)
-                if (t.part != "" && Find(root, t.part).Count == 0) sb.Append($"{t.tag}→{t.part}? ");
+                if (t.part != "" && Find(root, t.part).Count == 0 && !(rtg && Absent(t.part))) sb.Append($"{t.tag}→{t.part}? ");
             foreach (var a in AlarmCodebook.All)
-                if (!string.IsNullOrEmpty(a.part) && Find(root, a.part).Count == 0) sb.Append($"{a.code}→{a.part}? ");
+                if (!string.IsNullOrEmpty(a.part) && Find(root, a.part).Count == 0 && !(rtg && Absent(a.part))) sb.Append($"{a.code}→{a.part}? ");
             return sb.ToString();
         }
+
+        static bool Absent(string id) { foreach (var a in RtgAbsent) if (id == a || id.StartsWith(a + ".")) return true; return false; }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void Boot()
         {
             foreach (var c in FindObjectsByType<StsCrane>())
             {
-                if (c.GetComponent<RtgBogieSteering>() != null) continue;   // ponytail: STS 만 — RTG(FBX) 부품 ID 는 표가 따로 필요할 때
                 string why = Verify(c.transform);
-                QaLog.Check("PARTID", "selfcheck", why == "", $"crane={c.name} parts={Parts.Length} tags={Tags.Length} {why}");
+                QaLog.Check("PARTID", "selfcheck", why == "", $"crane={c.name} parts={PartsFor(c.transform).Length} tags={Tags.Length} {why}");
             }
         }
     }

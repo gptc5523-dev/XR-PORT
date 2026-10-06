@@ -13,15 +13,18 @@ namespace AIXRCrane.Crane.Sts.EditorTools
     {
         const string DocRel = "문서/PLC_부품ID_매핑.md";
 
-        [MenuItem("PLC/부품 ID 부여 (STS)", false, 20)]
+        [MenuItem("PLC/부품 ID 부여 (STS·RTG)", false, 20)]
         public static void StampScene()
         {
-            var root = GameObject.Find(StsPartNames.StsCraneRoot);
-            if (root == null) { Debug.LogWarning($"[PartId] 씬에 '{StsPartNames.StsCraneRoot}' 없음"); return; }
-            int missing = CranePartId.Stamp(root.transform);
-            EditorSceneManager.MarkSceneDirty(root.scene);
-            string why = CranePartId.Verify(root.transform);
-            QaLog.Check("PARTID", "stamp", missing == 0 && why == "", $"parts={CranePartId.Parts.Length} missing={missing} {why}");
+            var cranes = Object.FindObjectsByType<StsCrane>(FindObjectsSortMode.None);
+            if (cranes.Length == 0) { Debug.LogWarning("[PartId] 씬에 크레인 없음"); return; }
+            foreach (var c in cranes)
+            {
+                int missing = CranePartId.Stamp(c.transform);
+                EditorSceneManager.MarkSceneDirty(c.gameObject.scene);
+                string why = CranePartId.Verify(c.transform);
+                QaLog.Check("PARTID", "stamp", missing == 0 && why == "", $"crane={c.name} parts={CranePartId.PartsFor(c.transform).Length} missing={missing} {why}");
+            }
         }
 
         [MenuItem("PLC/부품 ID 매핑표 내보내기", false, 21)]
@@ -52,7 +55,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             sb.AppendLine("- 위치: `L`/`S` = 육측(−X)/해측(+X), `1`/`2` = −Z/+Z. 같은 이름 부품들의 중심 기준으로 고르므로 생성 순서 번호(`_1`, `_2`…)와 무관하다.");
             sb.AppendLine("- 그룹 ID(`GT.BOGIE`)는 그 ID로 시작하는 부품 전부를 가리킨다. 태그·알람이 어느 바퀴인지 주지 않을 때 쓴다.");
             sb.AppendLine("- 크레인이 여러 대면 서버 전체 ID = `크레인 루트 이름` + `.` + 부품 ID (예: `STS_Crane.GT.BOGIE.L1`).");
-            sb.AppendLine("- ID는 씬의 GameObject에 `CranePartId` 컴포넌트로 붙는다. 크레인 생성(StsCraneCreator) 끝에서 자동으로, 기존 씬은 메뉴 **PLC/부품 ID 부여 (STS)**. 플레이 시작 시 `[QA] PARTID/selfcheck`가 표와 씬을 대조한다.");
+            sb.AppendLine("- ID는 씬의 GameObject에 `CranePartId` 컴포넌트로 붙는다. 크레인 생성(StsCraneCreator) 끝에서 자동으로, 기존 씬은 메뉴 **PLC/부품 ID 부여 (STS·RTG)**. 플레이 시작 시 `[QA] PARTID/selfcheck`가 표와 씬을 대조한다.");
             sb.AppendLine();
             sb.AppendLine("## 1. PLC 태그 → 부품 ID");
             sb.AppendLine();
@@ -69,6 +72,15 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             sb.AppendLine("|---|---|---|---|---|---|");
             foreach (var p in CranePartId.Parts)
                 sb.AppendLine($"| `{p.id}` | `{p.baseName}` | {(p.at == "" ? "유일" : p.at)} | {p.note} | {Join(TagsFor(tagsOf, p.id))} | {Codes(AlarmsFor(alarms, p.id))} |");
+            sb.AppendLine();
+            sb.AppendLine("### RTG (FBX)");
+            sb.AppendLine();
+            sb.AppendLine($"같은 ID를 쓴다. 이름 끝 `*` = 그 접두 부품들 중 위치로 하나, 빈 이름 = 크레인 루트. 위치 코드는 기하 기준(L/S = −X/+X). RTG 모델에 없는 부품: {Join(new List<string>(CranePartId.RtgAbsent))} — 이 알람은 RTG에서 강조할 부품이 없다.");
+            sb.AppendLine();
+            sb.AppendLine("| 부품 ID | 3D 이름 | 위치 | 설명 |");
+            sb.AppendLine("|---|---|---|---|");
+            foreach (var p in CranePartId.RtgParts)
+                sb.AppendLine($"| `{p.id}` | {(p.baseName == "" ? "(루트)" : "`" + p.baseName + "`")} | {(p.at == "" ? "유일" : p.at)} | {p.note} |");
             sb.AppendLine();
             sb.AppendLine("## 3. 알람 코드 → 부품 ID");
             sb.AppendLine();

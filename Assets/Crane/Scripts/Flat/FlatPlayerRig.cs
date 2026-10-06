@@ -59,6 +59,9 @@ namespace AIXRCrane.Crane.Flat
         public bool PointerNav { get; set; }
 
         bool wasPressed, pressOnUi;                 // 누름이 버튼 위에서 시작됐으면 뗄 때까지 날지 않는다
+        float pressedAt;
+        /// <summary>이보다 짧게 눌렀다 떼면 탭(부품 선택, CranePartPicker) — 비행은 이만큼 누른 뒤부터.</summary>
+        public const float TapMaxS = 0.25f;
         bool glide; float glideT, glideDur;         // 시점 버튼 비행
         Vector3 glideFrom, glideTo;
         float yawFrom, yawTo, pitchFrom, pitchTo;
@@ -182,7 +185,7 @@ namespace AIXRCrane.Crane.Flat
             Vector2 pos = p.position.ReadValue();
             bool pressed = p.press.isPressed;
             bool overUi = EventSystem.current != null && EventSystem.current.IsPointerOverGameObject();
-            if (pressed && !wasPressed) pressOnUi = overUi;
+            if (pressed && !wasPressed) { pressOnUi = overUi; pressedAt = Time.unscaledTime; }
             wasPressed = pressed;
 
             // 화면 크기는 UnityEngine.Device 로 — 에디터 휴대폰 시뮬레이터의 포인터 좌표는 가상 기기 화면 기준이라
@@ -193,7 +196,7 @@ namespace AIXRCrane.Crane.Flat
             var (turnYaw, turnPitch, fly) = PointerIntent(uv, pressed, overUi || (pressed && pressOnUi), p is Mouse, edgeBand);
             yaw += turnYaw * edgeTurnDegPerSec * dt;
             pitch -= turnPitch * edgeTurnDegPerSec * dt;   // pitch 양수 = 아래를 본다
-            return fly ? cam.ScreenPointToRay(pos).direction : Vector3.zero;
+            return fly && Time.unscaledTime - pressedAt >= TapMaxS ? cam.ScreenPointToRay(pos).direction : Vector3.zero;
         }
 
         /// <summary>공간 마우스 의도 — 순수 함수. 커서(화면 0~1)·누름·UI 위·호버 가능 → 회전(−1~1, 위·오른쪽 양수)과 비행 여부.
