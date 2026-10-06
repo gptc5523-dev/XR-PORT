@@ -130,7 +130,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             {
                 var t = lg.transform;
                 // 이름 규약으로 야드 컨테이너만 — Regex 를 쓰면 이 파일에 using 이 없어 컴파일이 깨진다.
-                if (!t.name.StartsWith(StsPartNames.Yard20Prefix) && !t.name.StartsWith(StsPartNames.Yard40Prefix)) continue;
+                if (!StsPartNames.IsYardContainerName(t.name)) continue;
                 // 조건을 나눠 쓴다 — || 로 묶으면 단축 평가 때문에 컴파일러가 out 변수 할당을 증명하지 못한다(CS0165).
                 if (!SceneUtil.TryBounds(t, out var b)) continue;
                 if (!YardGrid.TrySnapXZ(b.center, Mathf.Max(b.size.x, b.size.z), out Vector3 cell)) { outside++; continue; }

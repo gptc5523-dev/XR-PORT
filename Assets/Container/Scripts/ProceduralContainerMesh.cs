@@ -21,6 +21,8 @@ namespace AIXRCrane
         public const float Length20ft = 6.058f;
         public const float Length40ft = 12.192f;
         public const float HeightStd  = 2.591f;  // 8'6"
+        public const float HeightHC   = 2.896f;  // 9'6" 하이큐브
+        public const float Length45ft = 13.716f;
         public const float StdWidth   = 2.438f;
 
         // 프레임 / 캐스팅 / 패널 치수

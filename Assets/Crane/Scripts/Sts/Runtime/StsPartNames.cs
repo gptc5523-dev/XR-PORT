@@ -81,14 +81,20 @@ namespace AIXRCrane.Crane.Sts
         /// <summary>선박 적재 컨테이너. ShipCreator 가 만들고 잡기·수면 관리가 StartsWith 로 찾는다.</summary>
         public const string ShipContainer = "ShipContainer";
         /// <summary>야드 컨테이너 이름 접두 — QuayPartsPlacer 가 "Cont40_00", "Cont20_03" 식으로 만든다.</summary>
-        public const string Yard40Prefix = "Cont40_", Yard20Prefix = "Cont20_";
+        public const string Yard40Prefix = "Cont40_", Yard20Prefix = "Cont20_", Yard40HCPrefix = "Cont40H_", Yard45HCPrefix = "Cont45H_";
+        static readonly string[] YardPrefixes = { Yard20Prefix, Yard40Prefix, Yard40HCPrefix, Yard45HCPrefix };
 
-        /// <summary>야드 컨테이너 이름인가 — "Cont20_" 또는 "Cont40_" + 숫자.</summary>
+        /// <summary>야드 컨테이너 이름인가 — 네 접두(20·40·40HC·45HC) 중 하나 + 숫자.</summary>
         public static bool IsYardContainerName(string n)
         {
-            if (n == null || !(n.StartsWith(Yard20Prefix) || n.StartsWith(Yard40Prefix)) || n.Length == Yard20Prefix.Length) return false;
-            for (int i = Yard20Prefix.Length; i < n.Length; i++) if (!char.IsDigit(n[i])) return false;
-            return true;
+            if (n == null) return false;
+            foreach (var p in YardPrefixes)
+            {
+                if (!n.StartsWith(p) || n.Length == p.Length) continue;
+                for (int i = p.Length; i < n.Length; i++) if (!char.IsDigit(n[i])) return false;
+                return true;
+            }
+            return false;
         }
         /// <summary>시연 씬 경로. 배치 스모크·프로브가 연다.</summary>
         public const string PortScenePath = "Assets/Scenes/Port.unity";

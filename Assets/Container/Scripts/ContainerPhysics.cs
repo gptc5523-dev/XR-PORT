@@ -160,7 +160,7 @@ namespace AIXRCrane
         //   PortDemoDirector·StsGrabProbe 와 같은 규약.
         static bool IsContainerName(string n) =>
             n.IndexOf("Container", System.StringComparison.OrdinalIgnoreCase) >= 0
-            || n.StartsWith(Crane.Sts.StsPartNames.Yard20Prefix) || n.StartsWith(Crane.Sts.StsPartNames.Yard40Prefix);
+            || Crane.Sts.StsPartNames.IsYardContainerName(n);
 
         /// <summary>씬의 모든 'Container' 강체에 ContainerPhysics.Apply 적용. 적용한 강체를 collect 리스트에 모은다(바닥 가드 추적용).</summary>
         static void TuneAllInScene(List<Rigidbody> collect)
