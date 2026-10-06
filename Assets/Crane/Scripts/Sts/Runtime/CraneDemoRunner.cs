@@ -94,7 +94,9 @@ namespace AIXRCrane.Crane.Sts
             gantryMover = crane.Gantry as GantryMover;
         }
 
-        void OnDisable() => Suspend();
+        // 끄면 진행 중인 작업도 멈춘다 — 코루틴은 컴포넌트를 꺼도 계속 돌아, 남은 작업이 컨테이너를 공중에 놓을 수 있었다.
+        //   들고 있던 컨테이너는 스프레더에 매달린 채 남는다. 다시 켜도 재시작하지 않는다(PortDemoDirector 가 Go 를 한 번만 부른다).
+        void OnDisable() { StopAllCoroutines(); Suspend(); }
 
         /// <summary>옮길 컨테이너와 내려놓을 자리를 정한다 — 못 정하면 이 크레인은 서 있다(로그로 남긴다).</summary>
         public void Plan(Site site)

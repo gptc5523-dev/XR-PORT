@@ -39,7 +39,7 @@ namespace AIXRCrane.Crane.Sts
         /// <summary>이 부품(또는 그룹) ID 가 minSev 이상으로 강조 중인가 — 지표 4 측정(Kpi4StatusAccuracy)이 쓴다.</summary>
         public bool IsLit(StsCrane crane, string partId, FaultSeverity minSev)
         {
-            foreach (var rs in PartRenderers(crane.transform, partId))
+            foreach (var (rs, _) in PartRenderers(crane.transform, partId))
                 foreach (var r in rs)
                     if (r != null && lit.TryGetValue(r, out var l) && l.sev >= minSev) return true;
             return false;
@@ -61,7 +61,7 @@ namespace AIXRCrane.Crane.Sts
                 if (!e.xr || e.Severity < FaultSeverity.Warning || string.IsNullOrEmpty(e.part)) continue;
                 n++;
                 var parts = PartRenderers(sts.transform, e.part);
-                if (parts.Count == 0 || parts.Exists(rs => rs.Length == 0 || rs.Length > maxRenderers)) bad.Add(e.code);
+                if (parts.Count == 0 || parts.Exists(x => x.rends.Length == 0 || x.rends.Length > maxRenderers)) bad.Add(e.code);
             }
             QaLog.Check("ALARMLIT", "selfcheck", bad.Count == 0, $"alarms={n} bad={bad.Count} {string.Join(",", bad)}");
         }
@@ -92,9 +92,9 @@ namespace AIXRCrane.Crane.Sts
                 {
                     var e = AlarmCodebook.Get(code);
                     if (e == null || !e.xr || e.Severity < FaultSeverity.Warning || string.IsNullOrEmpty(e.part)) continue;
-                    foreach (var rs in PartRenderers(crane.transform, e.part))
+                    foreach (var (rs, top) in PartRenderers(crane.transform, e.part))
                     {
-                        boxes.Add((rs, e.Severity));
+                        if (top) boxes.Add((rs, e.Severity));
                         foreach (var r in rs)
                             if (!want.TryGetValue(r, out var s) || e.Severity > s) want[r] = e.Severity;
                     }
@@ -138,15 +138,21 @@ namespace AIXRCrane.Crane.Sts
         }
 
         // 부품(또는 그룹) ID 의 부품별 렌더러 — 너무 큰 조립체(크레인 전체)는 하위 부품으로 내려간다.
-        List<Renderer[]> PartRenderers(Transform root, string partId)
+        //   top = 묶음 안에 상위 부품이 없는 맨 위 부품(상자는 이것만 — HO 하나에 헤드블록·로드셀 상자가 겹쳐 그려졌다).
+        List<(Renderer[] rends, bool top)> PartRenderers(Transform root, string partId)
         {
-            var result = new List<Renderer[]>();
+            var parts = new List<CranePartId>();
             foreach (var p in CranePartId.Find(root, partId))
             {
-                var rs = p.GetComponentsInChildren<Renderer>();
-                if (rs.Length <= maxRenderers) { result.Add(rs); continue; }
+                if (p.GetComponentsInChildren<Renderer>().Length <= maxRenderers) { parts.Add(p); continue; }
                 foreach (var child in CranePartId.Find(root, p.id + "."))
-                    if (child != p) result.Add(child.GetComponentsInChildren<Renderer>());
+                    if (child != p && !parts.Contains(child)) parts.Add(child);
+            }
+            var result = new List<(Renderer[], bool)>();
+            foreach (var p in parts)
+            {
+                bool top = !parts.Exists(q => q != p && p.id.StartsWith(q.id + "."));
+                result.Add((p.GetComponentsInChildren<Renderer>(), top));
             }
             return result;
         }
