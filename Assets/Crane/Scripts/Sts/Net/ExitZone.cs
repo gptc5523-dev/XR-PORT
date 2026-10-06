@@ -210,7 +210,6 @@ namespace AIXRCrane.Crane.Sts.Net
         /// axisFix = 임포트된 프리팹 루트 회전(블렌더 Z-up 보정) — 지우면 표지판이 눕는다.</summary>
         public static void FitSign(GameObject sign, Quaternion axisFix, Vector3 center)
         {
-            // 실척 모델에 축척(1/24)만 곱한다 — 렌더러 바운즈로 재면 FBX 축 틀어짐에 조용히 어긋난다.
             // FBX 축 보정(axisFix)을 rotation 에 그냥 대입하지 말 것 — 표지판이 눕는다. 곱해서 유지한다.
             sign.transform.localRotation = axisFix;   // 바라볼 곳을 못 구해도 최소한 서 있게
 
