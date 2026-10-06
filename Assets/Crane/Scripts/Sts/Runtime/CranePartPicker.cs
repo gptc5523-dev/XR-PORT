@@ -34,7 +34,7 @@ namespace AIXRCrane.Crane.Sts
         Entry selected, hovered;
         Canvas canvas;
         Text text;
-        LineRenderer box, leader, laser;
+        LineRenderer box, laser;
         string lastText;
         float nextText, nextScan;
         bool gripWas, grabbedDuringGrip;
@@ -50,7 +50,6 @@ namespace AIXRCrane.Crane.Sts
                 new Vector2(14, 10), out text, fitToText: true);
             canvas.enabled = false;
             box = MakeLine("PartBox", 16, 0.002f, boxColor);
-            leader = MakeLine("PartLeader", 2, 0.003f, new Color(1f, 1f, 1f, 0.5f));
             laser = MakeLine("PartLaser", 2, 0.002f, boxColor);
             SelfCheck();
         }
@@ -69,13 +68,13 @@ namespace AIXRCrane.Crane.Sts
         {
             bool show = selected != null && selected.part != null;
             canvas.enabled = show;
-            box.enabled = leader.enabled = show || hovered != null;
+            box.enabled = show || hovered != null;
             if (!show && hovered == null) return;
 
             var target = hovered ?? selected;
             if (!Union(target, out var b)) return;
             DrawBox(b);
-            if (!show) { leader.enabled = false; return; }
+            if (!show) return;
 
             if (!Union(selected, out b)) return;
             var cam = Camera.main;
@@ -87,8 +86,6 @@ namespace AIXRCrane.Crane.Sts
             canvas.transform.position = bubble;
             canvas.transform.localScale = Vector3.one * (worldScale * distScale);
             if (toBubble.sqrMagnitude > 1e-6f) canvas.transform.rotation = Quaternion.LookRotation(toBubble.normalized, Vector3.up);
-            leader.SetPosition(0, top);
-            leader.SetPosition(1, bubble - Vector3.up * (panelPixels.y * worldScale * 0.5f * distScale));
 
             if (CraneHud.Due(ref nextText, CraneHud.TextHz))
                 CraneHud.SetTextIfChanged(text, ref lastText, BuildText(selected));

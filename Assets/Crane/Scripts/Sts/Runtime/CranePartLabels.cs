@@ -5,7 +5,7 @@ using UnityEngine.UI;
 
 namespace AIXRCrane.Crane.Sts
 {
-    /// <summary>크레인 부품을 가리키는 3D 월드 말풍선(빌보드 + 지시선). 가동부(스프레더/트롤리/갠트리)는 상시,
+    /// <summary>크레인 부품을 가리키는 3D 월드 말풍선(빌보드). 가동부(스프레더/트롤리/갠트리)는 상시,
     /// 고정 부품은 쳐다볼 때만 표시. 씬에 없으면 자동 스폰([RuntimeInitializeOnLoadMethod]).</summary>
     [AddComponentMenu("AI-XR Crane/STS Crane/Crane Part Labels")]
     [DisallowMultipleComponent]
@@ -35,11 +35,6 @@ namespace AIXRCrane.Crane.Sts
         [Tooltip("거리비례 확대 상한(기본 크기의 N배). 너무 크면 가까운 듯 보이므로 클램프.")]
         [SerializeField] float labelMaxScale = 3.5f;
 
-        [Header("지시선(말풍선 꼬리)")]
-        [SerializeField] bool showLeader = true;
-        [SerializeField] float leaderWidth = 0.003f;
-        [SerializeField] Color leaderColor = new Color(1f, 1f, 1f, 0.5f);
-
         enum Kind { Spreader, Axis, Static }   // Spreader=적재/하중/잠금, Axis=위치%/속도(트롤리·갠트리), Static=이름+역할
 
         // 크레인 한 대의 말풍선 묶음 — 크레인마다 만든다(모든 크레인에 표시, 멀면 hideBeyond 로 숨김).
@@ -61,7 +56,6 @@ namespace AIXRCrane.Crane.Sts
             public IAxisMover mover;     // Axis/Spreader용(없으면 null)
             public string title, role;   // 머리말 / 정적 설명
             public Vector3 offset;       // anchor 기준 말풍선 위치 오프셋(겹침 분산)
-            public LineRenderer line;    // anchor→말풍선 지시선(없으면 null)
             public float prevPos, speedMpm;
             public bool primed;
             public string lastText;   // 직전 표시 문자열 — 바뀔 때만 Text.text 대입(캔버스 리빌드 절감)
@@ -72,7 +66,6 @@ namespace AIXRCrane.Crane.Sts
         float nextScan;
         readonly StringBuilder sb = new StringBuilder(160);
         float nextTextRefresh;   // 라벨 텍스트 생성/대입 스로틀(CraneHud.TextHz). 위치/빌보드는 매 프레임 갱신.
-        Material leaderMat;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void AutoSpawn() => CraneHud.EnsureSpawned<CranePartLabels>("PartLabels");
@@ -120,42 +113,11 @@ namespace AIXRCrane.Crane.Sts
                 bgColor, fontSize, Color.white, TextAnchor.MiddleCenter, new Vector2(12, 8), out var text,
                 fitToText: true);
 
-            LineRenderer line = null;
-            if (showLeader)
-            {
-                if (leaderMat == null) leaderMat = MakeLeaderMaterial();
-                if (leaderMat != null)
-                {
-                    var lgo = new GameObject($"Leader_{title}");
-                    lgo.transform.SetParent(transform, worldPositionStays: false);
-                    line = lgo.AddComponent<LineRenderer>();
-                    line.material = leaderMat;
-                    line.useWorldSpace = true;
-                    line.positionCount = 2;
-                    line.numCapVertices = 2;
-                    line.startColor = line.endColor = leaderColor;
-                    line.startWidth = line.endWidth = leaderWidth;
-                    line.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-                    line.receiveShadows = false;
-                }
-            }
-
             var label = new Label { rig = rig, kind = kind, canvas = canvas, text = text, anchor = anchor, mover = mover,
-                                    title = title, role = role, offset = offset, line = line };
+                                    title = title, role = role, offset = offset };
             labels.Add(label);
             // 고정 부품(이름+역할)은 내용이 안 변함 → 텍스트 1회만 설정하고 매 프레임 재생성 스킵
             if (kind == Kind.Static) label.text.text = BuildText(label);
-        }
-
-        // 지시선용 머티리얼 — 라벨과 동일한 "항상 위" 오버레이 셰이더 사용(구조물에 안 가림).
-        //   전용 셰이더가 없으면(폴백) 깊이테스트가 남는 일반 셰이더로 — 지시선만 가릴 수 있으나 표시는 됨.
-        static Material MakeLeaderMaterial()
-        {
-            Shader sh = Shader.Find(CraneHud.OverlayShader);
-            if (sh == null) sh = Shader.Find("Sprites/Default");
-            if (sh == null) sh = Shader.Find("Unlit/Color");
-            if (sh == null) sh = Shader.Find("UI/Default");
-            return sh != null ? new Material(sh) : null;
         }
 
         void LateUpdate()
@@ -169,7 +131,6 @@ namespace AIXRCrane.Crane.Sts
             Vector3 camPos = cam.transform.position;
             Vector3 camFwd = cam.transform.forward;
             float dt = Time.deltaTime;
-            float halfH = panelPixels.y * worldScale * 0.5f;   // 말풍선 아래 가장자리(지시선 끝점)
 
             foreach (var L in labels)
             {
@@ -192,7 +153,6 @@ namespace AIXRCrane.Crane.Sts
                     show = hideBeyond <= 0f || dist <= hideBeyond;
 
                 L.canvas.enabled = show;
-                if (L.line != null) L.line.enabled = show;
                 if (!show) continue;
 
                 // 거리비례 스케일 — 멀수록 키워 각크기(읽히는 정도)를 유지. refDist 이내는 기본, 이후 비례 확대(상한 클램프).
@@ -203,13 +163,6 @@ namespace AIXRCrane.Crane.Sts
                 L.canvas.transform.localScale = Vector3.one * (worldScale * distScale);
                 if (toBubble.sqrMagnitude > 1e-6f)
                     L.canvas.transform.rotation = Quaternion.LookRotation(toBubble.normalized, Vector3.up);
-
-                // 지시선 — 부품(anchor)에서 말풍선 아래 가장자리로 (callout 꼬리). 끝점도 확대된 말풍선 높이에 맞춤.
-                if (L.line != null)
-                {
-                    L.line.SetPosition(0, anchorPos);
-                    L.line.SetPosition(1, bubblePos - Vector3.up * (halfH * distScale));
-                }
 
                 // 가동 라벨만, 스로틀 주기에 한해, 내용이 바뀔 때만 대입. 고정 라벨은 1회 설정 끝.
                 if (L.kind != Kind.Static && refreshText)
