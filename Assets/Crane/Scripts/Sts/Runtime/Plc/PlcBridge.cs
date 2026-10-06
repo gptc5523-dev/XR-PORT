@@ -121,6 +121,15 @@ namespace AIXRCrane.Crane.Sts.Plc
         {
             var c = crane != null ? crane : GetComponent<StsCrane>();
             if (c != null && c.OpMode != null) c.OpMode.PlcDriven = false;
+            if (c != null) SetFollowOnly(c, false);
+        }
+
+        // PLC 가 구동하면 3D 안전 인터록은 경고만 — 막거나 클램프하면 화면이 PLC 와 어긋난다(WBS 9.4).
+        static void SetFollowOnly(StsCrane c, bool on)
+        {
+            if (c.Gantry is AxisMoverBase g) g.FollowOnly = on;
+            if (c.Trolley is AxisMoverBase t) t.FollowOnly = on;
+            if (c.Spreader is AxisMoverBase h) h.FollowOnly = on;
         }
 
 #if UNITY_EDITOR
@@ -193,6 +202,7 @@ namespace AIXRCrane.Crane.Sts.Plc
 
             // 직접조종이면 PlcDriven=false 유지(가속 오경보 차단).
             crane.OpMode.PlcDriven = active;
+            SetFollowOnly(crane, active);
 
             // 고정 스캔 그리드 — dt를 누산해 scanPeriod 경계에서만 1스캔(입력 동결→평가→출력).
             float scanDt = Mathf.Max(0.001f, scanPeriodMs * 0.001f);

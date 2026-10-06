@@ -351,6 +351,9 @@ namespace AIXRCrane.Crane.Sts
         /// <summary>스프레더(빈 프레임/든 화물)가 컨테이너를 옆에서 친 충돌(Anti-Collision) — 경보용(3013 HO Snag).</summary>
         public bool LoadCollision { get; private set; }
 
+        /// <summary>PLC 구동 중 받침을 뚫고 내려감 — 클램프 대신 경고만(HUD).</summary>
+        public bool PassThrough { get; private set; }
+
         /// <summary>빈 스프레더가 후보 컨테이너 상단 코너캐스팅 위에 안착 정렬됨 — 지금 Y로 체결 가능(HUD 표시용).</summary>
         public bool ReadyToLock { get; private set; }
 
@@ -459,7 +462,8 @@ namespace AIXRCrane.Crane.Sts
             // 옆면 깊숙이(높이 25% 이상 아래) 들어오면 측면 충돌 → 클램프 대신 푸셔로 민다. 바닥은 제외.
             bool sideHit = !onFloor && !holding && (top - refBottomY) > (top - topMinY) * SideHitDepthFrac;
             float corr = 0f;
-            if (refBottomY < limit && !sideHit)
+            PassThrough = refBottomY < limit && !sideHit && hoist is AxisMoverBase hm && hm.FollowOnly;
+            if (refBottomY < limit && !sideHit && !PassThrough)
             {
                 corr = limit - refBottomY;
                 hoist.MoveTo(hoist.Current + corr);   // 받침 윗면에서 하강 정지

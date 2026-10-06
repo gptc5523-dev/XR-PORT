@@ -143,6 +143,14 @@ namespace AIXRCrane.Crane.Sts
             return a != null && a.HasContainer ? a.AttachedLoadTons : 0f;
         }
 
+        // PLC 구동 중 3D 형상이 PLC 위치와 겹침 — 갠트리·트롤리 장애물, 호이스트 받침 관통.
+        static bool Interfering(StsCrane c)
+        {
+            var g = c.GetComponent<SpreaderGrabber>();
+            return (c.Gantry as AxisMoverBase)?.IsBlocked == true || (c.Trolley as AxisMoverBase)?.IsBlocked == true
+                || (g != null && g.PassThrough);
+        }
+
         void UpdateAxisSpeed(IAxisMover m, ref float prev, ref float spd, float dt)
         {
             if (m == null) { spd = 0f; return; }
@@ -199,6 +207,8 @@ namespace AIXRCrane.Crane.Sts
             // PLC 통신(COM_Link_Status) — PLC 구동 중 끊기면 아래 값은 마지막 수신값이다.
             if (Plc.PlcBridge.TryLatest(crane, out var plc) && !plc.LinkStatus)
                 sb.AppendLine($"<color=#{CraneHud.Hex(CraneHud.HudColor.Danger)}>PLC 통신 끊김 — 마지막 수신값 표시 중</color>");
+            if (Plc.PlcBridge.TryLatest(crane, out _) && Interfering(crane))
+                sb.AppendLine($"<color=#{CraneHud.Hex(CraneFault.SevColor(FaultSeverity.Warning))}>3D 간섭 감지 — PLC 위치 그대로 표시</color>");
 
             // O&M 관찰 뷰 — 조종/관찰·호스트/관전자 무관하게 상세 상태를 항상 표시.
             sb.AppendLine();

@@ -22,6 +22,9 @@ namespace AIXRCrane.Crane.Sts
         /// <summary>마지막 이동 시도에서 장애물에 막혔는지(충돌 정지, 사실상 GantryMover용).</summary>
         public bool IsBlocked { get; private set; }
 
+        /// <summary>PLC 구동 중(PlcBridge 가 켬): 3D 막힘·바닥 한계는 판정만 하고 이동은 막지 않는다 — 화면은 PLC 위치를 그대로 따른다.</summary>
+        public bool FollowOnly { get; set; }
+
         /// <summary>현재 상한 끝단 도달(가동 범위의 1% 이내).</summary>
         public bool AtUpperLimit => Max > LowerLimit && (Max - Current) <= (Max - LowerLimit) * LimitFrac;
         /// <summary>현재 하한 끝단 도달(가동 범위의 1% 이내).</summary>
@@ -30,9 +33,9 @@ namespace AIXRCrane.Crane.Sts
 
         public void MoveTo(float value)
         {
-            float clamped = Mathf.Clamp(value, LowerLimit, Max);
+            float clamped = Mathf.Clamp(value, FollowOnly ? Min : LowerLimit, Max);
             IsBlocked = IsBlockedToward(clamped);
-            if (IsBlocked) return;   // 진행 방향에 장애물(컨테이너 등) — 이동 정지(밀지 않음)
+            if (IsBlocked && !FollowOnly) return;   // 진행 방향에 장애물(컨테이너 등) — 이동 정지(밀지 않음)
             WriteAxis(clamped);
             OnMoved(clamped);
         }

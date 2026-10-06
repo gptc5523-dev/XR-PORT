@@ -41,7 +41,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             if (!File.Exists(csv))
             {
                 Debug.LogError($"[Kpi2Measure] 재생할 CSV 가 없습니다: {csv}");
-                EditorApplication.Exit(1);
+                if (Application.isBatchMode) EditorApplication.Exit(1);
                 return;
             }
 
@@ -137,7 +137,8 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             EditorPrefs.SetString(Pref("csvPath"), prev.Length > 1 ? prev[1] : "");
             EditorPrefs.SetBool(PortDemoDirector.EditorPrefKey, prev.Length > 2 && prev[2] == "True");
             SessionState.EraseBool(Key);
-            EditorApplication.Exit(pass ? 0 : 1);
+            if (Application.isBatchMode) EditorApplication.Exit(pass ? 0 : 1);
+            else EditorApplication.ExitPlaymode();
         }
 
         // 하니스가 쓴 <프로젝트>/KPI/kpi2_<날짜>.csv 경로를 로그에 남긴다.
