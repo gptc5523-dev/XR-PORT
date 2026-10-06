@@ -54,6 +54,11 @@ namespace AIXRCrane.Crane.Sts
         RtgBogieSteering steer;
         GantryMover gantryMover;
         readonly List<Job> jobs = new List<Job>();
+
+        // RTG 쌓기 더미 — 한쪽 끝 열에 같은 길이 계열(20ft / 40ft·40HC·45ft)끼리 StackTiers 단까지.
+        sealed class Stack { public Vector3 bottom; public float topY; public int tiers; public bool ft40; }
+        readonly List<Stack> stacks = new List<Stack>();
+        const int StackTiers = 3;
         readonly List<Collider> hidden = new List<Collider>();   // 옮기는 동안 끈 콜라이더 — 이웃 컨테이너를 밀지 않게
         float drop;           // 부착점 → 스프레더 최저점(콘 바닥), 월드 Y
         float clearTopY;      // 옮길 때 컨테이너 밑면이 넘어야 할 높이
@@ -110,7 +115,9 @@ namespace AIXRCrane.Crane.Sts
             drop = Mathf.Max(0f, Anchor().y - SpreaderBottomY());
             this.site = site;
 
-            foreach (var t in rtg ? YardCandidates(site) : ShipCandidates(site))
+            var cands = rtg ? YardCandidates(site) : ShipCandidates(site);
+            if (rtg) cands = FortyFirst(cands);   // 한 더미를 채우기 쉽게 40ft 계열부터
+            foreach (var t in cands)
             {
                 if (jobs.Count == Count) break;
                 if (!SceneUtil.TryBounds(t, out var b)) continue;
@@ -119,11 +126,11 @@ namespace AIXRCrane.Crane.Sts
                 {
                     box = t, parent = t.parent, rot = t.rotation, size = b.size,
                     home = new Vector3(b.center.x, b.min.y, b.center.z),
-                    ft40 = Mathf.Max(b.size.x, b.size.z) > 9f * StsConfig.ModelScale,   // 20ft 6.06m · 40ft 12.19m
+                    ft40 = IsFt40(b),
                     kinematic = rb == null || rb.isKinematic,
                 };
                 j.pivot = t.position - j.home;
-                if (!FindSlot(site, j, rtg ? j.home.y : site.land.max.y)) continue;
+                if (!(rtg ? StackSlot(site, j) : FindSlot(site, j, site.land.max.y))) continue;
                 site.claimed.Add(t);
                 jobs.Add(j);
             }
@@ -144,7 +151,7 @@ namespace AIXRCrane.Crane.Sts
                 if (og >= gLo - len && og <= gHi + len && ot >= tLo && ot <= tHi) top = Mathf.Max(top, o.max.y);
             }
             clearTopY = top + clearanceMeters * StsConfig.ModelScale;
-            Debug.Log($"[PortDemo] {name}: 계획 {jobs.Count}개 — {(rtg ? "야드 → 빈 열" : "배 위 단 → 안벽")}, " +
+            Debug.Log($"[PortDemo] {name}: 계획 {jobs.Count}개 — {(rtg ? $"야드 → 한쪽 {StackTiers}단 쌓기(더미 {stacks.Count})" : "배 위 단 → 안벽")}, " +
                       $"이동 높이 y={clearTopY:F3}, 부착점→콘 바닥 {drop:F4}, " +
                       $"축 시작(PLC m) GT={PlcM(crane.Gantry):F2} TR={PlcM(crane.Trolley):F2} HO={PlcM(crane.Spreader):F2}");
         }
@@ -590,6 +597,61 @@ namespace AIXRCrane.Crane.Sts
                     j.away = bottom;
                     return true;
                 }
+            return false;
+        }
+
+        static bool IsFt40(Bounds b) => Mathf.Max(b.size.x, b.size.z) > YardGrid.Is40ThresholdU;
+
+        static List<Transform> FortyFirst(List<Transform> cands)
+        {
+            var forty = cands.FindAll(t => SceneUtil.TryBounds(t, out var b) && IsFt40(b));
+            forty.AddRange(cands.FindAll(t => !forty.Contains(t)));
+            return forty;
+        }
+
+        // RTG — 같은 계열 더미에 한 단 올린다. 더미가 다 찼으면 새 더미 자리를 찾는다.
+        bool StackSlot(Site site, Job j)
+        {
+            var st = stacks.Find(x => x.ft40 == j.ft40 && x.tiers < StackTiers);
+            if (st == null)
+            {
+                if (!FindStackBase(site, j, out var b)) return false;
+                st = new Stack { bottom = b, topY = b.y, ft40 = j.ft40 };
+                stacks.Add(st);
+            }
+            var bottom = new Vector3(st.bottom.x, st.topY, st.bottom.z);
+            if (!Reach(bottom + Vector3.up * (j.size.y + Lift + drop + SeatGapU))) return false;
+            site.occupied.Add(new Bounds(bottom + Vector3.up * (j.size.y * 0.5f), j.size));
+            st.topY += j.size.y;
+            st.tiers++;
+            j.away = bottom;
+            return true;
+        }
+
+        // 새 더미 자리 — 트롤리 Min 쪽 끝 열부터, 집는 자리 주행 위치에서 가까운 베이부터. 맨 위 단까지 비어 있고 닿아야 한다.
+        bool FindStackBase(Site site, Job j, out Vector3 bottom)
+        {
+            Vector3 td = TrolleyDir(), gd = GantryDir();
+            float gap = slotGapMeters * StsConfig.ModelScale, skin = OverlapSkinM * StsConfig.ModelScale;
+            float across = Extent(j.size, td), along = Extent(j.size, gd), tall = StackTiers * j.size.y;
+            TrolleyReach(out float lo, out float hi);
+            float home = Vector3.Dot(j.home, td);
+            for (float s = lo + across * 0.5f; s <= hi; s += across + gap)
+                for (int g = 0; g <= PortConfig.YardBays; g++)
+                    foreach (int sgn in Signs)
+                    {
+                        if (g == 0 && sgn > 0) continue;
+                        bottom = j.home + td * (s - home) + gd * (sgn * g * (along + gap));
+                        bottom.y = j.home.y;
+                        if (YardGrid.TrySnapXZ(bottom, Mathf.Max(j.size.x, j.size.z), out var cell)) { bottom.x = cell.x; bottom.z = cell.z; }
+                        var column = new Bounds(bottom + Vector3.up * (tall * 0.5f), new Vector3(j.size.x, tall, j.size.z));
+                        if (site.haveLand && !InsideXZ(column, site.land)) continue;
+                        if (AnyOverlap(column, site.occupied, skin)) continue;
+                        if (Physics.CheckBox(column.center, column.extents * 0.9f, Quaternion.identity, ~0, QueryTriggerInteraction.Ignore)) continue;
+                        if (!Reach(bottom + Vector3.up * (tall + Lift + drop + SeatGapU))) continue;
+                        return true;
+                    }
+            bottom = default;
             return false;
         }
 
