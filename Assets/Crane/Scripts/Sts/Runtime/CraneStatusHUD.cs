@@ -196,6 +196,9 @@ namespace AIXRCrane.Crane.Sts
             var op = Net.CraneNetSync.ActiveOpMode(crane);
             string ophex = ColorUtility.ToHtmlStringRGB(CraneOpMode.ModeColor(op));
             sb.AppendLine($"운전모드 <b><color=#{ophex}>● {CraneOpMode.Label(op)}</color></b>");   // 라벨='운전모드'(크레인 운영상태), 값=정지/운전/이상
+            // PLC 통신(COM_Link_Status) — PLC 구동 중 끊기면 아래 값은 마지막 수신값이다.
+            if (Plc.PlcBridge.TryLatest(crane, out var plc) && !plc.LinkStatus)
+                sb.AppendLine($"<color=#{CraneHud.Hex(CraneHud.HudColor.Danger)}>PLC 통신 끊김 — 마지막 수신값 표시 중</color>");
 
             // O&M 관찰 뷰 — 조종/관찰·호스트/관전자 무관하게 상세 상태를 항상 표시.
             sb.AppendLine();

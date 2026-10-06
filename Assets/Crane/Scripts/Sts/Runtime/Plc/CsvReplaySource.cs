@@ -135,7 +135,8 @@ namespace AIXRCrane.Crane.Sts.Plc
                     WindAlarm = B("ENV_Wind_Alarm"),
                     AlarmActive = B("ALM_Active"), AlarmCode = I("ALM_Latest_Code"),
                     AlarmSeverity = I("ALM_Latest_Severity"), AlarmSource = I("ALM_Latest_Source"),
-                    LinkStatus = B("COM_Link_Status"),
+                    // 통신 열이 없는 옛 산출물(S13~S16) — 재생 자체가 수신 기록이라 '연결'로 본다(HUD 끊김 헛경고 방지).
+                    LinkStatus = !col.ContainsKey("COM_Link_Status") || B("COM_Link_Status"),
                 };
                 fr.Add(s);
                 tm.Add(I("t_ms") / 1000f);
