@@ -27,7 +27,7 @@ namespace AIXRCrane.Crane.Sts
         [SerializeField] Color boxColor = new Color(0.373f, 0.878f, 1f, 0.9f);   // HudColor.Accent
 
         sealed class Entry { public CranePartId part; public Renderer[] rends; public StsCrane crane; }
-        float tapAt; Vector2 tapPos; bool tapOnUi;
+        float tapAt; Vector2 tapPos; bool tapOnUi, clickOnUi;
         [Tooltip("모바일 탭 판정 — 누른 자리에서 이 픽셀 넘게 움직이면 탭이 아니다.")]
         [SerializeField] float tapSlopPx = 12f;
 
@@ -46,8 +46,20 @@ namespace AIXRCrane.Crane.Sts
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void AutoSpawn() => CraneHud.EnsureSpawned<CranePartPicker>("PartPick");
 
+        static CranePartPicker inst;
+
+        /// <summary>지금 고른 부품의 중심(월드) — 평면 리그가 오른쪽 끌기 회전의 축으로 쓴다(크레인 부품엔 콜라이더가 없어 광선이 통과한다).</summary>
+        public static bool TrySelectedCenter(out Vector3 c)
+        {
+            c = default;
+            if (inst == null || inst.selected == null || !Union(inst.selected, out var b)) return false;
+            c = b.center;
+            return true;
+        }
+
         void Start()
         {
+            inst = this;
             canvas = CraneHud.BuildPanel(transform, "PartInfo", panelPixels, worldScale,
                 new Color(0f, 0f, 0f, CraneHud.PanelBgAlpha), fontSize, Color.white, TextAnchor.UpperLeft,
                 new Vector2(14, 10), out text, fitToText: true);
@@ -100,8 +112,10 @@ namespace AIXRCrane.Crane.Sts
         {
             if (Flat.FlatModeBootstrap.Mobile) { TapInput(); return; }
             var mouse = Mouse.current;
-            if (mouse == null || !mouse.leftButton.wasPressedThisFrame) return;
-            if (EventSystem.current != null && EventSystem.current.IsPointerOverGameObject()) return;
+            if (mouse == null) return;
+            if (mouse.leftButton.wasPressedThisFrame) clickOnUi = EventSystem.current != null && EventSystem.current.IsPointerOverGameObject();
+            // 뗄 때 고른다 — 접속 메뉴(IMGUI) 버튼은 EventSystem 에 안 잡히지만 누르는 동안 hotControl 을 쥐고 있어 뗄 때 걸러진다.
+            if (!mouse.leftButton.wasReleasedThisFrame || clickOnUi || GUIUtility.hotControl != 0) return;
             var cam = Camera.main;
             if (cam == null) return;
             Select(Pick(cam.ScreenPointToRay(mouse.position.ReadValue())));

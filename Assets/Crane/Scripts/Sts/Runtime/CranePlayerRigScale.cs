@@ -104,8 +104,10 @@ namespace AIXRCrane.Crane.Sts
         float StepZoom()
         {
             bool btn = InputDevices.GetDeviceAtXRNode(XRNode.LeftHand).TryGetFeatureValue(UnityEngine.XR.CommonUsages.primary2DAxisClick, out bool b) && b;
-            float notches = Mouse.current != null && Application.isFocused ? Mouse.current.scroll.ReadValue().y / 120f : 0f;
+            float notches = Mouse.current != null ? Mouse.current.scroll.ReadValue().y / 120f : 0f;
             float z = NextZoom(Zoom, notches, btn && !prevZoomBtn, overviewZoom, wheelStep);
+            var active = StsCraneVRController.Active;
+            if (active != null && active.CabView) z = 1f;   // 운전실 시점은 실물 크기 눈높이 기준 — 조감이면 눈이 운전실 위로 튄다
             prevZoomBtn = btn;
             if (!Mathf.Approximately(z, Zoom))
             {

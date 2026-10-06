@@ -126,16 +126,18 @@ namespace AIXRCrane.Crane.Flat
             }
         }
 
-        // 오른쪽 끌기: 가운데 광선이 닿은 점(없으면 앞 50m 실척)을 수직축으로 돈다 — 모델을 돌려 보는 것과 같고 공유 상태는 안 건드린다.
+        // 오른쪽 끌기: 고른 부품이 있으면 그 중심, 없으면 가운데 광선이 닿은 점(없으면 앞 50m 실척)을 수직축으로 돈다 — 공유 상태는 안 건드린다.
         void Orbit()
         {
             var mouse = Mouse.current;
-            if (mouse == null || cam == null || !mouse.rightButton.isPressed || !Application.isFocused) return;
+            if (mouse == null || cam == null || !mouse.rightButton.isPressed) return;
             float d = mouse.delta.ReadValue().x * orbitDegPerPixel;
             if (Mathf.Abs(d) < 1e-4f) return;
             float s = Mathf.Max(transform.lossyScale.x, 1e-6f);
             var ray = new Ray(cam.transform.position, cam.transform.forward);
-            Vector3 pivot = Physics.Raycast(ray, out var hit, 5000f * s) ? hit.point : ray.GetPoint(50f * s);
+            Vector3 pivot;
+            if (!AIXRCrane.Crane.Sts.CranePartPicker.TrySelectedCenter(out pivot))
+                pivot = Physics.Raycast(ray, out var hit, 5000f * s) ? hit.point : ray.GetPoint(50f * s);
             transform.position = pivot + Quaternion.Euler(0f, d, 0f) * (transform.position - pivot);
             yaw += d;
         }
