@@ -387,7 +387,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
 
         sealed class YardKind
         {
-            public string prefix, model, lod;   // lod 없음 = 정밀본만(LOD1 미제작)
+            public string prefix, model;        // LOD1 = ModelDir/LOD1/{model}_LOD1.fbx (문서/스크립트/컨테이너_LOD1_내보내기.py)
             public float heightM, lengthM;      // ISO 668 실척 m
             public int count;
             public GameObject hi, lo;
@@ -398,9 +398,9 @@ namespace AIXRCrane.Crane.Sts.EditorTools
         static YardKind[] YardKinds() => new[]
         {
             new YardKind { prefix = StsPartNames.Yard45HCPrefix, model = "Container_45ftHC", heightM = ProceduralContainerMesh.HeightHC,  lengthM = ProceduralContainerMesh.Length45ft, count = 2 },
-            new YardKind { prefix = StsPartNames.Yard20Prefix,   model = "Container_20ft",   heightM = ProceduralContainerMesh.HeightStd, lengthM = ProceduralContainerMesh.Length20ft, count = 6, lod = "LOD1/Container_20ft_LOD1" },
+            new YardKind { prefix = StsPartNames.Yard20Prefix,   model = "Container_20ft",   heightM = ProceduralContainerMesh.HeightStd, lengthM = ProceduralContainerMesh.Length20ft, count = 6 },
             new YardKind { prefix = StsPartNames.Yard40HCPrefix, model = "Container_40ftHC", heightM = ProceduralContainerMesh.HeightHC,  lengthM = ProceduralContainerMesh.Length40ft, count = 8 },
-            new YardKind { prefix = StsPartNames.Yard40Prefix,   model = "Container_40ft",   heightM = ProceduralContainerMesh.HeightStd, lengthM = ProceduralContainerMesh.Length40ft, count = 4, lod = "LOD1/Container_40ft_LOD1" },
+            new YardKind { prefix = StsPartNames.Yard40Prefix,   model = "Container_40ft",   heightM = ProceduralContainerMesh.HeightStd, lengthM = ProceduralContainerMesh.Length40ft, count = 4 },
         };
 
         /// <summary>야드 블록에 4종 컨테이너를 놓는다 — 블록마다 대수가 같거나 1 차이, 블록 안은 길이 방향으로 고르게.
@@ -414,10 +414,10 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             foreach (var k in kinds)
             {
                 k.hi = AssetDatabase.LoadAssetAtPath<GameObject>(ModelDir + k.model + ".fbx");
-                k.lo = k.lod != null ? AssetDatabase.LoadAssetAtPath<GameObject>(ModelDir + k.lod + ".fbx") : null;
-                if (k.hi == null)
+                k.lo = AssetDatabase.LoadAssetAtPath<GameObject>($"{ModelDir}LOD1/{k.model}_LOD1.fbx");
+                if (k.hi == null || k.lo == null)
                 {
-                    EditorUtility.DisplayDialog("야드 적재", $"컨테이너 FBX 없음:\n{ModelDir}{k.model}.fbx", "확인");
+                    EditorUtility.DisplayDialog("야드 적재", $"컨테이너 FBX 없음:\n{ModelDir}{k.model}.fbx 또는 LOD1/{k.model}_LOD1.fbx", "확인");
                     return;
                 }
                 k.h = Probe(k.hi, k.heightM, out k.len, out float wid);   // 실측 — 규격과 다르면 FBX 가 바뀐 것
@@ -541,13 +541,10 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             var g0 = Fit(hi, root.transform, "LOD0", heightM);
             var r0 = g0.GetComponentsInChildren<Renderer>();
 
-            Renderer[] r1 = System.Array.Empty<Renderer>();
-            if (lo != null) r1 = Fit(lo, root.transform, "LOD1", heightM).GetComponentsInChildren<Renderer>();
+            var r1 = Fit(lo, root.transform, "LOD1", heightM).GetComponentsInChildren<Renderer>();
 
             var lg = root.AddComponent<LODGroup>();
-            lg.SetLODs(r1.Length > 0
-                ? new[] { new LOD(ContLod0Height, r0), new LOD(ContLod1Height, r1) }
-                : new[] { new LOD(ContLod1Height, r0) });
+            lg.SetLODs(new[] { new LOD(ContLod0Height, r0), new LOD(ContLod1Height, r1) });
             lg.RecalculateBounds();
         }
 
