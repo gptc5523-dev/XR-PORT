@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace AIXRCrane.Crane.Sts.Plc
 {
-    /// <summary>지표2 — PLC 지령 위치 vs 렌더 위치 오차(실척 m) 측정. 렌더값 = PlcBridge 정규화의 역변환.
+    /// <summary>지표2 — PLC 지령 위치 vs 렌더 위치 오차(실척 m) 측정. 렌더값 = 화면에 그려진 부품(갠트리·트롤리·부착점)의 월드 변위 ÷ ModelScale.
     /// 실행 순서 100: PlcBridge(-100) 구동 뒤에 읽어야 같은 틱 지령↔결과가 짝 맞음.</summary>
     [DefaultExecutionOrder(100)]
     [AddComponentMenu("AI-XR Crane/STS Crane/KPI 지표2 (위치·동작 정확도)")]
@@ -30,6 +30,9 @@ namespace AIXRCrane.Crane.Sts.Plc
         [Tooltip("끄면 콘솔 요약만 내고 CSV 를 안 쓴다.")]
         [SerializeField] bool writeCsv = true;
 
+        /// <summary>CSV 파일명에 붙일 시나리오 이름(예: S07). 비면 시각만.</summary>
+        public string Label { get; set; }
+
         StsCrane crane;
         PlcBridge bridge;
         float sampleT;
@@ -39,6 +42,10 @@ namespace AIXRCrane.Crane.Sts.Plc
         int blockedN, clampedN;
         StringBuilder csv;
         bool done;
+        // 첫 시행의 월드 위치·지령 — 이후 변위를 이것과 비교한다(절대 원점 보정은 범위 밖).
+        readonly Vector3[] p0 = new Vector3[3];
+        readonly float[] c0 = new float[3];
+        bool haveRef;
 
         /// <summary>측정 완료 여부 — 외부(자동 시나리오)가 종료 판정에 쓸 수 있게 공개.</summary>
         public bool Done => done;
@@ -51,7 +58,7 @@ namespace AIXRCrane.Crane.Sts.Plc
         {
             crane = GetComponent<StsCrane>();
             bridge = GetComponent<PlcBridge>();
-            csv = new StringBuilder("trial,t_s,axis,commanded_m,rendered_m,error_m,pass,blocked,clamped\n");
+            csv = new StringBuilder("trial,t_s,axis,commanded_m,rendered_m,error_m,pass,blocked,clamped,model_m\n");
         }
 
         void FixedUpdate()
@@ -65,14 +72,20 @@ namespace AIXRCrane.Crane.Sts.Plc
 
             var s = bridge.Latest;
             bool trialPass = true;
+            if (!haveRef)
+            {
+                for (int i = 0; i < 3; i++) { p0[i] = WorldPoint(i); c0[i] = Commanded(s, i); }
+                haveRef = true;
+            }
 
             for (int i = 0; i < 3; i++)
             {
                 var axis = i == 0 ? crane.Gantry : i == 1 ? crane.Trolley : crane.Spreader;
-                float commanded = i == 0 ? s.GtPosition : i == 1 ? s.TrPosition : s.HoPosition;
+                float commanded = Commanded(s, i);
 
-                // 렌더 실척 — PlcBridge 정규화의 역변환.
-                float rendered = axis.PlcMeters();
+                // 렌더 실척 — 축 값이 아니라 그려진 부품의 월드 변위를 잰다. 축 정규화·계층·호이스트 동기화가 어긋나면 여기서 드러난다.
+                Vector3 dir = i == 2 ? Vector3.up : axis.WorldAxis.normalized;
+                float rendered = c0[i] + Vector3.Dot(WorldPoint(i) - p0[i], dir) / crane.ModelScale;
                 float err = Mathf.Abs(commanded - rendered);
 
                 bool blocked = (axis as AxisMoverBase)?.IsBlocked ?? false;
@@ -90,12 +103,22 @@ namespace AIXRCrane.Crane.Sts.Plc
                        .Append(AxisName[i]).Append(',').Append(commanded.ToString("F4")).Append(',')
                        .Append(rendered.ToString("F4")).Append(',').Append(err.ToString("F4")).Append(',')
                        .Append(ok ? 1 : 0).Append(',').Append(blocked ? 1 : 0).Append(',')
-                       .Append(clamped ? 1 : 0).Append('\n');
+                       .Append(clamped ? 1 : 0).Append(',').Append(axis.PlcMeters().ToString("F4")).Append('\n');
             }
 
             n++;
             if (trialPass) passN++;
             if (n >= trials) Finish();
+        }
+
+        static float Commanded(in PlcSnapshot s, int i) => i == 0 ? s.GtPosition : i == 1 ? s.TrPosition : s.HoPosition;
+
+        // 갠트리·트롤리는 무버 자신, 권상은 스프레더 부착점(트위스트락 높이 — 화면에서 보는 끝).
+        Vector3 WorldPoint(int i)
+        {
+            if (i == 2 && crane.Attach != null) return crane.Attach.transform.position;
+            var axis = i == 0 ? crane.Gantry : i == 1 ? crane.Trolley : crane.Spreader;
+            return ((Component)axis).transform.position;
         }
 
         void Finish()
@@ -136,7 +159,7 @@ namespace AIXRCrane.Crane.Sts.Plc
                 string dir = Path.Combine(Application.persistentDataPath, "KPI");
 #endif
                 Directory.CreateDirectory(dir);
-                string p = Path.Combine(dir, $"kpi2_{System.DateTime.Now:yyyyMMdd_HHmmss}.csv");
+                string p = Path.Combine(dir, $"kpi2_{(string.IsNullOrEmpty(Label) ? "" : Label + "_")}{System.DateTime.Now:yyyyMMdd_HHmmss}.csv");
                 File.WriteAllText(p, csv.ToString());
                 return p;
             }

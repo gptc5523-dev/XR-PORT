@@ -105,6 +105,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
                 }
                 kpi = go.GetComponent<Kpi2PositionAccuracy>();
                 if (kpi == null) kpi = go.AddComponent<Kpi2PositionAccuracy>();
+                kpi.Label = Path.GetFileName(Path.GetDirectoryName(EditorPrefs.GetString(Pref("csvPath"), "")));
                 Debug.Log($"[Kpi2Measure] 부착 완료 — 소스 {bridge.Source?.Name}, 이제 0.5초마다 1시행(100회).");
                 return;
             }
