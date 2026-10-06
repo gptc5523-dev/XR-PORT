@@ -59,6 +59,9 @@ namespace AIXRCrane.Crane.Sts.EditorTools
         // 기계실을 백리치 끝(-13)으로 재정착 — 실제 STS는 기계실/평형추가 백리치 끝에 위치.
         //   캣워크·드럼·진입구는 이 상수 파생이라 자동 추종.
         const float MachineryHouseX  = (-13f * Scale - 0.27f) + 0.11f + MHForward;  // 기계실 중심 X — 새 백리치(-13) 기준 + 앞당김
+        // 기계실 안 드럼 — 로프 끝도 이 값으로 잡는다(따로 적었더니 로프가 붐호이스트 윈치 안에서 끝났다).
+        const float HoistDrumX = MachineryHouseX - 0.065f, HoistDrumY = 0.085f, HoistDrumR = 0.014f;
+        const float TravelDrumX = -0.535f, TravelDrumY = 0.095f, TravelDrumR = 0.016f;
 
         // 다리 X 위치(붐 로컬 = 루트 로컬, 붐이 루트 x=0에 있으므로 동일)
         const float LandLegX  = 0f;
@@ -685,9 +688,9 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             // 트롤리 주행(견인) 윈치 — STS는 견인로프式, 주행 모터/감속기는 기계실에.
             //   드럼 축은 호이스트와 평행(Z), 로프는 바다쪽(+X)으로 나가 붐 따라 트롤리로.
             {
-                float twx = -0.535f, twy = 0.095f, twHalfZ = 0.06f;
+                float twx = TravelDrumX, twy = TravelDrumY, twHalfZ = 0.06f;
                 Rod(boom, "Trolley_Travel_Drum",                                  // 견인 로프 스풀 드럼
-                    new Vector3(twx, twy, -twHalfZ), new Vector3(twx, twy, twHalfZ), 0.016f, CMachine);
+                    new Vector3(twx, twy, -twHalfZ), new Vector3(twx, twy, twHalfZ), TravelDrumR, CMachine);
                 for (int s = -1; s <= 1; s += 2)                                  // 드럼 양끝 플랜지
                     Rod(boom, "Travel_Drum_Flange",
                         new Vector3(twx, twy, s * twHalfZ), new Vector3(twx, twy, s * (twHalfZ + 0.006f)), 0.020f, CMachine);
@@ -2008,7 +2011,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
 
                 // 2단계: 트롤리 앞끝 직결 소켓 + 동적 로프(트롤리 앞끝 → 시브 U반전). supply(시브→드럼)는 다음 조각.
                 Vector3 Pt   = new Vector3(troFrontX, -0.025f, sz);
-                Vector3 drum = new Vector3(MachineryHouseX - 0.02f, 0.085f, sz);   // 드럼 방향(U반전 끝각 결정용)
+                Vector3 drum = new Vector3(TravelDrumX, TravelDrumY + TravelDrumR, sz);   // 견인 드럼 윗면 — 로프 끝·U반전 끝각
                 float degT = TangDeg(C, Pt, true);     // 트롤리(시브 −X 아래) 하부 접점 — φ≈180이라 upper분기가 하부 (정지점, 소켓 정렬용)
                 float degD = TangDeg(C, drum, false);  // 드럼(시브 −X 위) 상부 접점 = 탈출각(고정)
                 Vector3 Tt = OnSheave(C, degT);
@@ -2124,15 +2127,15 @@ namespace AIXRCrane.Crane.Sts.EditorTools
                 Cone(boom, "MH_RopeFairlead", new Vector3(entryX - 0.014f, entryY, sz),
                     new Vector3(entryX, entryY, sz), 0.013f, 0.006f, CDark);                                 // 트럼펫(2폴 포괄)
                 // X −0.02→−0.065: 붐호이스트 윈치(Boom_Hoist_Drum, x−0.02·r0.026)와 같은 자리 동심 관통 → 육지쪽 별도 베이로 이격(gap 0.045>반경합 0.04).
-                Rod(boom, "Hoist_Drum", new Vector3(MachineryHouseX - 0.065f, 0.085f, sz - 0.028f),
-                    new Vector3(MachineryHouseX - 0.065f, 0.085f, sz + 0.028f), 0.014f, CMachine);            // 권상 드럼(기계실 내부)
+                Rod(boom, "Hoist_Drum", new Vector3(HoistDrumX, HoistDrumY, sz - 0.028f),
+                    new Vector3(HoistDrumX, HoistDrumY, sz + 0.028f), HoistDrumR, CMachine);            // 권상 드럼(기계실 내부)
 
                 // side당 1가닥(총 2) — 윗구간은 드럼 로프라 양정 4-fall과 별개. 트롤리 → 시브 → 기계실 → 드럼
                 {
                     float zp = sz;
                     Vector3 C    = new Vector3(BackSheaveX, BackSheaveY, zp);
                     Vector3 Pm   = new Vector3(entryX - 0.012f, entryY, zp);
-                    Vector3 drum = new Vector3(MachineryHouseX - 0.02f, 0.085f, zp);
+                    Vector3 drum = new Vector3(HoistDrumX, HoistDrumY + HoistDrumR, zp);   // 권상 드럼 윗면
 
                     float degM = TangDeg(C, Pm, true);     // 기계실쪽: 시브 상부 접선(고정 = 탈출각)
                     Vector3 Tm = OnSheave(C, degM);
