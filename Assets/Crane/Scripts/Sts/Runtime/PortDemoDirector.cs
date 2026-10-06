@@ -152,7 +152,7 @@ namespace AIXRCrane.Crane.Sts
             }
             if (cranes.Count == 0 || Time.unscaledTime < nextSelect) return;
             nextSelect = Time.unscaledTime + selectInterval;
-            bool spectator = Spectator, host = Host;
+            bool spectator = Spectator, host = Host || Application.isEditor;   // 에디터 Play 에선 역할과 무관하게 띠를 보여 수정·확인할 수 있게
             foreach (var e in cranes)
             {
                 e.ring.enabled = host;
