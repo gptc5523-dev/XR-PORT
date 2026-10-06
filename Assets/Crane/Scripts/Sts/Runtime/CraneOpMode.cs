@@ -36,24 +36,21 @@ namespace AIXRCrane.Crane.Sts
         [SerializeField, Range(1, 30)] int accelTripClearN = CraneAxisProfile.AccelTripClearN;
         [Tooltip("트립 해제 데드밴드 — 해제 임계 = 한계 × 이 값. set(한계) > clear(한계×frac) 히스테리시스로 경계 떨림 차단. SSOT=CraneAxisProfile.AccelClearFrac.")]
         [SerializeField, Range(0.3f, 0.99f)] float accelClearFrac = CraneAxisProfile.AccelClearFrac;
+        [Tooltip("가속 측정 창(초) — 위치 2차 차분을 이 간격으로 잰다. PLC 데이터 행 간격 이상. SSOT=CraneAxisProfile.AccelWindowS.")]
+        [SerializeField, Range(0.02f, 0.5f)] float accelWindowS = CraneAxisProfile.AccelWindowS;
 
         StsCrane crane;
         float prevG, prevT, prevH;
         float lastMoveTime = -999f;
         bool primed;   // 첫 프레임 위치 캡처 완료(초기 0→실제값 점프를 이동으로 오인하지 않게)
 
-        // 가속도 추적은 FixedUpdate에서 — 고정 dt라 2차 미분 노이즈가 작다.
-        float fpG, fpT, fpH;     // 직전 FixedUpdate 축 위치(모델 units)
-        float vG, vT, vH;        // 직전 실척 속도(m/s)
-        bool fPrimed;            // 가속 추적 첫 틱 완료
+        // 가속도 추적은 FixedUpdate에서 — 실척 위치(m) 링버퍼, 길이 2W+1(W = 창 틱 수).
+        Vector3[] ring;
+        int head, filled;
 
         // 축별 트립 상태머신(raw 가속도 기준). trip=현재 트립, over=연속 초과 틱, under=연속 복귀 틱.
         bool tripG, tripT, tripH;
         int overG, overT, overH, underG, underT, underH;
-
-        // 되감기 마스킹 — 위치 불연속 직후 이 틱 수만큼 가속 측정을 건너뛰고 속도 baseline만 재구축.
-        // 2틱: 점프 속도가 다음 가속 계산에 새지 않게 깨끗한 속도 표본 1개를 먼저 확보.
-        int accelWarmup;
 
         /// <summary>가속도 한계 알람 평가 여부 — PLC 실데이터일 때만 true.
         /// 직접조종은 가감속 램프가 없어 오경보라 기본 false.</summary>
@@ -120,35 +117,26 @@ namespace AIXRCrane.Crane.Sts
             float rT = toReal * (crane.Trolley  != null ? crane.Trolley.WorldPerUnit  : 1f);
             float rH = toReal * (crane.Spreader != null ? crane.Spreader.WorldPerUnit : 1f);
 
-            if (fPrimed && accelWarmup == 0)
-            {
-                StepAccel(g, fpG, ref vG, ref tripG, ref overG, ref underG, gantryAccelLimit,  dt, rG);
-                StepAccel(t, fpT, ref vT, ref tripT, ref overT, ref underT, trolleyAccelLimit, dt, rT);
-                StepAccel(h, fpH, ref vH, ref tripH, ref overH, ref underH, hoistAccelLimit,   dt, rH);
-            }
-            else if (fPrimed)
-            {
-                // 워밍업: 불연속 직후 — 속도 baseline만 재구축, 가속/트립 판정 건너뜀.
-                vG = (g - fpG) * rG / dt;
-                vT = (t - fpT) * rT / dt;
-                vH = (h - fpH) * rH / dt;
-                accelWarmup--;
-            }
-            // 직전 위치 갱신은 여기 한 곳이 소유 — StepAccel은 읽기만.
-            fpG = g; fpT = t; fpH = h; fPrimed = true;
+            // 틱 단위 2차 미분이면 100ms 행 선형보간 위치에서 가속이 행 경계 1틱 스파이크로만 보여 3틱 연속을 못 채운다(WBS 9.5).
+            int w = Mathf.Max(1, Mathf.RoundToInt(accelWindowS / dt));
+            if (ring == null || ring.Length != 2 * w + 1) { ring = new Vector3[2 * w + 1]; filled = 0; }
+            ring[head] = new Vector3(g * rG, t * rT, h * rH);
+            head = (head + 1) % ring.Length;
+            if (filled < ring.Length) { filled++; return; }
+
+            // head 는 이제 가장 오래된 칸(2W 틱 전), 중간은 W 틱 전, 최신은 head-1.
+            Vector3 a = (ring[(head + ring.Length - 1) % ring.Length] - 2f * ring[(head + w) % ring.Length] + ring[head]) / (w * dt * w * dt);
+            StepTrip(Mathf.Abs(a.x), ref tripG, ref overG, ref underG, gantryAccelLimit);
+            StepTrip(Mathf.Abs(a.y), ref tripT, ref overT, ref underT, trolleyAccelLimit);
+            StepTrip(Mathf.Abs(a.z), ref tripH, ref overH, ref underH, hoistAccelLimit);
         }
 
         /// <summary>가속 추적 재프라임 — CSV 되감기 등 위치 불연속의 인공 스파이크 방지(PlcBridge 호출).</summary>
-        public void ResetAccelTracking() => accelWarmup = 2;
+        public void ResetAccelTracking() => filled = 0;
 
-        // 위치(모델 units) → 실척 속도(m/s) → |가속도|(m/s²). prev는 읽기 전용.
-        // 트립 판정은 raw aNow — 평활하면 피크가 깎여 트립을 놓친다.
-        void StepAccel(float cur, float prev, ref float vPrev,
-                       ref bool trip, ref int over, ref int under, float limit, float dt, float toReal)
+        // |가속도|(m/s²) → 트립 상태머신.
+        void StepTrip(float aNow, ref bool trip, ref int over, ref int under, float limit)
         {
-            float vNow = (cur - prev) * toReal / dt;          // 실척 m/s (부호 유지 — 가속/감속 방향)
-            float aNow = Mathf.Abs(vNow - vPrev) / dt;        // 실척 m/s² (raw, 피크 보존)
-            vPrev = vNow;
 
             // 트립 디바운스+히스테리시스: 한계 초과 N틱 연속 → set / 한계×frac 이하 M틱 연속 → clear.
             float clear = limit * accelClearFrac;

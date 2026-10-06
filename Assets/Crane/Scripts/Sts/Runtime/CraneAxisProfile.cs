@@ -42,6 +42,8 @@ namespace AIXRCrane.Crane.Sts
         public const int   AccelTripClearN = 5;
         /// <summary>트립 해제 임계 = 한계 × 이 값(히스테리시스).</summary>
         public const float AccelClearFrac  = 0.8f;
+        /// <summary>가속 측정 창(초) — 행 간격(100ms)보다 길어야 지속 가속이 보이고, 0.2s면 mm 반올림 잡음(100ms에서 ±0.2m/s²)이 GT 한계 아래로 준다.</summary>
+        public const float AccelWindowS    = 0.2f;
 
         // 5) 급조작 주입(데모/검증) 및 시나리오 상수.
 
