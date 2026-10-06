@@ -27,7 +27,7 @@ namespace AIXRCrane.Crane.Sts
 
         [Header("표시 규칙(난잡 방지)")]
         [Tooltip("이 거리(m)보다 멀면 라벨 숨김(가독성). 0이면 항상 표시.")]
-        [SerializeField] float hideBeyond = 8f;
+        [SerializeField] float hideBeyond = 0f;   // 모든 크레인 말풍선을 항상 표시(2026-10-06 요청)
         [Tooltip("고정 부품(기계실/운전실/붐/평형추) 라벨은 시선이 이 각도(°) 안에 들 때만 표시 → 쳐다보는 것만 뜸.")]
         [SerializeField] float staticLookAngle = 14f;
         [Tooltip("이 거리(m)까지는 기본 크기, 그보다 멀면 거리에 비례해 키워 멀리서도 읽히게(각크기 유지).")]
@@ -42,14 +42,13 @@ namespace AIXRCrane.Crane.Sts
 
         enum Kind { Spreader, Axis, Static }   // Spreader=적재/하중/잠금, Axis=위치%/속도(트롤리·갠트리), Static=이름+역할
 
-        // 크레인 한 대의 말풍선 묶음 — 크레인마다 만들고, 플레이어에게 가장 가까운 한 대만 보인다(5대 × 3개는 난잡).
+        // 크레인 한 대의 말풍선 묶음 — 크레인마다 만든다(모든 크레인에 표시, 멀면 hideBeyond 로 숨김).
         sealed class Rig
         {
             public StsCrane crane;
             public SpreaderAttach attach;
             public SpreaderLockAnimator lockAnim;
             public SpreaderGrabber grabber;
-            public Renderer[] rends;   // 크레인 바닥 영역(거리 판정)용 — 한 번만 모은다
         }
 
         sealed class Label
@@ -70,8 +69,7 @@ namespace AIXRCrane.Crane.Sts
 
         readonly List<Label> labels = new List<Label>();
         readonly List<Rig> rigs = new List<Rig>();
-        Rig focus;
-        float nextScan, nextFocus;
+        float nextScan;
         readonly StringBuilder sb = new StringBuilder(160);
         float nextTextRefresh;   // 라벨 텍스트 생성/대입 스로틀(CraneHud.TextHz). 위치/빌보드는 매 프레임 갱신.
         Material leaderMat;
@@ -89,8 +87,7 @@ namespace AIXRCrane.Crane.Sts
             {
                 if (rigs.Exists(r => r.crane == c)) continue;
                 var rig = new Rig { crane = c, attach = c.Attach, grabber = c.GetComponent<SpreaderGrabber>(),
-                                    lockAnim = c.GetComponentInChildren<SpreaderLockAnimator>(true),
-                                    rends = c.GetComponentsInChildren<Renderer>() };
+                                    lockAnim = c.GetComponentInChildren<SpreaderLockAnimator>(true) };
                 rigs.Add(rig);
                 Vector3 up = Vector3.up * labelHeight;
                 // 가동부(실시간) — 트롤리/스프레더는 좌우(Z)로 벌려 겹침 방지
@@ -103,26 +100,6 @@ namespace AIXRCrane.Crane.Sts
                 BuildLabel(rig, Kind.Axis, leg != null ? leg : (c.Gantry as Component)?.transform, c.Gantry, "갠트리 주행", null,
                            up * 1.3f + Vector3.right * 0.22f);
             }
-        }
-
-        // 플레이어(카메라)에서 바닥 영역(XZ)까지 가장 가까운 크레인 — 루트는 STS 에선 육측 다리라 중심이 아니다.
-        Rig Nearest(Vector3 camPos)
-        {
-            Rig best = null; float bestD = float.MaxValue;
-            foreach (var r in rigs)
-            {
-                if (r.crane == null) continue;
-                bool any = false; Bounds b = default;
-                foreach (var rd in r.rends)
-                {
-                    if (rd == null) continue;
-                    if (any) b.Encapsulate(rd.bounds); else { b = rd.bounds; any = true; }
-                }
-                if (!any) continue;
-                Vector3 q = b.ClosestPoint(new Vector3(camPos.x, b.center.y, camPos.z)) - camPos; q.y = 0f;
-                if (q.sqrMagnitude < bestD) { bestD = q.sqrMagnitude; best = r; }
-            }
-            return best;
         }
 
         // 크레인 하위에서 이름으로 부품 찾기(첫 매치).
@@ -193,17 +170,10 @@ namespace AIXRCrane.Crane.Sts
             Vector3 camFwd = cam.transform.forward;
             float dt = Time.deltaTime;
             float halfH = panelPixels.y * worldScale * 0.5f;   // 말풍선 아래 가장자리(지시선 끝점)
-            if (Time.unscaledTime >= nextFocus) { nextFocus = Time.unscaledTime + 0.5f; focus = Nearest(camPos); }
 
             foreach (var L in labels)
             {
                 if (L.canvas == null || L.anchor == null) continue;
-                if (L.rig != focus)
-                {
-                    L.canvas.enabled = false;
-                    if (L.line != null) L.line.enabled = false;
-                    continue;
-                }
 
                 UpdateSpeed(L, dt);
 
