@@ -57,6 +57,7 @@ def pct(v, p):
 
 def request(url, data=None, timeout=5):
     req = urllib.request.Request(url, data, {"Content-Type": "application/json"} if data else {})
+    if os.environ.get("XRCRANE_TOKEN"): req.add_header("X-Auth-Token", os.environ["XRCRANE_TOKEN"])
     with urllib.request.urlopen(req, timeout=timeout) as r:
         return r.read(), r.headers
 

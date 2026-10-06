@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Net.Http;
 using System.Threading;
 using UnityEngine;
@@ -35,6 +36,17 @@ namespace AIXRCrane.Crane.Sts.Plc
         {
             url = baseUrl.TrimEnd('/');
             crane = craneName;
+            string token = Token();
+            if (!string.IsNullOrEmpty(token)) http.DefaultRequestHeaders.Add("X-Auth-Token", token);
+        }
+
+        // 서버 공유 토큰(WBS 9.2) — 환경변수 XRCRANE_TOKEN, 없으면 기기의 persistentDataPath/xrcrane_token.txt. 씬·저장소에는 두지 않는다.
+        static string Token()
+        {
+            string t = Environment.GetEnvironmentVariable("XRCRANE_TOKEN");
+            if (!string.IsNullOrEmpty(t)) return t.Trim();
+            string f = Path.Combine(Application.persistentDataPath, "xrcrane_token.txt");
+            return File.Exists(f) ? File.ReadAllText(f).Trim() : "";
         }
 
         public string Name => "Server";

@@ -18,6 +18,11 @@ XR 크레인 통합서버 v0.5 — PLC 이력 수집·저장·조회. 파트ID �
   GET  /runs                                    적재된 (크레인, 출처) 별 행 수·시간 범위
   GET  /since?crane=&after_id=                  크레인이 이어 받는 경로(CSV, X-Last-Id) — Unity ServerPlcSource
 
+접근 제어(WBS 9.2, 폐쇄망 전제 9.1)
+  XRCRANE_ALLOW  허용 대역(쉼표 구분 CIDR). 기본 = 루프백 + 사설망(10/8, 172.16/12, 192.168/16). 밖이면 403.
+  XRCRANE_TOKEN  공유 토큰. 설정하면 모든 요청에 X-Auth-Token 헤더가 같아야 한다(아니면 401). 비우면 토큰 검사 안 함.
+  클라이언트(feed·plc_s7·load_test·Unity ServerPlcSource)는 같은 환경변수(Unity 는 파일)에서 토큰을 읽어 보낸다.
+
 CLI
   python3 xrcrane_db.py serve [--port 5006] [--db /data/xrcrane.db]
   python3 xrcrane_db.py import <csv...> [--crane STS_Crane] [--source S02/run_01]   기존 PlcSim CSV 적재
@@ -26,7 +31,9 @@ CLI
 
 import argparse
 import csv
+import hmac
 import io
+import ipaddress
 import json
 import os
 import sqlite3
@@ -38,6 +45,20 @@ from urllib.parse import urlparse, parse_qs
 
 DEFAULT_DB = os.environ.get("XRCRANE_DB", "/data/xrcrane.db")
 DEFAULT_PORT = int(os.environ.get("XRCRANE_PORT", "5006"))
+DEFAULT_ALLOW = os.environ.get("XRCRANE_ALLOW", "127.0.0.0/8,::1/128,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16")
+TOKEN_HEADER = "X-Auth-Token"
+
+
+def auth_headers(extra=None):
+    """클라이언트 공용 — XRCRANE_TOKEN 이 있으면 토큰 헤더를 붙인다."""
+    h = dict(extra or {})
+    if os.environ.get("XRCRANE_TOKEN"):
+        h[TOKEN_HEADER] = os.environ["XRCRANE_TOKEN"]
+    return h
+
+
+def parse_allow(spec):
+    return [ipaddress.ip_network(s.strip(), strict=False) for s in spec.split(",") if s.strip()]
 
 # 조회용으로 승격한 컬럼 ← CSV 헤더 이름. 나머지 39개는 raw JSON 에 그대로 남는다.
 PROMOTED = {
@@ -132,6 +153,8 @@ def rows_to_dicts(cur):
 
 class Handler(BaseHTTPRequestHandler):
     db_path = None
+    allow = parse_allow(DEFAULT_ALLOW)
+    token = ""
     lock = threading.Lock()
     local = threading.local()
 
@@ -171,11 +194,26 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def denied(self):
+        """허용 대역 밖이면 403, 토큰이 설정됐는데 헤더가 다르면 401 을 보내고 True."""
+        ip = ipaddress.ip_address(self.client_address[0].split("%")[0])
+        if getattr(ip, "ipv4_mapped", None):
+            ip = ip.ipv4_mapped
+        if not any(ip.version == n.version and ip in n for n in self.allow):
+            self.send_json({"error": "forbidden"}, 403)
+            return True
+        if self.token and not hmac.compare_digest(self.headers.get(TOKEN_HEADER, ""), self.token):
+            self.send_json({"error": "unauthorized"}, 401)
+            return True
+        return False
+
     def q(self, name, default=None):
         vals = parse_qs(urlparse(self.path).query).get(name)
         return vals[0] if vals else default
 
     def do_GET(self):
+        if self.denied():
+            return
         path = urlparse(self.path).path
         crane = self.q("crane")
         try:
@@ -245,6 +283,8 @@ class Handler(BaseHTTPRequestHandler):
                                "endpoints": ["/health", "/latest", "/history", "/alarms", "/runs", "/since", "POST /ingest"]}, 404)
 
     def do_POST(self):
+        if self.denied():
+            return
         if urlparse(self.path).path != "/ingest":
             return self.send_json({"error": "not found"}, 404)
         try:
@@ -279,12 +319,15 @@ def prune_loop(db, retain_hours, every_s):
 def cmd_serve(args):
     con = connect(args.db)   # 스키마만 만들고, 요청은 Handler.con 이 스레드별로 연다
     Handler.db_path = args.db
+    Handler.allow = parse_allow(args.allow)
+    Handler.token = os.environ.get("XRCRANE_TOKEN", "")
     srv = ThreadingHTTPServer((args.host, args.port), Handler)
     srv.db_path = args.db
     if args.retain_hours > 0:
         threading.Thread(target=prune_loop, args=(args.db, args.retain_hours, args.prune_every), daemon=True).start()
     keep = f"보존 {args.retain_hours:g}시간" if args.retain_hours > 0 else "보존 무기한"
-    print(f"[xrcrane-db] listening on {args.host}:{args.port} · db={args.db} · {keep}", flush=True)
+    auth = "토큰 필요" if Handler.token else "토큰 없음"
+    print(f"[xrcrane-db] listening on {args.host}:{args.port} · db={args.db} · {keep} · 허용 {args.allow} · {auth}", flush=True)
     try:
         srv.serve_forever()
     except KeyboardInterrupt:
@@ -321,7 +364,8 @@ def clock_offset(base_url, n=8):
     best = None
     for _ in range(n):
         t0 = time.time() * 1000
-        server = json.loads(urllib.request.urlopen(base_url.rstrip("/") + "/time", timeout=2).read())["server_ms"]
+        req = urllib.request.Request(base_url.rstrip("/") + "/time", headers=auth_headers())
+        server = json.loads(urllib.request.urlopen(req, timeout=2).read())["server_ms"]
         t1 = time.time() * 1000
         if best is None or t1 - t0 < best[1]:
             best = (server - (t0 + t1) / 2, t1 - t0)
@@ -346,7 +390,7 @@ def cmd_feed(args):
             if wait > 0:
                 time.sleep(wait)
             row.update(crane=args.crane, source=source, plc_ms=int(time.time() * 1000) + off)   # PLC 측 송출 시각(서버 시계 epoch ms) — 지표1 시작점
-            req = urllib.request.Request(url, json.dumps(row).encode("utf-8"), {"Content-Type": "application/json"})
+            req = urllib.request.Request(url, json.dumps(row).encode("utf-8"), auth_headers({"Content-Type": "application/json"}))
             urllib.request.urlopen(req, timeout=5).read()
         if not args.loop:
             break
@@ -360,6 +404,7 @@ def main():
     s = sub.add_parser("serve", help="REST 서버 기동")
     s.add_argument("--host", default="0.0.0.0")
     s.add_argument("--port", type=int, default=DEFAULT_PORT)
+    s.add_argument("--allow", default=DEFAULT_ALLOW, help="허용 대역 CIDR(쉼표 구분). 기본 루프백+사설망")
     s.add_argument("--retain-hours", type=float, default=float(os.environ.get("XRCRANE_RETAIN_HOURS", "168")),
                    help="이보다 오래된 행 삭제(기본 7일, 0=무기한). 크레인 3대 100ms 면 시간당 약 150MB")
     s.add_argument("--prune-every", type=float, default=600, help="보존 삭제 주기(초)")

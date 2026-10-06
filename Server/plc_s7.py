@@ -189,7 +189,7 @@ def cmd_adapter(args):
     cli = Client()
     url = args.url.rstrip("/") + "/ingest"
     source = f"s7/{args.plc}"
-    from xrcrane_db import clock_offset
+    from xrcrane_db import auth_headers, clock_offset
     nxt, up, down_logged, sent = time.monotonic(), False, False, 0
     off, synced_at = 0, -1e9
     while True:
@@ -224,7 +224,7 @@ def cmd_adapter(args):
         row = decode(dbs)
         row.update(crane=args.crane, source=source, t_ms=read_ms, plc_ms=read_ms)
         try:
-            req = urllib.request.Request(url, json.dumps(row).encode("utf-8"), {"Content-Type": "application/json"})
+            req = urllib.request.Request(url, json.dumps(row).encode("utf-8"), auth_headers({"Content-Type": "application/json"}))
             urllib.request.urlopen(req, timeout=2).read()
             sent += 1
             if sent % 600 == 0:
