@@ -9,19 +9,8 @@ using NQuat = System.Numerics.Quaternion;
 
 namespace AIXRCrane.Crane.Flat
 {
-    /// <summary>XREAL One Pro 머리 추적 — 안경이 USB 로 꽂힌 '이 기기'에서 IMU 를 읽어 고개 방향을 낸다.
-    ///   오너 2026-09-18 "안경은 머리 돌리면 좌·우·위·아래 다 볼 수 있거든 … 라이브러리 형태로".
-    ///   XREAL SDK 없이 돈다(Unity 6000.4 호환 걱정 없음). 안경이 없으면 조용히 3초마다 다시 본다.
-    ///
-    ///   ★ 통로: 안경의 USB 이더넷 169.254.2.1:52998(TCP, 읽기 전용 — 아무것도 보내지 않는다).
-    ///     공개 예제 One-Pro-IMU-Retriever-Demo(MIT)의 앞 표식을 따랐고, 나머지는 2026-09-18 실측으로 정했다:
-    ///     메시지 134 B 고정(예제의 끝 표식은 이 펌웨어와 다르다) · 14 B 에 int64 나노초 시각(이웃 차 ≈ 1 ms) ·
-    ///     34 B 부터 float 6개(자이로 rad/s 3 + 가속도 m/s² 3) ·
-    ///     78 B 에 센서 표식. 초당 센서 1000 + 기타 400.
-    ///   ★ 축(실측): X=오른쪽, Y=아래, Z=앞 — 오른손 좌표. 오른쪽 90° 에 +Y 적분 1.5 rad, 고개 들기에 +X,
-    ///     고개를 들면 중력이 +Z 로 옮겨 갔다. 쓴 상태에서 안경이 약 24° 기울어 있어 축별로 더하면 좌우가 섞인다 →
-    ///     쿼터니언으로 합치고 중력으로 기울기를 잡는다(Mahony). 방위(좌우)는 자기센서가 없어 천천히 흐른다 → R 로 정면 재설정.
-    ///   ★ 서버가 그리는 방식(Moonlight)에서는 쓰지 않는다 — 안경이 서버가 아니라 Beam Pro 에 꽂혀 있고, 되돌아오는 지연이 크다.</summary>
+    /// <summary>XREAL One Pro 머리 추적 — USB 이더넷 169.254.2.1:52998(TCP, 읽기 전용) IMU를 Mahony로 합쳐 고개 방향을 낸다. SDK 불필요, 없으면 3초마다 재시도.
+    /// ★ 실측 규약: 메시지 134B, 34B부터 자이로·가속 float 6개, 축 X=오른쪽·Y=아래·Z=앞. 방위는 흐르니 R로 재설정. Moonlight 경로에선 안 씀.</summary>
     [AddComponentMenu("AI-XR Crane/Flat Mode/XREAL Head Tracker")]
     [DisallowMultipleComponent]
     public sealed class XrealHeadTracker : MonoBehaviour
@@ -157,7 +146,7 @@ namespace AIXRCrane.Crane.Flat
                         if (calN == biasSamples) bias = calSum / calN;
                         continue;
                     }
-                    // 간격은 안경이 찍은 시각으로 — TCP 가 샘플을 묶어 보내 받는 쪽 시계로 재면 묶음 안은 0 이 된다.
+                    // 간격은 안경 시각으로 — TCP가 샘플을 묶어 보내 받는 쪽 시계론 0이 된다.
                     long stamp = BitConverter.ToInt64(buf, h + StampAt);
                     float dt = lastStamp == 0 ? 0.001f : Mathf.Clamp((stamp - lastStamp) * 1e-9f, 0f, 0.05f);
                     lastStamp = stamp;
@@ -211,8 +200,7 @@ namespace AIXRCrane.Crane.Flat
             return NQuat.CreateFromAxisAngle(NVec.Normalize(NVec.Cross(a, z)), Mathf.Acos(d));
         }
 
-        /// <summary>Mahony 6축 — 자이로를 적분하고, 잰 중력(가속도)과 추정 중력의 어긋남으로 기울기를 당긴다.
-        ///   q 는 몸→세계. 추정 중력 v = q⁻¹·Z(세계 위를 몸 좌표로). 오차 e = a×v.</summary>
+        /// <summary>Mahony 6축 — 자이로 적분 + 잰 중력과 추정 중력(v = q⁻¹·Z)의 어긋남(e = a×v)으로 기울기 보정. q는 몸→세계.</summary>
         public static NQuat MahonyStep(NQuat q, NVec gyro, NVec accel, float dt, float kp)
         {
             float an = accel.Length();
@@ -235,7 +223,7 @@ namespace AIXRCrane.Crane.Flat
             pitchDeg = Mathf.Asin(Mathf.Clamp(f.Z, -1f, 1f)) * Mathf.Rad2Deg;
         }
 
-        /// <summary>자체검사 — ① 합성 메시지 해석 ② 오른쪽 90° ③ 고개 들기 30°. 실측한 축 약속(X 오른쪽·Y 아래·Z 앞)을 그대로 넣는다.</summary>
+        /// <summary>자체검사 — ① 합성 메시지 해석 ② 오른쪽 90° ③ 고개 들기 30°(실측 축 규약 그대로).</summary>
         public static bool SelfCheck(out string why)
         {
             var m = new byte[MsgLen];
@@ -253,7 +241,7 @@ namespace AIXRCrane.Crane.Flat
             float right = -Mathf.DeltaAngle(y0, y1);
             if (Mathf.Abs(right - 90f) > 3f || Mathf.Abs(p1) > 3f) { why = $"오른쪽 90° → {right:0.0}° (위아래 {p1:0.0}°)"; return false; }
 
-            // 고개 들기 30°: +X 둘레로 1초에 π/6 — 중력은 몸 좌표에서 (0, −cosθ, +sinθ) 로 옮겨 간다(실측과 같은 방향).
+            // 고개 들기 30°: +X 둘레 1초에 π/6 — 중력은 몸 좌표 (0, −cosθ, +sinθ)로.
             q = FromUp(up); HeadAngles(q, out _, out float pA);
             for (int i = 1; i <= 1000; i++)
             {

@@ -60,10 +60,8 @@ namespace AIXRCrane.Crane.Flat
             if (crane == null) { trolleyIn = gantryIn = hoistIn = 0f; return; }
 
             ReadAxes(out trolleyIn, out gantryIn, out hoistIn);
-            // 관전자는 운전하지 않는다 — 입력을 0 으로 비워 FixedUpdate 가 축을 안 움직이게 한다.
-            //   이 조종기는 크레인 밖 별도 오브젝트라 CraneNetSync.DisableControlOnClient(크레인 아래만 끈다)에 안 걸려,
-            //   관전자 화면에서 크레인이 혼자 움직여 호스트와 갈라졌다(2026-09-18, 안경 관전 경로 준비 중 발견).
-            //   운전실 시점·HUD 같은 '보기' 입력은 막지 않는다.
+            // 관전자는 운전 안 함 — 입력을 0으로. 이 조종기는 크레인 밖이라 DisableControlOnClient에 안 걸려 관전 화면이 갈라졌다.
+            //   보기 입력(운전실 시점·HUD)은 막지 않는다.
             if (PortDemoDirector.Spectator) trolleyIn = gantryIn = hoistIn = 0f;
             ReadButtons();
 
@@ -160,7 +158,7 @@ namespace AIXRCrane.Crane.Flat
         }
 
         // ── 크레인/리그 탐색 ────────────────────────────────────────────────────────
-        // 크레인은 에디터 메뉴로 나중에 생성될 수 있어, 못 찾으면 0.5s마다만 재시도한다(매 프레임 풀 씬 스캔 방지).
+        // 크레인은 나중에 생성될 수 있어 0.5s마다만 재탐색(매 프레임 씬 스캔 방지).
         void EnsureCrane()
         {
             if (rig == null) rig = FindAnyObjectByType<FlatPlayerRig>();
@@ -175,8 +173,8 @@ namespace AIXRCrane.Crane.Flat
             }
         }
 
-        // 운전실 시점 — VR EnterCabView와 같은 기준(시선=Cab_Viewpoint, 눈 위치=운전실 후방 바닥 패널 '아래').
-        //   좌석 눈높이는 바닥/콘솔에 가려 발밑이 안 보이므로 바닥 밑에서 내려다보게 한다.
+        // 운전실 시점 — VR EnterCabView와 같은 기준(시선=Cab_Viewpoint, 눈=운전실 후방 바닥 패널 '아래').
+        //   좌석 눈높이는 바닥/콘솔에 가려 발밑이 안 보인다.
         void EnterCabView()
         {
             var trolleyT = (crane?.Trolley as Component)?.transform;
@@ -199,7 +197,7 @@ namespace AIXRCrane.Crane.Flat
                 ? StsCraneVRController.BelowCabFloor(cabFloor, cabFloorDropDown)   // 바닥 패널 '아래'
                 : cabAnchor.position;                                               // 폴백 — 좌석 눈높이
 
-            // 시선(요)을 운전실 전방(스프레더/바다쪽)에 정렬 — Cab_Viewpoint 가 없으면(FBX RTG) 스프레더 쪽. 상하 피치는 사용자 스틱에 맡긴다.
+            // 시선(요)을 운전실 전방에 정렬(Cab_Viewpoint 없으면 스프레더 쪽). 피치는 사용자 스틱에.
             Vector3 fwd = viewpoint != null ? viewpoint.forward
                         : crane.Spreader is Component sp ? sp.transform.position - target
                         : trolleyT.forward;

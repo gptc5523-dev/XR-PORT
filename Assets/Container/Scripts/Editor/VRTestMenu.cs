@@ -76,7 +76,7 @@ namespace AIXRCrane.EditorTools
             // 1. 셰이더
             Shader litShader = Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Standard");
 
-            // 2. 이름 시드로 Body·Door 명도/채도/광택만 변주(ContainerInstance.ApplyColor 와 같은 기법, 회색 프레임 제외).
+            // 2. 이름 시드로 Body·Door 명도/채도/광택 변주(ContainerInstance.ApplyColor 와 같은 기법).
             float h1 = StableHash.Hash01(name, 0x9E3779B9u);
             float h2 = StableHash.Hash01(name, 0x85EBCA6Bu);
             float h3 = StableHash.Hash01(name, 0xC2B2AE35u);
@@ -103,7 +103,7 @@ namespace AIXRCrane.EditorTools
                                                         mats, name, centerPivot: false, addColliders: false)
                 : ProceduralContainerMesh.BuildKit(mats, name, centerPivot: false, addColliders: false);
 
-            // 4. 루트 콜라이더 = 공칭 외형(ISO 코너캐스팅 기준) 단일 박스 — 돌출 하드웨어까지 넣으면 부풀어 관통처럼 보인다.
+            // 4. 루트 콜라이더 = 공칭 외형 단일 박스 — 돌출 하드웨어까지 넣으면 관통처럼 보인다.
             const float s = ProceduralContainerMesh.DefaultMiniatureScale;
             float lenM = (length > 0f ? length : ProceduralContainerMesh.Length20ft) * s;  // X = 길이
             float widM = ProceduralContainerMesh.StdWidth  * s;                             // Z = 폭

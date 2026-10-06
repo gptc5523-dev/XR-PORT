@@ -2,9 +2,8 @@ using UnityEngine;
 
 namespace AIXRCrane.Crane.Sts
 {
-    /// <summary>갠트리 주행범위(로컬 Z Min/Max)를 씬의 부두 레일 + 크레인 바퀴 실측으로 계산하는 공용 SSOT.
-    /// Apply 는 에디터 메뉴(GantryRangeFitMenu)와 크레인 생성기가 함께 불러 쓴다(한 곳만 고치면 모두 일치).
-    /// 주행반경 = (중심→레일 안쪽 끝) − (중심→바깥 바퀴), 끝까지 가면 바퀴가 레일 안쪽 끝에 닿는다.</summary>
+    /// <summary>갠트리 주행범위(로컬 Z)를 부두 레일 + 바퀴 실측으로 계산하는 SSOT(메뉴·크레인 생성기 공용).
+    /// 주행반경 = (중심→레일 안쪽 끝) − (중심→바깥 바퀴).</summary>
     public static class GantryRangeFit
     {
         /// <summary>크레인 바퀴가 레일을 안 벗어나는 최대 대칭 주행범위를 계산해 GantryMover.Configure 로 적용. 성공 시 true.

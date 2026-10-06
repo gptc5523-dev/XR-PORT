@@ -19,7 +19,7 @@ namespace AIXRCrane.Crane.Sts
         /// <summary>이동 가능한 하한 — 기본은 Min. SpreaderHoist가 floorOffset 반영 위해 override.</summary>
         protected virtual float LowerLimit => Min;
 
-        /// <summary>마지막 이동 시도에서 장애물에 막혔는지(충돌 정지). 충돌 정지는 GantryMover만 override하므로 사실상 갠트리용.</summary>
+        /// <summary>마지막 이동 시도에서 장애물에 막혔는지(충돌 정지, 사실상 GantryMover용).</summary>
         public bool IsBlocked { get; private set; }
 
         /// <summary>현재 상한 끝단 도달(가동 범위의 1% 이내).</summary>
@@ -37,8 +37,7 @@ namespace AIXRCrane.Crane.Sts
             OnMoved(clamped);
         }
 
-        /// <summary>진행 방향(target)으로 가는 길에 장애물이 있으면 true → 그 방향 이동을 멈춘다.
-        /// 기본은 막힘 없음 — 충돌 정지가 필요한 축(GantryMover)만 override.</summary>
+        /// <summary>진행 방향(target) 길에 장애물이 있으면 true → 이동 정지. 기본은 막힘 없음(GantryMover만 override).</summary>
         protected virtual bool IsBlockedToward(float target) => false;
 
         public void MoveToNormalized(float t01) => MoveTo(Mathf.Lerp(Min, Max, Mathf.Clamp01(t01)));
@@ -55,8 +54,8 @@ namespace AIXRCrane.Crane.Sts
         protected abstract int GizmoAxis { get; }
         protected abstract Color GizmoColor { get; }
 
-        /// <summary>Min/Max 축값을 기즈모용 월드 점으로 변환. 기본은 '부모 로컬 축' 해석 —
-        /// 월드 절대값으로 구동하는 축(SpreaderHoist.worldVertical)은 반드시 override할 것.</summary>
+        /// <summary>Min/Max 축값 → 기즈모용 월드 점(기본: 부모 로컬 축 해석).
+        /// ★ 월드 절대값으로 구동하는 축(SpreaderHoist.worldVertical)은 반드시 override.</summary>
         protected virtual Vector3 GizmoPointAt(float axisValue)
         {
             Vector3 l = transform.localPosition;

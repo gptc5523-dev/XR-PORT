@@ -4,9 +4,8 @@ using UnityEngine;
 
 namespace AIXRCrane.Crane.Sts.EditorTools
 {
-    /// <summary>Blender 임포트 RTG 크레인에 핵심 구동 무버(Gantry/Trolley/Hoist + Rigidbody/StsCrane)를 붙이고 배선한다.
-    /// 「Model ▸ FBX ▸ 크레인 ▸ RTG 크레인 생성」이 자동 호출. 범위(Min/Max)는 임포트 지오메트리에서 자동 산출(하드코딩 금지).
-    /// 신축은 <see cref="RtgSpreaderTelescopeSetup"/> 단독 소유. Flipper/VR컨트롤러 제외.</summary>
+    /// <summary>RTG FBX 크레인에 Gantry/Trolley/Hoist 무버+StsCrane 배선. 범위는 임포트 지오메트리에서 산출(하드코딩 금지).
+    /// 「RTG 크레인 생성」이 자동 호출. 신축은 <see cref="RtgSpreaderTelescopeSetup"/> 단독 소유.</summary>
     public static class RtgCraneFbxMoverWiring
     {
         const string CraneName = StsPartNames.RtgCraneRoot;
@@ -38,8 +37,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             rb.isKinematic = true; rb.useGravity = false;
 
             // ── 범위 자동 산출 ──
-            // Trolley X: 휠 외측면이 레일 끝에 닿는 지점. 레일·휠 실지오메트리에서 산출(실측 ±10.095 재현).
-            //   문서/크레인_동적데이터/RTG_크레인_동적데이터.md §4 참조.
+            // Trolley X: 휠 외측면이 레일 끝에 닿는 지점(실측 ±10.095). 문서/크레인_동적데이터/RTG_크레인_동적데이터.md §4.
             if (!TrolleyRange(root, trolleyT, out float txMin, out float txMax))
             {
                 float halfX = LocalHalfExtent(crane, root, 0);
@@ -48,10 +46,8 @@ namespace AIXRCrane.Crane.Sts.EditorTools
                                  "FBX 노드명이 바뀌었는지 확인하세요.");
             }
 
-            // Hoist Y(월드 절대): FBX는 로컬Y≠월드상이라 월드 Y로 직접 구동.
-            // 상한 = 스프레더가 머리 위 구조물에 닿기 직전(헤드룸에서 산출 — 유도는 Headroom() 주석).
-            //   실측(문서/크레인_동적데이터/RTG_크레인_동적데이터.md §5): 한계쌍 주거더 밑면(20.500)↔TeleBeam_F 상단(10.876),
-            //   헤드룸 9.624m → 상한 월드 z 19.893.
+            // Hoist Y(월드 절대 — FBX 로컬Y≠월드). 상한 = 스프레더가 머리 위 구조물에 닿기 직전(Headroom()).
+            //   실측(같은 문서 §5): 헤드룸 9.624m → 상한 19.893.
             float headroom = Headroom(root, spreadT, out string limitPair);
             float hyMax = spreadT.position.y + headroom;
             // 하한 = 그랩 평면(트위스트락 콘 바닥 = 스프레더 최저점)이 지면에 닿는 높이. 상한과 같은 방식으로 실지오메트리에서 산출.
@@ -83,32 +79,28 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             hoist.SetWorldVertical(true);     // FBX: 월드 Y 직접 구동(로컬Y 어긋남 회피)
             hoist.Configure(hyMin, hyMax);
 
-            // ── 컨테이너 결합점(SpreaderAttach) + 그랩버(SpreaderGrabber) ──
-            //   Attach: 부모변경+kinematic(축 무관). 결합점=스프레더. 컨테이너 위치는 필요시 오프셋 조정.
+            // ── 컨테이너 결합점(SpreaderAttach: 부모변경+kinematic) + 그랩버(SpreaderGrabber) ──
             var attach = GetOrAdd<SpreaderAttach>(spreadT.gameObject);
             attach.Configure(spreadT);
 
             var sts = GetOrAdd<StsCrane>(crane);
             sts.Configure(null, trolley, hoist, attach, gantry);
 
-            // Grabber: [RequireComponent(StsCrane)] 충족(sts 먼저 부착됨). 트위스트락(Spreader_Twistlock_*) 자동 탐색.
+            // Grabber 는 [RequireComponent(StsCrane)] — sts 먼저 부착. 트위스트락 자동 탐색.
             var grabber = GetOrAdd<SpreaderGrabber>(crane);
 
-            // ── 트위스트락 잠금 애니 ──
-            //   신축(RtgSpreaderTelescope)은 여기서 손대지 않는다 — RtgSpreaderTelescopeSetup이 단독 소유하며
-            //   생성 흐름에서 이 메서드 직후 호출된다.
+            // ── 트위스트락 잠금 애니 ── (신축은 RtgSpreaderTelescopeSetup 단독 소유, 이 직후 호출)
             var lockAnim = GetOrAdd<SpreaderLockAnimator>(spreadT.gameObject);
             lockAnim.SetWorldVertical(true);    // FBX 축 우회(월드 수직 기준 회전·딥)
 
-            // ── 보기 스티어링(0°/90°) ──
-            //   Bogie_* 4개를 킹핀 축으로 꺾고, 90° 완료 시 갠트리 주행축을 로컬 Z→X로 인계한다.
+            // ── 보기 스티어링(0°/90°) ── Bogie_* 4개를 킹핀 축으로 꺾고, 90° 완료 시 주행축 Z→X 인계.
             var steer = GetOrAdd<RtgBogieSteering>(crane);
             steer.Configure(root, gantry);
             if (steer.BogieCount != 4)
                 Debug.LogWarning($"[RTG] 보기를 {steer.BogieCount}/4개만 찾았습니다 — 스티어링이 일부만 돕니다. " +
                                  "FBX에 Bogie_LF/LB/RF/RB 가 있는지 확인하세요.");
 
-            // Configure로 넣은 값이 Play/도메인리로드에도 유지되도록 오버라이드/씬 기록(에디트 모드에서만 — Play 중엔 금지).
+            // Configure 값이 Play/도메인리로드에도 남도록 오버라이드·씬 기록(에디트 모드에서만).
             if (!Application.isPlaying)
             {
                 foreach (Component comp in new Component[] { rb, gantry, trolley, hoist, attach, sts, grabber, lockAnim, steer })
@@ -214,7 +206,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             Debug.Log($"[RTG] 컨테이너 잡기 테스트 부착 완료 — Play 시 스프레더 아래에 {(prefab ? "Container_20ft 프리팹" : "큐브")}을 놓고 하강→잡기→들어올림→내림→놓기 반복. 콘솔 [컨테이너테스트] 로그로 확인.");
         }
 
-        // 컴포넌트 있으면 반환, 없으면 부착. ??/?.는 Unity의 오버로드된 ==(가짜 null)을 우회하므로 금지 → 명시적 == null.
+        // 있으면 반환, 없으면 부착. ★ ??/?. 는 Unity 가짜 null 을 우회하므로 금지.
         static T GetOrAdd<T>(GameObject go) where T : Component
         {
             var c = go.GetComponent<T>();
@@ -340,7 +332,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             var wheels = new System.Collections.Generic.List<Renderer>();
             foreach (var r in root.GetComponentsInChildren<Renderer>(true))
                 if (r.transform.name.StartsWith("TrolleyRail") && !IsUnder(r.transform, trolley)) rails.Add(r);
-            // 접두어 끝 '_' 필수 — Trolley_WheelBearing_* 를 휠로 세면 반폭이 틀어진다(휠은 Trolley_Wheel_1..4 뿐).
+            // ★ 접두어 끝 '_' 필수 — Trolley_WheelBearing_* 를 휠로 세면 반폭이 틀어진다.
             foreach (var r in trolley.GetComponentsInChildren<Renderer>(true))
                 if (r.transform.name.StartsWith("Trolley_Wheel_")) wheels.Add(r);
             if (rails.Count == 0 || wheels.Count == 0) return false;
@@ -354,7 +346,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             return true;
         }
 
-        // 렌더러들의 frame-로컬 X 범위. 로컬 bbox 8코너를 직접 변환한다(월드 AABB를 거치면 회전 시 범위가 부풀어 틀어진다).
+        // frame-로컬 X 범위. 로컬 bbox 8코너를 직접 변환(월드 AABB 경유 시 회전에 부풀어 틀어짐).
         static bool LocalRangeX(Transform frame, System.Collections.Generic.List<Renderer> rs, out float min, out float max)
         {
             min = float.MaxValue; max = float.MinValue;

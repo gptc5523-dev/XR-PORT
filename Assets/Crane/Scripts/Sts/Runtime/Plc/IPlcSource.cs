@@ -44,10 +44,8 @@ namespace AIXRCrane.Crane.Sts.Plc
         public bool LinkStatus;
     }
 
-    /// <summary>
-    /// "PLC에서 한 스냅샷을 읽어온다"는 프로토콜 무관 계약(문서/PLC.md §5.1).
-    /// 구현: <see cref="VirtualPlcSource"/>(가상 stopgap, 지금) → S7PlcSource/OpcUaPlcSource(실어댑터, Phase B).
-    /// </summary>
+    /// <summary>PLC 스냅샷 읽기의 프로토콜 무관 계약(문서/PLC.md §5.1).
+    /// 구현: <see cref="VirtualPlcSource"/>(가상 stopgap) → S7/OPC UA 실어댑터(Phase B).</summary>
     public interface IPlcSource
     {
         string Name { get; }

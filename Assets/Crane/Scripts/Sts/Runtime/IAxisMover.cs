@@ -2,20 +2,18 @@ using UnityEngine;
 
 namespace AIXRCrane.Crane.Sts
 {
-    /// <summary>단일 축을 한계 범위 내에서 이동시키는 추상화 — TrolleyMover(레일축)·SpreaderHoist(수직축)가 구현해
-    /// 상위(PLC·테스트·인스펙터)가 축 종류를 몰라도 일관되게 호출한다.</summary>
+    /// <summary>단일 축을 한계 범위 내에서 이동시키는 추상화(TrolleyMover·SpreaderHoist 등).</summary>
     public interface IAxisMover
     {
         float Min { get; }
         float Max { get; }
         float Current { get; }
 
-        /// <summary>축 값 1 이 월드 몇 유닛인가. 실척 m = 축 값 × 이것 ÷ ModelScale.
-        /// 부모 스케일을 타므로 FBX RTG 트롤리(루트 스케일 4.17)는 ÷ModelScale 만 하면 4.17배 짧게 잰다.</summary>
+        /// <summary>축 값 1 당 월드 유닛. 실척 m = 축 값 × 이것 ÷ ModelScale.
+        /// ★ 부모 스케일 포함 — FBX RTG(루트 스케일 4.17)는 ÷ModelScale 만 하면 4.17배 짧다.</summary>
         float WorldPerUnit { get; }
 
-        /// <summary>축 값이 1 늘 때 무버가 월드에서 움직이는 벡터(방향 × 스케일). WorldPerUnit = 이것의 길이.
-        /// PLC 자세 → 월드 위치 환산(PlcBridge.WorldAtPose)에 쓴다.</summary>
+        /// <summary>축 값 1 당 월드 이동 벡터(길이 = WorldPerUnit). PlcBridge.WorldAtPose 가 쓴다.</summary>
         Vector3 WorldAxis { get; }
 
         /// <summary>로컬 좌표(미터). 범위 밖이면 클램프하여 적용.</summary>

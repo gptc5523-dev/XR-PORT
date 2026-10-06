@@ -28,7 +28,7 @@ namespace AIXRCrane.Crane.Sts
         int attempts;               // 현재 요청에 대한 재시도 프레임 수.
         bool warned;
 
-        // 이탈 차단(LateUpdate) 캐시 — 매 프레임 GameObject.Find/FindAnyObjectByType 을 돌지 않게 보관.
+        // 이탈 차단(LateUpdate) 캐시 — 매 프레임 Find 하지 않게.
         Bounds landCache; bool haveLand;   // 땅은 런타임에 안 움직인다 — 한 번 구하면 끝
         AIXRCrane.Crane.Flat.FlatPlayerRig flatCache;
         float nextRefind;           // 캐시가 비었을 때만 이 시각 이후 재탐색.
@@ -41,8 +41,7 @@ namespace AIXRCrane.Crane.Sts
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void AutoSpawn() => CraneHud.EnsureSpawned<CranePlayerStartPlacer>("PlayerStartPlacer");
 
-        // 부두 밖 이탈 차단 — 스폰 때만 걸던 클램프를 매 프레임 적용. 콜라이더가 아니라 이 경계로 막는다
-        // (리그는 CharacterController/콜라이더를 안 쓴다). 운전실 시점(트롤리가 바다 위로 나감)은 제외.
+        // 부두 밖 이탈 차단을 매 프레임 — 리그에 콜라이더가 없어 이 경계로 막는다. 운전실 시점은 제외.
         void LateUpdate()
         {
             if (!keepOnQuay) return;
@@ -57,7 +56,7 @@ namespace AIXRCrane.Crane.Sts
             Bounds b = landCache;
             Vector3 p = rig.position;
             Vector3 c = ClampToBounds(p, b, quayEdgeInset);
-            // 데크 아래(안벽 속·물속)로도 못 내려간다. 위로는 자유 — 운전실·점검 시점 상승을 막지 않는다.
+            // 데크 아래로는 못 내려간다. 위로는 자유(운전실·점검 시점).
             c.y = Mathf.Max(p.y, b.max.y + floorClearance);
             if ((c - p).sqrMagnitude <= 1e-10f) { clampActive = false; return; }
 
@@ -68,8 +67,7 @@ namespace AIXRCrane.Crane.Sts
             clampActive = true;
         }
 
-        // 운전실 시점(평면·VR)인가 — 그동안은 시점이 트롤리를 따라 바다 위로 나가므로 클램프를 쉰다.
-        //   VR 은 켜진 컨트롤러(Active)를 본다 — 크레인이 여러 대면 조종기를 받는 한 대만 켜져 있다.
+        // 운전실 시점인가 — 시점이 바다 위로 나가므로 클램프를 쉰다. VR 은 켜진(Active) 컨트롤러 한 대를 본다.
         bool InCabView()
             => (StsCraneVRController.Active != null && StsCraneVRController.Active.CabView) || (flatCache != null && flatCache.MovementLocked);
 
@@ -87,10 +85,7 @@ namespace AIXRCrane.Crane.Sts
         {
             EnsureNetHook();   // NetworkManager가 뜨면 접속 콜백 구독(접속 후 재배치용). 콜백이 늦게 올 수 있어 Update는 끄지 않는다.
 
-            // 리그가 바뀌었으면 새 리그도 시작 지점에 세운다 — 평면 모드는 XR 을 60프레임 기다린 뒤 XR Origin 을 끄고
-            //   새 리그를 원점(0,0,0)에 만든다. 시작 배치는 이미 XR Origin 에 한 번 쓰고 끝나 있어, 새 리그는 원점에 남아
-            //   VR 과 시작 자리가 달랐다(2026-09-18 오너 "처음 시작위치가 VR 이랑 많이 다른데"). `-flat` 강제는 첫 프레임에
-            //   리그가 바뀌어 이 순서에 안 걸렸다. 축척(CranePlayerRigScale)도 같은 이유로 새 리그를 놓쳤다.
+            // 리그가 바뀌면 다시 세운다 — 평면 모드는 60프레임 뒤 새 리그를 원점에 만들어 시작 자리가 VR 과 달라진다.
             if (!pending && placedRig != null)
             {
                 var cam = Camera.main;
@@ -121,7 +116,7 @@ namespace AIXRCrane.Crane.Sts
             netHooked = true;
         }
 
-        // 내(로컬) 접속이 완료되면 한 번 더 부두 안으로 보낸다 — 클라이언트가 접속 중 원점에 방치되는 경우 복구.
+        // 로컬 접속 완료 시 한 번 더 배치 — 접속 중 원점에 방치되는 경우 복구.
         void OnClientConnected(ulong clientId)
         {
             var nm = NetworkManager.Singleton;
@@ -139,8 +134,7 @@ namespace AIXRCrane.Crane.Sts
             if (nm != null) nm.OnClientConnectedCallback -= OnClientConnected;
         }
 
-        // 실제 배치
-        // 성공 시 true, 아직 준비 안 됨(다음 프레임 재시도)이면 false.
+        // 실제 배치 — 준비 안 됨(다음 프레임 재시도)이면 false.
         bool TryPlaceRig()
         {
             var cam = Camera.main;
@@ -155,7 +149,7 @@ namespace AIXRCrane.Crane.Sts
                                  out var marker, forceInsideQuay, quayEdgeInset, rig.forward))
                 return false;                             // 마커도 부두도 아직 없음 — 재시도(없으면 maxAttempts에서 포기).
 
-            // Y(높이): 마커 값 무시하고 항상 걷는 면 윗면에 발이 닿게. 부두를 못 찾으면 레이캐스트→0 폴백.
+            // Y: 마커 값 무시, 걷는 면 윗면. 부두를 못 찾으면 레이캐스트→0 폴백.
             float floorY = hasLand ? land.max.y : ResolveFloorYRaycast(xz);
             Vector3 pos = new Vector3(xz.x, floorY + floorClearance, xz.z);
 
@@ -163,13 +157,13 @@ namespace AIXRCrane.Crane.Sts
             placedRig = rig;
             if (debugLog)
             {
-                // 좌표는 실척(m)을 앞에 찍는다 — 모델 단위(1u=24m)는 숫자가 눌려 사람이 못 읽는다.
+                // 좌표는 실척(m) 먼저 — 모델 단위(1u=24m)는 사람이 못 읽는다.
                 Vector3 real = pos * StsConfig.InvModelScale;
                 Debug.Log($"[PlayerStartPlacer] 시작 배치 — 실척 X {real.x:F2}m · Z {real.z:F2}m (모델 {pos.x:F4}, {pos.y:F4}, {pos.z:F4}), " +
                           $"facing {faceDir}, 기준={(marker != null ? "마커" : "저장좌표")}, 부두클램프={(forceInsideQuay && hasLand)}.");
             }
 
-            // QA 콘솔 판정(문서/QA_테스트시나리오.md 그룹 A) — 걷는 면 선택과 발 높이가 구조물 꼭대기 위가 아닌지 확인.
+            // QA 그룹 A(문서/QA_테스트시나리오.md) — 발 높이가 구조물 꼭대기 위가 아닌지.
             float structureTop = QuayStructureTopY();
             bool flatQuay = (structureTop - floorY) < 0.1f;        // 레일/구조물이 없거나 낮은 평탄 부두 — 거대 가드 완화
             if (hasLand)
@@ -181,7 +175,7 @@ namespace AIXRCrane.Crane.Sts
                 $"basis={(marker != null ? "marker" : "portStart")} floorY={QaLog.F(floorY)} rigY={QaLog.F(pos.y)} " +
                 $"structureTopY={QaLog.F(structureTop)} clearance={QaLog.F(floorClearance)} onFloor={onFloor} notGiant={notGiant}");
 
-            // S-START-3: 네트워크 접속 후 재배치였다면 — 원점(0,0,0) 방치에서 부두 안으로 복귀했는지.
+            // S-START-3: 접속 후 재배치가 원점 방치에서 부두 안으로 복귀했는지.
             if (placingAfterConnect)
             {
                 placingAfterConnect = false;
@@ -194,8 +188,7 @@ namespace AIXRCrane.Crane.Sts
         /// <summary>기본 부두 가장자리 인셋(m·모델 단위) — 인스펙터 기본값과 에디터 표식이 같은 값을 쓴다.</summary>
         public const float DefaultQuayEdgeInset = 0.1f;
 
-        /// <summary>시작 XZ·바라보는 방향 — 런타임과 에디터 표식이 공유하는 단 하나의 계산.
-        /// 순서: 마커 → 저장 좌표(PortConfig) → 클램프. 반환은 클램프까지 끝난 최종 좌표, Y 는 안 정한다.</summary>
+        /// <summary>시작 XZ·방향 SSOT(런타임·에디터 표식 공유). 마커 → 저장 좌표(PortConfig) → 클램프, Y 는 안 정한다.</summary>
         public static bool TryComputeSpawn(out Vector3 xz, out Vector3 faceDir, out bool hasLand, out Bounds land,
                                            out CranePlayerStartPoint marker, bool forceInsideQuay = true,
                                            float inset = DefaultQuayEdgeInset, Vector3 fallbackForward = default)
@@ -251,8 +244,8 @@ namespace AIXRCrane.Crane.Sts
             return marker;
         }
 
-        // 걷는 땅 = 데크 아래로 1m 넘게 뻗고 짧은 변 ≥2m 인 렌더러의 합집합(케이슨+야드 포장, 윗면 y=0).
-        // 레일·연석·컨테이너처럼 얹힌 것은 탈락. 바다는 조상 이름으로 제외(물 위 걷기 방지).
+        // 걷는 땅 = 데크 아래로 1m 넘게 뻗고 짧은 변 ≥2m 인 렌더러 합집합(윗면 y=0).
+        //   레일·컨테이너 등 얹힌 것은 탈락, 바다는 조상 이름으로 제외.
         internal static bool TryGetLand(out Bounds land)
         {
             land = default;

@@ -7,8 +7,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
     /// <summary>부두 컨테이너 인식을 에디트 모드에서 즉시 실행(Play 불필요). 스캐너가 없으면 만든다.</summary>
     public static class QuayScannerMenu
     {
-        /// <summary>부두 컨테이너 인식(스캔)을 실행. 스캐너가 없으면 만든다. 인식된 개수를 반환.
-        /// 메뉴에서 빠졌고(크레인 생성 시 자동 실행), 다른 에디터 코드에서 호출 가능하도록 public.</summary>
+        /// <summary>스캔 실행 후 인식 개수 반환(스캐너 없으면 생성). 크레인 생성 시 자동 호출되므로 메뉴엔 없다.</summary>
         public static int ScanNow(bool select = true)
         {
             var scanner = Object.FindAnyObjectByType<QuayContainerScanner>();

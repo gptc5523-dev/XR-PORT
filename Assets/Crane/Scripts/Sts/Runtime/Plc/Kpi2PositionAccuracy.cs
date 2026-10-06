@@ -4,9 +4,8 @@ using UnityEngine;
 
 namespace AIXRCrane.Crane.Sts.Plc
 {
-    /// <summary>지표2 — PLC 지령 위치와 실제 렌더 위치(축 Transform) 오차를 실척 m로 재는 측정 하니스.
-    /// 렌더값 = (Current − Min) × WorldPerUnit / ModelScale (PlcBridge 정규화의 역변환). PlcBridge Active일 때만 잰다.</summary>
-    // PlcBridge(-100)가 축을 구동한 뒤에 읽어야 같은 틱의 지령↔결과가 짝이 맞는다.
+    /// <summary>지표2 — PLC 지령 위치 vs 렌더 위치 오차(실척 m) 측정. 렌더값 = PlcBridge 정규화의 역변환.
+    /// 실행 순서 100: PlcBridge(-100) 구동 뒤에 읽어야 같은 틱 지령↔결과가 짝 맞음.</summary>
     [DefaultExecutionOrder(100)]
     [AddComponentMenu("AI-XR Crane/STS Crane/KPI 지표2 (위치·동작 정확도)")]
     [RequireComponent(typeof(PlcBridge))]
@@ -115,7 +114,7 @@ namespace AIXRCrane.Crane.Sts.Plc
                 $"  차단(장애물로 이동거부) {blockedN}회 · 클램프(지령이 가동범위 밖) {clampedN}회" +
                 (string.IsNullOrEmpty(path) ? "" : $"\n  → {path}"));
 
-            // 오차가 range 의 절반을 넘으면 값 문제가 아니라 규약 문제다 — 따로 짚어준다.
+            // 오차가 range 절반을 넘으면 값이 아니라 규약 문제 — 따로 짚는다.
             for (int i = 0; i < 3; i++)
             {
                 var axis = i == 0 ? crane.Gantry : i == 1 ? crane.Trolley : crane.Spreader;

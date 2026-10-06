@@ -7,8 +7,7 @@ using UnityEngine;
 
 namespace AIXRCrane.EditorTools
 {
-    /// <summary>컨테이너 FBX 머티리얼 리맵 — 내장 머티리얼 대신 Final4 의 .mat 을 쓰게 한다.
-    /// FBX 내장본은 무텍스처라 근거리(LOD0)에서 컨테이너가 새까맣게 보이는 문제를 이름 매칭으로 막는다.</summary>
+    /// <summary>컨테이너 FBX 머티리얼 리맵 — 내장(무텍스처, LOD0 새까맘) 대신 Final4 .mat 을 이름 매칭으로 쓴다.</summary>
     internal static class ContainerMaterialRemap
     {
         const string ModelDir = "Assets/Container/Models";

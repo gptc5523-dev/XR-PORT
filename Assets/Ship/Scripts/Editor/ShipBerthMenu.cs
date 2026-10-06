@@ -4,9 +4,8 @@ using AIXRCrane.Crane.Sts;              // StsConfig, StsPartNames, TrolleyMover
 
 namespace AIXRCrane.Ship.EditorTools
 {
-    /// <summary>컨테이너선을 기존 STS 크레인·부두 안벽에 접안 정렬한다. 크레인 +X=바다, 배 길이=+Z·선폭=±X·흘수선 y=0 — 축이 같은 방향이라 회전 없이 평행이동만.
-    /// 배 중심선 X = 바다측레일 X + 접안틈 + 선폭/2, Z = 크레인 Z(미드십이 크레인 아래), Y = StsConfig.SeaLevelY(흘수선=수면).
-    /// 검증: 바다측레일 X + 아웃리치 ≥ 배 중심선 + 선폭/2 면 크레인이 전폭을 덮는다.</summary>
+    /// <summary>컨테이너선을 STS 크레인·안벽에 접안 정렬 — 축이 같아 평행이동만. 중심선 X = 바다측레일 + 접안틈 + 선폭/2,
+    /// Z = 크레인 Z, Y = SeaLevelY(흘수선=수면). 아웃리치가 반대 현측까지 닿는지 검증.</summary>
     public static class ShipBerthMenu
     {
         const string CraneName = StsPartNames.StsCraneRoot;
@@ -14,11 +13,11 @@ namespace AIXRCrane.Ship.EditorTools
         /// <summary>배 현측 ↔ 안벽 전면 틈(실척 m) — 방충재(펜더) 압축 여유.</summary>
         const float FenderClearanceM = 1.5f;
 
-        /// <summary>바다측 레일 ↔ 배 현측 접안 틈(실척 m) = 레일→안벽 가장자리 + 펜더 틈. 에이프런을 따라가는 유도값(4 + 1.5 = 5.5m).</summary>
+        /// <summary>바다측 레일 ↔ 배 현측 접안 틈(실척 m) = 레일→안벽 가장자리 + 펜더 틈. 에이프런 유도값.</summary>
         static float BerthGapMeters => PortConfig.ApronSeawardM + FenderClearanceM;
 
         /// <summary>컨테이너선을 크레인 안벽에 접안 정렬한다(ShipCreator.CreateShip이 생성 직후 자동 호출, 별도 메뉴 없음). 성공 시 true.
-        /// 안벽 위치는 부두(QuayRail)가 1순위 앵커라 크레인 없이 부두만 있어도 접안, 부두도 크레인도 없으면 false(배는 그대로 둠).</summary>
+        /// 앵커는 부두(QuayRail) 우선, 둘 다 없으면 false(배는 그대로).</summary>
         public static bool TryBerth(GameObject ship, out string msg)
         {
             var crane = GameObject.Find(CraneName);
@@ -51,7 +50,7 @@ namespace AIXRCrane.Ship.EditorTools
             float targetX = waterRailX + berthGap + beamHalf;          // 배 중심선 X(피벗=중심선)
             // Z: 크레인이 있으면 크레인이 미드십 위에 오게, 없으면 선석(안벽) 중앙.
             float targetZ = crane != null ? crane.transform.position.z : quayCenterZ;
-            // 배 피벗 = 흘수선 → 수면 높이에 맞춘다(StsConfig.SeaLevelY, 데크 y=0 아래 코핑고만큼 ≈−4m).
+            // 배 피벗 = 흘수선 → 수면 높이(StsConfig.SeaLevelY)에 맞춘다.
             float targetY = StsConfig.SeaLevelY;                       // 흘수선 = 수면
 
             // 3) 아웃리치 커버 검증 — 크레인이 전폭을 덮는가. 크레인이 없으면 검증 생략(배치는 그대로 한다).
@@ -86,8 +85,8 @@ namespace AIXRCrane.Ship.EditorTools
             return true;
         }
 
-        /// <summary>부두의 바다측 주행레일 중심 X와 안벽 중심 Z — 접안 앵커. 산식이 아니라 씬의 QuayRail 렌더러를 실측(부두 이동·에이프런 변경에 배가 따라오게), 중심 X가 큰 쪽이 해측(+X).
-        /// 렌더러 bounds의 max.x(바깥면)가 아니라 center.x를 쓴다 — 바깥면을 쓰면 레일 반폭(0.24m)만큼 배가 밀린다.</summary>
+        /// <summary>접안 앵커 — 씬 QuayRail 렌더러 실측으로 바다측(+X) 레일 중심 X·안벽 중심 Z(부두가 바뀌면 배가 따라온다).
+        /// ★ bounds.max.x 가 아니라 center.x — 바깥면을 쓰면 레일 반폭만큼 배가 밀린다.</summary>
         static bool TryQuayBerthAnchor(out float waterRailX, out float centerZ)
         {
             waterRailX = 0f; centerZ = 0f;
@@ -110,8 +109,7 @@ namespace AIXRCrane.Ship.EditorTools
             return true;
         }
 
-        /// <summary>씬에 이미 있는 컨테이너선을 다시 접안시킨다(배 없으면 조용히 통과). 부두를 다시 깔면 안벽 X·수면 Y가 바뀌어 배가 뜨거나 떨어지므로, 부두 쪽에서 맞춘다.
-        /// 로그는 TryBerth가 남긴다.</summary>
+        /// <summary>씬의 컨테이너선을 다시 접안(배 없으면 통과). 부두를 다시 깔면 안벽 X·수면 Y가 바뀌므로 부두 쪽에서 부른다.</summary>
         public static void ReberthExistingShip()
         {
             var ship = GameObject.Find(ShipConfig.ShipRootName);
@@ -120,7 +118,7 @@ namespace AIXRCrane.Ship.EditorTools
         }
 
         /// <summary>root 하위에서 이름이 namePrefix로 시작하는 Transform 중 가장 바다측(+X) 월드 X를 반환.
-        /// 정확일치가 아니라 접두 비교다 — 레일 이름에 생성부가 일련번호를 붙여(예: Rail_Water_1) 정확일치면 못 찾는다.</summary>
+        /// 접두 비교 — 생성부가 일련번호를 붙인다(예: Rail_Water_1).</summary>
         static bool TryFindWorldX(Transform root, string namePrefix, out float worldX)
         {
             worldX = 0f; bool found = false;

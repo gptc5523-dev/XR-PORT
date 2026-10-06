@@ -81,12 +81,11 @@ public class CubeReset : MonoBehaviour
 
         Vector3 right = Vector3.Cross(Vector3.up, forward).normalized;
 
-        // 리그가 축소되면 카메라도 축소되므로 거리/절대높이(1:1 가정값)를 rigScale로 맞춘다.
-        // horizontalOffset/verticalOffset은 이미 모델 치수라 스케일하지 않는다.
+        // 축소 리그면 거리(1:1 가정값)를 rigScale 로 맞춘다. offset 들은 이미 모델 치수라 그대로.
         float rigScale = cam.lossyScale.y;
         Vector3 pos = cam.position + forward * (distanceFromCamera * rigScale) + right * horizontalOffset;
         if (useAbsoluteHeight)
-            // 실척(스케일≈1): 절대높이 1.4m. 축소 리그: 절대높이는 거인 기준이라 무의미 → 눈높이 기준으로 둔다.
+            // 실척이면 절대높이, 축소 리그면 절대높이가 무의미해 눈높이 기준.
             pos.y = (rigScale > 0.99f ? absoluteHeight : cam.position.y) + verticalOffset;
         else
             pos.y = cam.position.y + verticalOffset;

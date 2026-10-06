@@ -4,10 +4,8 @@ using Procedural;   // 공유 MeshBuilder (크레인 생성기와 공유)
 
 namespace AIXRCrane
 {
-    /// <summary>
-    /// 20ft Dry 컨테이너 절차적 메시 생성기. 기본 출력 1/24 미니어처, 중심 피벗, Forward +Z=도어.
-    /// 서브메시: 0=Body,1=Door,2=Frame,3=Castings,4=Marking(ID/CSC용 분리).
-    /// </summary>
+    /// <summary>20ft Dry 컨테이너 절차적 메시. 기본 1/24 미니어처, 중심 피벗, +Z=도어.
+    /// 서브메시: 0=Body,1=Door,2=Frame,3=Castings,4=Marking(ID/CSC).</summary>
     public static partial class ProceduralContainerMesh
     {
         // 기본 출력 스케일: VR 미니어처(1/24)
@@ -31,15 +29,13 @@ namespace AIXRCrane
         const float CornerCastH = 0.135f;
         const float CornerCastTopH = 0.135f;  // = CornerCastH(대칭), top이 Height(2.591)와 일치(스택 정합)
         const float CornerCastD = 0.162f;
-        // ISO 1161 코너 캐스팅 구멍 (외측 3면) — 가로 장공 124.5 × 63.5mm.
-        //   면별 long/short 매핑은 AddCornerCastingWithHoles 에서 처리(상면·측면 long축 = 컨테이너 길이/폭).
+        // ISO 1161 코너 캐스팅 구멍(외측 3면) 124.5×63.5mm. 면별 long/short 는 AddCornerCastingWithHoles.
         const float CastHoleLong  = 0.1245f;
         const float CastHoleShort = 0.0635f;
         const float CastWallThick = 0.018f;  // 벽 두께 — 구멍이 안쪽으로 들어가는 recess 깊이
         const float RailH       = 0.092f;
         const float CornerPostW = 0.098f;
-        // 패널 base가 외측에서 안쪽으로 들어간 깊이 = CorrDepth.
-        // 주름 외측 평면이 캐스팅·포스트와 같은 평면이 되어 틈이 사라짐.
+        // 패널 base 안쪽 들임 = CorrDepth → 주름 외측면이 캐스팅·포스트와 동일 평면(틈 없음).
         const float PanelInset  = 0.028f;
 
         // 주름판(vertical corrugation) — 바깥 크라운(flatOut)이 안쪽 밸리(flatIn)보다 좁은 비대칭 사다리꼴.
@@ -474,7 +470,7 @@ namespace AIXRCrane
             float fOut = CorrFlatOut * scale;
             float slp  = CorrSlope   * scale;
 
-            // 단면 노드(along, outOffset, normal) 생성 — 주기당 4구간: flatIn·slope↑·flatOut·slope↓.
+            // 단면 노드(along, outOffset, normal) — 주기당 flatIn·slope↑·flatOut·slope↓.
 
             var profile = new List<(float along, float outOff, Vector3 normal)>();
             float along = 0f;
@@ -501,10 +497,8 @@ namespace AIXRCrane
                 along += slp;
                 profile.Add((along, 0f, slopeDownNormal));
             }
-            // 마지막 폐쇄 (다음 주기 시작점이 안쪽 평면이므로 자연스럽게 종료)
 
-            // 위/아래 두 줄의 vertex 생성, segment마다 quad 1개
-            // along 정규화 → U, height 정규화 → V
+            // 위/아래 두 줄 vertex, segment마다 quad 1개. U=along, V=height 정규화.
             int[] bottomIdx = new int[profile.Count];
             int[] topIdx    = new int[profile.Count];
             for (int i = 0; i < profile.Count; i++)
@@ -516,8 +510,7 @@ namespace AIXRCrane
                 bottomIdx[i] = b.AddVertex(basePos + outOff,          nrm, new Vector2(u, 0f));
                 topIdx[i]    = b.AddVertex(basePos + outOff + up * height, nrm, new Vector2(u, 1f));
             }
-            // segment 단위로 quad. (bottom_i, bottom_i+1, top_i+1, top_i) 순서로 winding하면
-            // normal이 Cross(right, up) 방향 = outDir로 자동 정렬됨.
+            // (bottom_i, bottom_i+1, top_i+1, top_i) winding → 법선 = outDir.
             for (int i = 0; i < profile.Count - 1; i++)
             {
                 b.AddQuad(submesh, bottomIdx[i], bottomIdx[i + 1], topIdx[i + 1], topIdx[i]);
@@ -618,8 +611,7 @@ namespace AIXRCrane
             float hx = Width  * 0.5f;
             float hz = Length * 0.5f;
 
-            // 외측 바닥(normal -Y) — 천장과 대칭으로 rail bottom 5mm 위로 올림.
-            // 끝/사이드 레일이 바닥 가장자리를 덮어 마감.
+            // 외측 바닥(-Y): rail bottom 5mm 위 — 레일이 가장자리를 덮어 마감.
             float yOut = CornerCastH * 0.5f - RailH * 0.5f + 0.005f;  // = railBottomY + 5mm
             int a = b.AddVertex(new Vector3(-hx, yOut, -hz), Vector3.down, new Vector2(0f, 0f));
             int b1 = b.AddVertex(new Vector3( hx, yOut, -hz), Vector3.down, new Vector2(1f, 0f));
@@ -628,8 +620,7 @@ namespace AIXRCrane
             // (a, b, c, d) winding → normal = -Y
             b.AddQuad(0, a, b1, c1, d1);
 
-            // 내측 바닥 (normal +Y, 도어 열렸을 때 내부에서 보임)
-            // panelBottom과 동일한 높이로 측면 패널 하단과 일치
+            // 내측 바닥(+Y, 도어 열면 보임) — panelBottom 높이와 일치.
             float yIn = CornerCastH * 0.5f + RailH * 0.5f;
             int e = b.AddVertex(new Vector3(-hx, yIn, -hz), Vector3.up, new Vector2(0f, 0f));
             int f = b.AddVertex(new Vector3( hx, yIn, -hz), Vector3.up, new Vector2(1f, 0f));
@@ -660,8 +651,7 @@ namespace AIXRCrane
             float centerY   = floorOutY - CrossMemberDepth * 0.5f;  // 바닥판 바로 아래 매달림
             int n = Mathf.Max(3, Mathf.RoundToInt(railZSpan / CrossMemberSpacing));
             float usable = railZSpan - CrossMemberThick;            // 양 끝 캐스팅 안쪽으로 들임
-            // 포켓 구간을 가로지르는 크로스멤버는 제거(지게차 타인 인입 경로 확보).
-            //   |z - ForkPocketZ| < ForkPocketWidth/2 + CrossMemberThick/2 이면 개구를 침범 → skip.
+            // 포켓 개구를 침범하는 크로스멤버는 제거(지게차 타인 인입 경로).
             float fpGate = ForkPocketWidth * 0.5f + CrossMemberThick * 0.5f;
             for (int i = 0; i < n; i++)
             {
@@ -925,8 +915,7 @@ namespace AIXRCrane
                 int j = (i + 1) % sides;
                 b.AddQuad(submesh, bot[i], bot[j], top[j], top[i]);
             }
-            // 캡 (단순 fan). dir_i = (cos(i), 0, sin(i)), i가 증가하면 시계반대로 도는데,
-            // 아래 캡은 normal=-Y여야 하므로 (center, i, j) 순서, 위 캡은 +Y이므로 (center, j, i) 순서.
+            // 캡(fan): 아래 -Y는 (center,i,j), 위 +Y는 (center,j,i) 순서.
             int botCenter = b.AddVertex(bottom, Vector3.down, new Vector2(0.5f, 0.5f));
             int topCenter = b.AddVertex(bottom + Vector3.up * height, Vector3.up, new Vector2(0.5f, 0.5f));
             for (int i = 0; i < sides; i++)
@@ -937,6 +926,6 @@ namespace AIXRCrane
             }
         }
 
-        // MeshBuilder는 Assets/Shared/MeshBuilder.cs(namespace Procedural)로 이동 — 크레인 생성기와 공유.
+        // MeshBuilder 는 Assets/Shared/MeshBuilder.cs (크레인 생성기와 공유).
     }
 }

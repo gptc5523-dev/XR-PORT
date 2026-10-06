@@ -2,10 +2,7 @@ using UnityEngine;
 
 namespace AIXRCrane
 {
-    /// <summary>
-    /// 컨테이너 색상 풀. 실제 항만에서 자주 보이는 선사 컬러 기반.
-    /// 머티리얼을 직접 생성하지 않고 색상만 정의 → 런타임에 MaterialPropertyBlock으로 적용.
-    /// </summary>
+    /// <summary>컨테이너 색상 풀(실제 선사 컬러 기반). 색상만 정의 → 런타임 MaterialPropertyBlock 으로 적용.</summary>
     [CreateAssetMenu(fileName = "ContainerColorPalette", menuName = "Container/Color Palette")]
     public class ContainerColorPalette : ScriptableObject
     {
@@ -31,8 +28,7 @@ namespace AIXRCrane
             new ColorEntry { name = "HMM Orange",     color = new Color(1.00f, 0.62f, 0.20f) },
             new ColorEntry { name = "Rust Brown",     color = new Color(0.45f, 0.30f, 0.22f) },
             new ColorEntry { name = "Steel Gray",     color = new Color(0.55f, 0.55f, 0.58f) },
-            // 추가 선사/일반 컨테이너 색 (현실 항만 레퍼런스 기반, 빈 색조[한색·녹색·노랑·보라·중성] 보강)
-            //    전부 기존색과 ΔE2000 ≥ 12로 검증해 같은 계열 중복 없음.
+            // 추가 색 — 빈 색조 보강, 전부 기존색과 ΔE2000 ≥ 12(중복 없음).
             new ColorEntry { name = "Hanjin Blue",     color = new Color(0.09f, 0.33f, 0.60f) },  // 미드 로열블루
             new ColorEntry { name = "Yang Ming Teal",  color = new Color(0.16f, 0.46f, 0.46f) },  // 청록
             new ColorEntry { name = "Sea Green",       color = new Color(0.27f, 0.60f, 0.42f) },  // 밝은 시그린

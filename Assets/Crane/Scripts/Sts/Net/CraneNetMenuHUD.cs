@@ -6,8 +6,8 @@ using UnityEngine.XR;          // InputDevices — Quest 컨트롤러 직접 읽
 
 namespace AIXRCrane.Crane.Sts.Net
 {
-    /// <summary>접속 전, 사용자 눈앞에 뜨는 시작 화면 — 호스트(조종)/참가(관전)를 컨트롤러로 선택.
-    /// IMGUI(NetLanUI.OnGUI)는 헤드셋에 안 보여 월드공간 Canvas + 컨트롤러 입력으로 대체(PC 는 IMGUI 폴백).</summary>
+    /// <summary>접속 전 시작 화면 — 호스트(조종)/참가(관전)를 컨트롤러로 선택.
+    /// IMGUI는 헤드셋에 안 보여 월드공간 Canvas로 대체(PC 는 IMGUI 폴백).</summary>
     [AddComponentMenu("AI-XR Crane/Net/Crane Net Menu HUD")]
     [DisallowMultipleComponent]
     public sealed class CraneNetMenuHUD : MonoBehaviour
@@ -62,7 +62,7 @@ namespace AIXRCrane.Crane.Sts.Net
             text.text = "...";
         }
 
-        // 카메라(머리)에 부착 — 머리를 따라 정면에 고정. 카메라가 늦게 뜨면 주기적으로 재시도.
+        // 카메라에 부착(정면 고정). 카메라가 늦게 뜨면 재시도.
         void TryAttach()
         {
             if (canvas == null || attached) return;
@@ -79,7 +79,7 @@ namespace AIXRCrane.Crane.Sts.Net
             if (canvas == null) return;
             if (!attached) TryAttach();
 
-            // NetworkManager/NetLanUI 없으면(=네트워킹 미구성) 메뉴 숨기고 크레인 입력 복구 후 종료.
+            // 네트워킹 미구성 — 메뉴 숨기고 입력 복구.
             if (ui == null && Time.unscaledTime >= nextFind)
             {
                 nextFind = Time.unscaledTime + 0.5f;
@@ -91,8 +91,8 @@ namespace AIXRCrane.Crane.Sts.Net
             bool connected = nm.IsClient || nm.IsServer;
             if (connected)
             {
-                // 접속됨 — 호스트면 조종 컨트롤러 복구(관전자는 CraneNetSync 가 꺼둔 채 유지), 로코모션은 모두 복구.
-                // 접속 직후 ResultSeconds 동안만 결과 화면을 보여주고 닫는다(계속 시야를 가리지 않게).
+                // 접속됨 — 호스트만 조종 복구(관전자는 꺼둔 채), 로코모션은 모두 복구.
+                //   결과 화면은 ResultSeconds 동안만.
                 if (connectedAt <= 0f) connectedAt = Time.unscaledTime;
                 bool showResult = Time.unscaledTime - connectedAt < ResultSeconds;
                 SetVisible(showResult);
@@ -103,7 +103,7 @@ namespace AIXRCrane.Crane.Sts.Net
             }
             connectedAt = 0f;   // 끊기면 다음 접속에서 다시 보여준다
 
-            // 접속 전 — 메뉴 표시 + 크레인 입력/이동 모두 차단 + 선택/확정 처리.
+            // 접속 전 — 메뉴 표시, 입력/이동 차단.
             SetVisible(true);
             SuppressController();
             LockLocomotion();
@@ -120,7 +120,7 @@ namespace AIXRCrane.Crane.Sts.Net
             bool aNow = right.TryGetFeatureValue(CommonUsages.primaryButton, out bool a) && a;
             bool bNow = right.TryGetFeatureValue(CommonUsages.secondaryButton, out bool b) && b;
 
-            // 스틱 엣지 검출(축별) — 한 번 기울일 때 한 스텝.
+            // 스틱 엣지 — 한 번 기울일 때 한 스텝.
             int stepY = 0, stepX = 0;
             if (!stickLatchedY && Mathf.Abs(rs.y) >= stickThreshold) { stepY = rs.y > 0f ? +1 : -1; stickLatchedY = true; }
             else if (Mathf.Abs(rs.y) <= stickReset) stickLatchedY = false;
@@ -129,7 +129,7 @@ namespace AIXRCrane.Crane.Sts.Net
 
             if (!ipEntryMode)
             {
-                // 선택 화면 — 스틱 ↑↓ 로 호스트/참가 이동, A로 확정.
+                // 선택 화면 — ↑↓ 이동, A 확정.
                 if (stepY != 0) selected = Mathf.Clamp(selected - stepY, 0, Options.Length - 1);  // ↑=위 항목
                 if (aNow && !aPrev)
                 {
@@ -144,7 +144,7 @@ namespace AIXRCrane.Crane.Sts.Net
             }
             else
             {
-                // IP 입력(수동 폴백) 화면 — 그 사이 호스트가 자동 발견되면(엣지) 즉시 접속.
+                // IP 수동 입력 — 그 사이 자동 발견되면 즉시 접속.
                 bool justDiscovered = ui.HostDiscovered && !discoveredPrev;
                 discoveredPrev = ui.HostDiscovered;
                 if (justDiscovered)
@@ -153,7 +153,7 @@ namespace AIXRCrane.Crane.Sts.Net
                 }
                 else
                 {
-                    // ↑↓ ±1, ←→ ±10 으로 마지막 숫자 맞춤. A 접속, B 뒤로.
+                    // ↑↓ ±1, ←→ ±10. A 접속, B 뒤로.
                     if (stepY != 0) joinOctet = Mathf.Clamp(joinOctet + stepY, 0, 255);
                     if (stepX != 0) joinOctet = Mathf.Clamp(joinOctet + stepX * 10, 0, 255);
                     if (aNow && !aPrev)
@@ -168,7 +168,7 @@ namespace AIXRCrane.Crane.Sts.Net
             aPrev = aNow; bPrev = bNow;
         }
 
-        // 참가 기기 자신의 IP에서 대역(prefix) 추출 — 같은 와이파이면 호스트와 같은 대역.
+        // 내 IP에서 대역 prefix 추출(같은 와이파이면 호스트와 같다).
         string IpPrefix()
         {
             string ip = ui != null ? ui.LocalIp : null;
@@ -176,7 +176,7 @@ namespace AIXRCrane.Crane.Sts.Net
             return dot > 0 ? ip.Substring(0, dot + 1) : NetConfig.DefaultSubnetPrefix;   // [H3] 폴백 대역 SSOT
         }
 
-        // 자동탐색으로 채워진 JoinIp가 있으면 그 마지막 숫자를, 없으면 1을 초기값으로.
+        // 초기 옥텟 — 자동탐색 JoinIp 의 마지막 숫자, 없으면 1.
         int GuessOctet()
         {
             string ip = ui != null ? ui.JoinIp : null;
@@ -189,7 +189,7 @@ namespace AIXRCrane.Crane.Sts.Net
         void SuppressController()
         {
             if (controllerSuppressed) return;
-            // 켜진 조종기(Active)를 막는다 — FindAnyObjectByType 은 크레인이 여럿이면 다른 조종기를 집어 두 대가 켜질 수 있다.
+            // 켜진(Active) 조종기를 막는다 — FindAnyObjectByType 은 크레인이 여럿이면 다른 걸 집는다.
             if (craneController == null) craneController = StsCraneVRController.Active != null ? StsCraneVRController.Active : FindAnyObjectByType<StsCraneVRController>();
             if (craneController != null) { craneController.enabled = false; controllerSuppressed = true; }
         }
@@ -201,9 +201,7 @@ namespace AIXRCrane.Crane.Sts.Net
             controllerSuppressed = false;   // 관전자(forceEnable=false)는 꺼둔 채로 둠
         }
 
-        // 이동(로코모션) 잠금/복구
-        // 메뉴 떠 있는 동안 씬의 모든 XR LocomotionProvider(이동/텔레포트/회전)를 끈다.
-        // StsCraneVRController.ApplyMode와 같은 방식 — 내가 끈 것만 기억했다가 그대로 복구.
+        // 메뉴 중 모든 LocomotionProvider 잠금 — 내가 끈 것만 기억해 복구(StsCraneVRController.ApplyMode 방식).
         void LockLocomotion()
         {
             if (lockedLoco.Count > 0) return;   // 이미 잠금 상태면 재스캔 불필요
@@ -240,8 +238,7 @@ namespace AIXRCrane.Crane.Sts.Net
             if (canvas != null && canvas.gameObject.activeSelf != v) canvas.gameObject.SetActive(v);
         }
 
-        // 접속 직후 결과 화면 — 내가 호스트인지 관전인지, 운전이 되는지를 한눈에.
-        // 관전자가 "왜 크레인이 안 움직이지"로 막히지 않게 운전 권한을 여기서 명시한다.
+        // 접속 결과 화면 — 역할과 운전 권한을 명시(관전자가 '왜 안 움직이지'로 막히지 않게).
         string BuildConnectedText(Unity.Netcode.NetworkManager nm)
         {
             sb.Clear();
@@ -297,8 +294,8 @@ namespace AIXRCrane.Crane.Sts.Net
                 else               sb.AppendLine($"<color=#999999>{Options[i]}</color>");
             }
             sb.AppendLine();
-            // 호스트 시작 실패 안내 — 한 머신에 인스턴스가 여러 개면 먼저 뜬 쪽이 포트를 쥐어 다음은 반드시 실패한다.
-            // (#EB332E = HudColor.Danger, #5FE0FF = Accent — 이 파일의 다른 줄과 같은 표기)
+            // 호스트 시작 실패 — 한 머신에 인스턴스가 여럿이면 먼저 뜬 쪽이 포트를 쥔다.
+            //   (#EB332E = HudColor.Danger, #5FE0FF = Accent)
             if (ui.HostFailed)
             {
                 sb.AppendLine("<size=17><color=#EB332E><b>호스트 시작 실패</b> — 이 PC 에서 다른 인스턴스가 이미 호스트 중입니다.</color></size>");

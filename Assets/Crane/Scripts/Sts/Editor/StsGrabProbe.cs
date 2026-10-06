@@ -16,22 +16,22 @@ namespace AIXRCrane.Crane.Sts.EditorTools
     {
         const string Key = "StsGrabProbe", PrevKey = "StsGrabProbe.Prev", ScenePath = StsPartNames.PortScenePath;
         const float TolXZ = 0.015f, TolY = 0.003f, LiftU = 0.05f;
-        // 케이스 3종: 호버(공중, 안 잠겨야) · 안착(통과방지 클램프 멈춤, InsertDepthMeters ± 허용오차 삽입) · 과하강(클램프가 삽입깊이에서 세워야).
+        // 케이스: 호버(안 잠겨야) · 안착(InsertDepthMeters ± 허용오차) · 과하강(클램프가 삽입깊이에서 세워야).
         //   허용오차 = min(InsertBandAbsM, 깊이 × InsertBandFrac).
         const float HoverM = 0.2f, OverdriveM = 0.2f, InsertBandAbsM = 0.005f, InsertBandFrac = 0.25f;
 
-        // 야드 칸 정렬 검사 — 제자리에 그대로 두면 '틀어진 걸 바로잡는지'가 안 보여, 칸의 40% 옆·7° 틀어 놓고 되돌아오는지 잰다.
+        // 야드 칸 정렬 검사 — 칸의 40% 옆·7° 틀어 놓고 되돌아오는지 잰다.
         const float OffCellFrac = 0.4f, OffYawDeg = 7f, SnapTolM = 0.005f;
 
         /// <summary>칸에서 일부러 벗어나게 할 월드 변위(모델 단위) — 행·베이 피치의 OffCellFrac.</summary>
         static Vector3 OffCellU() =>
             new Vector3(PortConfig.RowPitchM * OffCellFrac, 0f, PortConfig.BayPitchM * OffCellFrac) * StsConfig.ModelScale;
 
-        // 놓기 직전 상태 — 기대치가 '칸 정렬'인지 '건드리지 않음'인지는 놓는 자리가 야드 블록 안인지로 갈린다.
+        // 놓기 직전 상태 — 야드 블록 안이면 칸 정렬, 밖이면 그대로가 기대치.
         static bool snapExpected;
         static Vector3 snapCellWanted, snapCenterBefore;
 
-        /// <summary>놓기 직전에 호출 — 이 자리가 야드 칸인지(=스냅이 일어나야 하는지) 미리 판정해 둔다.</summary>
+        /// <summary>놓기 직전 호출 — 이 자리가 야드 칸인지(스냅 기대 여부) 판정.</summary>
         static void MarkSnapExpectation(Case c)
         {
             snapExpected = false; snapCellWanted = snapCenterBefore = Vector3.zero;
@@ -40,8 +40,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             snapExpected = YardGrid.TrySnapXZ(b.center, Mathf.Max(b.size.x, b.size.z), out snapCellWanted);
         }
 
-        // 놓은 결과 판정 — 수식은 런타임 YardGrid 를 그대로 쓴다(검사가 따로 두면 서로를 검증 못한다).
-        //   야드 블록 안이면 칸 중심 ±SnapTolM + 격자 요각, 밖(STS 배·에이프런)이면 아무것도 안 건드리는 게 정상.
+        // 놓은 결과 판정(수식은 런타임 YardGrid 그대로). 야드 안: 칸 중심 ±SnapTolM + 격자 요각, 밖: 그대로.
         static void MeasureSnap(Case c)
         {
             measured++;
@@ -57,7 +56,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             }
             else
             {
-                // 야드 밖 — 놓은 자리에서 움직이지 않아야 한다(격자와 무관한 자리를 임의로 옮기면 그게 버그다).
+                // 야드 밖 — 놓은 자리에서 움직이면 버그.
                 float movedM = (b.center - snapCenterBefore).magnitude * StsConfig.InvModelScale;
                 ok = movedM <= SnapTolM;
                 detail = $"야드 밖(배·에이프런) → 놓은 자리 유지 확인, 이동 {movedM * 1000f:F0}mm(허용 {SnapTolM * 1000f:F0})";
@@ -66,7 +65,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             Debug.Log($"[StsGrabProbe] {(ok ? "OK " : "BAD")} 칸정렬 {c.crane.name} {c.box.name} — {detail}");
         }
 
-        // targetOffM = 콘 바닥을 컨테이너 윗면 대비 어디로 보낼지(실척 m, + 위 / − 아래). 최종 높이는 클램프가 정할 수 있다.
+        // targetOffM = 컨테이너 윗면 대비 콘 바닥 목표(실척 m, + 위 / − 아래). 최종 높이는 클램프가 정할 수 있다.
         struct Case { public StsCrane crane; public SpreaderGrabber grabber; public Transform box; public float targetOffM; public bool expectLock; }
         static readonly List<Case> cases = new List<Case>();
         static int idx, phase, fails, measured, skipped;
@@ -121,8 +120,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
                     TryBoundsAllLods(c.box, out beforeAll);   // LOD 무관 기준선 — 활성 기준만 움직이면 LOD 가 원인
                     rotBefore = c.box.rotation; posBefore = c.box.position; parentBefore = c.box.parent;
                     var rb = c.box.GetComponent<Rigidbody>(); kinBefore = rb != null && rb.isKinematic;
-                    // 재는 동안 kinematic 고정 — 배 컨테이너는 동적 강체라 중력으로 내려앉아 측정치가 섞인다.
-                    //   phase 5 에서 kinBefore 로 원복.
+                    // 재는 동안 kinematic 고정(동적 강체가 내려앉아 측정치가 섞임). phase 5 에서 원복.
                     if (rb != null) rb.isKinematic = true;
                     Vector3 gp1 = c.grabber.GrabPoint();
                     float targetConeY = before.max.y + c.targetOffM * StsConfig.ModelScale;
@@ -190,7 +188,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             .Where(t => t.name.StartsWith(StsPartNames.TwistlockCone) || t.name.StartsWith(StsPartNames.SpreaderTwistlockPrefix))   // Span() 과 같은 규약(Numbered 접미사 포함)
             .ToList();
 
-        // 렌더러 실측 최저점 — held(매단 컨테이너) 렌더러는 뺀다. cones=true 면 규약 일치 콘만, false 면 스프레더 전체.
+        // 렌더러 최저점(held 제외). cones=true 면 콘만, false 면 스프레더 전체.
         static float BottomY(StsCrane crane, Transform held, bool cones)
         {
             var roots = cones ? Cones(crane) : new List<Transform> { ((Component)crane.Spreader).transform };
@@ -202,9 +200,8 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             return y;
         }
 
-        // 돌출 길이(실척 m) = 스프레더 구조물 밑면이 컨테이너 윗면에 닿을 때까지의 삽입 깊이 물리 상한.
-        //   wholeAssembly=false: 콘만 제외(Twistlock_Cone*/Spreader_Twistlock_*). true: Twistlock 이름 부재 전부 제외(빔·플리퍼까지).
-        //   실측: 세 크레인 모두 STS 24mm ← Beam_Flange_1 · RTG 56mm ← EndBeam_F_Body — 바닥을 정하는 건 실제 빔.
+        // 돌출 길이(실척 m) = 구조물 밑면이 윗면에 닿기까지의 삽입 상한(STS 24mm · RTG 56mm, 바닥은 빔이 정함).
+        //   wholeAssembly=false: 콘만 제외, true: Twistlock 이름 부재 전부 제외.
         static float ProtrusionM(StsCrane crane, out string part, bool wholeAssembly = false)
         {
             part = "없음";
@@ -224,9 +221,8 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             return bodyB < float.MaxValue ? (bodyB - coneB) / StsConfig.ModelScale : 0f;
         }
 
-        // 콘 반경 프로파일로 락(노즈+숄더) 높이를 실측 — FBX RTG 는 숄더 높이를 코드로 못 읽어 이 계측으로 대신한다.
-        //   정점을 h(콘끝 기준, 1mm 버킷)별 최대반경 r 로 묶어, 노즈(r 증가)→숄더(평탄)→넥(r 감소)에서 숄더 상단을 락 높이로 삼는다.
-        //   검증: 절차 STS 는 정답 76.8mm 를 안다(안 나오면 신뢰 금지). shapeOk=false 면 형상이 이 패턴이 아니라는 뜻.
+        // 콘 반경 프로파일(h 1mm 버킷별 최대 r)에서 숄더 상단을 락 높이로 실측 — FBX RTG 용.
+        //   ★ 절차 STS 정답 76.8mm 가 안 나오면 신뢰 금지. shapeOk=false 면 노즈·숄더·넥 형상 아님.
         static bool TryLockHeightM(StsCrane crane, out float lockM, out string profile, out bool shapeOk)
         {
             lockM = 0f; profile = "없음"; shapeOk = false;
@@ -264,15 +260,13 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             var keys = new List<int>(maxR.Keys);
             keys.Sort();
 
-            // 고정 간격 샘플은 안 된다 — 저폴리 메시는 링 높이에만 정점이 있어 버킷이 비고 값이 우연에 좌우된다.
-            //   정점이 있는 버킷만 찍는다(로그 폭주 방지로 개수만 제한).
+            // 정점이 있는 버킷만 찍는다 — 저폴리 메시는 고정 간격 샘플이면 버킷이 빈다.
             const int MaxPrint = 48;
             int step = Mathf.Max(1, keys.Count / MaxPrint);
             var sb2 = new System.Text.StringBuilder();
             for (int i = 0; i < keys.Count; i += step) sb2.Append($"{keys[i]}:{maxR[keys[i]]:F1} ");
 
-            // 뾰족한 노즈면 콘 끝 반경이 최소여야 한다 — 끝에서 최대면 노즈·숄더·넥 형상이 아니라는 뜻(락 높이 의미 없음).
-            //   정렬된 keys 를 훑어야 한다 — Dictionary 순회는 순서가 없어 동률일 때 끝이 최대인지 잘못 판정할 수 있다.
+            // 콘 끝 반경이 최대면 노즈 형상 아님. Dictionary 는 순서가 없어 정렬된 keys 로 훑는다.
             int rMaxAt = keys[0];
             foreach (int k in keys) if (maxR[k] >= rMax * 0.999f) { rMaxAt = k; break; }
             bool tipIsWidest = rMaxAt <= keys[0] + 1;
@@ -317,13 +311,12 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             bool longZ = hb.size.z > hb.size.x, longZBefore = before.size.z > before.size.x;
             Span(c.crane, out float spanX, out float spanZ);
             bool spreaderLongZ = spanZ > spanX;
-            // 삽입 = 윗면 − 콘 바닥(실척 m, 양수 = 박힘). 잠긴 케이스는 밴드 안이어야, 호버 케이스는 애초에 안 잠겨야 정상.
+            // 삽입 = 윗면 − 콘 바닥(실척 m, 양수 = 박힘). 잠금 케이스는 밴드 안, 호버는 미잠금이 정상.
             float insertM = (hb.max.y - BottomY(c.crane, c.box, cones: true)) / StsConfig.ModelScale;
             float want = c.grabber.InsertDepthMeters;
             float tol = Mathf.Min(InsertBandAbsM, InsertBandFrac * want);
             bool band = Mathf.Abs(insertM - want) <= tol;
-            // 세로는 '올라감'만 허용하고 '내려감'만 실패로 잡는다 — 통과방지 클램프가 받침에 파고든 컨테이너를 들어 올리는 건 정상.
-            //   '내려감'은 받침을 파고든다는 뜻이라 실패로 잡는다.
+            // 세로는 '내려감'(받침 파고듦)만 실패 — 클램프가 들어 올리는 건 정상.
             bool vOk = stage != "잡음" || dTop >= -TolY;
             bool ok = c.expectLock
                 ? same && band && dxz <= TolXZ && rot < 1f && longZ == longZBefore
@@ -336,15 +329,15 @@ namespace AIXRCrane.Crane.Sts.EditorTools
                       $"트위스트락↔중심 {dxz:F4}u, 튄 거리 수평 {jumpXZ:F4}u·윗면 {dTop:+0.0000;-0.0000}u, 회전 {rot:F1}°, " +
                       $"컨테이너 긴축 {(longZ ? "Z" : "X")}(전 {(longZBefore ? "Z" : "X")}) {Mathf.Max(hb.size.x, hb.size.z):F3}u, " +
                       $"스프레더 긴축 {(spreaderLongZ ? "Z" : "X")} 콘 간격 {Mathf.Max(spanX, spanZ):F3}u, " +
-                      // 잔여 원인 불명 — 가설을 세우지 않고 바운즈 자체를 찍는다(활성 LOD 크기·위치 전후 비교용).
+                      // 원인 불명 잔여 — 활성 LOD 바운즈 전후를 그대로 찍는다.
                       $"[활성LOD] 전 size({before.size.x:F4},{before.size.y:F4},{before.size.z:F4}) max.y {before.max.y:F4} " +
                       $"→ 후 size({hb.size.x:F4},{hb.size.y:F4},{hb.size.z:F4}) max.y {hb.max.y:F4} · " +
                       $"활성렌더러 {c.box.GetComponentsInChildren<Renderer>().Length}개 / 전체 {c.box.GetComponentsInChildren<Renderer>(true).Length}개, " +
-                      // 전 LOD 유니온 — 이쪽이 전후로 같고 위쪽(활성)만 변하면 LOD 전환이 원인이다(가설 판별).
+                      // 전 LOD 유니온 — 이쪽이 같고 활성만 변하면 LOD 전환이 원인.
                       $"[전LOD] 전 size({beforeAll.size.x:F4},{beforeAll.size.y:F4},{beforeAll.size.z:F4}) max.y {beforeAll.max.y:F4} " +
                       $"→ 후 {(TryBoundsAllLods(c.box, out Bounds nowAll) ? $"size({nowAll.size.x:F4},{nowAll.size.y:F4},{nowAll.size.z:F4}) max.y {nowAll.max.y:F4}" : "측정 실패")}");
 
-            // 콘이 실제로 박혔는지 실측 — 삽입 = 윗면 y − 콘 바닥 y(양수=박힘, 음수=뜸). 콘 기준·스프레더 기준을 같이 찍는다.
+            // 삽입 실측(양수=박힘) — 콘 기준·스프레더 기준을 같이 찍는다.
             float coneB = BottomY(c.crane, c.box, cones: true), spB = BottomY(c.crane, c.box, cones: false);
             float apY = c.crane.Attach.AttachAnchor.position.y;
             Debug.Log($"[StsGrabProbe] 삽입 {stage} {c.crane.name} {c.box.name} — 윗면 {hb.max.y:F4}u, " +
@@ -419,12 +412,11 @@ namespace AIXRCrane.Crane.Sts.EditorTools
                           $"돌출(콘만 제외) {protCone * 1000f:F0}mm ← {partCone} · " +
                           $"돌출(트위스트락 전부 제외) {protAsm * 1000f:F0}mm ← {partAsm} · " +
                           $"현재 삽입 설정 {g.InsertDepthMeters * 1000f:F0}mm");
-                // 콘 전체 길이 대비 노출 비가 작으면 락(숄더)이 콘 위쪽에 남아 구멍에 안 들어간다는 뜻.
-                //   FBX RTG 는 생성기 상수가 없어 숄더 높이를 코드로 못 읽어, 이 비가 그 판정의 대용이다.
+                // 콘 길이 대비 노출 비가 작으면 락(숄더)이 구멍에 안 들어간다 — FBX RTG 판정 대용.
                 Debug.Log($"[StsGrabProbe] {crane.name} 콘 기하: 전체 길이 {coneH * 1000f:F0}mm · 본체 밑면 아래 노출 {protCone * 1000f:F0}mm · " +
                           $"노출/전체 {(coneH > 1e-6f ? protCone / coneH * 100f : 0f):F0}% · " +
                           $"본체 안에 숨은 길이 {(coneH - protCone) * 1000f:F0}mm");
-                // 락 높이 실측(반경 프로파일) — 비례 추정 대신 수치. STS 는 정답 76.8mm 라 이 계측의 검증도 같이 된다.
+                // 락 높이 실측(반경 프로파일). STS 정답 76.8mm 로 계측 자체도 검증.
                 if (TryLockHeightM(crane, out float lockM, out string prof, out bool shapeOk))
                 {
                     float shortM = lockM - protCone;   // 양수 = 락이 그만큼 본체 안에 남아 구멍에 안 들어간다

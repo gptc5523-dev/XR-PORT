@@ -3,9 +3,8 @@ using UnityEngine;
 
 namespace AIXRCrane.Crane.Sts.Plc
 {
-    /// <summary>PLC ↔ 크레인 다리 — IPlcSource 스냅샷을 축 구동에 흘려보낸다. 소스: Virtual(가상 생성)/CsvReplay(CSV 재생)/Server(통합서버).
-    /// Active=true면 PLC가 축을 구동·PlcDriven=true(가속알람 유효), false면 직접조종(VR) 유지·PlcDriven=false. 가설 구현·미검증.</summary>
-    // H4: PLC 출력(축 구동)은 가속 측정(CraneOpMode)보다 먼저 실행돼야 같은 입력이 같은 가속·알람을 낸다.
+    /// <summary>PLC ↔ 크레인 다리 — IPlcSource(Virtual/CsvReplay/Server) 스냅샷을 축 구동에 흘린다. Active면 PlcDriven=true(가속알람 유효).
+    /// ★ 가속 측정(CraneOpMode)보다 먼저 실행돼야 같은 입력이 같은 알람을 낸다(H4). 가설 구현·미검증.</summary>
     [DefaultExecutionOrder(-100)]
     [AddComponentMenu("AI-XR Crane/STS Crane/PLC Bridge (가상·실 PLC 시임)")]
     [RequireComponent(typeof(StsCrane))]
@@ -36,8 +35,7 @@ namespace AIXRCrane.Crane.Sts.Plc
         [SerializeField] string serverUrl = "http://192.168.0.167:5006";
 
         [Header("정규화 범위 (실척 m)")]
-        // 0이면 자동 산출 — crane 무버 기하에서 rangeM = (Max−Min)×(1/ModelScale)로 채운다(SSOT=무버 기하).
-        // 인스펙터/프리팹에 0이 아닌 값이 있으면 그 값을 우선 사용(수동 오버라이드). 기본은 0=자동.
+        // 0이면 무버 기하에서 자동 산출(rangeM = (Max−Min)×(1/ModelScale), SSOT=무버). 0이 아니면 수동 오버라이드.
         [Tooltip("0이면 모델 기하에서 자동 산출(권장). 0이 아니면 그 값을 수동 사용.")]
         [SerializeField] float gtRangeM = 0f;
         [Tooltip("0이면 모델 기하에서 자동 산출(권장). 0이 아니면 그 값을 수동 사용.")]
@@ -48,7 +46,7 @@ namespace AIXRCrane.Crane.Sts.Plc
         [Header("스캔 주기 (실 PLC 정합) — H4")]
         [Tooltip("PLC 로직 고정 스캔주기(ms). 실 PLC처럼 이 주기 경계에서만 입력 동결→평가→출력. " +
                  "Unity 물리틱(가변·catch-up 가능)과 분리해 동일 입력이 동일 알람을 내도록 결정성 확보. 통상 1~10ms.")]
-        // 가시 클램프 — 인스펙터 슬라이더로 [1,100]ms 강제(아래 OnValidate가 직접입력·프리팹값도 재클램프).
+        // 가시 클램프 [1,100]ms — OnValidate가 직접입력·프리팹값도 재클램프.
         [Range(1f, 100f)]
         [SerializeField] float scanPeriodMs = 10f;
 
@@ -83,33 +81,29 @@ namespace AIXRCrane.Crane.Sts.Plc
         {
             crane = GetComponent<StsCrane>();
 #if UNITY_EDITOR
-            // 도메인 리로드로 인스펙터 설정이 기본값(Virtual·비활성)으로 되돌아가도,
-            // 마지막 메뉴 선택(EditorPrefs)에서 복원 — 씬 저장 없이도 Play마다 유지된다.
+            // 도메인 리로드로 설정이 기본값으로 돌아가도 마지막 메뉴 선택(EditorPrefs)에서 복원.
             if (UnityEditor.EditorPrefs.GetBool(PrefKey("forceReplay"), false))
             {
                 string p = UnityEditor.EditorPrefs.GetString(PrefKey("csvPath"), "");
                 if (!string.IsNullOrEmpty(p)) { sourceMode = SourceMode.CsvReplay; csvPath = p; csvAsset = null; active = true; }
             }
-            // 재생 복원이 먼저다 — forceReplay만 켜고 도는 측정에서 서버 선택이 남아 있으면 그걸 가로챈다.
+            // 재생 복원이 먼저 — 남은 서버 선택이 forceReplay 측정을 가로채지 않게.
             else if (UnityEditor.EditorPrefs.GetBool(PrefKey("forceServer"), false)) { sourceMode = SourceMode.Server; active = true; }
 #endif
             source = BuildSource();
-            // CSV 재생이면 화물 재생도 붙인다 — 메뉴로 붙인 컴포넌트는 씬 저장이 필요한데 재생 설정은 EditorPrefs로 매 Play 복원돼
-            //   '축은 재생되는데 스프레더는 빈손'이 될 수 있다. 작업 이력(run_NN.history.csv)이 없으면 스스로 꺼진다.
+            // CSV 재생이면 화물 재생도 붙인다 — 안 붙이면 '축은 재생되는데 스프레더는 빈손'. 작업 이력이 없으면 스스로 꺼진다.
             if (active && source is CsvReplaySource && GetComponent<PlcCargoReplay>() == null) gameObject.AddComponent<PlcCargoReplay>();
             Debug.Log($"[PlcBridge] init: mode={sourceMode} active={active} csvAsset={(csvAsset != null)} " +
                       $"csvPath='{csvPath}' → source={source?.Name} connected={source?.IsConnected}");
         }
 
-        // 스캔주기를 [1,100]ms로 재클램프(인스펙터 직접입력·프리팹값도) — 과대값은 알람 반영 지연, 0·음수는 0으로 나누는 폭주 위험.
-        //   [Range]는 슬라이더만 막으므로 OnValidate로 코드/프리팹 경로까지 이중 보장.
+        // 스캔주기 [1,100]ms 재클램프 — 과대값은 알람 지연, 0·음수는 0으로 나누기. [Range]는 슬라이더만 막는다.
         void OnValidate()
         {
             scanPeriodMs = Mathf.Clamp(scanPeriodMs, 1f, 100f);
         }
 
-        // 컴포넌트가 떼이거나 비활성화되면 PlcDriven을 끈다 — 안 그러면 직접조종에 가속 오경보(1021/2021/3021)가 낀다.
-        //   crane은 Awake에서 캐시, 미설정이면 즉석 조회.
+        // 떼이거나 꺼지면 PlcDriven을 끈다 — 안 그러면 직접조종에 가속 오경보(1021/2021/3021).
         void OnDisable()
         {
             var c = crane != null ? crane : GetComponent<StsCrane>();
@@ -172,21 +166,20 @@ namespace AIXRCrane.Crane.Sts.Plc
             return null;
         }
 
-        // 축 이동·물리 정합은 물리틱(FixedUpdate)에서 — 메모리 물리 파이프라인 규약과 정합.
-        // 단, PLC 로직 자체는 여기 dt가 아니라 고정 scanPeriod 그리드(ScanStep)에서만 돈다(H4).
+        // 축 이동은 물리틱(FixedUpdate)에서, PLC 로직은 고정 scanPeriod 그리드(ScanStep)에서만 돈다(H4).
         void FixedUpdate()
         {
             if (source == null || crane == null) return;
 
-            // 무버 기하에서 정규화 range를 1회 산출(빌더가 무버를 셋업한 뒤 첫 가용 틱). SSOT=무버 Min/Max.
+            // 무버 기하에서 정규화 range를 1회 산출(빌더가 무버 셋업한 뒤 첫 틱).
             if (!rangesResolved) ResolveRangesFromGeometry();
 
             if (source is VirtualPlcSource v) v.InjectAggressive = injectAggressive;
 
-            // 직접조종이면 PlcDriven=false 유지(가속 오경보 차단). 켜져 있을 때만 PLC가 축을 잡는다.
+            // 직접조종이면 PlcDriven=false 유지(가속 오경보 차단).
             crane.OpMode.PlcDriven = active;
 
-            // 고정 스캔 그리드 — 물리틱 dt를 누산해 scanPeriod 경계에서만 1스캔(입력 동결→평가→출력)을 실행.
+            // 고정 스캔 그리드 — dt를 누산해 scanPeriod 경계에서만 1스캔(입력 동결→평가→출력).
             float scanDt = Mathf.Max(0.001f, scanPeriodMs * 0.001f);
             scanAccum += Time.fixedDeltaTime;
             int guard = 0;
@@ -215,11 +208,11 @@ namespace AIXRCrane.Crane.Sts.Plc
             }
         }
 
-        // 한 스캔주기 = 실 PLC 1스캔: 소스를 고정 dt만큼 전진 → 입력 1회 동결(Process Image) → 출력(축) 1회 기록.
+        // 한 스캔 = 실 PLC 1스캔: 소스 고정 dt 전진 → 입력 동결(Process Image) → 출력(축) 기록.
         void ScanStep(float scanDt)
         {
             source.Pump(scanDt);                  // 가상/CSV 소스를 고정 증분으로 전진(결정성).
-            // H5: CSV 되감기(끝→0) 직후엔 위치가 불연속이므로 가속 추적을 재프라임해 인공 스파이크 알람을 막는다.
+            // H5: CSV 되감기 직후엔 위치가 불연속 — 가속 추적을 재프라임해 인공 스파이크 알람을 막는다.
             if (source is CsvReplaySource csv && csv.ConsumeDiscontinuity()
                 || source is ServerPlcSource srv && srv.ConsumeDiscontinuity()) crane.OpMode.ResetAccelTracking();
             if (!active) return;
@@ -230,24 +223,22 @@ namespace AIXRCrane.Crane.Sts.Plc
             DriveAxis(crane.Spreader, s.HoPosition, hoRangeM);
         }
 
-        // 정규화 분모(실척 range)를 모델 기하에서 자동 산출(SSOT=무버 Min/Max): rangeM = (Max−Min) × WorldPerUnit ÷ ModelScale.
-        //   빌더가 무버 셋업 후 첫 가용 틱에 1회 산출, 0이 아닌 값이 박혀 있으면 보존(수동 오버라이드). VirtualPlcSource에도 주입해 한 출처로 묶는다.
+        // 정규화 분모(실척 range) 자동 산출: rangeM = (Max−Min)×WorldPerUnit÷ModelScale(SSOT=무버).
+        //   0이 아닌 값은 수동 오버라이드로 보존. VirtualPlcSource에도 주입해 한 출처로 묶는다.
         void ResolveRangesFromGeometry()
         {
             if (crane == null) return;
             float inv = crane.ModelScale > 0f ? 1f / crane.ModelScale : 0f;
             if (inv <= 0f) return;   // ModelScale 비정상이면 산출 스킵(기존값 유지).
 
-            // 무버 중 하나라도 아직 null이면(빌더 미완) 이번 틱은 미루고 다음 틱에 재시도.
+            // 무버가 아직 null이면(빌더 미완) 다음 틱에 재시도.
             if (crane.Gantry == null || crane.Trolley == null || crane.Spreader == null) return;
 
-            // gtRangeM 등이 0이면 자동, 0이 아니면 수동값 보존.
             if (gtRangeM <= 0f) gtRangeM = AxisSpanM(crane.Gantry,   inv);
             if (trRangeM <= 0f) trRangeM = AxisSpanM(crane.Trolley,  inv);
             if (hoRangeM <= 0f) hoRangeM = AxisSpanM(crane.Spreader, inv);
 
-            // 두 정의 SSOT화 — 가상 소스가 실척 위치를 만들 때 같은 range를 쓰도록 주입.
-            // HoLowM(안착 높이)은 절대 실척값(2m)이라 range에 비례하지 않으므로 그대로 둔다(비율 불변).
+            // 가상 소스에도 같은 range 주입. HoLowM(안착 2m)은 절대 실척값이라 그대로.
             sim.GtRangeM = gtRangeM;
             sim.TrRangeM = trRangeM;
             sim.HoRangeM = hoRangeM;
@@ -259,8 +250,8 @@ namespace AIXRCrane.Crane.Sts.Plc
                           $"GT={gtRangeM:F2}m TR={trRangeM:F2}m HO={hoRangeM:F2}m (ModelScale={crane.ModelScale:F4})");
         }
 
-        /// <summary>스냅샷 자세에서 크레인에 붙은 월드 점 p(예: 트위스트락 중심)가 어디로 이동하는지 계산.
-        /// DriveAxis와 같은 정규화로 목표 축값을 구해 (목표−현재)×WorldAxis 만큼 평행이동(세 축 합, 회전 없음이라 정확).</summary>
+        /// <summary>스냅샷 자세에서 크레인에 붙은 월드 점 p(예: 트위스트락 중심)가 갈 자리 — DriveAxis와 같은 정규화,
+        /// 세 축 평행이동 합(회전 없음이라 정확).</summary>
         public Vector3 WorldAtPose(in PlcSnapshot s, Vector3 p) =>
             p + Shift(crane.Gantry, s.GtPosition, gtRangeM)
               + Shift(crane.Trolley, s.TrPosition, trRangeM)
@@ -277,7 +268,7 @@ namespace AIXRCrane.Crane.Sts.Plc
             return span > 0f ? span * axis.WorldPerUnit * invScale : 0f; // 실척 range = span × 월드/축 ÷ ModelScale
         }
 
-        // 실척 위치(0..rangeM) → 정규화 → 축의 모델 좌표(Min..Max). 방향 규약(0=어느 끝)은 벤더 확인 대상(질의서).
+        // 실척 위치(0..rangeM) → 정규화 → 축 모델 좌표(Min..Max). 방향 규약은 벤더 확인 대상(질의서).
         static void DriveAxis(IAxisMover axis, float realPos, float rangeM)
         {
             if (axis == null || rangeM <= 0f) return;

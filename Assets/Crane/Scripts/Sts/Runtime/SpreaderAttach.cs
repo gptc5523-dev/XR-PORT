@@ -2,8 +2,7 @@ using UnityEngine;
 
 namespace AIXRCrane.Crane.Sts
 {
-    /// <summary>스프레더에 컨테이너를 attach/detach. Attach 시 attachPoint 자식+kinematic, Detach 시 복원+새 부모 지정 가능.
-    /// 트위스트락 동작은 즉시 처리(애니메이션 필요시 이벤트로 분리).</summary>
+    /// <summary>스프레더 컨테이너 attach/detach. Attach = attachPoint 자식+kinematic, Detach = 복원+새 부모.</summary>
     [AddComponentMenu("AI-XR Crane/STS Crane/Spreader Attach")]
     [DisallowMultipleComponent]
     public sealed class SpreaderAttach : MonoBehaviour
@@ -21,17 +20,16 @@ namespace AIXRCrane.Crane.Sts
 
         public bool HasContainer => attached != null;
         public Transform AttachedContainer => attached;
-        /// <summary>적재된 컨테이너 하중(kg). 없으면 0. ContainerLoad 산출값 우선(1/24 미니어처라 물리 mass는 무의미),
-        /// 없으면 Rigidbody.mass 폴백. 라벨/HUD 표시용.</summary>
+        /// <summary>적재 하중(kg, 표시용). ContainerLoad 값 우선(미니어처라 물리 mass 무의미), 없으면 Rigidbody.mass.</summary>
         public float AttachedMassKg => attachedLoadKg > 0f ? attachedLoadKg : (attachedBody != null ? attachedBody.mass : 0f);
         /// <summary>적재 하중(톤).</summary>
         public float AttachedLoadTons => AttachedMassKg / 1000f;
-        /// <summary>HUD/라벨 표시용 ISO6346 식별번호 — 잡는 순간 확정(결정적). 잡은 게 없으면 null(HUD에 미표시).
-        /// ContainerInstance가 있으면 그 DisplayId, 없으면 컨테이너 이름 시드로 결정적 생성한 번호.</summary>
+        /// <summary>표시용 ISO6346 번호(잡는 순간 결정적 확정, 없으면 null).
+        /// ContainerInstance.DisplayId, 없으면 이름 시드로 생성.</summary>
         public string AttachedDisplayId => attachedDisplayId;
 
         Transform Point => attachPoint != null ? attachPoint : transform;
-        /// <summary>컨테이너가 매달리는 기준 Transform. 네트워크 동기화가 클라이언트에서 동일 위치에 컨테이너를 붙이는 데 사용.</summary>
+        /// <summary>컨테이너가 매달리는 기준 Transform(네트워크 동기화가 클라이언트 부착에 사용).</summary>
         public Transform AttachAnchor => Point;
 
         public void Configure(Transform point)
@@ -39,23 +37,20 @@ namespace AIXRCrane.Crane.Sts
             attachPoint = point;
         }
 
-        /// <summary>컨테이너를 결합(이미 잡고 있으면 무시). 월드 자세를 그대로 둔 채 부착점 자식으로만 옮긴다 —
-        /// 어디에 맞출지는 호출자가 정한다(SpreaderGrabber/PLC 재생 등).</summary>
+        /// <summary>컨테이너 결합(이미 잡고 있으면 무시). 월드 자세 유지한 채 부착점 자식으로만 — 정렬은 호출자 몫.</summary>
         public bool Attach(Transform container)
         {
             if (container == null || attached != null) return false;
 
             attached = container;
             attachedBody = container.GetComponent<Rigidbody>();
-            // 표시용 하중(kg) 산출 — 물리 mass와 분리(1/24 미니어처라 실제 mass는 무의미).
-            // ContainerInstance(ID 부여 컨테이너) 있으면 그 무게, 없으면(부두 배치 등) 이름 해시로 결정적 산출.
+            // 표시용 하중: ContainerInstance 무게, 없으면 이름 해시로 결정적 산출.
             float tons = 0f;
             attachedInstance = container.GetComponentInParent<ContainerInstance>();
             if (attachedInstance != null) tons = attachedInstance.LoadTons;
             if (tons <= 0f) tons = ContainerLoad.WeightTons(container.name);
             attachedLoadKg = tons * 1000f;
-            // 표시 번호 확정 — ContainerInstance가 있으면 그 ISO6346 DisplayId, 없으면(부두/Kit 배치)
-            // 컨테이너 이름을 시드로 결정적 생성 → 같은 컨테이너는 다시 잡아도 항상 같은 번호.
+            // 표시 번호: DisplayId, 없으면 이름 시드로 결정적 생성(다시 잡아도 같은 번호).
             attachedDisplayId =
                 attachedInstance != null && !string.IsNullOrEmpty(attachedInstance.DisplayId)
                     ? attachedInstance.DisplayId
@@ -68,8 +63,7 @@ namespace AIXRCrane.Crane.Sts
                 attachedBody.useGravity = false;
                 attachedBody.isKinematic = true;
             }
-            // 월드 자세 보존 — localRotation을 항등으로 덮어쓰면 회전된 부착점 아래서 컨테이너가 같이 돈다.
-            //   worldPositionStays:true로 옮기고 회전은 손대지 않는다.
+            // ★ 월드 자세 보존 — localRotation 을 덮어쓰면 회전된 부착점 아래서 컨테이너가 같이 돈다.
             container.SetParent(Point, worldPositionStays: true);
             return true;
         }

@@ -6,8 +6,8 @@ using UnityEngine;
 
 namespace AIXRCrane.Crane.Sts.EditorTools
 {
-    /// <summary>FBX RTG 크레인에 모양 유지 + 동적 신축 권상 로프 세팅(RTG 크레인 생성이 자동 호출).
-    /// 드럼출구·감김반경은 모델 로프 실측에서 유도(상수 아님). 로프는 전용 검정 재질이라 드럼 코일과 색이 다르다(의도).</summary>
+    /// <summary>FBX RTG 에 동적 신축 권상 로프 세팅(RTG 생성이 자동 호출). 드럼출구·감김반경은 모델 로프 실측에서 유도.
+    /// 로프 전용 검정 재질이라 드럼 코일과 색이 다르다(의도).</summary>
     public static class RtgCraneFbxRopeSetup
     {
         const string CraneName = StsPartNames.RtgCraneRoot;
@@ -30,7 +30,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
                 while ((g = FindDeep(root, gname)) != null && guard++ < 30)
                     Undo.DestroyObjectImmediate(g.gameObject);
             }
-            // 옛 드럼출구 고정점 제거(재셋업 중복 방지)
+            // 옛 드럼출구 고정점 제거
             foreach (var c in Corners)
             {
                 Transform de; int guard = 0;
@@ -53,7 +53,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
                 var rope   = FindDeep(root, "Hoist_Rope_" + c);
                 if (sheave == null) { diag.AppendLine($"  {c}: 시브 없음 → 건너뜀"); continue; }
 
-                // 드럼출구 = 모델 로프 드럼측 캡의 중심선 점 → 트롤리 자식 고정점으로 재생성
+                // 드럼출구 = 로프 드럼측 캡 중심 → 트롤리 자식 고정점
                 Transform drumExit = null;
                 float wrapR = 0f;
                 if (rope != null)
@@ -83,7 +83,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             }
             if (sheaves.Count == 0) { Dialog("시브(Spreader_HB_Sheave_*)를 못 찾음."); return; }
 
-            // 로프 메시(Hoist_Rope_*)가 FBX에 없으면 드럼출구·굵기 원천이 없어 정상 재현 불가 → 재익스포트 안내.
+            // 로프 메시(Hoist_Rope_*)가 없으면 정상 재현 불가 → 재익스포트 안내.
             if (modeledRopes.Count == 0)
             {
                 Debug.LogWarning("[RTG] 로프 메시(Hoist_Rope_FL/FR/BL/BR)가 임포트된 크레인에 없습니다. " +
@@ -96,20 +96,19 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             }
             if (ropeWorldRadius <= 0f)
             {
-                // 폴백: 시브 비율로 월드 반경 환산 — ropeWorld = 0.0265 × (감김반경 / 0.4439), 임포트 스케일 무관.
+                // 폴백: 시브 비율로 월드 반경 환산(임포트 스케일 무관).
                 float avgSheave = 0f; foreach (var s in sheaveRadii) avgSheave += s;
                 avgSheave = sheaveRadii.Count > 0 ? avgSheave / sheaveRadii.Count : 0.019f;
                 ropeWorldRadius = 0.0265f * (avgSheave / 0.4439f);
             }
 
-            // Reeving 그룹 — 월드 스케일 1로(크레인 스케일 상쇄) → 튜브 월드 반경 정확 보존
+            // Reeving 그룹 — 월드 스케일 1(튜브 월드 반경 보존)
             var group = new GameObject(GroupName);
             Undo.RegisterCreatedObjectUndo(group, "RTG Reeving");
             group.transform.SetParent(root, false);
             group.transform.localScale = Vector3.one / Mathf.Max(1e-4f, root.lossyScale.x);
 
-            // 동적 로프는 모델 상속(RTG_DarkMetal)이 아니라 로프 전용 검정 재질을 쓴다.
-            //   드럼 코일은 그대로 RTG_DarkMetal이라 드럼출구에서 색이 갈린다(의도, 형상은 이어져 있음).
+            // 동적 로프는 전용 검정 재질 — 드럼 코일(RTG_DarkMetal)과 출구에서 색이 갈린다(의도).
             ropeMat = GetRopeMaterial() ?? ropeMat ?? GetFallbackRopeMaterial();
 
             var filters = new MeshFilter[sheaves.Count];
@@ -129,7 +128,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             tube.Configure(drumExits.ToArray(), anchors.ToArray(), sheaves.ToArray(),
                            sheaveRadii.ToArray(), filters, ropeWorldRadius, 32, 14);
 
-            // 원본 정적 로프 메시 숨김(동적 튜브가 대체) — 재셋업 시 재추출 위해 삭제 대신 비활성
+            // 원본 정적 로프는 재셋업 재추출용으로 삭제 대신 비활성
             foreach (var r in modeledRopes) if (r != null) Undo.RecordObject(r.gameObject, "hide rope");
             foreach (var r in modeledRopes) if (r != null) r.gameObject.SetActive(false);
 
@@ -143,8 +142,8 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             Debug.Log(diag.ToString());
         }
 
-        // 드럼출구 = 로프 드럼측 평면컷 캡 링의 중심(중심선 위 점 — 표면 정점 하나를 쓰면 로프반경만큼 빗나간다).
-        // 앵커에서 먼 쪽 캡을 택한다 — 가까운 쪽/최상단으로 고르면 동적 로프 전체가 틀어진다. 월드 반경·머티리얼도 반환.
+        // 드럼출구 = 드럼측 캡 링 중심(표면 정점이면 로프반경만큼 빗나감). 월드 반경·머티리얼도 반환.
+        //   ★ 앵커에서 먼 쪽 캡 — 가까운 쪽/최상단을 고르면 로프 전체가 틀어진다.
         static Vector3 DrumExitWorld(Transform rope, Transform anchor, out float worldRadius, out Material mat)
         {
             worldRadius = 0f; mat = null;
@@ -172,22 +171,20 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             float eps = worldRadius * 0.25f;
             float q   = Mathf.Max(1e-6f, worldRadius * 0.01f);   // 중복 판정용 위치 양자화
 
-            // 캡A = 월드 Y 최대면. 캡B = 캡A 평면을 뺀 나머지의 Y 최대면(반대쪽 캡).
-            //   로프는 중간 링 없는 통짜 스팬이라 '캡A 다음으로 높은 면'이 곧 반대쪽 캡이다.
+            // 캡A = Y 최대면, 캡B = 그다음 높은 면(중간 링 없는 통짜 스팬이라 반대쪽 캡).
             Vector3 capA = PlanarCapCenter(w, mx.y, eps, q);
             float yB = float.NegativeInfinity;
             for (int i = 0; i < w.Length; i++)
                 if (w[i].y < mx.y - eps && w[i].y > yB) yB = w[i].y;
 
-            // 앵커가 없거나 캡이 하나뿐이면 판별 불가 → 종전 동작(최상단 캡)
+            // 판별 불가 → 최상단 캡
             if (anchor == null || float.IsNegativeInfinity(yB)) return capA;
 
             Vector3 capB = PlanarCapCenter(w, yB, eps, q);
             return (capA - anchor.position).sqrMagnitude >= (capB - anchor.position).sqrMagnitude ? capA : capB;
         }
 
-        // 평면컷 캡 링의 중심 = planeY 평면(±eps) 정점들의 중심. 임포터가 이음매에서 정점을 쪼개 중복시키므로
-        //   위치 중복을 제거해야 중심이 이음매 쪽으로 쏠리지 않는다.
+        // 캡 링 중심 = planeY(±eps) 정점 중심. 이음매 중복 정점을 제거해야 중심이 쏠리지 않는다.
         static Vector3 PlanarCapCenter(Vector3[] w, float planeY, float eps, float q)
         {
             var seen = new HashSet<Vector3Int>();
@@ -204,8 +201,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             return n > 0 ? sum / n : w[TopIndex(w)];
         }
 
-        // 시브 감김 반경 = 로프 중심선이 도는 반경(시브 바깥 치수가 아니다): R_w = min|로프 정점 − 시브 중심| + 로프 반경.
-        // 홈바닥+로프반경으로 유도하면 안 된다 — 로프가 홈 옆면에 물려 떠 있어 실측만 정답(시브 림 반경을 쓰면 감김이 밀린다).
+        // 감김 반경 = min|로프 정점 − 시브 중심| + 로프 반경. 로프가 홈 옆면에 물려 떠 있어 실측만 정답.
         static float WrapRadiusWorld(Transform rope, Vector3 sheaveCenter, float ropeWorldRadius)
         {
             var mf = rope.GetComponentInChildren<MeshFilter>();
@@ -227,8 +223,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
 
         const string RopeMatPath = "Assets/Crane/Materials/RTG/RTG_RopeBlack.mat";
 
-        // 로프 전용 검정 재질 — 없으면 생성, 있으면 그대로 존중(인스펙터 조정값을 재생성이 덮지 않게, .mat이 정본).
-        //   BaseColor 0.02(완전 0 아님)는 PBR 순수 검정이 평평해 보이는 것을 피함. 금속/광택은 RTG_DarkMetal과 동일.
+        // 로프 전용 검정 재질 — 있으면 그대로(.mat이 정본). BaseColor 0.02는 순수 검정이 평평해 보이는 것 회피.
         static Material GetRopeMaterial()
         {
             var existing = AssetDatabase.LoadAssetAtPath<Material>(RopeMatPath);
@@ -260,8 +255,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             return m;
         }
 
-        // 시브 **림** 반지름(월드) = 렌더러 바운즈 최대 반폭(디스크 외경).
-        //   로프 메시가 없을 때만 쓰는 폴백 — 실제 감김 반경(WrapRadiusWorld)보다 크다(실측 0.4600 vs 0.4439).
+        // 시브 림 반지름(월드) = 바운즈 최대 반폭. 로프 메시 없을 때만 쓰는 폴백 — 실제 감김보다 크다.
         static float SheaveRimRadiusWorld(Transform sheave)
         {
             var rend = sheave.GetComponentInChildren<Renderer>();

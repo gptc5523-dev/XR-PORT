@@ -7,7 +7,7 @@ using UnityEngine;
 namespace AIXRCrane.Crane.Sts.EditorTools
 {
     /// <summary>Blender 임포트 크레인(RTG_Crane.fbx)을 씬에 생성(Model ▸ FBX ▸ 크레인 ▸ RTG 크레인 생성).
-    /// 절차생성과 동일하게 루트 localScale=1/24로 넣어 정합; 이 파일이 임포트 설정·머티리얼 리맵·배치까지 자립적으로 처리한다.</summary>
+    /// 절차생성과 같이 루트 localScale=1/24. 임포트 설정·머티리얼 리맵·배치까지 여기서 자립 처리.</summary>
     public static class RtgCraneFbxPlacer
     {
         const string Fbx       = "Assets/Crane/Models/RTG_Crane.fbx";
@@ -15,8 +15,8 @@ namespace AIXRCrane.Crane.Sts.EditorTools
         const string CraneName = StsPartNames.RtgCraneRoot;
         const float  RealCraneHeightM = 25.042f;  // Blender 실측 RTG 총높이(m). 목표 크기 = ×ModelScale(1/24)로 절차 크레인과 동일.
 
-        // name, r, g, b, metallic, smoothness(=1-rough), alpha(<1 → 투명), emis(발광 강도, 0=없음)  ── Blender Principled 실측값
-        //   발광색 = BaseColor × emis. Blender RTG_Lens는 Emission Color가 Base Color와 동일해 이 식이 정확히 일치.
+        // name, r, g, b, metallic, smoothness(=1-rough), alpha(<1 투명), emis(0=없음) — Blender Principled 실측값
+        //   발광색 = BaseColor × emis (RTG_Lens 는 Emission Color = Base Color 라 일치).
         static readonly (string n, float r, float g, float b, float metal, float smooth, float alpha, float emis)[] Mats =
         {
             ("RTG_Yellow",          0.85f, 0.72f, 0.10f,  0.02f, 0.45f, 1f,    0f),
@@ -51,7 +51,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             Debug.Log($"[RTG] FBX 크레인 {n}대 배치 완료(블록 {zones.Count}개 중 안벽 가까운 순).");
         }
 
-        /// <summary>기존 RTG를 모두 지운다(FBX·절차생성 모두) — 안 지우면 같은 야드 블록에 겹쳐 쌓인다. 절차 크레인은 쓰지 않으므로 이름까지 지운다.</summary>
+        /// <summary>기존 RTG(FBX·절차생성)를 모두 지운다 — 안 지우면 같은 야드 블록에 겹쳐 쌓인다.</summary>
         static void ClearExistingRtgs()
         {
             int killed = 0;
@@ -103,8 +103,8 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             go.name = index > 0 ? $"{CraneName}_{index}" : CraneName;
             Undo.RegisterCreatedObjectUndo(go, "Create " + CraneName);
 
-            // 스케일 목표 = 실척 높이 × ModelScale(1/24) → 절차생성 RTG_Crane과 항상 동일 크기(결정적).
-            //   FBX가 cm 단위로 임포트(≈1/100)되므로 목표/실측 비율로 보정한다.
+            // 스케일 목표 = 실척 높이 × ModelScale → 절차생성 RTG 와 같은 크기.
+            //   FBX 가 cm 단위로 임포트되므로 목표/실측 비율로 보정한다.
             go.transform.localScale = Vector3.one;
             float fbxH = CombinedBounds(go).size.y;
             float target = RealCraneHeightM * StsConfig.ModelScale;   // 25.76 × 1/24 ≈ 1.073
@@ -112,15 +112,14 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             go.transform.localScale = Vector3.one * s;
             Debug.Log($"[RTG] 스케일 결정 — 목표 {target:F3}(실척 {RealCraneHeightM}m × 1/24) / FBX측정 {fbxH:F3} → localScale {s:F4}");
 
-            // 배치 = 야드 블록(YardBlock_Zone) 중심에 접지(없으면 지면 중앙). FBX RTG 주행축은 로컬 Z, 야드 블록도 장축 Z라
-            //   회전 없이 그대로 정합한다 — 별도 yaw를 주면 오히려 어긋난다. 블록 존 중심 = RTG 스팬 중심, 오프셋 없음.
+            // 배치 = 야드 블록 존 중심에 접지(없으면 지면 중앙). RTG 주행축·블록 장축 모두 Z 라
+            //   회전 없이 정합 — yaw 를 주면 어긋난다. 블록 존 중심 = RTG 스팬 중심.
             go.transform.position = zone != null
                 ? new Vector3(zone.bounds.center.x, GroundPosition().y, zone.bounds.center.z)
                 : GroundPosition();   // Quay_Ground 지면 윗면에 접지
 
-            // 후속 배선 자동 실행(수동 메뉴 없음). 배선 3종은 Selection.activeGameObject로 대상을 찾고 못 찾으면 고정 이름 폴백인데,
-            //   각 배선이 끝에서 선택을 옮기므로 호출 직전마다 선택을 다시 세운다(안 그러면 번호 붙은 야드 배치에서 배선이 통째로 빠진다).
-            // Blender Hoist_Rope 구조(코너당 드럼출구·앵커→시브 2-fall)를 동적 재현 — 권상 시 신축.
+            // 후속 배선 자동 실행. 배선이 선택(Selection)으로 대상을 찾고 끝에서 옮기므로 매번 다시 세운다(안 그러면 야드 배치에서 빠짐).
+            // 로프: Blender Hoist_Rope 구조(코너당 2-fall)를 동적 재현 — 권상 시 신축.
             Selection.activeGameObject = go;
             RtgCraneFbxRopeSetup.Setup();
             // 주행·횡행·권상 무버 + 그랩/트위스트락. 범위는 임포트 지오메트리에서 자동 산출.
@@ -130,7 +129,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             Selection.activeGameObject = go;
             RtgSpreaderTelescopeSetup.Setup();
 
-            // 주행(Z) 범위를 야드 블록에서 재유도 — 배선 기본값(크레인 치수 ±2배)은 야드와 무관한 임시값이라 블록 밖으로 안 나가게 클램프.
+            // 주행(Z) 범위를 야드 블록에서 재유도 — 배선 기본값은 임시값이라 블록 밖으로 안 나가게 클램프.
             string gantryMsg = zone == null ? "야드 블록 없음 → 배선 기본 주행범위 유지"
                                             : "GantryMover 없음(무버 배선 실패) → 주행범위 미설정";
             if (zone != null)

@@ -181,8 +181,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             if (f.sqrMagnitude > 1e-4f) mgo.transform.rotation = Quaternion.LookRotation(f.normalized, Vector3.up);
             EditorUtility.SetDirty(mgo.transform);
             UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(mgo.scene);
-            // 적용과 동시에 저장한다 — Unity는 저장 전까지 디스크에 안 써서, 저장 안 하면 빌드에도 안 들어간다.
-            //   메뉴를 누른 것 자체가 '이 상태를 원한다'는 의사표시라 여기서 저장까지 끝낸다.
+            // 적용과 동시에 저장 — 저장 안 하면 빌드에 안 들어간다.
             UnityEditor.SceneManagement.EditorSceneManager.SaveOpenScenes();
 
             Vector3 rb = before * StsConfig.InvModelScale, ra = mgo.transform.position * StsConfig.InvModelScale;
@@ -379,9 +378,8 @@ namespace AIXRCrane.Crane.Sts.EditorTools
                        $"피치 {RailPitchM:F0}m · 총 {run * StsConfig.InvModelScale:F1}m · scale {scale:F4}");
         }
 
-        // ═══ 야드 적재 — 정밀 FBX만 사용(저폴리 안 씀), 대수가 그대로 렌더 예산이다 ═══
-        //   정밀 FBX 규약(항구 부재와 반대): 루트가 자체 스케일을 가져 localScale은 안 건드림, 길이=Z축(회전 없음), 피봇=중앙 높이(y=높이/2).
-        //   LOD1(원저자 export)과 정밀본(LOD0)을 LODGroup으로 묶어 근접 디테일과 성능을 함께 잡는다.
+        // ═══ 야드 적재 — 정밀 FBX(LOD0)+LOD1을 LODGroup으로, 대수가 곧 렌더 예산 ═══
+        //   규약(항구 부재와 반대): 루트 자체 스케일 유지, 길이=Z축, 피봇=중앙 높이(y=높이/2).
         const string YardFbx40 = "Assets/Container/Models/Container_40ft.fbx";
         const string YardFbx20 = "Assets/Container/Models/Container_20ft.fbx";
         const string YardLod40 = "Assets/Container/Models/LOD1/Container_40ft_LOD1.fbx";
@@ -496,8 +494,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
                        $"40ft {len40*inv:F2}L × {wid40*inv:F2}W × {h40*inv:F2}H m · 20ft {len20*inv:F2}L m · 1단");
         }
 
-        /// <summary>컨테이너 하나를 놓는다 — 실측해서 ISO 높이에 맞춘다.
-        /// localScale을 1로 리셋하면 안 된다 — 정밀본/LOD1 둘 다 이미 스케일이 있어 리셋하면 24배/1÷24배로 튄다(반드시 곱한다).</summary>
+        /// <summary>컨테이너 하나를 LOD0/LOD1 LODGroup으로 놓는다 — 높이는 Fit이 ISO에 맞춘다.</summary>
         static void Put(GameObject hi, GameObject lo, Transform parent, string name,
                         float x, float y, float z)
         {
@@ -580,9 +577,8 @@ namespace AIXRCrane.Crane.Sts.EditorTools
                        $"(레일과 동일) · 레일 사이는 비움 · scale {scale:F4}");
         }
 
-        /// <summary>야드 — 포장 1장 + 블록 마킹 4개(항상 같이 감). 포장은 에이프런 끝에서 케이슨과 정확히 맞댄다
-        /// (겹치면 y=0 걷는 면에서 Z-fighting). 블록 마킹 이름은 반드시 YardBlock_Zone — RtgCraneCreator가 이 bounds로
-        /// RTG 위치·갠트리 범위를 잡는 SSOT다.</summary>
+        /// <summary>야드 — 포장 1장 + 블록 마킹. 포장은 케이슨과 정확히 맞댄다(겹치면 Z-fighting).
+        /// ★ 블록 이름은 반드시 YardBlock_Zone — RtgCraneCreator가 이 bounds로 RTG 위치·갠트리 범위를 잡는 SSOT.</summary>
         [MenuItem("Model/FBX/항구/야드 배치 (Yard)", false, 5)]
         static void PlaceYard()
         {

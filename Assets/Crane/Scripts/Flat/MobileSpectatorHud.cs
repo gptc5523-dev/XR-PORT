@@ -10,12 +10,8 @@ using AIXRCrane.Ship;
 
 namespace AIXRCrane.Crane.Flat
 {
-    /// <summary>모바일 관전 화면(안경·폰) — 오너 2026-09-18 "VR 이랑 모바일이랑 화면이 다르게".
-    ///   Beam Pro '공간 마우스'(커서 하나 + 누르기)로 쓰는 전제라 버튼은 크게, 조작 안내는 없다.
-    ///   위: 접속 상태 · 크레인 이름 / 시점 버튼 [STS][RTG1][RTG2][배] · 아래: 고른 크레인의 축·화물 한 줄.
-    ///   ★ 모바일은 **무조건 참가자(관전)** 다 — 오너 2026-09-18 "모바일로 접속하면 참가자로 고정". 호스트는 절대 안 잡고,
-    ///     접속 버튼도 없다. 세션 밖이면 스스로 호스트에 붙고, 못 붙으면 잠시 뒤 다시 붙는다.
-    ///   작은 IMGUI 접속 창(NetLanUI)은 컴포넌트만 끈다 — BeginClient 는 꺼져 있어도 그대로 부를 수 있다.</summary>
+    /// <summary>모바일 관전 화면(안경·폰) — Beam Pro 공간 마우스 전제라 버튼은 크게. 위: 상태·시점 버튼, 아래: 고른 크레인 축·화물.
+    /// ★ 모바일은 무조건 참가자(관전) — 호스트·접속 버튼 없음, 세션 밖이면 스스로 호스트에 붙는다. NetLanUI는 컴포넌트만 끈다.</summary>
     [AddComponentMenu("AI-XR Crane/Flat Mode/Mobile Spectator HUD")]
     [DisallowMultipleComponent]
     public sealed class MobileSpectatorHud : MonoBehaviour
@@ -64,8 +60,8 @@ namespace AIXRCrane.Crane.Flat
                 $"imguiHidden={(net == null || !net.enabled)} crane={(selected != null ? selected.name : "null")}");
         }
 
-        // 씬에 EventSystem 이 없다(VR 은 XRI 가 따로 다룬다) — 없으면 버튼이 클릭을 못 받는다.
-        //   런타임 AddComponent 는 Reset 이 안 불려 기본 액션이 비므로 AssignDefaultActions 를 직접 부른다.
+        // EventSystem이 없으면 버튼이 클릭을 못 받는다(VR은 XRI가 다룸). 런타임 AddComponent는 Reset이 안 불려
+        //   AssignDefaultActions를 직접 부른다.
         static void EnsureEventSystem()
         {
             if (EventSystem.current != null) return;
@@ -137,7 +133,7 @@ namespace AIXRCrane.Crane.Flat
             return AddText(go.transform, TextAnchor.MiddleCenter);
         }
 
-        // 앵커 모서리에 붙이고 pivot 도 같은 모서리로 — pos 는 그 모서리에서 안쪽으로의 거리(참조 해상도 px).
+        // 앵커 모서리에 붙이고 pivot도 같은 모서리 — pos는 그 모서리에서 안쪽 거리(참조 해상도 px).
         static void Place(RectTransform rt, Vector2 anchor, Vector2 pos, Vector2 size)
         {
             rt.anchorMin = rt.anchorMax = rt.pivot = anchor;
@@ -159,7 +155,7 @@ namespace AIXRCrane.Crane.Flat
             t.alignment = align;
             t.supportRichText = true;
             t.raycastTarget = false;
-            // 넘치면 칸 밖으로 흘리지 않고 줄인다 — PC HUD 에서 안내 글이 패널 밖으로 새던 것과 같은 일을 막는다.
+            // 넘치면 칸 밖으로 흘리지 않고 줄인다.
             t.resizeTextForBestFit = true;
             t.resizeTextMinSize = Mathf.Max(12, fontSize / 2);
             t.resizeTextMaxSize = fontSize;
@@ -178,9 +174,7 @@ namespace AIXRCrane.Crane.Flat
             nextRefresh = 0f;   // 바로 다시 그린다
         }
 
-        // 지금 서 있는 쪽에서 대상을 내려다보는 자리 — 좌표를 적지 않고 대상 크기에서 거리를 낸다.
-        //   대상 위에 서 있어 방향이 안 나오면 육지(−X, 안벽 가장자리가 X0) 쪽에서 본다.
-        //   부두 밖으로 나가는 자리는 CranePlayerStartPlacer 가 안벽 안으로 끌어온다.
+        // 지금 쪽에서 대상을 내려다보는 자리 — 대상 크기에서 거리를 낸다. 방향이 안 나오면 육지(−X) 쪽에서 본다.
         Vector3 ViewEye(Bounds b)
         {
             Vector3 dir = rig.Cam.transform.position - b.center; dir.y = 0f;
@@ -201,11 +195,8 @@ namespace AIXRCrane.Crane.Flat
             return any;
         }
 
-        // 세션 밖이면 호스트에 참가자로 붙는다 — 호스트 시작은 어디에도 없다(참가자 고정).
-        //   ★ 호스트 비콘(LanDiscovery, 1초마다)이 방금 왔을 때만 붙는다. 호스트가 없는데 붙으면 Netcode 가
-        //     "Failed to connect to server." 를 빨간 오류로 찍고, 재시도마다 쌓였다(2026-09-18 오너 "오류 있는데").
-        //     IP 도 비콘이 알려 준 것만 쓴다 — 같은 서버 안의 호스트도 비콘으로 찾는다(VR 관전자가 이미 그렇게 붙는다).
-        //   붙었다 끊기면 NGO 가 클라이언트를 내리고(IsClient=false), 다음 비콘에 다시 붙는다.
+        // 세션 밖이면 참가자로 붙는다(호스트 시작 없음). ★ 호스트 비콘이 방금 왔을 때만, 비콘 IP로만 붙는다 —
+        //   호스트 없이 붙으면 Netcode가 재시도마다 오류를 쌓았다. 끊기면 다음 비콘에 다시 붙는다.
         void EnsureParticipant()
         {
             var nm = NetworkManager.Singleton;

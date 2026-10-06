@@ -31,7 +31,7 @@ namespace AIXRCrane.Crane.Sts
         const float Half40 = 11.985f * 0.5f;   // 5.9925 (기준자세)
         const float Half45 = 13.716f * 0.5f;   // 6.858
         // Blender 40ft 기준자세에서 두 TeleBeam 의 축방향 간격(m) — 실측 loc.y ±2.893 → 5.786.
-        // (측정 간격[Unity]) / 5.786 = 임포트 스케일 k. 옛값 5.80 은 반올림이라 k 에 0.24% 오차가 났다.
+        // (측정 간격[Unity]) / 5.786 = 임포트 스케일 k. 반올림값(5.80) 쓰면 k 오차.
         const float SpanBlender40 = 5.786f;
 
         float cur;   // 현재 F빔의 축방향 변위(Unity 로컬단위). 40ft=0, +=신장 / −=후퇴.

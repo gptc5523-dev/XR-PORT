@@ -2,8 +2,8 @@ using UnityEngine;
 
 namespace AIXRCrane.Crane.Sts
 {
-    /// <summary>흔들림 물리 — 스프레더-부모 사이에 노드(<see cref="NodeName"/>)를 끼워 그 노드만 수평 이동시킨다.
-    /// 스프레더 아래 전부가 같이 흔들린다. 식은 <see cref="SwayDynamics"/>, 입력은 실척 SI. 바람은 기상 관례(불어오는 방위) — 270°(서풍)는 +X로 분다.</summary>
+    /// <summary>흔들림 물리 — 스프레더-부모 사이 노드(<see cref="NodeName"/>)만 수평 이동. 식은 <see cref="SwayDynamics"/>(실척 SI).
+    /// 바람 방위는 기상 관례(불어오는 쪽) — 270°(서풍)는 +X로 분다.</summary>
     [DefaultExecutionOrder(40)]   // 축 무버(PlcBridge −100 · VR 0) 뒤 · SpreaderGrabber 통과방지(50) 앞
     [DisallowMultipleComponent]
     public sealed class CraneSway : MonoBehaviour
@@ -117,7 +117,7 @@ namespace AIXRCrane.Crane.Sts
 
             double Lc = System.Math.Max(L, SwayDynamics.MinRopeM);
             Offset = new Vector3((float)(Lc * thX), 0f, (float)(Lc * thZ)) * StsConfig.ModelScale;
-            // 진폭은 평형점 기준 — θ̈ = 0, θ̇ = 0 이면 θ_eq = (F/m − a)/g. 바람의 정적 편향은 흔들림이 아니라서 뺀다.
+            // 진폭은 평형점 θ_eq = (F/m − a)/g 기준 — 바람의 정적 편향은 흔들림이 아니다.
             double eqX = (fx0 / mass - a.x) / SwayDynamics.G, eqZ = (fz0 / mass - a.z) / SwayDynamics.G;
             double ax = SwayDynamics.Amplitude(thX - eqX, omX, L), az = SwayDynamics.Amplitude(thZ - eqZ, omZ, L);
             AmplitudeM = (float)System.Math.Sqrt(ax * ax + az * az);

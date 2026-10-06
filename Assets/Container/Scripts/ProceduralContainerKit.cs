@@ -4,8 +4,8 @@ using Procedural;   // 공유 MeshBuilder
 
 namespace AIXRCrane
 {
-    /// <summary>분해형(파트 분리) 20ft 컨테이너 생성기 — 각 부품을 독립 GameObject로 쪼갠다(기존 단일메시 Build()와 별개).
-    /// 좌표·치수 상수와 형상 헬퍼는 메인 파셜과 100% 공유해 동일 형상으로 조립된다. 기존 Build() 경로는 안 건드림.</summary>
+    /// <summary>분해형(파트 분리) 20ft 컨테이너 생성기 — 부품마다 독립 GameObject(단일메시 Build()와 별개).
+    /// 좌표·치수 상수와 형상 헬퍼는 메인 파셜과 공유해 동일 형상으로 조립된다.</summary>
     public static partial class ProceduralContainerMesh
     {
         /// <summary>분해 파트에 부위별로 입힐 머티리얼(메인 프리팹과 동일 4종).</summary>
@@ -34,14 +34,8 @@ namespace AIXRCrane
             finally { Length = savedL; Width = savedW; Height = savedH; }
         }
 
-        /// <summary>부품 분리 컨테이너 계층 생성. 반환 = 루트 GameObject.
-        /// 계층: 루트/[Castings·Frame·Body·Doors] 그룹/개별 파트(약 44개), 각 파트는 AABB 중심으로 피봇 이동.</summary>
-        /// <param name="mats">부위별 머티리얼</param>
-        /// <param name="rootName">루트 이름</param>
-        /// <param name="scale">출력 스케일(기본 1/24 미니어처)</param>
-        /// <param name="centerPivot">true면 컨테이너 중심, false면 바닥면 기준(기본; 바닥에 앉음)</param>
-        /// <param name="xIsLength">true면 도어=+X(기존 좌표계와 동일)</param>
-        /// <param name="addColliders">파트마다 BoxCollider 부착(선택/물리 대비)</param>
+        /// <summary>부품 분리 컨테이너 계층 생성 → 루트. 루트/[Castings·Frame·Body·Doors]/파트(약 44개, AABB 중심 피봇).
+        /// scale 기본 1/24, centerPivot=false 면 바닥면 기준, xIsLength=true 면 도어=+X, addColliders=파트별 BoxCollider.</summary>
         public static GameObject BuildKit(
             KitMaterials mats,
             string rootName = "Container_20ft_Kit",
@@ -112,8 +106,8 @@ namespace AIXRCrane
             float railZSpan   = Length - CornerCastD * 2f;
             float endRailXSpan= Width  - CornerCastW * 2f;
 
-            // 지게차 포켓(fork pocket) 개구 — 사이드 레일 관통. 언더프레임 포켓 하우징과 Z위치·개구폭을 일치시킨다.
-            //   높이=RailH 전관통, X 전관통. 20ft급(길이<9m)에만 적용, 레일이 포켓에서 3분할된다.
+            // 지게차 포켓 개구 — 사이드 레일 관통, 언더프레임 포켓 하우징과 Z위치·개구폭 일치.
+            // 20ft급(길이<9m)에만, 레일이 포켓에서 3분할된다.
             bool hasForkPockets = Length < 9.0f;      // ForkPlateT는 클래스 상수(공유)
             float pocketZc  = ForkPocketZ;             // 기존 상수 재사용(=1.0)
             float pocketOpenW = ForkPocketWidth;       // 기존 상수 재사용(=0.32)
@@ -157,8 +151,8 @@ namespace AIXRCrane
             {
                 float cxInner = hx - CornerPostW * 0.5f;       // 사이드 레일 중심 X
                 float tunXSpan = cxInner * 2f + CornerPostW;   // 레일 바깥면~바깥면 전관통
-                // 개구는 바닥 사이드 레일 세그먼트(Rail_BotSide_*)와 동일 높이로 정렬 → 턱 없음.
-                //   더 깊은 보강은 언더프레임 ForkPocketDepth 하우징이 별도 표현(아래로 매달림).
+                // 개구는 바닥 사이드 레일(Rail_BotSide_*)과 같은 높이 → 턱 없음.
+                // 더 깊은 보강은 언더프레임 ForkPocketDepth 하우징이 따로 표현.
                 float pocketTopY = bottomRailY + RailH * 0.5f;            // 레일 상단 = 0.1135
                 float pocketBotY = bottomRailY - RailH * 0.5f;            // 레일 하단 = 0.0215
                 float pocketH    = pocketTopY - pocketBotY;              // = RailH(0.092)

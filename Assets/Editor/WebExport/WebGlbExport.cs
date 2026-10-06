@@ -11,8 +11,7 @@ public static class WebGlbExport
     const string RtgFbxPath = "Assets/Crane/Models/RTG_Crane.fbx";
     const string OutRelPath = "_incoming/port-vr/rtg-crane.glb"; // 프로젝트 루트 기준(Assets 밖)
 
-    // 실척 게이트 — 근거: 전고 ≈25.0m(호이스트 드럼 상단 z24.455 + 플랜지, 동적데이터 문서),
-    // 최대폭 ≈27.25m(스팬 23.6 + 다리 + 케이블릴 헤드 x13.13, 실물 레퍼런스·실측 교차)
+    // 실척 게이트 — 전고 ≈25.0m(호이스트 드럼 상단 + 플랜지), 최대폭 ≈27.25m(스팬 23.6 + 다리 + 케이블릴, 실측 교차).
     const float MinHeight = 23.5f, MaxHeight = 26.5f;
     const float MinWidth = 26f, MaxWidth = 29f;
 
@@ -60,8 +59,7 @@ public static class WebGlbExport
                 return bb;
             }
 
-            // 업축 후보: 프리팹 기본 회전 → Z-up 보정(±90°X). 게이트 통과하는 첫 후보 채택.
-            //   FBX 원본이 Z-up이라 identity로 세우면 눕는다(실측 27.25 x 12.43 x 25.04).
+            // 업축 후보: 프리팹 기본 회전 → Z-up 보정(±90°X), 게이트 통과하는 첫 후보 채택(FBX 원본이 Z-up).
             var candidates = new (string label, Quaternion rot)[]
             {
                 ("프리팹 기본", prefab.transform.rotation),

@@ -3,8 +3,8 @@ using System.Globalization;
 
 namespace AIXRCrane.Crane.Sts.Plc
 {
-    /// <summary>CSV(DB100 태그 시계열)를 <see cref="PlcSnapshot"/>로 재생하는 PLC 소스. 순수 C#(UnityEngine 비의존),
-    /// 파일 로드는 PlcBridge 담당. 가속도는 채우지 않는다 — CraneOpMode가 위치 미분으로 산출한다.</summary>
+    /// <summary>CSV(DB100 태그 시계열)를 <see cref="PlcSnapshot"/>로 재생하는 PLC 소스. 순수 C#, 파일 로드는 PlcBridge.
+    /// 가속도는 CraneOpMode 가 위치 미분으로 산출.</summary>
     public sealed class CsvReplaySource : IPlcSource
     {
         readonly PlcSnapshot[] _frames;
@@ -22,7 +22,7 @@ namespace AIXRCrane.Crane.Sts.Plc
         /// <summary>재생 위치(초). 되감기면 줄어든다.</summary>
         public float PlayheadS => _t;
 
-        /// <summary>t 초 시점의 프레임(그 이하 마지막 행). 작업 이력 시각(t_ms)으로 그 순간의 PLC 자세를 찾는다.</summary>
+        /// <summary>t 초 시점의 프레임(그 이하 마지막 행).</summary>
         public PlcSnapshot FrameAt(float t)
         {
             int i = System.Array.BinarySearch(_times, t);
@@ -30,8 +30,7 @@ namespace AIXRCrane.Crane.Sts.Plc
             return _frames[i < 0 ? 0 : (i >= _frames.Length ? _frames.Length - 1 : i)];
         }
 
-        /// <summary>헤더에 없어 0으로 처리된 컬럼명(벤더 태그명 변경 등 침묵 실패 가시화용).
-        /// PlcBridge가 경고 로그로 쓴다. 헤더가 정상이면 비어 있음.</summary>
+        /// <summary>헤더에 없어 0으로 처리된 컬럼명(침묵 실패 가시화, PlcBridge 가 경고).</summary>
         public readonly List<string> MissingColumns = new List<string>();
 
         public CsvReplaySource(string csvText)
@@ -54,8 +53,7 @@ namespace AIXRCrane.Crane.Sts.Plc
             while (_idx < _frames.Length - 1 && _times[_idx + 1] <= _t) _idx++;
         }
 
-        // H5: 위치를 프레임 간 선형보간(FOH)으로 연속화 → ZOH 계단형 미분이 만들던 인공 가속 스파이크 제거.
-        //     이산 필드(bool/enum/알람코드)는 floor 프레임 값을 유지.
+        // H5: 연속량은 프레임 간 선형보간(FOH) — ZOH 계단 미분의 인공 가속 스파이크 제거. 이산 필드는 floor 프레임.
         public bool TryRead(out PlcSnapshot snap)
         {
             if (!IsConnected) { snap = default; return false; }
@@ -69,7 +67,7 @@ namespace AIXRCrane.Crane.Sts.Plc
             return true;
         }
 
-        // 연속량(위치/속도/하중/가속ground-truth/풍속)만 선형보간. 나머지(상태비트·모드·알람)는 a(floor) 유지.
+        // 연속량만 선형보간, 상태비트·모드·알람은 a(floor) 유지.
         internal static PlcSnapshot LerpFrame(PlcSnapshot a, PlcSnapshot b, float f)
         {
             var s = a;
@@ -87,7 +85,7 @@ namespace AIXRCrane.Crane.Sts.Plc
             return s;
         }
 
-        // CSV 파싱 (헤더 이름 기반 — 컬럼 순서 변동에 견고). ServerPlcSource 도 이 파서를 쓴다 — 서버가 같은 헤더로 돌려준다.
+        // CSV 파싱(헤더 이름 기반). ServerPlcSource 도 공용.
         internal static void ParseCsv(string text, out PlcSnapshot[] frames, out float[] times, List<string> missingCols)
         {
             frames = new PlcSnapshot[0]; times = new float[0];

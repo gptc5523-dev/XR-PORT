@@ -212,8 +212,7 @@ namespace AIXRCrane.Crane.Sts
         public static void FaceCameraAbove(Transform canvas, Transform anchor, float worldHeight, Camera cam)
         {
             if (canvas == null || anchor == null || cam == null) return;
-            // 리그가 1/24로 축소되면 anchor(손)도 축소되므로, 띄울 높이도 같은 비율로 줄여 손 위 같은 상대위치 유지.
-            //   (스케일 1이면 lossyScale=1이라 기존과 동일 — 하위호환.) 캔버스 크기는 부모(축소된 손) 상속으로 자동 비례.
+            // 리그가 1/24로 축소되면 띄울 높이도 같은 비율로 줄인다(캔버스 크기는 부모 상속으로 자동 비례).
             float s = anchor.lossyScale.y;
             canvas.position = anchor.position + Vector3.up * (worldHeight * s);
             Vector3 dir = canvas.position - cam.transform.position;
@@ -284,8 +283,7 @@ namespace AIXRCrane.Crane.Sts
 
         static StsCraneVRController _vrController;
         static float _nextVrFind;
-        /// <summary>StsCraneVRController 공용 캐시 탐색 — 못 찾으면 0.5s마다만 재시도. 여러 HUD가 controller null일 때
-        ///   각자 매 프레임 FindAnyObjectByType 풀 씬 스캔하던 비용을 한 곳으로 모은다(찾으면 즉시 캐시 반환).</summary>
+        /// <summary>StsCraneVRController 공용 캐시 탐색 — 못 찾으면 0.5s마다만 재시도(HUD별 풀 씬 스캔 방지).</summary>
         public static StsCraneVRController FindVrController()
         {
             if (StsCraneVRController.Active != null) return StsCraneVRController.Active;   // 크레인이 여러 대면 조종기를 받는 한 대

@@ -88,7 +88,7 @@ namespace AIXRCrane.Ship
                 float cy = dY + coamH * 0.5f - 0.075f;            // 갑판에 0.15 박힘
                 float ch = coamH + 0.15f;
 
-                // 코밍 림(4벽) — 솔리드 박스 폐기, 실제 코밍처럼 테두리만
+                // 코밍 림(4벽) — 실제 코밍처럼 테두리만
                 Box(mb, 0, new Vector3(0f, cy, zc + coamLen * 0.5f), new Vector3(halfW * 2f + wall, ch, wall)); // 앞
                 Box(mb, 0, new Vector3(0f, cy, zc - coamLen * 0.5f), new Vector3(halfW * 2f + wall, ch, wall)); // 뒤
                 Box(mb, 0, new Vector3( halfW + wall * 0.5f, cy, zc), new Vector3(wall, ch, coamLen));           // 우
@@ -113,7 +113,7 @@ namespace AIXRCrane.Ship
         public const int CargoPalette = 8;
         public const float CargoTierH = 2.591f;   // 컨테이너 적층 피치(Std, 실척 m)
 
-        // 갑판 컨테이너 슬롯 — xyz=컨테이너 중심(실척 m), w=색 인덱스(0~7).
+        // 갑판 컨테이너 슬롯 — 컨테이너 중심(실척 m).
         // 레이아웃은 BuildHatches와 동일 산출 → 커버 위에 정확히 안착. 적재용 메뉴가 이 좌표에 그랩 컨테이너를 배치.
         public static List<Vector4> CargoSlots()
         {

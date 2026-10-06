@@ -4,8 +4,8 @@ using UnityEngine.InputSystem;
 
 namespace AIXRCrane.Crane.Flat
 {
-    /// <summary>평면 모드 플레이어 리그 — VR XR Origin 대신(게임패드 이동·시선, 키보드 폴백). 리그가 1/24로 축소되므로
-    /// 미터값은 실척 그대로 로컬에 넣고 속도엔 lossyScale(리그 스케일)을 곱한다 — 상수로 박으면 축소 온/오프에 따라 어긋난다.</summary>
+    /// <summary>평면 모드 플레이어 리그(XR Origin 대신, 게임패드·키보드 폴백). 리그가 1/24로 축소되므로 미터값은 실척 그대로
+    /// 로컬에 넣고 속도엔 lossyScale 을 곱한다 — 상수로 박으면 축소 온/오프에 따라 어긋난다.</summary>
     [AddComponentMenu("AI-XR Crane/Flat Mode/Flat Player Rig")]
     [DisallowMultipleComponent]
     public sealed class FlatPlayerRig : MonoBehaviour
@@ -46,8 +46,7 @@ namespace AIXRCrane.Crane.Flat
         float yaw, pitch;
         float appliedYaw = float.NaN;   // 내가 마지막으로 적용한 yaw — 외부(StartPlacer)가 돌렸는지 판별용
 
-        /// <summary>평면 모드 카메라. 부트스트랩·HUD·크레인 컨트롤러가 참조.
-        /// (프로퍼티명을 타입명 Camera 와 겹치지 않게 Cam 으로 둔다 — 제네릭/타입 문맥에서의 혼동 방지.)</summary>
+        /// <summary>평면 모드 카메라. 부트스트랩·HUD·크레인 컨트롤러가 참조(타입명 Camera 와 겹치지 않게 Cam).</summary>
         public Camera Cam => cam;
 
         /// <summary>true면 수평/수직 이동 입력을 무시한다(운전실 시점 등에서 위치를 남이 잡을 때).</summary>
@@ -64,8 +63,8 @@ namespace AIXRCrane.Crane.Flat
 
         void Awake()
         {
-            // 카메라를 자식으로 — 루트(this)는 CranePlayerStartPlacer·CranePlayerRigScale 이 잡는 '리그'가 된다.
-            //   (그쪽은 Camera.main.transform.root 로 리그를 찾는다 → 카메라가 반드시 이 오브젝트의 자식이어야 함)
+            // 카메라를 자식으로 — 루트(this)가 '리그'. ★ StartPlacer·RigScale 이 Camera.main.transform.root 로
+            //   리그를 찾으므로 카메라는 반드시 이 오브젝트의 자식이어야 한다.
             var camGo = new GameObject("FlatCamera") { tag = "MainCamera" };
             camGo.transform.SetParent(transform, worldPositionStays: false);
             camGo.transform.localPosition = new Vector3(0f, eyeHeightMeters, 0f);   // 실척 m — 리그 축소로 월드에선 1/24
@@ -107,7 +106,7 @@ namespace AIXRCrane.Crane.Flat
 
             if (MovementLocked) return;
 
-            // 공간 마우스 비행 — 바닥 아래·부두 밖으로 나가는 건 CranePlayerStartPlacer 가 이미 잡아 준다(여기서 또 막지 않는다).
+            // 공간 마우스 비행 — 바닥 아래·부두 밖 클램프는 CranePlayerStartPlacer 담당.
             if (flyDir != Vector3.zero) transform.position += flyDir * (flySpeedMps * s * dt);
 
             // ── 이동: 카메라 yaw 기준 전후좌우 + 수직 ───────────────────────────────────

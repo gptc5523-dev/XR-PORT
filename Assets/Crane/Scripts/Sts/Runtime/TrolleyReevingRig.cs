@@ -3,14 +3,14 @@ using UnityEngine;
 
 namespace AIXRCrane.Crane.Sts
 {
-    /// <summary>트롤리 추종 리빙(reeving) 케이블 — 트롤리↔시브 구간과 시브 감김을 매 프레임 다시 그려 꺾임 없이 따라가게 한다.
-    /// 한 가닥 = 트롤리 앵커 A →(접선)→ 시브 접점 Tt →(호)→ 고정 탈출점 Te. 좌표는 모두 boom 로컬, 단일 z평면.</summary>
+    /// <summary>트롤리 추종 리빙 케이블 — 트롤리↔시브 구간과 감김을 매 프레임 다시 그린다.
+    /// 한 가닥 = 앵커 A →(접선)→ 시브 접점 Tt →(호)→ 탈출점 Te. 좌표는 boom 로컬, 단일 z평면.</summary>
     [AddComponentMenu("AI-XR Crane/STS Crane/Trolley Reeving Rig")]
     [DisallowMultipleComponent]
     [ExecuteAlways]
     public sealed class TrolleyReevingRig : MonoBehaviour
     {
-        // ※ [SerializeField] 필수 — Play 진입(도메인 리로드) 시 Configure 참조가 직렬화 안 되면 null로 리셋된다.
+        // ★ [SerializeField] 필수 — 아니면 도메인 리로드 때 Configure 참조가 null로 리셋된다.
         [SerializeField] Transform trolley;
         [SerializeField] Vector3[] trolleyLocal;   // fall별 트롤리 앵커(트롤리 원점 기준 boom-로컬 오프셋)
         [SerializeField] Vector3[] sheaveCenter;   // fall별 시브 중심(boom-로컬, 고정 폴백)
@@ -51,8 +51,7 @@ namespace AIXRCrane.Crane.Sts
         void LateUpdate() => Apply();
 
 #if UNITY_EDITOR
-        // ExecuteAlways의 LateUpdate는 '정적 씬'에선 매 프레임 안 돌 수 있어, Scene 리페인트마다 호출되는
-        //   OnRenderObject로 보완(Play 중엔 LateUpdate가 담당) — 에디터에서 트롤리를 옮겨도 로프가 따라온다.
+        // 에디트 모드 정적 씬에선 LateUpdate가 안 돌 수 있어 OnRenderObject로 보완(Play 중엔 LateUpdate).
         void OnRenderObject() { if (!Application.isPlaying) Apply(); }
 #endif
 
@@ -72,10 +71,10 @@ namespace AIXRCrane.Crane.Sts
             for (int f = 0; f < falls; f++)
             {
                 Vector3 A = tLocal + trolleyLocal[f];
-                // [러핑] 시브 실제 Transform 있으면 그 월드좌표를 boom-로컬로 변환(붐 기립 추종) — 없으면 고정 폴백.
+                // [러핑] 시브 Transform 있으면 boom-로컬로 변환(붐 기립 추종), 없으면 고정 폴백.
                 bool luffed = sheaveXform != null && f < sheaveXform.Length && sheaveXform[f] != null && boomT != null;
                 Vector3 C = luffed ? boomT.InverseTransformPoint(sheaveXform[f].position) : sheaveCenter[f];
-                // [러핑] 시브가 붐과 함께 θ만큼 돌므로 boom-로컬 탈출각도 degD+θ — 스윕된 RiseRail과 맞아야 한다.
+                // [러핑] 시브가 붐과 θ만큼 돌므로 탈출각도 degD+θ(RiseRail과 일치).
                 float luffTheta = 0f;
                 if (luffed)
                 {
@@ -93,7 +92,7 @@ namespace AIXRCrane.Crane.Sts
                 float degT = baseAng + tangentSign[f] * off;
                 Vector3 Tt = OnCircle(C, r, degT);
 
-                // ── 감김 호: degT → (exitDeg+θ)를 wrapSign 방향으로. degT는 트롤리 추종, 탈출각은 붐 기립 추종 → 양끝 연속.
+                // ── 감김 호: degT → (exitDeg+θ)를 wrapSign 방향으로 — 양끝 연속.
                 float exitAng = exitDeg[f] + luffTheta;
                 float sweep = Mathf.Repeat(exitAng - degT, 360f);   // [0,360)
                 if (wrapSign[f] < 0f) sweep -= 360f;                   // CW면 (-360,0]

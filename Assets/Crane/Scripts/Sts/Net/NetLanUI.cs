@@ -7,8 +7,8 @@ using UnityEngine;
 
 namespace AIXRCrane.Crane.Sts.Net
 {
-    /// <summary>같은 와이파이(LAN) 멀티플레이 접속 UI(IMGUI) — 호스트는 "호스트 시작"으로 자기 IP 표시, 관전자는 IP 입력 후 "참가"(LanDiscovery가 있으면 자동 채움).
-    /// 최대 인원 maxPlayers(기본 5, 호스트 포함) 초과는 거부.</summary>
+    /// <summary>LAN 멀티플레이 접속 UI(IMGUI) — 호스트는 자기 IP 표시, 관전자는 IP 입력 후 참가(LanDiscovery 자동 채움).
+    /// maxPlayers(호스트 포함) 초과는 거부.</summary>
     [AddComponentMenu("AI-XR Crane/Net/Net LAN UI")]
     [DisallowMultipleComponent]
     public sealed class NetLanUI : MonoBehaviour
@@ -22,7 +22,7 @@ namespace AIXRCrane.Crane.Sts.Net
         bool hostDiscovered;
         bool hostFailed;
 
-        // 승인됐지만 아직 ConnectedClientsIds에 합류 전인 클라이언트들 — 동시 접속 시 정원 초과 레이스 방지용.
+        // 승인됐지만 합류 전인 클라이언트 — 동시 접속 정원 초과 레이스 방지.
         readonly HashSet<ulong> pendingApprovals = new();
 
         // VR 시작 메뉴(CraneNetMenuHUD)가 읽는 정보/조작 진입점.
@@ -31,11 +31,9 @@ namespace AIXRCrane.Crane.Sts.Net
         public string JoinIp { get => joinIp; set { if (!string.IsNullOrEmpty(value)) joinIp = value; } }
         /// <summary>LanDiscovery가 호스트 비콘을 받아 JoinIp를 자동 설정했는지(자동 접속 트리거용).</summary>
         public bool HostDiscovered => hostDiscovered;
-        /// <summary>마지막으로 호스트 비콘을 받은 시각(unscaled 초). HostDiscovered 는 한 번 받으면 계속 true 라
-        ///   '호스트가 지금 살아 있나'는 이 값으로 본다(호스트는 1초마다 비콘을 뿌린다).</summary>
+        /// <summary>마지막 호스트 비콘 시각(unscaled 초). HostDiscovered 는 계속 true 라 생존 판정은 이 값으로(비콘 1초 주기).</summary>
         public float LastHostSeen { get; private set; } = float.NegativeInfinity;
-        /// <summary>직전 '호스트 시작'이 실패했는지 — 대개 같은 PC의 다른 인스턴스가 이미 포트를 쥐고 있는 경우.
-        /// VR 시작 메뉴(CraneNetMenuHUD)가 사용자에게 알리는 데 쓴다.</summary>
+        /// <summary>직전 '호스트 시작' 실패 여부(대개 같은 PC 다른 인스턴스가 포트 점유). CraneNetMenuHUD 가 알림.</summary>
         public bool HostFailed => hostFailed;
 
         void Awake() => localIp = GetLocalIPv4();
@@ -57,8 +55,8 @@ namespace AIXRCrane.Crane.Sts.Net
         public void BeginHost()  => StartHost();
         public void BeginClient() => StartClient();
 
-        /// <summary>세션을 끊고 시작 메뉴로 — 나가는 존(<see cref="ExitZone"/>)과 헤드셋 이탈 감시가 부른다.
-        /// 서버 프로세스는 헤드셋이 빠져도 살아있어, 안 부르면 포트(7777)를 쥔 채 남아 다음 호스트 시작이 실패한다.</summary>
+        /// <summary>세션을 끊고 시작 메뉴로(<see cref="ExitZone"/>·헤드셋 이탈 감시가 호출).
+        /// 안 부르면 서버가 포트를 쥔 채 남아 다음 호스트 시작이 실패한다.</summary>
         public void Leave()
         {
             var nm = NetworkManager.Singleton;
@@ -72,8 +70,7 @@ namespace AIXRCrane.Crane.Sts.Net
             var nm = NetworkManager.Singleton;
             if (nm == null || Transport == null) return;
 
-            // 모바일(안경·폰 관전 화면)은 호스트가 될 수 없다 — 오너 2026-09-18 "모바일은 호스트가 절대로 될 수가 없어".
-            //   호스트를 여는 길은 여기 하나뿐이라 여기서 막으면 어느 호출자든(메뉴·스모크·향후 코드) 다 걸린다.
+            // ★ 모바일(안경·폰 관전)은 호스트 불가(오너 결정). 호스트를 여는 길은 여기 하나뿐이라 여기서 막는다.
             if (AIXRCrane.Crane.Flat.FlatModeBootstrap.Mobile)
             {
                 Debug.LogWarning("[NetLanUI] 모바일은 호스트가 될 수 없습니다 — 참가자로만 접속합니다.");
@@ -85,18 +82,16 @@ namespace AIXRCrane.Crane.Sts.Net
             nm.NetworkConfig.ConnectionApproval = true;
             pendingApprovals.Clear();
             nm.ConnectionApprovalCallback = ApproveConnection;
-            // 승인했지만 아직 합류 전인 인원을 추적해 동시 접속 시 정원 초과를 막는다(중복 구독 방지로 먼저 해제).
+            // 합류 전 인원 추적(중복 구독 방지로 먼저 해제).
             nm.OnClientConnectedCallback  -= OnClientJoined; nm.OnClientConnectedCallback  += OnClientJoined;
             nm.OnClientDisconnectCallback -= OnClientLeft;   nm.OnClientDisconnectCallback += OnClientLeft;
 
             Transport.SetConnectionData("0.0.0.0", port, "0.0.0.0");   // 모든 인터페이스에서 수신
-            // 한 머신에 인스턴스를 여러 개 띄우면 먼저 뜬 쪽이 포트를 쥐어 두 번째 호스트는 반드시 실패한다.
-            //   실패 사유는 서버 로그에만 남으므로, 결과를 남겨 시작 메뉴가 사용자에게 알리고 '참가'로 안내한다.
+            // 한 머신 두 번째 호스트는 포트 점유로 실패 — 결과를 남겨 시작 메뉴가 '참가'로 안내.
             hostFailed = !nm.StartHost();
         }
 
-        // 정원 검사 — ConnectedClientsIds.Count만 보면 거의 동시 요청 둘 다 통과해 정원을 넘을 수 있다.
-        //   '승인했지만 합류 전' 인원(pendingApprovals)을 더해 비교하면 레이스에도 초과되지 않는다.
+        // 정원 검사 — 접속 수 + pendingApprovals 로 비교해야 동시 요청 레이스에도 초과 안 함.
         void ApproveConnection(NetworkManager.ConnectionApprovalRequest req,
                                NetworkManager.ConnectionApprovalResponse resp)
         {
@@ -133,8 +128,7 @@ namespace AIXRCrane.Crane.Sts.Net
                 return;
             }
 
-            // ConnectionApproval은 에디터 셋업(NetLanSetup)에서 이미 true로 구워져 호스트와 일치한다.
-            //   런타임에 토글하면 설정 해시 불일치로 거부될 위험이 있어 건드리지 않는다.
+            // ConnectionApproval 은 NetLanSetup 이 이미 true — 런타임 토글하면 설정 해시 불일치로 거부될 수 있음.
             Transport.SetConnectionData(ip, port);
             nm.StartClient();
         }
@@ -180,8 +174,7 @@ namespace AIXRCrane.Crane.Sts.Net
 
         static string GetLocalIPv4()
         {
-            // 1순위: 아웃바운드 UDP 소켓으로 실제 사용하는 LAN 인터페이스 IP를 구한다(실제 패킷은 안 나감 —
-            //   connect는 라우팅만 결정). 멀티 인터페이스인 Quest/Android에서 GetHostEntry보다 정확/신뢰적.
+            // 1순위: UDP connect(패킷 안 나감, 라우팅만)로 실제 LAN 인터페이스 IP — Quest/Android 에서 더 정확.
             try
             {
                 using var s = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);

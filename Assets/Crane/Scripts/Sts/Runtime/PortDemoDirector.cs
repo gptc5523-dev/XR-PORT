@@ -6,8 +6,8 @@ using AIXRCrane.Crane.Sts.Plc;
 
 namespace AIXRCrane.Crane.Sts
 {
-    /// <summary>시연 시나리오 총괄 — 크레인마다 <see cref="CraneDemoRunner"/> 를 붙여 PlcBridge 대신 자동으로 컨테이너를 옮긴다.
-    /// 조종기는 가장 가까운 크레인 한 대만 켜고, 발치에 접근했거나 조종 중이면 그 크레인의 시나리오가 멈춘다(<see cref="Holds"/>).</summary>
+    /// <summary>시연 총괄 — 크레인마다 <see cref="CraneDemoRunner"/> 로 컨테이너를 자동으로 옮긴다(PlcBridge 대신).
+    /// 조종기는 가장 가까운 한 대만, 접근·조종 중이면 그 크레인 시나리오가 멈춘다(<see cref="Holds"/>).</summary>
     [DisallowMultipleComponent]
     public sealed class PortDemoDirector : MonoBehaviour
     {
@@ -55,7 +55,7 @@ namespace AIXRCrane.Crane.Sts
         public static bool Holds(StsCrane c) =>
             inst != null && inst.active != null && inst.active.crane == c && (inst.activeNear || inst.active.ctrl.ControlActive);
 
-        /// <summary>스모크용 — 띠 점이 접근 경계(Distance = approach)에서 벗어난 최대 거리(실척 m). 모서리 수식·눕힘·주행 추종이 틀리면 커진다.</summary>
+        /// <summary>스모크용 — 띠 점이 접근 경계에서 벗어난 최대 거리(실척 m).</summary>
         public static float RingMaxErrM()
         {
             if (inst == null || inst.cranes.Count == 0) return float.MaxValue;
@@ -66,9 +66,8 @@ namespace AIXRCrane.Crane.Sts
             return max / StsConfig.ModelScale;
         }
 
-        // 관전자('참가'로 접속)는 운전할 수 없다 — 미접속·싱글·스모크는 그대로 조종된다.
-        //   CraneNetSync 가 접속 순간 조종기 하나만 끄므로, 다른 크레인으로 넘어갈 때는 여기서도 다시 검사한다.
-        //   ★ 평면 조종기(FlatCraneController)도 이 판정을 쓴다 — '운전은 호스트만' 규칙의 단일 출처.
+        // 관전자는 운전 불가(미접속·싱글은 조종 가능). CraneNetSync 는 조종기 하나만 끄므로 크레인 전환 때 재검사.
+        //   ★ '운전은 호스트만' SSOT — FlatCraneController 도 이 판정을 쓴다.
         public static bool Spectator
         {
             get { var nm = Unity.Netcode.NetworkManager.Singleton; return nm != null && nm.IsClient && !nm.IsServer; }
@@ -97,7 +96,7 @@ namespace AIXRCrane.Crane.Sts
                 e.ring = Ring(e, ringMat);
                 cranes.Add(e);
             }
-            // STS 먼저, RTG 는 주행축(Z) 순 — 이 순서가 곧 컨테이너·자리 우선권이다(실행마다 같게).
+            // STS 먼저, RTG 는 Z 순 — 이 순서가 컨테이너·자리 우선권(실행마다 같게).
             cranes.Sort((a, b) => IsRtg(a.crane) != IsRtg(b.crane)
                 ? IsRtg(a.crane).CompareTo(IsRtg(b.crane))
                 : a.mover.position.z.CompareTo(b.mover.position.z));
@@ -125,7 +124,7 @@ namespace AIXRCrane.Crane.Sts
             foreach (var e in cranes) e.runner.Go();
         }
 
-        // 야드 배경 컨테이너를 잡을 수 있게 — PlcCargoReplay.MakeBox 와 같은 구성(바운즈 콜라이더 + kinematic 강체).
+        // 야드 컨테이너를 잡을 수 있게 — PlcCargoReplay.MakeBox 와 같은 구성.
         static void MakeGrabbable(Transform t, Bounds b)
         {
             if (t.GetComponentInChildren<Collider>() == null)
@@ -165,8 +164,7 @@ namespace AIXRCrane.Crane.Sts
                 float d = Distance(e, p);
                 if (d < bestD) { bestD = d; best = e; }
             }
-            // 붙잡는 건 '운전 중'(조종·갠트리 모드 또는 운전실 시점)일 때만 — 이동모드로 걷는 중엔 넘긴다.
-            //   ControlActive 만 보면 이동모드로 갈아타도 조종기가 이전 크레인에 잠겨 다른 크레인을 조종 못 한다.
+            // 운전 중(조종·갠트리 모드 또는 운전실 시점)일 때만 붙잡는다 — ControlActive 만 보면 이동모드에서도 잠긴다.
             bool locked = active != null && (active.ctrl.CabView || (active.ctrl.ControlActive && active.ctrl.CraneMode));
             if (!locked && best != active && (active == null || bestD + switchMarginMeters * StsConfig.ModelScale < Distance(active, p)))
                 Activate(best);
@@ -208,8 +206,7 @@ namespace AIXRCrane.Crane.Sts
             e.groundY = b.min.y;
         }
 
-        // 접근 범위 바닥 띠 — Distance() ≤ approach 인 영역 그대로: 바닥 투영 사각형을 반경 approach 로 부풀린 모서리 둥근 사각형.
-        //   크레인마다 외곽이 런타임에 정해져서 메시가 아니라 LineRenderer 로 그린다. 로컬 XY 평면 → 월드 XZ 로 눕힌다.
+        // 접근 띠 = 바닥 투영 사각형을 approach 로 부풀린 둥근 사각형. 외곽이 런타임에 정해져 LineRenderer 로 그린다.
         LineRenderer Ring(Entry e, Material mat)
         {
             var go = new GameObject($"ApproachRing_{e.crane.name}");

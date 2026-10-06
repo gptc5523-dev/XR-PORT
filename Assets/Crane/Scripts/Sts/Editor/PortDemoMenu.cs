@@ -19,8 +19,8 @@ namespace AIXRCrane.Crane.Sts.EditorTools
         static readonly Dictionary<string, int> placedBy = new Dictionary<string, int>();
         static int planned, stalls, ourExceptions, otherExceptions, holds, resumes;
 
-        // 접근 멈춤 시험 — ApproachAt 초(벽시계)에 플레이어 리그를 조종기 크레인 발치로 옮겨 ApproachFor 초 두었다가 되돌린다.
-        //   러너가 정격 감속으로 서고(검증 ④가 틱마다 감속을 잰다) 떠나면 이어서 돌아야 PASS — 멈춤·재개 로그를 센다.
+        // 접근 멈춤 시험 — ApproachAt 초에 리그를 조종기 크레인 발치로 옮겨 ApproachFor 초 두었다가 되돌린다.
+        //   러너가 정격 감속으로 서고 떠나면 재개해야 PASS — 멈춤·재개 로그를 센다.
         const float ApproachAt = 30f, ApproachFor = 8f;
         static bool approachStarted, approachEnded;
         static Vector3 rigHome;
@@ -152,10 +152,10 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             bool finished = planned > 0 && done >= planned && approachEnded;
             if (!finished && ourExceptions == 0 && elapsed < LimitSeconds) return;
             float ringErr = PortDemoDirector.RingMaxErrM();
-            // 자동 시나리오가 놓은 것도 칸 위인지 확인 — 수동 Release 정렬(FindSlot 라운딩)을 시나리오는 우회하므로 기계로 잰다.
-            // 씬은 전수 칸 위에서 시작하므로, 끝났을 때 칸을 벗어난 게 있으면 그건 시나리오가 그렇게 놓은 것이다.
+            // 시나리오는 수동 Release 정렬(FindSlot)을 우회하므로 칸 위인지 기계로 잰다.
+            // 씬은 전수 칸 위에서 시작 → 끝에 벗어난 건 시나리오가 놓은 것.
             float yardErr = YardCellMaxErrM(out string yardWorst);
-            //   yardErr 허용 0.2m — 행 간 틈(0.4m)의 절반. 이보다 벗어나면 틈을 먹기 시작한다 = 라인 침범(YardSnapProbe 와 같은 기준).
+            //   yardErr 허용 0.2m = 행 간 틈의 절반, 넘으면 라인 침범(YardSnapProbe 와 같은 기준).
             bool pass = finished && ourExceptions == 0 && CraneDemoRunner.Violations == 0 && holds > 0 && resumes > 0
                      && ringErr <= 0.1f && yardErr <= 0.2f;
 
@@ -165,11 +165,10 @@ namespace AIXRCrane.Crane.Sts.EditorTools
                       $"막힘 {stalls}, 접근 멈춤 {holds} · 재개 {resumes}, 시나리오 예외 {ourExceptions}, 기타 예외 {otherExceptions}, {elapsed:F0}s(×{TimeScale}) | " +
                       $"검증 실패 {CraneDemoRunner.Violations} · 집기 정렬 최대 {CraneDemoRunner.MaxPickErrM:F3}m(≤0.36) · " +
                       $"안착 오차 최대 {CraneDemoRunner.MaxSupportErrM:F3}m(≤0.02) · 속도/정격 최대 {CraneDemoRunner.MaxSpeedRatio:F3}(≤1) · " +
-                      // 상한은 CraneDemoRunner.AccelTripRatioMax = 2/TripMargin × 1.05 = 1.26(옛 라벨 1.2 는 오기).
-                      // 숫자를 다시 베끼지 않고 규칙만 적는다 — 넘을 때만 실패.
+                      // 상한 = CraneDemoRunner.AccelTripRatioMax. 숫자를 베끼지 않고 규칙만 적는다.
                       $"가속/트립 최대 {CraneDemoRunner.MaxAccelRatio:F2}(상한 2/TripMargin×1.05, 초과 시에만 실패) · " +
                       $"접근 띠 경계 오차 최대 {ringErr:F3}m(≤0.1) · " +
-                      // 자동 시나리오가 놓은 야드 컨테이너가 칸 중심에서 벗어난 최대 거리. 실패하면 어느 상자인지 이름으로 바로 좁힌다.
+                      // 시나리오가 놓은 야드 컨테이너의 칸 중심 이탈 최대 — 실패 시 상자 이름으로 좁힌다.
                       $"야드 칸 이탈 최대 {yardErr:F3}m(≤0.2) ← {yardWorst}");
             EditorApplication.update -= Tick;
             Application.logMessageReceived -= OnLog;

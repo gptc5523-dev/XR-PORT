@@ -368,8 +368,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             float[] legX = { LandLegX, WaterLegX };
             // 다리 상단 = LegTopY(공통 상수). 붐 거더 윗면에 크로스빔이 붙고, A프레임 베이스도 같은 높이로 정합.
             float legTopY = LegTopY;
-            // 다리 하단 = Leg_BasePlate 윗면(0.066 + 0.012/2 = 0.072). 다리가 베이스 위에 앉음.
-            //   (기존 0f는 다리·콜라이더가 베이스 플레이트·보기 피벗(0.05)·레일(0.008)을 뚫고 지면(0)에 박혔음)
+            // 다리 하단 = Leg_BasePlate 윗면 — 0이면 베이스·보기·레일을 뚫고 지면에 박힌다.
             float legFootY = 0.072f;
 
             foreach (float x in legX)
@@ -383,9 +382,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
                     {
                         float by = 0.05f;                          // 메인 이퀄라이저 빔 높이
                         var wheelC = new Color(0.05f, 0.05f, 0.06f);
-                        // [계산] 트레드 반경 0.013(지름 0.026), 플랜지 반경 0.01495(지름 0.0299).
-                        //   4륜 균등 피치 p=0.032 → 오프셋 {-1.5,-0.5,+0.5,+1.5}×p = {-0.048,-0.016,+0.016,+0.048}.
-                        //   트레드 지름 0.026<0.032(6mm 간극)·플랜지 지름 0.0299<0.032(2.1mm 간극) → 휠/플랜지 비간섭.
+                        // 4륜 오프셋 {-1.5,-0.5,+0.5,+1.5}×p — 트레드 지름 0.026·플랜지 지름 0.0299 < 피치 0.032라 비간섭.
                         const float p  = StsConfig.BogieEqualizerPitch;   // [H2] 보기 4륜 균등 피치 SSOT
                         float bz = StsConfig.BogieLengthZ;                // [H2] 보기 전장(Z) SSOT (= p × 3.25 ≈ 0.104, 4륜 스팬 0.096 + 마진)
                         // 메인 이퀄라이저 빔(다리 하단 중앙 피벗으로 매달림) + 피벗 핀(축 X)
@@ -622,21 +619,12 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             float mhZ = 2f * GirderGapZ + 0.08f;   // Z 폭 — 트윈 거더(±GirderGapZ)를 가로질러 얹히게 넓힘(거더 바깥으로 약간 오버행)
             float mhHZ = mhZ * 0.5f;       // Z 반폭
             float mhHX = MachineryHouseHX; // X 반폭(0.17의 절반)
-            // 밑면을 거더 윗면(gTop=0.065)에 안착 — 기존 중심0.105·높이0.11은 밑면 0.05로 거더에 15mm 침하.
-            //   윗면(0.16)·지붕은 유지하고 높이만 0.095로 줄여 밑면을 0.065로 올림(중심 0.1125).
+            // 밑면을 거더 윗면(gTop=0.065)에 안착 — 윗면 0.16 유지, 높이 0.095.
             Box(boom, StsPartNames.MachineryHouse, new Vector3(mhx, 0.1125f, 0f),
                 new Vector3(0.17f, 0.095f, mhZ), CMachine);
             Box(boom, "MH_Roof", new Vector3(mhx, 0.165f, 0f),
                 new Vector3(0.185f, 0.012f, mhZ + 0.01f), CStruct);
-            // 출입문 세트 숨김(사용자 요청) — 손잡이는 문이 없으면 떠서 함께 숨김. 복구하려면 주석 해제
-            // Box(boom, "MH_DoorFrame", new Vector3(mhx + 0.085f, 0.086f, 0f),
-            //     new Vector3(0.004f, 0.066f, 0.05f), CStruct);
-            // Box(boom, "MH_Door", new Vector3(mhx + 0.087f, 0.085f, 0f),
-            //     new Vector3(0.005f, 0.058f, 0.042f), CDark);
-            // Box(boom, "MH_DoorHandle", new Vector3(mhx + 0.0905f, 0.085f, 0.014f),
-            //     new Vector3(0.004f, 0.012f, 0.004f), CStruct);
-            // Box(boom, "MH_DoorLanding", new Vector3(mhx + 0.1f, 0.056f, 0f),
-            //     new Vector3(0.03f, 0.004f, 0.05f), CMachine);
+            // 비활성: 기계실 바다쪽 출입문 세트(사용자 요청 숨김) — git 이력 참조
             // 루버 환기 패널(양 ±Z면 육지쪽) — 프레임 + 가로 슬랫 다단, 상·하 2뱅크
             for (int s = -1; s <= 1; s += 2)
             {
@@ -852,15 +840,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
                         new Vector3(0.004f, 0.004f, 0.048f), CStruct);
             }
 
-            // 바다쪽(+X) 끝면 창 숨김(사용자 요청) — 복구하려면 주석 해제
-            // float mhEndX2 = mhx + mhHX + 0.001f;
-            // for (int s = -1; s <= 1; s += 2)
-            // {
-            //     Box(boom, "MH_EndWinFrame", new Vector3(mhEndX2, 0.114f, s * 0.078f),
-            //         new Vector3(0.005f, 0.03f, 0.03f), CDark);
-            //     Box(boom, "MH_EndWindow", new Vector3(mhEndX2 + 0.001f, 0.114f, s * 0.078f),
-            //         new Vector3(0.004f, 0.024f, 0.024f), CGlass);
-            // }
+            // 비활성: 기계실 바다쪽(+X) 끝면 창(사용자 요청 숨김) — git 이력 참조
 
             // 넓어진 지붕 양 끝(Z flank) 장비 — 콘덴서 2 + 팬그릴, 버섯 벤트 2, 케이블 트레이 횡단
             for (int s = -1; s <= 1; s += 2)
@@ -909,7 +889,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
                 {
                     float px = Mathf.Lerp(x0, x1, i / (float)posts);
                     if (InWalkwayGap(px)) continue;   // [BOOM-1] 포털/기계실 통과 구간엔 난간 기둥 생략(기계실 벽체 매립 방지)
-                    // 밑동을 트러스 상현재 캡 윗면(0.0685) 위로 올림(0.069) — 캡(y0.0615~0.0685, z0.1855~0.1925)에 3.5mm 박히던 것 해소. 윗단(railTop)·중간레일·토보드는 불변.
+                    // 밑동은 트러스 상현재 캡 윗면(0.0685) 위 — 낮추면 캡에 박힌다.
                     float postBot = 0.069f;
                     Box(boom, "Railing_Post",
                         new Vector3(px, (railTop + postBot) * 0.5f + 0.0015f, z),
@@ -1274,10 +1254,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             // 운전실(운전석) — 현실 STS대로 스프레더의 '육지쪽(−X)'에 매달려 '바다쪽(+X=배)'을 향해 전면 경사창으로 발밑 화물을 내려다본다.
             BuildOperatorCab(trolley);
 
-            // 트롤리 주행 모터 — 숨김(사용자 요청). 복구하려면 주석 해제.
-            // for (int s = -1; s <= 1; s += 2)
-            //     Rod(trolley, "Trolley_Motor", new Vector3(-0.085f, -0.062f, s * 0.075f),
-            //         new Vector3(-0.055f, -0.062f, s * 0.075f), 0.013f, CMachine);
+            // 비활성: 트롤리 주행 모터(사용자 요청 숨김) — git 이력 참조
             PbBox(trolley, "Trolley_FestoonBox", new Vector3(-0.06f, -0.06f, 0f),
                 new Vector3(0.018f, 0.025f, 0.03f), CDark);
             // 트롤리 양끝 완충 버퍼(적색) — 본체 끝면(TrolleyCX±TrolleyHX)에서 4mm 돌출.
@@ -1722,9 +1699,8 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             //   반폭 x 0.09(>0.0835), z 0.0625(>0.0585) → 각 변 ~0.005~0.007 여유.
             Box(spreader, "Spreader_Head", new Vector3(0f, hbY, 0f),
                 new Vector3(0.18f, 0.026f, 0.125f), CSpread);
-            // 헤드블록 시브/치크/핀 제거 → STS 데드엔드형 — 로프 4가닥이 시브 없이 곧장 헤드블록에 정착.
-            //   스프레더가 Y축 90° 회전이라 로프 좌표(x±HoistSprX,z±HoistSprZ)는 로컬에서 x±HoistSprZ,z±HoistSprX로 xz 스왑.
-            //   parent의 HoistX는 스프레더 transform이 부여 — 소켓 로컬엔 중복으로 넣지 않는다.
+            // STS 데드엔드형: 로프 4가닥이 시브 없이 헤드블록에 정착. 스프레더 Y 90° 회전이라 로컬은 xz 스왑.
+            //   HoistX는 스프레더 transform이 부여 — 소켓 로컬에 중복 금지.
             foreach (float rx in new[] { -HoistSprZ, HoistSprZ })
             foreach (float rz in new[] { -HoistSprX, HoistSprX })
             {
@@ -1784,10 +1760,10 @@ namespace AIXRCrane.Crane.Sts.EditorTools
                 for (int sz = -1; sz <= 1; sz += 2)
                 {
                     // 트위스트락 Z를 컨테이너 외폭/2가 아닌 ISO 코너캐스팅 '횡 중심'에 정렬.
-                    //   중심 = (컨테이너폭/2 − CornerCastD/2)/24 = 0.04742. 옛값 0.0508.
+                    //   중심 = (컨테이너폭/2 − CornerCastD/2)/24.
                     const float isoCornerHalfZ = 0.04742f;
                     // 트위스트락 X를 ISO 코너캐스팅 중심에 정렬 — arm 원점=spreaderHalf(컨테이너 끝), 코너는 안쪽.
-                    //   20ft half=0.1219(spreaderHalf−0.0041), 40ft=0.2497(spreaderHalf−0.0043). 옛값 −0.006.
+                    //   20ft·40ft 모두 spreaderHalf−≈0.0042.
                     Vector3 c = new Vector3(-sx * 0.0042f, 0f, sz * isoCornerHalfZ);
                     TwistlockHead(a, c, CMetal);
                     TwistlockCone(a, c, CMetal);
@@ -1916,7 +1892,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
         }
 
         // ── 스프레더 밑면 · 트위스트락 노출 길이(모델 단위 · 실척 = ×24) ──────────────────────────
-        //   안착 시 스프레더 밑면이 컨테이너 최상면에 얹히고, 노출 = 락(노즈+숄더) 높이만큼 아래로 나와야 한다. 옛 노출 0.001u.
+        //   안착 시 스프레더 밑면이 컨테이너 최상면에 얹히고, 노출 = 락(노즈+숄더) 높이만큼 아래로 나와야 한다.
         const float FlangeCenterY = 0.016f, FlangeThick = 0.006f;         // 하단 Beam_Flange — 중심 · 두께
         /// <summary>스프레더 본체 최하단(하단 플랜지 밑면). 안착 시 컨테이너 최상면에 닿는 면 — 삽입 깊이의 기준면.</summary>
         const float SpreaderBodyBottom = -(FlangeCenterY + FlangeThick * 0.5f);   // -0.019u
@@ -1944,9 +1920,8 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             Rod(h, "Twistlock_Body",   new Vector3(0f, 0.005f, 0f), new Vector3(0f, ConeNeckTopY, 0f), 0.001f, metal);
         }
 
-        // 트위스트락 콘(락 헤드) — 코너캐스팅 타원 구멍에 삽입돼 90° 돌아 걸리는 단조 락 헤드.
-        //   아래=좁은 유도 노즈 → 가운데=넓은 베어링 숄더(회전 시 캐스팅 밑에 걸림) → 위=샤프트로 넥킹.
-        //   장축=Z(상면 구멍 장축)에 정렬 삽입, 90° 회전 시 X로 돌아 잠긴다 — headGroup X스케일로 타원 단면 생성.
+        // 트위스트락 콘: 아래 유도 노즈 → 넓은 숄더(캐스팅에 걸림) → 넥. 장축 Z로 삽입, 90° 돌면 X로 잠김.
+        //   타원 단면은 headGroup X스케일로 만든다.
         static void TwistlockCone(Transform arm, Vector3 corner, Color metal)
         {
             var cone = new GameObject(Numbered(StsPartNames.TwistlockCone));
@@ -2310,9 +2285,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             for (int s = -1; s <= 1; s += 2)
                 BoxGappedX(boom, "Walkway_Deck", x0, x1, 0.067f, s * GirderGapZ,
                     0.004f, 0.05f, CMachine, BoomTopWalkwayGapX, BoomTopWalkwayGapHalf);
-            // 중앙 보도 숨김(사용자 요청) — 복구하려면 주석 해제
-            // Box(boom, "Walkway_Deck_Mid", new Vector3(mid, 0.067f, 0f),
-            //     new Vector3(len, 0.004f, 2f * (GirderGapZ - 0.025f)), CMachine);
+            // 비활성: 중앙 보도(사용자 요청 숨김) — git 이력 참조
 
             // 끝단 시브(도르래)는 아래 팁 플랫폼 뒤에서 트윈 시브 블록으로 한 번에 생성(겹침 제거 재배치).
 
@@ -2343,11 +2316,8 @@ namespace AIXRCrane.Crane.Sts.EditorTools
                     Box(boom, "Tip_Rail_Post", new Vector3(tpX1, (tpY0 + tpRailY) * 0.5f, pz),
                         new Vector3(0.005f, tpRailY - tpY0, 0.005f), CSafety);
             }
-            // 끝단 트윈 시브 블록(도르래) 제거(사용자 지시) — Sheave_Tip/Tip2·Sheave_Cheek·Sheave_Pin/PinCap·Sheave_Hanger(Gusset).
-            //   호이스트 로프 리그(트롤리↔스프레더 / 트롤리↔백앵커)는 이 되돌이 시브를 참조하지 않아 로프 영향 없음.
-            // 항해등 숨김(사용자 요청) — 복구하려면 주석 해제
-            // Ball(boom, "Nav_Light", new Vector3(x1 - 0.003f, 0.05f, 0f),
-            //     new Vector3(0.012f, 0.016f, 0.012f), CWarn);
+            // 끝단 트윈 시브 블록 없음(사용자 지시) — 호이스트 로프 리그는 이 시브를 참조하지 않는다.
+            // 비활성: 항해등(사용자 요청 숨김) — git 이력 참조
 
             // 하부 점검 캣워크(양옆) + 난간(상단·중간대 + 기둥)
             for (int s = -1; s <= 1; s += 2)
@@ -2479,14 +2449,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
                     Gusset(boom, new Vector3(x0 - 0.006f, bgB, s * GirderGapZ), Quaternion.Euler(0, -90, 0), 0.014f, 0.004f, CStruct);
                 }
             }
-            // 백리치 경고등 숨김(사용자 요청) — 복구하려면 주석 해제
-            // Ball(boom, "Back_Light", new Vector3(x0 + 0.004f, 0.05f, 0f),
-            //     new Vector3(0.012f, 0.016f, 0.012f), CWarn);
-            // 변압기 + 냉각 유닛 숨김(사용자 요청) — 복구하려면 주석 해제
-            // Box(boom, "Transformer", new Vector3(x0 + 0.15f, 0.085f, GirderGapZ),
-            //     new Vector3(0.05f, 0.05f, 0.04f), CMachine);
-            // Box(boom, "Cooling_Unit", new Vector3(x0 + 0.15f, 0.082f, -GirderGapZ),
-            //     new Vector3(0.05f, 0.044f, 0.04f), CDark);
+            // 비활성: 백리치 경고등·변압기·냉각 유닛(사용자 요청 숨김) — git 이력 참조
 
             // 전체 디테일 보강 (붐)
             // 전력/제어 도관(conduit) — 붐 하부 전장 양옆
@@ -2635,7 +2598,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             for (int sb = -1; sb <= 1; sb += 2)
                 Box(root, "Cage_Bar", new Vector3(LandLegX + sb * 0.025f, (cy0 + ly1) * 0.5f, (cageZ + ladderZ) * 0.5f),
                     new Vector3(0.004f, ly1 - cy0, 0.004f), CSafety);
-            // 후프 간격 실척 ~0.84m(미니어처 0.035)로 촘촘히 — 기존 7개는 실척 4.9m 간격이라 듬성
+            // 후프 간격 실척 ~0.84m(모델 0.035)
             int hoops = Mathf.Max(2, Mathf.RoundToInt((ly1 - cy0) / 0.035f));
             for (int i = 0; i <= hoops; i++)
             {
@@ -2728,7 +2691,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             float r1z = ladderZ + walkW * 0.5f;
             Box(boom, "MHAccess_Rail", new Vector3(s1x - 0.001f, deckY + railH, r1z),
                 new Vector3(s1len + 0.002f, 0.004f, 0.004f), CSafety);   // 코너A(X하한)만 +t/2
-            // i=0(x=LandLegX, 옛 MHAccess_Post_1)은 사용자 요청으로 제외 — i=1부터 생성.
+            // i=0(x=LandLegX) 기둥은 사용자 요청으로 제외.
             for (int i = 1; i <= 4; i++)
                 Box(boom, "MHAccess_Post",
                     new Vector3(Mathf.Lerp(LandLegX, mhx, i / 4f), deckY + railH * 0.5f + 0.001f, r1z),
@@ -3188,9 +3151,8 @@ namespace AIXRCrane.Crane.Sts.EditorTools
                 new Vector3(baseCenter.x, y0 + hBase + hLens + hCap, baseCenter.z), r * 0.62f, CDark);
         }
 
-        // 파이프/도관 90° 곡관 엘보 — 짧은 원통(Rod) segs개로 호를 근사 + 패싯 절점마다 관 굵기 구로 메움.
-        //   관 반경 r 일정(부풀지 않음 — 참고사진 토러스 엘보 형태). din=V로 도착하는 단위 진행방향, dout=V에서 나가는 단위 진행방향(직교 가정).
-        //   호 중심 O=V+Rb(dout-din), 접점 T1=V-din·Rb / T2=V+dout·Rb (직선 구간을 여기서 트림하면 접선 연속).
+        // 90° 곡관 엘보: Rod segs개로 호 근사 + 절점마다 구로 메움. din/dout = V 도착/출발 단위방향(직교 가정).
+        //   접점 T1=V-din·Rb, T2=V+dout·Rb — 직선 구간을 여기서 트림하면 접선 연속.
         static void PipeElbow(Transform parent, string name, Vector3 V, Vector3 din, Vector3 dout,
                               float r, float Rb, Color color, int segs = 10)
         {
@@ -3645,7 +3607,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
                         "splice_col", BoltGrid(1, 4, 0f, 0.013f), 0.0016f, 0.0026f);
                 }
                 // 상부 플랜지 가로 스플라이스(두 거더를 잇는 덮개판) + 가로 볼트열
-                // 덮개판 폭을 플랜지 바깥 가장자리(±GirderOuterZ)까지 넓힘(기존 ±GirderGapZ는 플랜지 안쪽만 덮음).
+                //   폭은 플랜지 바깥 가장자리(±GirderOuterZ)까지.
                 Box(boom, "Girder_FlangeSplice", new Vector3(sx, gTop + 0.004f, 0f),
                     new Vector3(0.016f, 0.004f, 2f * GirderOuterZ), CStruct);
                 // 볼트열이 두 거더 사이 갭(±0.1)에 떨어져 플랜지(|z|≈0.16)를 한 줄도 안 물었음

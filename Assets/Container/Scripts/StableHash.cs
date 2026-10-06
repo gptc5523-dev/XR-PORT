@@ -1,7 +1,7 @@
 namespace AIXRCrane
 {
-    /// <summary>결정적 FNV-1a 해시 단일 유틸 — 같은 입력은 항상 같은 출력. string.GetHashCode는 런타임마다 달라져 쓰지 않는다.
-    /// Hash01(s)는 무염 조기반환, Hash01(s,salt)는 salt로 채널 분리, Seed(s)는 avalanche 없는 순수 해시(System.Random 시드용).</summary>
+    /// <summary>결정적 FNV-1a 해시 유틸 — ★ string.GetHashCode 는 런타임마다 달라 금지.
+    /// Hash01(s[,salt]) 0~1(salt=채널 분리), Seed(s)는 avalanche 없는 System.Random 시드.</summary>
     public static class StableHash
     {
         /// <summary>결정적 해시 → 0~1. (string.GetHashCode는 런타임마다 달라져 재현성 깨짐 → FNV-1a + avalanche)</summary>

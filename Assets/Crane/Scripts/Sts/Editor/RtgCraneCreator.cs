@@ -215,7 +215,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
                 PbBox(b, "Bogie_AxleHousing", new Vector3(0f, TireOD * 0.5f, dz),
                     new Vector3(0.16f, 0.55f, 0.55f), CDark);
 
-            // 킹핀(조향축) — 이퀄라이저↔실빔. 옛값 1.75 → 1.95: 실빔 상승 후에도 솔리드 물림 유지
+            // 킹핀(조향축) — 이퀄라이저↔실빔 솔리드 물림
             PbCyl(b, "Bogie_Kingpin", new Vector3(0f, 1.95f, 0f), 0.35f, 0.9f, Vector3.up, CDark);
 
             // 주행 기어박스(구동륜) — 벨리 프레임 바깥면에 밀착(중앙 z틈 z±0.25, 타이어 회피). x0.375~0.925
@@ -576,11 +576,9 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             holder.SetParent(t, false);
             holder.localScale    = Vector3.one * 24f;                 // 루트 1/24 상쇄 → STS 모델단위 셸 정상크기
             holder.localRotation = Quaternion.Euler(0f, 180f, 0f);    // 전면(model +X)을 −X(중앙/화물)로
-            // 배치 산식: 홀더 회전·스케일 반영 시 본체중심 → t-local (holderX+2.3, holderY-2.65). 지붕top=holderY-1.78, 바닥=holderY-3.65.
-            //   목표: 본체중심 X≈3.15(+X 확장 베이 밑), 지붕top≈23.1(<프레임밑 23.2). ⇒ holderX=0.85, holderY=24.88.
+            // 본체중심 X≈3.15(+X 베이 밑), 지붕top≈23.1(프레임밑 23.2 아래) 되도록 역산한 홀더 위치.
             holder.localPosition = new Vector3(0.85f, 24.88f, 0f);
-            // 마운트 상단을 프레임 밑면(23.2)에 맞춘다 — post top = 24.88+24·(mountTopY+0.003).
-            //   23.224(2.4cm 임베드) 목표 ⇒ mountTopY=−0.072, 단부빔 관통 없이 솔리드 결합.
+            // mountTopY=−0.072 → 마운트 상단이 프레임 밑면(23.2)에 2.4cm 임베드(관통 없이 솔리드 결합).
             StsCraneCreator.BuildOperatorCabForReuse(holder, -0.072f);
         }
 

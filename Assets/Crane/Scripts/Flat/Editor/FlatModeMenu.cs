@@ -3,8 +3,7 @@ using UnityEngine;
 
 namespace AIXRCrane.Crane.Flat.EditorTools
 {
-    /// <summary>평면 모드(XREAL One Pro·모니터) 강제 지정 메뉴 — 기본은 자동(헤드셋 붙어 있으면 VR).
-    /// PlayerPrefs 저장이라 빌드 실행에도 적용되며, 실행 인자 -flat/-vr 이 이 값보다 우선한다.</summary>
+    /// <summary>평면/VR 모드 강제 지정 메뉴(기본 자동). PlayerPrefs 저장 — 빌드에도 적용, 실행 인자 -flat/-vr 이 우선.</summary>
     static class FlatModeMenu
     {
         const string Root = "Tool/평면 모드 (XREAL·모니터)/";
@@ -26,7 +25,7 @@ namespace AIXRCrane.Crane.Flat.EditorTools
         [MenuItem(ItemFlat, priority = 101)] static void SetFlat() => Set(1);
         [MenuItem(ItemVr, priority = 102)] static void SetVr() => Set(2);
 
-        // 체크 표시 — 현재 선택된 항목에만 ✓. validate 함수는 항상 true 를 반환해 항목을 활성 상태로 둔다.
+        // 현재 항목에만 ✓. validate 는 항상 true(항목 활성 유지).
         [MenuItem(ItemAuto, validate = true)]
         static bool ValidateAuto() { Menu.SetChecked(ItemAuto, Current == 0); return true; }
 

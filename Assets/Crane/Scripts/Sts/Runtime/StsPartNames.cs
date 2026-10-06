@@ -91,8 +91,7 @@ namespace AIXRCrane.Crane.Sts
         /// <summary>크레인 상태 패널 캔버스. CraneStatusHUD가 생성, ModeSelectorHUD가 GameObject.Find로 추적.</summary>
         public const string CraneStatusCanvas = "CraneStatusCanvas";
 
-        // 외부 XR 리그 명명 추정(우리 빌더가 만드는 게 아님) — CraneHud.FindController 등이 컨트롤러 이름을
-        //   휴리스틱 탐색할 때 쓰는 소문자 부분문자열. 리그 패키지가 바뀌면 깨질 수 있음.
+        // 외부 XR 리그 이름 휴리스틱(CraneHud.FindController 등) — 리그 패키지가 바뀌면 깨질 수 있음.
         /// <summary>(외부 리그 추정) 컨트롤러 객체 이름에 들어가는 부분문자열.</summary>
         public const string ControllerNameHint = "controller";
         /// <summary>(외부 리그 추정) 손 추적 앵커 객체 이름에 들어가는 부분문자열.</summary>

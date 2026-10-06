@@ -91,8 +91,7 @@ namespace AIXRCrane.Crane.Sts
             canvas.enabled = show;
             if (!show) { speedPrimed = false; return; }   // 숨길 땐 갱신 스킵 + 재표시 시 속도 재초기화
 
-            // 카메라 부착 안 됐으면 재시도(XR Rig 초기화가 늦는 경우). 빌보드 회전은 부착 시 1회만 설정한다
-            //   — 캔버스가 카메라 자식이라 카메라를 향하는 로컬 회전은 매 프레임 동일(상수)이므로 재계산 불필요.
+            // 카메라 미부착이면 재시도(XR Rig 늦은 초기화). 캔버스가 카메라 자식이라 빌보드 회전은 부착 시 1회면 충분.
             if (canvas.transform.parent == null || canvas.transform.parent == transform)
                 TryAttachToCamera();
 

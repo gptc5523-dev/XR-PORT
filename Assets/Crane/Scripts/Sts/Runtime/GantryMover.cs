@@ -3,14 +3,14 @@ using UnityEngine;
 
 namespace AIXRCrane.Crane.Sts
 {
-    /// <summary>갠트리 주행 — 크레인 루트를 안벽 방향(로컬 Z)으로 슬라이딩, 트롤리·호이스트와 동일하게 IAxisMover로 추상화.
-    /// RTG는 <see cref="RtgBogieSteering"/>가 보기를 90° 꺾으면 주행축이 Z→X로 바뀐다(레인 이동). STS는 Z 고정.</summary>
+    /// <summary>갠트리 주행 — 크레인 루트를 로컬 Z로 슬라이딩(IAxisMover).
+    /// RTG는 <see cref="RtgBogieSteering"/>가 보기를 90° 꺾으면 주행축이 X(레인 이동)로 바뀐다.</summary>
     [AddComponentMenu("AI-XR Crane/STS Crane/Gantry Mover")]
     [DisallowMultipleComponent]
     public sealed class GantryMover : AxisMoverBase
     {
-        /// <summary>주행 축(로컬). Z=기본 주행(STS 안벽/RTG 스택 길이방향), X=RTG 레인 이동(스티어링 90°).
-        /// Z가 0번인 건 의도적 — X가 0번이면 옛 씬의 GantryMover가 전부 레인 모드(범위 0~0)로 깨어나 주행이 멎는다.</summary>
+        /// <summary>주행 축(로컬). Z=기본 주행, X=RTG 레인 이동.
+        /// ★ Z가 0번인 건 의도 — 바꾸면 옛 씬이 레인 모드(범위 0~0)로 깨어나 주행이 멎는다.</summary>
         public enum TravelAxis { Z, X }
 
         [Header("주행 범위 (로컬 Z, 미터)")]
@@ -52,8 +52,7 @@ namespace AIXRCrane.Crane.Sts
         [Tooltip("주행 경로(다리 콜라이더 앞)에 컨테이너 등 장애물이 있으면 그 방향 주행을 멈춘다(밀지 않음).")]
         [SerializeField] bool stopOnObstacle = true;
 
-        /// <summary>장애물 정지 on/off — 자동 시나리오가 베이로 주행할 땐 끄고(컨테이너를 장애물로 오인해 멈추는 것 방지),
-        /// 끝나면 원복한다. 수동 VR 주행에선 true 유지.</summary>
+        /// <summary>장애물 정지 on/off — 자동 시나리오 베이 주행 중엔 끈다(컨테이너 오인 정지 방지).</summary>
         public bool StopOnObstacle { get => stopOnObstacle; set => stopOnObstacle = value; }
         [Tooltip("장애물 감지 여유 거리(m).")]
         [SerializeField] float obstacleSkin = 0.03f;
@@ -64,8 +63,7 @@ namespace AIXRCrane.Crane.Sts
         float nextLegResolve;   // 빈 캐시일 때만 ~1s마다 재탐색(매 프레임 전체 탐색 방지)
         bool legWarned;
 
-        // 크레인 간 충돌방지(같은 레일 2대) — 진행방향에 다른 STS가 안전간격 안으로 들어오면 그 방향만 막는다(멀어지는 건 허용).
-        //   Z만 비교하면 다른 X의 크레인(야드 RTG 등)을 오인하므로 '같은 레일(X 근접)'만 본다.
+        // 크레인 간 충돌방지 — 같은 레일(X 근접)의 다른 STS 쪽으로 안전간격 안에 들어가는 이동만 막는다.
         const float SafeGapMeters = 22f;   // 크레인 중심간 최소 간격(포털 ≈18m + 여유 4m)
         GantryMover[] others;
         float nextOtherResolve;
@@ -82,8 +80,7 @@ namespace AIXRCrane.Crane.Sts
 
         bool BlockedByOtherCrane(float target)
         {
-            // 레인 이동(RTG 90°)은 이 규칙 밖 — '같은 레일에서 두 STS가 Z로 접근'을 막는 로직이라 X로 레인 건너는 RTG엔 안 맞는다.
-            //   RTG끼리 야드 간섭이 필요해지면 X 기준으로 따로 설계할 것.
+            // 레인 이동(RTG X)은 이 규칙 밖 — RTG끼리 간섭이 필요해지면 X 기준으로 따로 설계.
             if (IsLane) return false;
 
             ResolveOthersIfNeeded();
@@ -105,14 +102,13 @@ namespace AIXRCrane.Crane.Sts
             return false;
         }
 
-        // 진행 방향으로 각 다리 콜라이더(Leg_Collider)를 BoxCast — 크레인 자신·잡은 화물 외의
-        //   콜라이더에 닿으면 막힘(정지). 반대 방향(빠져나가기)은 막지 않는다.
+        // 진행 방향으로 다리 콜라이더를 BoxCast — 자기 외 콜라이더에 닿으면 정지. 빠져나가는 방향은 허용.
         protected override bool IsBlockedToward(float target)
         {
-            // 보기를 꺾는 중 — 타이어가 진행방향을 안 보고 있으므로 주행 금지.
+            // 보기를 꺾는 중엔 주행 금지.
             if (TravelLocked) return true;
 
-            // 크레인 간 충돌방지 — 항상 검사(안전). 컨테이너 정지(stopOnObstacle)와 독립.
+            // 크레인 간 충돌방지 — 항상 검사, stopOnObstacle 과 독립.
             if (BlockedByOtherCrane(target)) return true;
 
             if (!stopOnObstacle) return false;
@@ -132,16 +128,14 @@ namespace AIXRCrane.Crane.Sts
             {
                 if (col == null) continue;
                 Bounds b = col.bounds;
-                // BoxCastAll: 가까운 것부터 1개만 보는 BoxCast와 달리 경로상 모두 검사 →
-                //   자기 부품이 먼저 맞아도 뒤의 진짜 화물을 놓치지 않음.
+                // BoxCastAll — 자기 부품이 먼저 맞아도 뒤의 화물을 놓치지 않게.
                 var hits = Physics.BoxCastAll(b.center, b.extents, dir, transform.rotation,
                                               dist, obstacleMask, QueryTriggerInteraction.Ignore);
                 foreach (var hit in hits)
                 {
                     if (hit.collider == null) continue;
                     if (hit.collider.transform.IsChildOf(transform)) continue;   // 자기(크레인·잡은 화물) 제외
-                    // 컨테이너 판정은 ContainerInstance 또는 Rigidbody 보유 여부 — ContainerInstance만 보면
-                    //   그게 없는 테스트 컨테이너(Rigidbody+BoxCollider만)를 놓친다. 둘 다 없는 정적 구조물만 무시.
+                    // 컨테이너 = ContainerInstance 또는 Rigidbody 보유(테스트 컨테이너 포함). 정적 구조물은 무시.
                     if (hit.collider.GetComponentInParent<AIXRCrane.ContainerInstance>() == null
                         && hit.collider.attachedRigidbody == null) continue;
                     QaBlockEdge(true, target, hit.collider.name);   // QA S-PHYS-4: 막힘 검출(밀지 않음) — 엣지에서만
@@ -152,8 +146,7 @@ namespace AIXRCrane.Crane.Sts
             return false;
         }
 
-        // QA 콘솔 판정(S-PHYS-4) — 막힘 상태가 바뀐 순간만 한 줄. blocked=true면 MoveTo가 WriteAxis를 안 해
-        //   위치 불변(moved=false)임이 AxisMoverBase에서 보장된다.
+        // QA S-PHYS-4 — 막힘 상태가 바뀐 순간만 한 줄(막히면 AxisMoverBase가 위치 불변 보장).
         bool qaBlockedPrev;
         void QaBlockEdge(bool blocked, float target, string obstacle)
         {
@@ -166,8 +159,7 @@ namespace AIXRCrane.Crane.Sts
                 QaLog.Info("GANTRY", "clear", $"target={QaLog.F(target)} blocked=false moved=true");
         }
 
-        // legColliders가 비어 있을 때만(초기/구버전 크레인) ~1s마다 재탐색 + 1회 경고.
-        //   IsBlockedToward는 주행 중 매 프레임 호출되므로 전체 계층 탐색을 빈 경우로만 제한한다.
+        // legColliders가 비었을 때만 ~1s마다 재탐색 + 1회 경고(매 프레임 계층 탐색 방지).
         void ResolveLegsIfNeeded()
         {
             if (legColliders != null && legColliders.Length > 0) return;
@@ -204,8 +196,7 @@ namespace AIXRCrane.Crane.Sts
             maxX = maxLaneX;
         }
 
-        /// <summary>주행축 전환 — <see cref="RtgBogieSteering"/>가 보기 회전 완료 시에만 호출.
-        /// 전환해도 반대 축 좌표는 유지된다(레인 이동 후에도 원래 Z를 지킴).</summary>
+        /// <summary>주행축 전환 — <see cref="RtgBogieSteering"/>가 보기 회전 완료 시 호출. 반대 축 좌표는 유지.</summary>
         public void SetTravelAxis(TravelAxis axis) => travelAxis = axis;
 
 #if UNITY_EDITOR

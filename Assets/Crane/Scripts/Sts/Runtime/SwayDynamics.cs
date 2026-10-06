@@ -2,15 +2,14 @@ using System;
 
 namespace AIXRCrane.Crane.Sts
 {
-    /// <summary>매달린 화물의 흔들림(수평 두 축, 작은 각 진자) — 실척 SI 단위. Unity 독립적, dotnet 으로 <see cref="SelfCheck"/> 검증 가능.
-    ///   θ̈ = −(g/L)·θ − (2·L̇/L)·θ̇ − 2ζ·√(g/L)·θ̇ − a/L + F/(m·L)   (변위 d = L·θ, 항: 권상 감쇠·흔들림감쇠 ζ·트롤리가속·바람력)
-    /// 반암시 오일러 적분(ω 먼저, θ 는 새 ω 로) — 에너지가 불어나지 않는 symplectic 방식.</summary>
+    /// <summary>매달린 화물 흔들림(수평 두 축 작은 각 진자, 실척 SI): θ̈ = −(g/L)·θ − (2·L̇/L)·θ̇ − 2ζ·√(g/L)·θ̇ − a/L + F/(m·L).
+    /// symplectic 반암시 오일러(ω 먼저). Unity 독립 — dotnet 으로 <see cref="SelfCheck"/> 검증.</summary>
     public static class SwayDynamics
     {
         public const double G = 9.81;
         /// <summary>공기 밀도 kg/m³ — ISA 해면 15°C.</summary>
         public const double AirDensity = 1.225;
-        /// <summary>직육면체 컨테이너 항력계수(바람이 면에 수직) — 날카로운 모서리 박스의 통상값 1.05~1.3 가운데.</summary>
+        /// <summary>컨테이너 항력계수(면에 수직) — 각진 박스 통상값 1.05~1.3 가운데.</summary>
         public const double ContainerCd = 1.2;
         /// <summary>식이 발산하지 않게 쓰는 최소 로프 길이(m). 도킹 직전(실측 ~3.5m)보다 짧다.</summary>
         public const double MinRopeM = 1.0;
@@ -30,8 +29,8 @@ namespace AIXRCrane.Crane.Sts
         /// <summary>면적 area(m²)에 상대풍속 v(m/s, 부호=방향)가 만드는 항력 N = ½·ρ·Cd·A·v·|v|.</summary>
         public static double WindForce(double v, double area) => 0.5 * AirDensity * ContainerCd * area * v * Math.Abs(v);
 
-        /// <summary>매달린 화물이 받는 항력 N — 풍속에서 화물 속도(매달림점 + 흔들림 L·θ̇)를 뺀 상대풍속으로 잰다.
-        /// 흔들림 속도 항이 공력 감쇠 ζ_aero = ρ·Cd·A·|w|/(2·m·ω₀)를 만든다(40ft·8m/s·25m 에서 0.018 — ZetaBare 와 같은 크기).</summary>
+        /// <summary>화물 항력 N — 상대풍속(풍속 − 매달림점 속도 − L·θ̇)으로 잰다.
+        /// 흔들림 속도 항이 공력 감쇠 ζ_aero = ρ·Cd·A·|w|/(2·m·ω₀)를 만든다(ZetaBare 와 같은 크기).</summary>
         public static double WindForceOn(double wind, double pivotVel, double omega, double ropeM, double area)
             => WindForce(wind - pivotVel - Math.Max(ropeM, MinRopeM) * omega, area);
 

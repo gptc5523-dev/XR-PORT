@@ -2,8 +2,8 @@ using UnityEngine;
 
 namespace AIXRCrane.Crane.Sts
 {
-    /// <summary>야드 칸(라인) 격자 — 놓을 자리를 PortConfig 에서 수식으로 유도한다(QuayPartsPlacer 가 깐 식과 같다).
-    /// 칸 중심 = 블록 중심 − 블록 크기/2 + 피치·(i + 0.5), 20ft 는 한 베이에 앞뒤 2개. SpreaderGrabber·CraneDemoRunner 공용.</summary>
+    /// <summary>야드 칸 격자 — 놓을 자리를 PortConfig 에서 유도(QuayPartsPlacer 와 같은 식). 20ft 는 한 베이에 앞뒤 2개.
+    /// SpreaderGrabber·CraneDemoRunner 공용.</summary>
     public static class YardGrid
     {
         /// <summary>20ft 앞뒤 배치 틈 — 실척 m. 야드를 까는 QuayPartsPlacer·YardSnapProbe 도 이 값을 읽는다.</summary>
@@ -15,10 +15,8 @@ namespace AIXRCrane.Crane.Sts
         /// 20ft 0.252u 와 40ft 0.508u 사이.</summary>
         const float Is40ThresholdU = 0.38f;
 
-        /// <summary>놓을 점 p(월드)를 가장 가까운 야드 칸 중심으로 맞춘다. 야드 블록 밖이면 false.</summary>
-        /// <param name="p">놓을 컨테이너 바운즈 중심(월드). y 는 쓰지 않는다.</param>
-        /// <param name="longSideU">컨테이너 긴 축 길이(모델 단위). 20/40ft 판정에 쓴다.</param>
-        /// <param name="snappedXZ">맞춘 칸 중심의 x·z(월드). y 는 p.y 를 그대로 돌려준다.</param>
+        /// <summary>p(월드 바운즈 중심)를 가장 가까운 야드 칸 중심 x·z 로 맞춘다(y 유지). 블록 밖이면 false.
+        /// longSideU = 긴 축 길이(모델 단위, 20/40ft 판정).</summary>
         public static bool TrySnapXZ(Vector3 p, float longSideU, out Vector3 snappedXZ)
         {
             snappedXZ = p;

@@ -158,7 +158,7 @@ namespace AIXRCrane.Crane.Sts
         public static FaultDef Evaluate(StsCrane crane)
         {
             // fail-to-safe 최우선: 코드북(SSOT) 미로드면 모든 알람 정의를 신뢰할 수 없음 → '알람 시스템 오프라인' 비상.
-            // 조용히 "알람 0"으로 정상 운전하는 것을 막는다(재감사 신규결함 #1). 정상 시(IsLoaded=true) 통과 → 거동 불변.
+            // 조용히 "알람 0"으로 정상 운전하는 것을 막는다. 정상 시(IsLoaded=true) 통과.
             if (!AlarmCodebook.IsLoaded) return AlarmSystemOffline;
             if (Injected.IsValid) return Injected;   // 시나리오 주입 결함 최우선(데모) — HUD·상태판·OpMode 일괄 반응
             // 심각도 비교로 우선순위를 일원화 — 트롤리 Fatal 이 다른 축 Critical 에 가려지지 않게.

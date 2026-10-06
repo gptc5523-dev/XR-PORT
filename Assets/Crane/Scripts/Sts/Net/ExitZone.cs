@@ -34,19 +34,17 @@ namespace AIXRCrane.Crane.Sts.Net
         static readonly Color BandIdle = new Color(0.92f, 0.20f, 0.18f, 0.35f);
         static readonly Color BandInside = new Color(0.92f, 0.20f, 0.18f, 0.95f);
 
-        // 월드공간 HUD 대신 표지판(ExitSign.fbx)을 에디터 메뉴(QuayPartsPlacer)가 존 중심에 심는다.
-        // 바닥 띠(LineRenderer)는 경계 표시용으로 따로 유지한다.
-        /// <summary>표지판 리소스 경로(Assets/Crane/Resources/ 기준, 확장자 없음).</summary>
+        /// <summary>표지판(ExitSign.fbx) 리소스 경로(Resources/ 기준, 확장자 없음). QuayPartsPlacer 가 존 중심에 심는다.
+        /// 바닥 띠(LineRenderer)는 경계 표시용으로 따로 유지.</summary>
         public const string SignResourcePath = "Models/ExitSign";
-        // 표지판도 실척 × ModelScale(1/24)로만 선다 — 연출 배율(옛값 10~30배)은 없앴다.
-        // 판 위끝 2.20m·아래 1.30m, 사람 눈높이 실제 크기.
+        // 표지판도 실척 × ModelScale(1/24)로만 선다 — 연출 배율 없음, 사람 눈높이 실제 크기.
 
         /// <summary>표지판 방향 미세 보정(도, 월드 Y). 블렌더 앞면 −Y 가 축 보정 뒤 유니티 +Z 라 0 이 정면.
         /// 반대로 보이면 180, 옆이면 ±90.</summary>
         const float SignYawOffset = 0f;   // 옛값 90f
 
-        /// <summary>표지판 실척 높이(m) — 표시판_빌드.py 의 H_TOTAL 과 같은 값. 실제 배율은 FitSign 이
-        /// 프리팹을 재서 목표로 수렴시키므로(FbxScaleByHeight 와 같은 원리) 값이 달라도 조용히 깨지지 않는다.</summary>
+        /// <summary>표지판 실척 높이(m) — 표시판_빌드.py 의 H_TOTAL. FitSign 이 프리팹을 재서 수렴시키므로
+        /// 값이 달라도 조용히 깨지지 않는다.</summary>
         const float SignRealHeightMeters = 2.2f;
 
         LineRenderer band;
@@ -208,16 +206,15 @@ namespace AIXRCrane.Crane.Sts.Net
             return true;
         }
 
-        /// <summary>표지판의 자세·배율 — 에디터 배치 메뉴(QuayPartsPlacer)가 부르는 공용 식.
-        /// 두 곳에 베끼면 갈라지므로 여기 한 곳에만 둔다.</summary>
-        /// <param name="axisFix">임포트된 프리팹 루트의 회전(블렌더 Z-up 보정). 지우면 표지판이 눕는다.</param>
+        /// <summary>표지판 자세·배율 공용 식(QuayPartsPlacer 도 호출, 한 곳에만 둔다).
+        /// axisFix = 임포트된 프리팹 루트 회전(블렌더 Z-up 보정) — 지우면 표지판이 눕는다.</summary>
         public static void FitSign(GameObject sign, Quaternion axisFix, Vector3 center)
         {
             // 실척 모델에 축척(1/24)만 곱한다 — 렌더러 바운즈로 재면 FBX 축 틀어짐에 조용히 어긋난다.
             // FBX 축 보정(axisFix)을 rotation 에 그냥 대입하지 말 것 — 표지판이 눕는다. 곱해서 유지한다.
             sign.transform.localRotation = axisFix;   // 바라볼 곳을 못 구해도 최소한 서 있게
 
-            // 배율을 단정하지 말고 재서 맞춘다 — FBX 마다 단위가 다를 수 있다(옛 사고: 100배 차이).
+            // 배율을 단정하지 말고 재서 맞춘다 — FBX 마다 단위가 다를 수 있다(100배 차이 사례).
             // axisFix 를 먼저 건 뒤에 재야 한다 — 안 그러면 Y 가 두께가 되어 배율이 튄다.
             sign.transform.localScale = Vector3.one;
             float h = MeasuredHeight(sign);

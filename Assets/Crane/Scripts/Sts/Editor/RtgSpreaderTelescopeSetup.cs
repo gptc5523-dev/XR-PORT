@@ -5,7 +5,7 @@ using UnityEngine;
 namespace AIXRCrane.Crane.Sts.EditorTools
 {
     /// <summary>FBX RTG 크레인 스프레더에 텔레스코픽 신축(20/40/45ft) 드라이버를 붙이고 배선한다(「RTG 크레인 생성」이 자동 호출, 수동 메뉴 없음).
-    /// 빔을 스케일하지 않고 TeleBeam_F/B를 슬라이드(끝빔·트위스트락은 자식이라 자동 추종), 신축축·스케일은 RtgSpreaderTelescope가 빔 위치에서 자동 산출. 배선 후 Size를 바꿔 눈으로 확인할 것.</summary>
+    /// TeleBeam_F/B 슬라이드(끝빔·트위스트락 자동 추종), 축·스케일은 RtgSpreaderTelescope가 자동 산출. 배선 후 Size로 눈 확인.</summary>
     public static class RtgSpreaderTelescopeSetup
     {
         const string CraneName = StsPartNames.RtgCraneRoot;

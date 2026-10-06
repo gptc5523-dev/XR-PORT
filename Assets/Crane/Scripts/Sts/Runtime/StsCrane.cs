@@ -2,8 +2,7 @@ using UnityEngine;
 
 namespace AIXRCrane.Crane.Sts
 {
-    /// <summary>STS Crane 컴포지션 루트 — 각 부속(boom/trolley/spreader/attach)은 독립 컴포넌트로 분리되고,
-    /// 이 클래스는 참조를 모아 일관된 API만 노출한다(SRP + Facade).</summary>
+    /// <summary>STS Crane 컴포지션 루트(Facade) — 부속 컴포넌트 참조를 모아 일관된 API만 노출.</summary>
     [AddComponentMenu("AI-XR Crane/STS Crane/STS Crane (Root)")]
     [DisallowMultipleComponent]
     public sealed class StsCrane : MonoBehaviour
@@ -27,8 +26,7 @@ namespace AIXRCrane.Crane.Sts
         public SpreaderAttach Attach => attach;
         public IAxisMover Gantry => gantry;
 
-        // 운영상태(운전/정지/대기/이상) — 같은 GameObject의 CraneOpMode를 lazy 참조(없으면 런타임 부착).
-        //   인스펙터/프리팹 직렬화를 건드리지 않도록 필드가 아닌 getter로만 보유한다.
+        // 운영상태 — CraneOpMode lazy 참조(없으면 런타임 부착). 직렬화 안 건드리게 getter 로만.
         CraneOpMode opMode;
         public CraneOpMode OpMode =>
             opMode != null ? opMode : (opMode = GetComponent<CraneOpMode>() ?? gameObject.AddComponent<CraneOpMode>());
@@ -37,7 +35,7 @@ namespace AIXRCrane.Crane.Sts
         /// 각자 상수를 두지 말고 이 값을 참조한다(SSOT).</summary>
         public float ModelScale => StsConfig.ModelScale;   // SSOT — 값(1/24)은 StsConfig 단일 정의
 
-        /// <summary>Builder가 한 번에 참조를 주입할 때 사용 — 인스펙터로 직접 끌어 넣어도 동일하게 동작.</summary>
+        /// <summary>Builder 가 참조를 한 번에 주입(인스펙터 지정과 동일).</summary>
         public void Configure(Transform boom, TrolleyMover trolley,
                               SpreaderHoist spreader, SpreaderAttach attach,
                               GantryMover gantry = null)

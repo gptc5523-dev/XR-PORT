@@ -96,7 +96,7 @@ namespace AIXRCrane.Ship
 
                 Box(mb, SubSteel, new Vector3( halfW, dY + H * 0.5f, z), new Vector3(post, H, post)); // 우측주
                 Box(mb, SubSteel, new Vector3(-halfW, dY + H * 0.5f, z), new Vector3(post, H, post)); // 좌측주
-                // 가로 빔은 측주 중심이 아니라 '바깥면'까지(+post = 각 끝 +post/2) 가로질러 덮어 빈틈없는 솔리드 코너
+                // 가로 빔은 측주 바깥면까지(+post) 덮어 빈틈없는 코너
                 Box(mb, SubSteel, new Vector3(0f, dY + H,        z), new Vector3(halfW * 2f + post, bm, bm));          // 상부빔
                 Box(mb, SubSteel, new Vector3(0f, dY + H * 0.5f, z), new Vector3(halfW * 2f + post, bm * 0.7f, bm * 0.7f)); // 중간빔
                 Box(mb, SubSteel, new Vector3(0f, dY + H * 0.5f + 0.25f, z), new Vector3(halfW * 2f + post, 0.1f, 0.4f)); // 워크웨이
@@ -119,7 +119,7 @@ namespace AIXRCrane.Ship
             // 메인마스트 — 휠하우스 위(몽키 아일랜드)
             {
                 float zc = (ShipConfig.AccomFrontZ + ShipConfig.AccomAftZ) * 0.5f;
-                // 브리지 처마 톱(=주갑판 위 ~30.4m) — BuildAccommodation과 정합(브리지27 + 본체3 + 처마0.36)
+                // 브리지 처마 톱 — BuildAccommodation 과 정합
                 float houseTop = ProceduralShipHull.DeckY(zc)
                                + ShipConfig.AccomDecks * ShipConfig.DeckHeightM + ShipConfig.DeckHeightM + 0.4f;
                 const float h = 10f, sec = 0.7f;
@@ -246,8 +246,7 @@ namespace AIXRCrane.Ship
             }
             // 푸프 난간(양현 RailRun + 선미 횡단)
             {
-                // 양현 난간은 BuildRailings가 선미까지 연속 처리 → 여기선 선미 횡단(트랜섬)만.
-                // 측면과 동일하게 상·중 2줄 + 스탠션 개수=폭/간격 산출(양끝이 측면난간 코너와 일치).
+                // 양현은 BuildRailings 가 처리 → 여기선 선미 횡단만(상·중 2줄, 양끝이 측면 코너와 일치).
                 const float railH = 1.1f;
                 float zT = -ShipConfig.HalfLoa + 1f, hwT = ProceduralShipHull.HalfBeam(zT) - 0.15f, dT = ProceduralShipHull.DeckY(zT);
                 int nt = Mathf.Max(2, Mathf.RoundToInt(hwT * 2f / 3f));

@@ -4,7 +4,7 @@ using AIXRCrane.Ship;
 namespace AIXRCrane.Crane.Sts
 {
     /// <summary>항구 치수 SSOT. 앵커(설계선·여유율)만 바꾸면 안벽 길이·에이프런·수심·안벽고가 따라온다.
-    /// 안벽 길이는 여기서만 정의(연석·계선주·레일·케이슨이 참조) — StsConfig 와는 순환참조 회피로 분리.</summary>
+    /// 안벽 길이는 여기서만 정의 — StsConfig 와는 순환참조 회피로 분리.</summary>
     public static class PortConfig
     {
         // ═══ ① 앵커 ═══
@@ -25,52 +25,40 @@ namespace AIXRCrane.Crane.Sts
         public const float ApronLandwardM = 8f;
 
         // ═══ ④ 유도값 — 여기부터는 손대지 말 것 ═══
-        /// <summary>안벽(선석) 길이 — 실척 m. 294 × 1.15 = 338.1 → 10m 올림 = 340m.</summary>
+        /// <summary>안벽(선석) 길이 — 실척 m. LOA × 여유율, 10m 올림(340m).</summary>
         public static float BerthLengthMeters =>
             Mathf.Ceil(ShipConfig.LoaMeters * BerthLengthRatio / 10f) * 10f;
 
-        /// <summary>에이프런 폭 — 실척 m. 해측여유 4 + 레일게이지 18 + 육측 8 = 30m.</summary>
+        /// <summary>에이프런 폭 — 실척 m. 해측여유 + 레일게이지 + 육측여유(30m).</summary>
         public static float ApronWidthMeters =>
             ApronSeawardM + StsConfig.LegGaugeXMeters + ApronLandwardM;
 
-        /// <summary>계획수심(수면 → 해저) — 실척 m. 13 × 1.15 = 14.95 → 올림 15m.</summary>
+        /// <summary>계획수심(수면 → 해저) — 실척 m. 흘수 × 여유, 올림(15m).</summary>
         public static float WaterDepthMeters =>
             Mathf.Ceil(ShipConfig.DraftMeters * DepthAllowanceRatio);
 
-        /// <summary>바다 폭 배수 — 바다 폭 = 에이프런 폭 × 이 값(에이프런을 따라 넓어진다).</summary>
+        /// <summary>바다 폭 배수 — 바다 폭 = 에이프런 폭 × 이 값.</summary>
         public const float SeaApronRatio = 2f;
 
-        /// <summary>바다 폭(안벽 전면 → 바다쪽) — 실척 m. Ceil(30 × 2 / 10) × 10 = 60m.
-        /// ★ 하한 — 접안한 배(선폭 39.53m)가 물 밖으로 나가면 안 된다. SeaFitsShip 이 검사한다.</summary>
+        /// <summary>바다 폭(안벽 전면 → 바다쪽) — 실척 m(60m).
+        /// ★ 하한 — 접안한 배가 물 밖으로 나가면 안 된다. SeaFitsShip 이 검사.</summary>
         public static float SeaWidthMeters =>
             Mathf.Ceil(ApronWidthMeters * SeaApronRatio / 10f) * 10f;
 
-        /// <summary>바다 길이(안벽 방향) — 선석 길이와 같다. 340m. 케이슨 끝(±169.985m)보다 바다 끝(±170)이
-        /// 15mm 앞서 나가 두 끝면이 겹치지 않는다 → Z-fighting 없음.</summary>
+        /// <summary>바다 길이(안벽 방향) = 선석 길이. 바다 끝이 케이슨 끝보다 15mm 앞서 Z-fighting 없음.</summary>
         public static float SeaLengthMeters => BerthLengthMeters;
 
-        // ── 비활성 (선석 양끝으로 바다폭만큼 더 뻗던 산식) ──
-        //   340 + 60×2 = 460m.
-        // public static float SeaLengthMeters => BerthLengthMeters + 2f * SeaWidthMeters;
+        // 비활성: 선석 양끝으로 바다폭만큼 더 뻗던 SeaLengthMeters 산식 — git 이력 참조
 
-        /// <summary>접안한 배가 수면 안에 들어오나 — 바다 폭 &gt; 선폭, 바다 길이 &gt; 설계선 LOA.
-        /// 바다를 줄이다 보면 배가 물 밖으로 삐져나간다. 줄이기 전에 이걸 본다.</summary>
+        /// <summary>접안한 배가 수면 안에 들어오나 — 바다 폭 &gt; 선폭, 바다 길이 &gt; LOA.
+        /// 바다를 줄이기 전에 이걸 본다.</summary>
         public static bool SeaFitsShip =>
             SeaWidthMeters > ShipConfig.BeamMeters && SeaLengthMeters > ShipConfig.LoaMeters;
 
-        // ── 비활성 (앵커를 선폭 → 부두로 교체) ──
-        // /// <summary>바다 폭 = 설계선 선폭 × 이 값. 39.53×3 → 120m.</summary>
-        // public const float SeaMarginRatio = 3f;
+        // 비활성: 선폭 앵커 SeaMarginRatio, 선회장 직경 TurningBasinMeters — git 이력 참조
 
-        // ── 비활성 (바다 축소 선택) ────────────────────────────
-        //   선회장 직경(588m)을 바다 앵커로 쓰면 부두가 너무 작아 보인다. 선회 시뮬레이션 등 필요해지면 되살린다.
-        //
-        // /// <summary>선회장 직경 — 자력 선회 기준 2 × LOA (항만설계기준). 294×2 = 588m.</summary>
-        // public static float TurningBasinMeters => 2f * ShipConfig.LoaMeters;
-        // ──────────────────────────────────────────────────────────────────────
-
-        /// <summary>바다가 안벽 안쪽으로 파고드는 깊이 — 실척 m. 수면 끝면과 안벽 전면이 x=0 에서
-        /// 정확히 겹치면 Z-fighting 이 난다. 케이슨이 불투명하니 겹친 부분은 안 보인다.</summary>
+        /// <summary>바다가 안벽 안쪽으로 파고드는 깊이 — 실척 m. x=0 에서 수면·안벽이 딱 겹치면
+        /// Z-fighting. 겹친 부분은 불투명 케이슨에 가려진다.</summary>
         public const float SeaOverlapM = 1f;
 
         // ═══════════ 에이프런 노면 표시 ═══════════
@@ -88,23 +76,22 @@ namespace AIXRCrane.Crane.Sts
         public const float RowGapM = 0.4f;
         /// <summary>베이 간 간격 — 실척 m.</summary>
         public const float BayGapM = 0.6f;
-        /// <summary>열 피치 = 컨테이너 폭 + 열간격. 2.438 + 0.4 = 2.838m.</summary>
+        /// <summary>열 피치 = 컨테이너 폭 + 열간격.</summary>
         public static float RowPitchM => ProceduralContainerMesh.StdWidth + RowGapM;
-        /// <summary>베이 피치 = 컨테이너 길이 + 베이간격. 12.192 + 0.6 = 12.792m.</summary>
+        /// <summary>베이 피치 = 컨테이너 길이 + 베이간격.</summary>
         public static float BayPitchM => ContainerLenM + BayGapM;
 
-        // ② RTG 앵커 — RtgCraneCreator.SpanX 미러. RtgCraneCreator 는 Editor 라 Runtime 에서
-        //    참조할 수 없어 값을 복사한다. 바꿀 땐 양쪽을 같이 고칠 것.
+        // ② RTG 앵커 — RtgCraneCreator(Editor) 미러. ★ 바꿀 땐 양쪽을 같이 고칠 것.
         /// <summary>RTG 다리 중심 간격 — 실척 m.</summary>
         public const float RtgSpanM = 23.6f;
         /// <summary>RTG 다리 박스 단면 한 변 — 실척 m. RtgCraneCreator.LegSec 미러.</summary>
         public const float RtgLegSectionM = 0.9f;
-        /// <summary>다리 '안쪽면' 사이 순간격 — 실척 m. 23.6 − 0.9 = 22.7m.
-        /// ★ 스팬(다리 중심 간격)을 그대로 쓰면 블록·차선이 다리 밑으로 들어간다 — 실제 쓸 수 있는 폭은 이것.</summary>
+        /// <summary>다리 '안쪽면' 사이 순간격 — 실척 m.
+        /// ★ 스팬(중심 간격)을 쓰면 블록·차선이 다리 밑으로 들어간다 — 쓸 수 있는 폭은 이것.</summary>
         public static float RtgClearSpanM => RtgSpanM - RtgLegSectionM;
 
-        /// <summary>RTG 구조물이 다리 중심선 바깥으로 튀어나오는 폭 — 실척 m. 씬 실측 전폭 27.25 → 편측 13.83,
-        /// 스팬 반(11.8) 을 빼면 2.03m, 여유 포함 2.5. ★ 스팬만 보고 야드를 재면 이만큼 포장 밖으로 나간다.</summary>
+        /// <summary>RTG 구조물이 다리 중심선 바깥으로 튀어나오는 폭 — 실척 m(씬 실측 2.03 + 여유).
+        /// ★ 스팬만 보고 야드를 재면 이만큼 포장 밖으로 나간다.</summary>
         public const float RtgOverhangM = 2.5f;
 
         // ③ 블록 구성
@@ -113,26 +100,23 @@ namespace AIXRCrane.Crane.Sts
         /// <summary>적재 단수.</summary>
         public const int YardTiers = 4;
         /// <summary>X(안벽 수직) 방향 레인 수 — 레인 1개 = RTG 주행로 1줄.
-        /// 이 값은 '야드 밴드 깊이'를 정한다(포장 크기). 실제로 블록을 까는 수는 YardActiveLanes.</summary>
+        /// 야드 밴드 깊이(포장 크기)를 정한다. 실제 블록 수는 YardActiveLanes.</summary>
         public const int YardLanes = 2;
 
-        /// <summary>실제로 블록·트럭레인을 까는 레인 수. 깊이는 YardLanes 로 유지하고 사용만 줄인다 —
-        /// 남는 공간에 레인을 되살릴 자리가 보존된다. YardLanes 로 올리면 원상 복구.</summary>
+        /// <summary>실제로 블록·트럭레인을 까는 레인 수. 깊이는 YardLanes 로 유지,
+        /// 남는 공간은 레인 복구 자리. YardLanes 로 올리면 원상 복구.</summary>
         public const int YardActiveLanes = 1;
 
-        /// <summary>블록을 깔기 시작할 레인 인덱스 — 육지쪽부터 채운다. 2 − 1 = 1.</summary>
+        /// <summary>블록을 깔기 시작할 레인 인덱스 — 육지쪽부터 채운다.</summary>
         public static int YardLaneStart => YardLanes - YardActiveLanes;
         /// <summary>레인당 블록 수 — Z(안벽 평행) 방향.</summary>
         public const int YardBlocksPerLane = 2;
 
-        // ④ 통로
-        /// <summary>레인 간 X 통로 — 실척 m.
-        /// ponytail: 인접 레인을 둘 다 쓰면 RTG 오버행(2.5m)끼리 부딪힌다(필요 5m+).
-        ///   지금은 YardActiveLanes=1 이라 안 물린다. 두 레인을 동시에 쓸 때 이 값을 키울 것.</summary>
+        // ④ 통로 — ponytail: 두 레인을 동시에 쓰면 RTG 오버행끼리 부딪힌다(필요 5m+). 그때 키울 것.
+        /// <summary>레인 간 X 통로 — 실척 m.</summary>
         public const float YardAisleXM = 1.5f;
 
-        /// <summary>야드 밴드 양 끝 여유 — 실척 m. RTG 가 포장 밖으로 나가면 안 되므로
-        /// 통로와 오버행 중 큰 값을 쓴다.</summary>
+        /// <summary>야드 밴드 양 끝 여유 — 실척 m. RTG 가 포장 밖으로 안 나가게 통로·오버행 중 큰 값.</summary>
         public static float YardEndMarginM => Mathf.Max(YardAisleXM, RtgOverhangM);
         /// <summary>블록 간 Z 횡단로 — 실척 m. 소방·정비 통로.</summary>
         public const float YardCrossAisleM = 16f;
@@ -140,65 +124,48 @@ namespace AIXRCrane.Crane.Sts
         public const float YardEndM = 8f;
 
         // ⑤ 유도값 — 손대지 말 것
-        /// <summary>블록 폭(열 방향) — 실척 m. 6 × 2.838 = 17.03m.</summary>
+        /// <summary>블록 폭(열 방향) — 실척 m.</summary>
         public static float YardBlockWidthM => YardRows * RowPitchM;
 
-        /// <summary>블록 1개의 베이 수 — 안벽 길이에서 양끝 여유와 횡단로를 빼고 베이 피치로 나눈 내림.
-        /// (340 − 8×2 − 16) / 2 / 12.792 = 12베이.</summary>
+        /// <summary>블록 1개의 베이 수 — 안벽 길이에서 양끝 여유·횡단로를 빼고 베이 피치로 내림(12베이).</summary>
         public static int YardBays => Mathf.FloorToInt(
             (BerthLengthMeters - 2f * YardEndM - (YardBlocksPerLane - 1) * YardCrossAisleM)
             / YardBlocksPerLane / BayPitchM);
 
-        /// <summary>블록 길이(베이 방향) — 실척 m. 12 × 12.792 = 153.5m.</summary>
+        /// <summary>블록 길이(베이 방향) — 실척 m.</summary>
         public static float YardBlockLengthM => YardBays * BayPitchM;
 
-        /// <summary>야드 밴드 깊이 — 실척 m. 레인 n개 + 레인간 통로 (n−1)개 + 양 끝 여유 2개.
-        /// 2×23.6 + 1×1.5 + 2×2.5 = 53.7m. 끝 여유는 RTG 오버행을 덮어야 한다.</summary>
+        /// <summary>야드 밴드 깊이 — 실척 m. 레인 n개 + 통로 (n−1)개 + 양 끝 여유 2개.
+        /// 끝 여유는 RTG 오버행을 덮어야 한다.</summary>
         public static float YardDepthM =>
             YardLanes * RtgSpanM + (YardLanes - 1) * YardAisleXM + 2f * YardEndMarginM;
 
-        /// <summary>야드 장치능력 — TEU. 40ft = 2 TEU. 사용 레인만 센다.
-        /// 6열 × 12베이 × 4단 × (1레인 × 2블록) = 576개 = 1,152 TEU.</summary>
+        /// <summary>야드 장치능력 — TEU(40ft = 2 TEU). 사용 레인만 센다.</summary>
         public static int YardCapacityTeu =>
             YardRows * YardBays * YardTiers * YardActiveLanes * YardBlocksPerLane * 2;
 
-        /// <summary>블록 ↔ RTG 다리 안쪽면 여유(편측) — 실척 m. (22.7 − 17.03)/2 = 2.84m.
-        /// 블록이 스팬 중앙이므로 양쪽에 이만큼씩 남는다.</summary>
+        /// <summary>블록 ↔ RTG 다리 안쪽면 여유(편측) — 실척 m. 블록이 스팬 중앙이라 양쪽 동일.</summary>
         public static float YardBlockLegClearanceM => (RtgClearSpanM - YardBlockWidthM) * 0.5f;
 
-        // ── 비활성 (RTG 를 블록 중앙으로 되돌림) ──────────────
-        //   블록을 한쪽으로 몰고 반대쪽에 트럭레인 두는 방식은 비대칭이 어색해 중단. 되살리려면 YardBlockCenterX 를 한쪽으로 밀 것.
-        //
-        // /// <summary>트럭 주행레인 폭 = 다리 순간격 − 블록 폭 = 22.7 − 17.03 = 5.67m.</summary>
-        // public static float YardTruckLaneWidthM => RtgClearSpanM - YardBlockWidthM;
-        //
-        // /// <summary>트럭 주행레인 중심 X — 스팬 안에서 해측.</summary>
-        // public static float YardTruckLaneCenterX(int i) =>
-        //     YardSpanCenterX(i) + RtgClearSpanM * 0.5f - YardTruckLaneWidthM * 0.5f;
-        //
-        // /// <summary>블록 중심 → RTG 스팬 중심 오프셋. 블록이 중앙이면 0 이라 불필요.</summary>
-        // public static float YardRtgOffsetFromBlockM => (RtgClearSpanM - YardBlockWidthM) * 0.5f;
-        // ──────────────────────────────────────────────────────────────────────
+        // 비활성: 블록을 한쪽으로 몰고 트럭레인 두던 산식(YardTruckLane*, 비대칭이라 중단) — git 이력 참조
 
         /// <summary>레인 i(0부터, 안벽에서 먼 순) 의 RTG 스팬 중심 X — 실척 m(음수, 육지쪽).
-        /// 에이프런 끝에서 통로 하나 지나고 스팬 반개. RTG 는 여기에 선다.</summary>
+        /// RTG 는 여기에 선다.</summary>
         public static float YardSpanCenterX(int i) =>
             -(ApronWidthMeters + YardEndMarginM + RtgSpanM * (i + 0.5f) + YardAisleXM * i);
 
-        /// <summary>야드(블록·RTG)를 바다쪽으로 미는 양 — 실척 m. 포장은 그대로 두고 블록만 밀며,
-        /// RTG 는 블록 존을 읽으므로 자동으로 따라온다. 0 이면 레인 슬롯 그대로.</summary>
+        /// <summary>야드(블록·RTG)를 바다쪽으로 미는 양 — 실척 m. 포장은 그대로, RTG 는 블록 존을
+        /// 읽어 자동 추종. 0 이면 레인 슬롯 그대로.</summary>
         public const float YardShiftSeawardM = 12f;
 
-        /// <summary>바다쪽 이동 한계 — 실척 m. RTG 해측 끝(스팬반 + 오버행)이 에이프런 경계를 넘지 않는 값
-        /// (현재 25.10m). 넘겨 밀면 크레인이 에이프런으로 튀어나온다.</summary>
+        /// <summary>바다쪽 이동 한계 — 실척 m. RTG 해측 끝(스팬반 + 오버행)이 에이프런 경계를 넘지 않는 값.</summary>
         public static float YardShiftMaxM =>
             -ApronWidthMeters - (YardSpanCenterX(YardLaneStart) + RtgSpanM * 0.5f + RtgOverhangM);
 
-        /// <summary>실제 적용되는 이동량 — 한계로 클램프. 설정값이 과하면 조용히 넘어가지 않고 잘린다.</summary>
+        /// <summary>실제 적용되는 이동량 — 한계로 클램프.</summary>
         public static float YardShiftAppliedM => Mathf.Clamp(YardShiftSeawardM, 0f, YardShiftMaxM);
 
-        /// <summary>블록 중심 X = RTG 스팬 중심 + 바다쪽 이동. RTG 가 블록을 대칭으로 감싸며
-        /// (트럭레인은 포기) 양옆에 2.84m 씩 남는다.</summary>
+        /// <summary>블록 중심 X = RTG 스팬 중심 + 바다쪽 이동. RTG 가 블록을 대칭으로 감싼다.</summary>
         public static float YardBlockCenterX(int i) => YardSpanCenterX(i) + YardShiftAppliedM;
 
         /// <summary>블록 j(0부터) 의 중심 Z — 실척 m. 안벽 중앙 기준 대칭.</summary>
@@ -210,14 +177,13 @@ namespace AIXRCrane.Crane.Sts
                    + j * (YardBlockLengthM + YardCrossAisleM);
         }
 
-        /// <summary>안벽 전면고(데크 → 해저) = 코핑고 + 계획수심 — 실척 m. 4 + 15 = 19m.
-        /// 코핑고는 StsConfig.QuayDeckAboveSeaMeters SSOT 를 추종한다(수면 Y 와 같은 출처).</summary>
+        /// <summary>안벽 전면고(데크 → 해저) = 코핑고 + 계획수심 — 실척 m.
+        /// 코핑고는 StsConfig.QuayDeckAboveSeaMeters SSOT(수면 Y 와 같은 출처).</summary>
         public static float QuayWallHeightMeters =>
             StsConfig.QuayDeckAboveSeaMeters + WaterDepthMeters;
 
-        // ═══ 플레이어 시작점 ═══
-        //   씬 PlayerStartPoint 마커가 없을 때 쓰는 기본값 — 두 레일 한가운데·선석 중앙·바다(+X) 를 보도록.
-        /// <summary>시작점 X — 실척 m. −(해측여유 4 + 레일게이지 18 ÷ 2) = −13m.</summary>
+        // ═══ 플레이어 시작점 ═══ 씬 PlayerStartPoint 마커가 없을 때 기본값 — 레일 사이·선석 중앙, +X 를 본다.
+        /// <summary>시작점 X — 실척 m. −(해측여유 + 레일게이지 ÷ 2).</summary>
         public static float PlayerStartXMeters => -(ApronSeawardM + StsConfig.LegGaugeXMeters * 0.5f);
         /// <summary>시작점 Z — 실척 m. 선석(안벽) 중앙.</summary>
         public const float PlayerStartZMeters = 0f;

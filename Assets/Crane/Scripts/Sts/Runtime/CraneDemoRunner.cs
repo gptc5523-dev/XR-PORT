@@ -4,8 +4,8 @@ using UnityEngine;
 
 namespace AIXRCrane.Crane.Sts
 {
-    /// <summary>크레인 한 대의 시연 — 컨테이너 5개를 옮기고 역순으로 되돌리며 반복한다
-    /// (STS: 배 위 단 → 안벽 빈자리, RTG: 야드 → 가까운 빈 열). 자리는 매번 씬에서 다시 재고, 못 닿거나 막히면 그 작업만 건너뛴다. 가설 구현, Quest 미검증.</summary>
+        /// <summary>크레인 한 대의 시연 — 컨테이너 5개를 옮기고 역순으로 되돌리며 반복(STS: 배→안벽, RTG: 야드→빈 열).
+        /// 못 닿거나 막히면 그 작업만 건너뛴다. 가설 구현, Quest 미검증.</summary>
     [DisallowMultipleComponent]
     public sealed class CraneDemoRunner : MonoBehaviour
     {
@@ -325,8 +325,7 @@ namespace AIXRCrane.Crane.Sts
             float err = (Mathf.Clamp(target, a.Min, a.Max) - a.Current) * toM;
             left += Mathf.Abs(err);
             vMax *= speedScale; acc *= speedScale;
-            // 도착 = 1mm 안 '그리고' 한 틱에 설 수 있는 속도(|v| ≤ a·dt) — PlcSim 정착 규칙과 같다.
-            //   위치만 보면 마지막 감속이 튄다: v 를 실제 이동량/dt 로 두면 err ≤ v·dt, v=√(2a·err) → 남은 속도 err/dt ≤ 2a·dt 로 유계.
+            // 도착 = 1mm 안 '그리고' |v| ≤ a·dt(PlcSim 정착 규칙과 같음) — 위치만 보면 마지막 감속이 튄다.
             if (Mathf.Abs(err) < 0.001f && Mathf.Abs(v) <= acc * dt) { v = 0f; return true; }
             float speed = Mathf.Min(Mathf.Min(Mathf.Abs(v) + acc * dt, vMax), Mathf.Sqrt(2f * acc * Mathf.Abs(err)));
             float move = Mathf.Min(speed * dt, Mathf.Abs(err));
@@ -556,8 +555,8 @@ namespace AIXRCrane.Crane.Sts
             return list.ConvertAll(x => x.t);
         }
 
-        // 내려놓을 자리 — 집는 자리와 같은 주행 위치에서 트롤리 방향으로 훑어 가까운 빈자리부터.
-        //   빈자리 = 부두 땅 안 · 다른 컨테이너(바운즈)·예약 자리와 안 겹침 · 콜라이더(다리 등) 없음 · 세 축으로 닿음.
+        // 내려놓을 자리 — 같은 주행 위치에서 트롤리 방향으로 가까운 빈자리부터(기준: RTG=집는 자리, STS=두 다리 정중앙).
+        //   빈자리 = 땅 안 · 컨테이너·예약 자리와 안 겹침 · 콜라이더 없음 · 세 축으로 닿음.
         bool FindSlot(Site site, Job j, float groundY)
         {
             Vector3 td = TrolleyDir();

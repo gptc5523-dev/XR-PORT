@@ -4,16 +4,13 @@ using UnityEngine;
 
 namespace AIXRCrane.Crane.Sts.EditorTools
 {
-    /// <summary>
-    /// 시작 위치 마커(CranePlayerStartPoint)를 만들거나 선택해 주는 메뉴.
-    /// 선택한 오브젝트(예: 레인)가 있으면 그 위치로 마커를 옮겨 생성 → 끌어다 미세조정 후 파란 Z축을 항구쪽으로.
-    /// </summary>
+    /// <summary>시작 위치 마커(CranePlayerStartPoint) 생성/선택 메뉴. 선택 오브젝트가 있으면 그 위치에 생성
+    /// → 끌어다 미세조정 후 파란 Z축을 항구쪽으로.</summary>
     public static class CranePlayerStartPointMenu
     {
         const string MarkerName = StsPartNames.PlayerStartPoint;
 
-        // 보류: 플레이어 리그 스케일 문제(1/24 모델 vs 실척 리그)로 시작 위치 기능 전체 보류 중 —
-        //   메뉴를 숨긴다. 재개 시 아래 [MenuItem] 주석만 풀면 됨.
+        // 보류(리그 스케일 문제: 1/24 모델 vs 실척 리그) — 메뉴 숨김. 재개 시 아래 주석만 풀 것.
         // [MenuItem("Scene/플레이어 시작 지점 생성", false, 3)]
         public static void Create()
         {

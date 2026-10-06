@@ -2,10 +2,7 @@ using UnityEngine;
 
 namespace AIXRCrane.Crane.Sts
 {
-    /// <summary>
-    /// 스프레더(Spreader) Y축 호이스트 — 케이블을 감거나 풀어 상하 이동.
-    /// X/Z는 TrolleyMover가 동기화하므로 여기서는 건드리지 않는다.
-    /// </summary>
+    /// <summary>스프레더 Y축 호이스트 — 케이블을 감거나 풀어 상하 이동. X/Z는 TrolleyMover가 동기화.</summary>
     [AddComponentMenu("AI-XR Crane/STS Crane/Spreader Hoist")]
     [DisallowMultipleComponent]
     public sealed class SpreaderHoist : AxisMoverBase
@@ -15,15 +12,14 @@ namespace AIXRCrane.Crane.Sts
         [SerializeField] float max = 4f;
 
         // 월드 수직 모드: FBX(bakeAxisConversion)로 로컬 Y가 월드 위쪽과 어긋난 크레인용.
-        //   true=월드 Y 절대 구동(x/z 보존), false=기존 로컬 Y(절차 크레인은 이대로 정상).
+        //   true=월드 Y 절대 구동(x/z 보존), false=로컬 Y(절차 크레인).
         [Tooltip("FBX 크레인: 로컬 Y가 월드 위쪽과 어긋나므로 월드 Y로 직접 구동. 절차 크레인은 off.")]
         [SerializeField] bool worldVertical = false;
         public void SetWorldVertical(bool v) => worldVertical = v;
 
-        // 컨테이너 적재 시 하강 한계를 올리는 양 — 스프레더가 아니라 '컨테이너 밑면'이 바닥에 닿게.
-        // SpreaderGrabber가 잡을 때 설정, 놓을 때 0으로. 0이면 빈 스프레더(기존 동작).
+        // 컨테이너 적재 시 하강 한계를 올리는 양 — '컨테이너 밑면'이 바닥에 닿게. SpreaderGrabber가 잡을 때 설정, 놓을 때 0.
         float floorOffset = 0f;
-        // 하강 한계(min+offset)가 상한(max)을 넘지 않게 클램프 — 안 그러면 Clamp가 역전돼 호이스트가 먹통된다.
+        // 하강 한계가 max를 넘지 않게 클램프 — 역전되면 호이스트가 먹통.
         public void SetFloorOffset(float v) => floorOffset = Mathf.Clamp(v, 0f, Mathf.Max(0f, max - min));
         /// <summary>현재 하강 한계 오프셋(m). 네트워크 동기화가 클라이언트에 동일 한계를 재현하는 데 사용.</summary>
         public float FloorOffset => floorOffset;
@@ -66,8 +62,7 @@ namespace AIXRCrane.Crane.Sts
         protected override int GizmoAxis => 1;   // Y
         protected override Color GizmoColor => new Color(1f, 0.85f, 0.2f, 0.9f);
 
-        // worldVertical이면 min/max는 월드 Y 절대값 — WriteAxis와 같은 해석을 써야 한다.
-        // 기본 구현(부모 로컬+TransformPoint)을 쓰면 부모 스케일·축 보정을 타 범위선이 엉뚱한 곳에 그려진다.
+        // worldVertical이면 min/max는 월드 Y 절대값 — WriteAxis와 같은 해석이어야 범위선이 제자리에 그려진다.
         protected override Vector3 GizmoPointAt(float axisValue)
         {
             if (!worldVertical) return base.GizmoPointAt(axisValue);

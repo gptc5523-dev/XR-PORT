@@ -36,8 +36,7 @@ namespace AIXRCrane.Crane.Sts.Net
         readonly NetworkVariable<int>   nAlarmCode = new(0, E, S);   // 활성 알람(최고 심각도 1건) 코드. 0=이상 없음 — 관전자도 같은 알람을 보도록 동기화.
         readonly NetworkVariable<int>   nOpMode    = new(0, E, S);   // 운영상태(운전/정지/이상) = (int)OpMode. 호스트 판정을 관전자도 동일하게 보도록 동기화.
 
-        // 컨테이너 적재 동기화 — 4필드(has/index/grabWorld/attachLocal)를 한 구조체로 묶어 원자적으로 전송.
-        //   분리 전송 시 수신 순서 역전으로 부분 갱신될 위험이 있다.
+        // 적재 4필드를 한 구조체로 원자 전송 — 분리 전송하면 수신 순서 역전으로 부분 갱신된다.
         readonly NetworkVariable<GrabState> nGrab = new(default, E, S);
 
         /// <summary>적재 상태 4필드를 원자적으로 동기화하는 단일 구조체(unmanaged → NetworkVariable 가능).</summary>
@@ -56,7 +55,7 @@ namespace AIXRCrane.Crane.Sts.Net
                 s.SerializeValue(ref AttachLocal);
             }
 
-            // NetworkVariable의 변경(dirty) 감지를 GC 없이 값비교로 — 4필드 모두 같아야 동일.
+            // dirty 감지를 GC 없이 값비교로.
             public bool Equals(GrabState o) =>
                 Has == o.Has && Index == o.Index && GrabWorld == o.GrabWorld && AttachLocal == o.AttachLocal;
         }
@@ -67,8 +66,8 @@ namespace AIXRCrane.Crane.Sts.Net
         [Tooltip("들고 있는 컨테이너 포즈 전송 주기(Hz). 매 프레임이면 인원·개수만큼 대역폭 폭증 → 제한. 0이면 매 프레임.")]
         [SerializeField] float containerSendRate = 25f;
 
-        /// <summary>'지금 누군가 손에 들고 있는' 컨테이너만 올리는 활성 목록(정지한 컨테이너는 전송 0).
-        ///   Index=결정적 인덱스, Owner=든 사람, Pos/Rot=월드 포즈. 마지막에 집은 사람이 Owner(핸드오프).</summary>
+        /// <summary>지금 손에 들린 컨테이너만 올리는 활성 목록(정지한 것은 전송 0).
+        /// Owner = 마지막에 집은 사람(핸드오프), Pos/Rot = 월드 포즈.</summary>
         struct HeldContainer : INetworkSerializable, System.IEquatable<HeldContainer>
         {
             public int Index; public ulong Owner; public Vector3 Pos; public Quaternion Rot;
@@ -81,8 +80,7 @@ namespace AIXRCrane.Crane.Sts.Net
         }
         readonly NetworkList<HeldContainer> nHeld = new();
 
-        // 결정적 컨테이너 스냅샷(초기 배치 좌표 정렬 — 씬이 모든 기기 동일하므로 같은 인덱스=같은 개체).
-        //   이름이 전부 "ShipContainer"라 이름 정렬은 불안정 → 좌표(0.1m 반올림)로 안정 정렬.
+        // 결정적 컨테이너 스냅샷 — 초기 좌표(0.1m 반올림) 정렬. 이름이 전부 같아 이름 정렬은 불안정.
         List<Transform> containerSnapshot;
         readonly List<XRGrabInteractable> containerGrabs = new();   // snapshot과 인덱스 정렬
         readonly HashSet<int> myOwned = new();              // 내가 손에 든 인덱스
@@ -107,17 +105,16 @@ namespace AIXRCrane.Crane.Sts.Net
         bool clientHasContainer;   // 클라이언트가 마지막으로 반영한 적재 상태(전환 감지용)
         Transform clientHeld;   // 클라이언트가 시각적으로 매단 컨테이너
 
-        // 클라이언트에서 비활성화한 조종 컴포넌트들 — 세션 종료 시 되살리기 위해 보관.
+        // 클라이언트에서 끈 조종 컴포넌트 — 세션 종료 시 복원.
         readonly List<Behaviour> disabledOnClient = new();
 
-        /// <summary>호스트가 판정한 현재 활성 알람 코드(최고 심각도 1건). 0=이상 없음.
-        /// 관전자·알람 배너 HUD가 이 값을 읽어 호스트와 동일한 알람을 표시한다(스폰 전엔 0).</summary>
+        /// <summary>호스트가 판정한 활성 알람 코드(최고 심각도 1건). 0=이상 없음(스폰 전 포함).</summary>
         public int NetAlarmCode => nAlarmCode.Value;
 
-        /// <summary>호스트가 판정한 현재 운영상태(운전/정지/이상)의 정수값. 관전자 상태 HUD가 읽어 동일 표시. 0=정지.</summary>
+        /// <summary>호스트가 판정한 운영상태 정수값. 0=정지.</summary>
         public int NetOpMode => nOpMode.Value;
 
-        // 스폰된 활성 인스턴스 — HUD/라벨이 매 프레임 Find 없이 알람 코드를 읽도록 캐시.
+        // 스폰된 활성 인스턴스 캐시 — HUD가 매 프레임 Find 하지 않게.
         static CraneNetSync _instance;
 
         /// <summary>현재 활성 알람 코드(최고 심각도 1건)의 단일 출처. 네트워크 접속 중이면 호스트 권위값
@@ -131,8 +128,7 @@ namespace AIXRCrane.Crane.Sts.Net
             return f.IsValid ? f.Code : 0;
         }
 
-        /// <summary>현재 운영상태(운전/정지/이상)의 단일 출처. 네트워크 접속 중이면 호스트 권위값(관전자도 정확),
-        /// 아니면 로컬 판정. 상태 HUD가 호스트=관전자 동일 표시를 위해 쓴다.</summary>
+        /// <summary>운영상태 SSOT — 접속 중이면 호스트 권위값, 아니면 로컬 판정.</summary>
         public static OpMode ActiveOpMode(StsCrane crane)
         {
             var nm = NetworkManager.Singleton;
@@ -150,8 +146,7 @@ namespace AIXRCrane.Crane.Sts.Net
             SubscribeContainers();          // 호스트·관전자 모두: 손 집기/놓기 후킹(핸드오프)
         }
 
-        // 세션 종료/디스폰(호스트 끊김 포함) 시 정리 — 안 하면 클라이언트가 든 컨테이너가 키네마틱·부유
-        // 상태로 얼어붙고, 비활성화했던 조종 컴포넌트가 영구히 꺼진 채 남는다.
+        // 디스폰(호스트 끊김 포함) 시 정리 — 안 하면 든 컨테이너가 kinematic 으로 얼고 조종이 꺼진 채 남는다.
         public override void OnNetworkDespawn()
         {
             if (_instance == this) _instance = null;
@@ -204,8 +199,7 @@ namespace AIXRCrane.Crane.Sts.Net
         // 호스트: 현재 크레인 상태를 네트워크 변수에 기록
         void ServerWrite()
         {
-            // 연속 축 값은 sendRate(Hz)로 제한 — 매 프레임 쓰면 이동 중 72~90Hz로 전송돼 LAN/Wi-Fi가 포화.
-            // (NetworkVariable은 '값이 바뀔 때만' 보내므로, 정지 중엔 throttle과 무관하게 0건.)
+            // 연속 축 값은 sendRate(Hz)로 제한 — 매 프레임(72~90Hz) 쓰면 Wi-Fi 포화. 정지 중엔 전송 0.
             if (sendRate <= 0f || Time.unscaledTime >= nextSend)
             {
                 if (sendRate > 0f) nextSend = Time.unscaledTime + 1f / sendRate;
@@ -217,7 +211,7 @@ namespace AIXRCrane.Crane.Sts.Net
                 if (lockAnim != null) nLocked.Value = lockAnim.Locked;
             }
 
-            // 그랩/릴리스는 매 프레임 감지해 즉시 반영(지연 없음), GrabState 구조체로 원자적 전송.
+            // 그랩/릴리스는 즉시, GrabState로 원자 전송.
             bool has = attach != null && attach.HasContainer;
             if (has != nGrab.Value.Has)
             {
@@ -231,13 +225,12 @@ namespace AIXRCrane.Crane.Sts.Net
                 nGrab.Value = g;
             }
 
-            // 활성 알람 코드 — 안전 신호라 throttle 없이 즉시 동기화. 관전자는 판정 상태를 다 못 가지므로
-            //   호스트가 판정한 결과 코드를 권위값으로 내려 호스트=관전자 알람을 일치시킨다.
+            // 알람 코드 — 안전 신호라 throttle 없이. 관전자는 판정 상태가 없어 호스트 결과를 권위값으로 쓴다.
             var fault = CraneFault.Evaluate(crane);
             int alarm = fault.IsValid ? fault.Code : 0;
             if (alarm != nAlarmCode.Value) nAlarmCode.Value = alarm;
 
-            // 운영상태(운전/정지/이상) — 안전·상태 신호라 throttle 없이 즉시 동기화(값이 바뀔 때만 전송).
+            // 운영상태 — throttle 없이 즉시.
             int opm = (int)crane.OpMode.Current;
             if (opm != nOpMode.Value) nOpMode.Value = opm;
         }
@@ -263,8 +256,7 @@ namespace AIXRCrane.Crane.Sts.Net
             telescope?.Set40(nIs40.Value);
             lockAnim?.SetLocked(nLocked.Value);
 
-            // 폴링으로 적재 상태 감지(콜백 아님) — 늦게 접속한 관전자도 현재 상태로 자연 수렴한다
-            //   (OnValueChanged는 가입 후 변경분만 받아 못 씀). GrabState 원자 동기화라 부분 갱신 없음.
+            // 콜백 아닌 폴링 — 늦게 접속한 관전자도 현재 상태로 수렴(OnValueChanged는 가입 후 변경분만).
             var grab = nGrab.Value;
             if (grab.Has != clientHasContainer)
             {
@@ -314,8 +306,7 @@ namespace AIXRCrane.Crane.Sts.Net
             return best;
         }
 
-        // 컨테이너 Rigidbody를 이름순 정렬한 결정적 목록(씬이 양쪽 동일해 순서 보장).
-        //   부모 관계로 거르지 않는다 — 잡혀 스프레더 자식이 돼도 인덱스가 변하면 안 된다.
+        // 컨테이너 Rigidbody 결정적 목록. 부모로 거르지 않는다 — 잡혀서 자식이 돼도 인덱스 불변.
         static readonly List<Transform> _containerBuf = new();
         List<Transform> BuildContainerList()
         {
@@ -343,12 +334,11 @@ namespace AIXRCrane.Crane.Sts.Net
             return (index < list.Count) ? list[index] : null;
         }
 
-        // 컨테이너 핸드오프 — 누구나 옮기면 전원이 본다. B가 A가 든 걸 집으면 소유권이 B로 넘어간다(마지막 집기 우선).
-        //   컨테이너는 NetworkObject가 아니라 결정적 인덱스로 식별(씬 동일 → 같은 인덱스=같은 개체).
+        // 컨테이너 핸드오프 — 마지막 집기 우선. 컨테이너는 NetworkObject가 아니라 결정적 인덱스로 식별.
 
         static float RoundDm(float v) => Mathf.Round(v * 10f) / 10f;   // 0.1m 반올림(물리 지터 흡수)
 
-        // 모든 컨테이너를 '초기 배치 좌표'로 안정 정렬한 결정적 스냅샷. 한 번 만들고 고정(움직여도 인덱스 불변).
+        // 초기 좌표로 정렬한 스냅샷 — 한 번 만들고 고정.
         void SubscribeContainers()
         {
             var found = new List<Transform>();
@@ -517,7 +507,7 @@ namespace AIXRCrane.Crane.Sts.Net
             origKinematic.Remove(idx);
         }
 
-        // 서버 권위: 소유권/포즈/해제 (컨테이너는 NetworkObject가 아니므로 Owner 불요 → RequireOwnership=false)
+        // 서버 권위 소유권/포즈/해제(RequireOwnership=false — 컨테이너는 NetworkObject 아님)
         [ServerRpc(RequireOwnership = false)]
         void ClaimContainerServerRpc(int idx, Vector3 pos, Quaternion rot, ServerRpcParams p = default)
         {

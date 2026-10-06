@@ -9,9 +9,8 @@ using UnityEngine;
 
 namespace AIXRCrane.Crane.Sts.EditorTools
 {
-    /// <summary>배치 검사 — 바닥(데크 y=0) 관통. ①빈 데크에서 권상을 하한까지 내려도 컨테이너 밑면이 바닥 아래로
-    /// 가면 안 된다. ②이미 바닥 아래인 컨테이너는 바닥가드가 끌어올려야 한다. 판정은 바닥 y 하나만 본다.
-    /// -batchmode -executeMethod ...FloorClipProbe.Run 로 실행, -quit 금지(EnterPlaymode라 주면 로그가 빈다).</summary>
+    /// <summary>배치 검사 — 바닥(y=0) 관통: ①빈 데크에서 권상 하한까지 내려도 컨테이너가 바닥 아래로 안 가야 ②바닥 아래 컨테이너는 바닥가드가 끌어올려야.
+    /// -batchmode -executeMethod ...FloorClipProbe.Run, -quit 금지(EnterPlaymode라 로그가 빈다).</summary>
     [InitializeOnLoad]
     public static class FloorClipProbe
     {
@@ -89,8 +88,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
                         // 왜 게이트에 걸렸는지 숫자로 남긴다 — 이게 없으면 '안 잡힘'이 회귀인지 원래 그런지 구분이 안 된다.
                         CraneDemoRunner.TryBounds(c.box, out var bs);
                         float gapMm = (c.g.ConeBottomY() - bs.max.y) / StsConfig.ModelScale * 1000f;   // 음수 = 콘이 박힌 깊이
-                        // '실제로 잡힌 것' 이 다른 컨테이너면 FindNearest 가 옆칸을 골랐다는 뜻(gap 이 −InsertU 인데 이름 다를 때).
-                        //   gap 이 크게 양수면 대상이 콘 밑에 없었던 것 — 원인이 갈린다.
+                        // 잡힌 게 다른 컨테이너면 FindNearest가 옆칸을 고른 것, gap이 크게 양수면 대상이 콘 밑에 없었던 것.
                         var got = c.crane.Attach != null ? c.crane.Attach.AttachedContainer : null;
                         Skip(c, $"안 잡힘 — 콘바닥−윗면 {gapMm:+0;-0}mm(실척), 설정 삽입 {c.g.InsertDepthMeters * 1000f:F0}mm, " +
                                 $"실제 잡힌 것 {(got != null ? got.name : "없음")}");
@@ -153,8 +151,8 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             Finish();
         }
 
-        // 든 컨테이너 발밑에 받침 강체가 하나도 없는 자리로 축을 옮긴다(트롤리 먼저, 없으면 갠트리).
-        //   판정 집합은 통과방지 클램프와 같다 — 크레인 자식(스프레더·든 화물)을 뺀 모든 강체.
+        // 든 컨테이너 발밑에 받침 강체가 없는 자리로 축을 옮긴다(트롤리 먼저, 없으면 갠트리).
+        //   판정 집합은 통과방지 클램프와 같다 — 크레인 자식을 뺀 모든 강체.
         static bool MoveToBareSpot(Case c, Bounds held)
         {
             var others = Object.FindObjectsByType<Rigidbody>(FindObjectsInactive.Exclude)
@@ -187,8 +185,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
                 && a.min.z - m < b.max.z && a.max.z + m > b.min.z;
         }
 
-        // 옮기기 전에 kinematic 으로 고정한다 — 배 컨테이너는 동적 강체라 그대로 두면 Grab() 전에 갑판으로 떨어진다.
-        //   잡히면 부착 쪽에서 kinematic 이 되고, 놓은 뒤 남는 kinematic 은 바닥가드가 본다.
+        // 옮기기 전에 kinematic 고정 — 배 컨테이너는 동적 강체라 Grab() 전에 갑판으로 떨어진다.
         static void Move(Transform t, Vector3 d)
         {
             var rb = t.GetComponent<Rigidbody>();

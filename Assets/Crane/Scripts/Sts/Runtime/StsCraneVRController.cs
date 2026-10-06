@@ -487,17 +487,15 @@ namespace AIXRCrane.Crane.Sts
             if (locoProviders.Count > 0) locoCached = true;
         }
 
-        // 별도 컴포넌트(CraneViewHeightAdjuster)의 '높이 조절 중' 상태 — 조절 중엔 걷기 정지 + 왼손 스틱 양보.
-        //   실제 높이 조절은 그 컴포넌트가 수행(호스트/관전자 공통). 여기선 입력 협조만 한다.
+        // CraneViewHeightAdjuster 가 높이 조절 중이면 걷기 정지 + 왼손 스틱 양보(입력 협조만).
         bool ViewHeightActive()
         {
             if (viewHeight == null) viewHeight = FindAnyObjectByType<CraneViewHeightAdjuster>();
             return viewHeight != null && viewHeight.HeightHold;
+        // 'moveSpeed' 가진 로코모션 프로바이더(ContinuousMove 등)에 리플렉션으로 적용 — XRI 버전 무관.
         }
 
-        // 걷기 속도 설정 — 로코모션 프로바이더 중 'moveSpeed' 속성을 가진 것(=ContinuousMove/DynamicMove)에 적용.
-        //   리플렉션이라 XRI 버전·프리팹 직렬화와 무관하게 시작 시 한 번 박는다. (다른 프로바이더는 moveSpeed 없어 무시)
-        /// <summary>리그 스케일이 바뀐 뒤(CranePlayerRigScale 등) 걷기 속도를 다시 적용한다(호환용 — 스케일 무관, walkSpeed 그대로).</summary>
+        /// <summary>리그 스케일 변경 뒤 걷기 속도 재적용(호환용 — 스케일 무관, walkSpeed 그대로).</summary>
         public void ReapplyWalkSpeed() => ApplyWalkSpeed();
 
         void ApplyWalkSpeed()

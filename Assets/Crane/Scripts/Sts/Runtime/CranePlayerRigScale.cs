@@ -26,12 +26,8 @@ namespace AIXRCrane.Crane.Sts
         {
             if (!enableScaling || scale <= 0f) { enabled = false; return; }   // 원복/무효 — 실척 유지
 
-            // 리그 탐색은 XR Origin 컴포넌트 직접 탐색 — Camera.main.transform.root 는 Main 카메라 태그 누락이나
-            // XR Origin 중첩 시 잘못된 리그를 잡는다. 한 번 찾으면 캐시, 파괴/미발견 시에만 재탐색.
-            // 캐시한 리그가 꺼졌으면 다시 찾는다 — 평면 모드는 XR 을 60프레임 기다린 뒤 XR Origin 을 끄고 새 리그를 만든다.
-            //   꺼진 오브젝트는 null 이 아니라 '파괴됐을 때만 재탐색' 이면 새 리그가 영영 1/24 로 안 줄었다
-            //   (2026-09-18 에디터 평면 모드 lossyScale=1 → 눈높이 실척 40 m · 이동 24배). `-flat` 강제는 첫 프레임에
-            //   XR Origin 을 먼저 꺼서 이 순서에 안 걸렸다 — 그래서 서버 관전 인스턴스만 멀쩡했다.
+            // XR Origin 직접 탐색 후 캐시(Camera.main.root 는 오탐). ★ 꺼진 리그도 재탐색 — 평면 모드는
+            // 60프레임 뒤 XR Origin 을 끄고 새 리그를 만든다(놓치면 새 리그가 1/24 로 안 줄어 이동 24배).
             if (cachedRig != null && !cachedRig.gameObject.activeInHierarchy) { cachedRig = null; configured = false; }
             if (cachedRig == null) cachedRig = FindRig(out cachedCam);
             if (cachedRig == null)

@@ -4,8 +4,8 @@ using AIXRCrane.Crane.Sts.Net;   // CraneNetSync(자식 네임스페이스) 참�
 
 namespace AIXRCrane.Crane.Sts
 {
-    /// <summary>크레인 활성 알람을 시야 상단 중앙에 띄우는 공유 경보 배너 — 안전 신호라 전원에게 보임(게이트 없음, HMD 자식으로 head-locked).
-    /// 네트워크면 CraneNetSync.NetAlarmCode(호스트 권위)·단독이면 CraneFault.Evaluate로 판정, 메시지는 AlarmCodebook(SSOT) 조회. 없으면 자동 스폰.</summary>
+    /// <summary>활성 알람 경보 배너(시야 상단, head-locked) — 안전 신호라 전원에게 보임. 없으면 자동 스폰.
+    /// 코드는 CraneNetSync.ActiveAlarmCode(네트워크=호스트 권위), 색은 AlarmCodebook(SSOT).</summary>
     [AddComponentMenu("AI-XR Crane/STS Crane/Crane Alarm HUD")]
     [DisallowMultipleComponent]
     public sealed class CraneAlarmHUD : MonoBehaviour
@@ -16,10 +16,9 @@ namespace AIXRCrane.Crane.Sts
         [SerializeField] Camera targetCamera;
 
         [Header("HMD 위치 (카메라 로컬 좌표, m) — 역할별")]
-        // 참가자(관전): 정면 약간 위(z=0.9 기준 ≈8°) '한가운데' — 운전 HUD가 없으니 시야 중앙이 제일 잘 보임.
+        // 참가자(관전): 정면 약간 위 중앙 — 운전 HUD가 없으니 시야 중앙.
         [SerializeField] Vector3 hmdOffset = new Vector3(0f, 0.13f, CraneHud.HudDistance);
-        // 호스트(조종): 운전 HUD(상태판 우상단 0.22,0.09)와 겹치지 않게 더 '위'로 올린 중앙.
-        //   상태판 윗변보다 높이 띄워 운전 시야를 침범하지 않음. 알람 있을 때만 뜸. (실기기 보고 미세조정)
+        // 호스트(조종): 운전 HUD(상태판)와 안 겹치게 더 위 중앙. 실기기 보고 미세조정.
         [SerializeField] Vector3 hostHmdOffset = new Vector3(0f, 0.24f, CraneHud.HudDistance);
         [SerializeField, Range(-30f, 30f)] float tiltPitchDeg = -4f;
 
@@ -30,8 +29,7 @@ namespace AIXRCrane.Crane.Sts
         [SerializeField] int fontSize = 48;   // ⚠ 아이콘 단독이라 크게
 
         // ── 외부 공지 ─────────────────────────────────────────────────────
-        // 새 HUD 대신 이 배너로 존 진입 공지도 띄운다(HMD 상단 고정 위치 재사용). 알람이 있으면 알람이 우선(안전 신호라 공지가 못 덮음).
-        // 부른 쪽이 매 프레임 갱신, 끊기면 유예 뒤 자동으로 사라진다(호출자가 안 지워도 안 남음).
+        // 존 진입 공지도 이 배너로(알람이 우선). 호출자가 매 프레임 갱신, 끊기면 유예 뒤 자동 소멸.
         static string notice;
         static Color  noticeColor = CraneHud.HudColor.Danger;
         static float  noticeUntil;
@@ -89,7 +87,7 @@ namespace AIXRCrane.Crane.Sts
             if (CraneHud.Due(ref nextRefresh, CraneHud.TextHz))
                 Refresh();
 
-            // 펄스 — 활성 중엔 ⚠ 아이콘 알파를 사인으로 흔들어 주의를 끈다(매 프레임, 무할당). 배경은 투명.
+            // 펄스 — ⚠ 아이콘 알파를 사인으로 흔듦(매 프레임, 무할당).
             if (canvas.enabled && text != null && !NoticeActive)
             {
                 float a = 0.74f + 0.20f * Mathf.Abs(Mathf.Sin(Time.unscaledTime * 3.4f));
@@ -120,7 +118,7 @@ namespace AIXRCrane.Crane.Sts
             CraneHud.SetTextIfChanged(text, ref lastText, "<b>⚠</b>");
         }
 
-        // 알람 코드 출처는 공용 단일 출처(CraneNetSync.ActiveAlarmCode)를 따른다 — 부품 말풍선과 동일 값.
+        // 알람 코드는 CraneNetSync.ActiveAlarmCode(SSOT) — 부품 말풍선과 동일 값.
         int CurrentAlarmCode()
         {
             var active = StsCraneVRController.Active;   // 크레인이 여러 대면 조종기를 받는 크레인의 알람
@@ -144,7 +142,7 @@ namespace AIXRCrane.Crane.Sts
 
         void BuildCanvas()
         {
-            // 배너 박스 제거 — 배경 투명, '⚠' 아이콘만 심각도색+펄스로 남긴다(상세 알람 내용은 상태판이 담당).
+            // 배경 투명, '⚠' 아이콘만 심각도색+펄스(상세는 상태판 담당).
             canvas = CraneHud.BuildPanel(transform, "CraneAlarmCanvas", panelPixels, worldScale,
                 new Color(0f, 0f, 0f, 0f), fontSize, curSev,
                 TextAnchor.MiddleCenter, new Vector2(8, 8), out text, fitToText: true);

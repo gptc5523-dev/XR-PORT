@@ -6,9 +6,8 @@ namespace AIXRCrane.Crane.Sts
     /// PLC 실값 매핑은 ㈜엠비이 데이터 매핑 정의서에서 확정.</summary>
     public enum OpMode { Stopped = 0, Running = 1, Fault = 2 }
 
-    /// <summary>STS 크레인 운영상태(O&amp;M 상태표시) 데이터 모델. 축 움직임+알람으로 자체 판정하며 PLC 연동 시 Current만 교체.
-    /// 판정 우선순위: ① 알람 유효→Fault ② 축 이동 중→Running ③ 그 외→Stopped(코드북 §7 안전 우선).</summary>
-    // 축 구동(PlcBridge, order -100) 이후 실행 — 같은 물리틱에서 최종 위치를 읽는다.
+    /// <summary>STS 운영상태 모델 — 알람 유효→Fault, 축 이동→Running, 그 외 Stopped(코드북 §7 안전 우선). PLC 연동 시 Current만 교체.
+    /// 축 구동(PlcBridge, order -100) 이후 실행 — 같은 물리틱의 최종 위치를 읽는다.</summary>
     [DefaultExecutionOrder(100)]
     [AddComponentMenu("AI-XR Crane/STS Crane/Crane Op Mode (운영상태)")]
     [RequireComponent(typeof(StsCrane))]
@@ -20,8 +19,8 @@ namespace AIXRCrane.Crane.Sts
         [Tooltip("마지막 움직임 후 이 시간(초) 동안은 '운전' 유지 — 간헐 입력에 상태가 깜빡이지 않게.")]
         [SerializeField] float runCoast = 0.25f;
 
-        // 가속도 한계 알람(코드북 1021/2021/3021) — 속도를 한 번 더 미분해 실척 가속도(m/s²)로 급조작을 검출.
-        // 실척 환산: 모델 units/s ÷ ModelScale = 실척 m/s. 기본값 SSOT=CraneAxisProfile, 트립=정격×k(=5/3).
+        // 가속도 한계 알람(1021/2021/3021) — 속도를 한 번 더 미분한 실척 m/s²로 급조작 검출.
+        // 기본값 SSOT=CraneAxisProfile, 트립=정격×k(=5/3).
         [Header("가속도 한계 (실척 m/s²) — 코드북 1021/2021/3021 (SSOT=CraneAxisProfile, 트립=정격×k)")]
         [Tooltip("갠트리(주행) 가속 트립 한계. SSOT=CraneAxisProfile.GantryAccelTrip (= 정격 0.15 × k 1.667 = 0.250). STS 주행 정격 가속 ~0.15 m/s².")]
         [SerializeField] float gantryAccelLimit = CraneAxisProfile.GantryAccelTrip;
@@ -32,7 +31,7 @@ namespace AIXRCrane.Crane.Sts
         [Tooltip("가속도 EMA 평활 계수(0~1). 위치 2차 미분의 프레임 노이즈를 누르려 작게. 클수록 즉답·노이즈↑. ※표시(HUD)용만 — 트립 판정엔 raw값 사용.")]
         [SerializeField, Range(0.05f, 1f)] float accelSmoothing = 0.2f;
 
-        // 트립 판정 분리 — EMA는 피크를 깎아 트립을 누락시키므로 트립은 raw 가속도로 보고, 히스테리시스+디바운스로 채터링만 차단.
+        // 트립은 raw 가속도로 판정(EMA는 피크를 깎아 누락), 히스테리시스+디바운스로 채터링 차단.
         [Tooltip("트립 발동 디바운스 — 한계 초과가 이 틱 수만큼 '연속'돼야 알람(짧은 노이즈 1틱 스파이크 무시). 물리틱(기본 50Hz) 기준. SSOT=CraneAxisProfile.AccelTripSetN.")]
         [SerializeField, Range(1, 20)] int accelTripSetN = CraneAxisProfile.AccelTripSetN;
         [Tooltip("트립 해제 디바운스 — 복귀 임계 이하가 이 틱 수만큼 연속돼야 해제(경계 채터링 방지). SSOT=CraneAxisProfile.AccelTripClearN.")]
@@ -45,7 +44,7 @@ namespace AIXRCrane.Crane.Sts
         float lastMoveTime = -999f;
         bool primed;   // 첫 프레임 위치 캡처 완료(초기 0→실제값 점프를 이동으로 오인하지 않게)
 
-        // 가속도 추적 — 물리틱(FixedUpdate)에서 측정(고정 dt라 2차 미분 노이즈가 가변 프레임보다 작다).
+        // 가속도 추적은 FixedUpdate에서 — 고정 dt라 2차 미분 노이즈가 작다.
         float fpG, fpT, fpH;     // 직전 FixedUpdate 축 위치(모델 units)
         float vG, vT, vH;        // 직전 실척 속도(m/s)
         float aG, aT, aH;        // 평활된 실척 가속도 크기(m/s²) — 표시용(HUD)
@@ -55,12 +54,12 @@ namespace AIXRCrane.Crane.Sts
         bool tripG, tripT, tripH;
         int overG, overT, overH, underG, underT, underH;
 
-        // 되감기 마스킹 — 위치 불연속(CSV loop 등) 직후 이 틱 수만큼 가속 측정을 건너뛰고 속도 baseline만 재구축.
-        // 2틱 필요: 불연속 틱의 점프 속도가 다음 가속 계산에 새지 않도록 깨끗한 속도 표본 1개를 먼저 확보.
+        // 되감기 마스킹 — 위치 불연속 직후 이 틱 수만큼 가속 측정을 건너뛰고 속도 baseline만 재구축.
+        // 2틱: 점프 속도가 다음 가속 계산에 새지 않게 깨끗한 속도 표본 1개를 먼저 확보.
         int accelWarmup;
 
-        /// <summary>가속도 한계 알람(1021/2021/3021) 평가 여부 — PLC 실데이터일 때만 true.
-        /// 직접조종은 가감속 램프가 없어 항상 비현실적 가속이라 오경보 방지로 기본 false.</summary>
+        /// <summary>가속도 한계 알람 평가 여부 — PLC 실데이터일 때만 true.
+        /// 직접조종은 가감속 램프가 없어 오경보라 기본 false.</summary>
         public bool PlcDriven { get; set; }
 
         /// <summary>축별 현재 가속도 크기(실척 m/s², EMA 평활) — HUD 표시용.</summary>
@@ -92,8 +91,7 @@ namespace AIXRCrane.Crane.Sts
         {
             get
             {
-                // ⓪ fail-to-safe(최우선): 알람 시스템 오프라인이면 무조건 Fault + autoStop —
-                //    '알람 0'으로 조용히 정상 운전하는 단일 실패점을 막는다. 정상 시엔 통과(거동 불변).
+                // ⓪ fail-to-safe(최우선): 알람 시스템 오프라인이면 무조건 Fault — '알람 0'으로 조용히 정상 운전하는 단일 실패점 차단.
                 if (AlarmSystemOffline)                 return OpMode.Fault;    // ⓪ 알람 시스템 오프라인 — 안전정지
                 if (CraneFault.Evaluate(crane).IsValid) return OpMode.Fault;    // ① 이상 — 안전 최우선
                 if (IsMoving)                           return OpMode.Running;  // ② 축 이동 중
@@ -116,7 +114,7 @@ namespace AIXRCrane.Crane.Sts
             prevG = g; prevT = t; prevH = h; primed = true;
         }
 
-        // 가속도 측정은 고정 dt(FixedUpdate)에서 — 위치를 두 번 미분하므로 dt 흔들림이 큰 Update보다 노이즈가 작다.
+        // 가속도 측정은 고정 dt(FixedUpdate)에서 — 위치 2차 미분이라 dt 흔들림에 민감.
         void FixedUpdate()
         {
             float dt = Time.fixedDeltaTime;
@@ -126,7 +124,7 @@ namespace AIXRCrane.Crane.Sts
             float g = crane.Gantry  != null ? crane.Gantry.Current  : 0f;
             float t = crane.Trolley != null ? crane.Trolley.Current : 0f;
             float h = crane.Spreader != null ? crane.Spreader.Current : 0f;
-            // 축마다 월드/축 배율이 다르다(FBX RTG 트롤리 4.17) — 하나로 쓰면 RTG 트롤리 가속이 4.17배 작게 잡혀 알람이 침묵한다.
+            // 축마다 월드/축 배율이 다르다(FBX RTG 트롤리 4.17) — 공용 배율이면 RTG 트롤리 알람이 침묵한다.
             float rG = toReal * (crane.Gantry   != null ? crane.Gantry.WorldPerUnit   : 1f);
             float rT = toReal * (crane.Trolley  != null ? crane.Trolley.WorldPerUnit  : 1f);
             float rH = toReal * (crane.Spreader != null ? crane.Spreader.WorldPerUnit : 1f);
@@ -139,17 +137,17 @@ namespace AIXRCrane.Crane.Sts
             }
             else if (fPrimed)
             {
-                // 워밍업: 위치 불연속 직후 — 속도 baseline만 재구축하고 가속/트립 판정은 건너뛴다(인공 스파이크 차단).
+                // 워밍업: 불연속 직후 — 속도 baseline만 재구축, 가속/트립 판정 건너뜀.
                 vG = (g - fpG) * rG / dt;
                 vT = (t - fpT) * rT / dt;
                 vH = (h - fpH) * rH / dt;
                 accelWarmup--;
             }
-            // 위치(직전 틱) 갱신은 여기 한 곳이 단독 소유 — StepAccel은 prev를 읽기만 한다.
+            // 직전 위치 갱신은 여기 한 곳이 소유 — StepAccel은 읽기만.
             fpG = g; fpT = t; fpH = h; fPrimed = true;
         }
 
-        /// <summary>가속 추적 재프라임 — CSV 되감기 등 위치 불연속 구간의 인공 가속 스파이크를 막기 위해 PlcBridge가 호출.</summary>
+        /// <summary>가속 추적 재프라임 — CSV 되감기 등 위치 불연속의 인공 스파이크 방지(PlcBridge 호출).</summary>
         public void ResetAccelTracking() => accelWarmup = 2;
 
         // 위치(모델 units) → 실척 속도(m/s) → 가속도(m/s², 절대값 — 증·감속 모두 한계 대상). prev는 읽기 전용.
@@ -162,7 +160,7 @@ namespace AIXRCrane.Crane.Sts
             aSmooth += (aNow - aSmooth) * accelSmoothing;     // 표시용 EMA
             vPrev = vNow;
 
-            // 트립 디바운스 + 히스테리시스: 한계 초과 N틱 연속 → set / 해제임계(한계×frac) 이하 M틱 연속 → clear.
+            // 트립 디바운스+히스테리시스: 한계 초과 N틱 연속 → set / 한계×frac 이하 M틱 연속 → clear.
             float clear = limit * accelClearFrac;
             if (!trip)
             {

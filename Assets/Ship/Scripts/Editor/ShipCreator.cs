@@ -16,7 +16,7 @@ namespace AIXRCrane.Ship.EditorTools
         const string RootName = ShipConfig.ShipRootName;   // SSOT — 접안부·부두 재생성과 공유
 
         // relativeHeight = D_bound / (d × 2 × tan(FOV_v/2)), D_bound=12.70m(40ft 대각), FOV_v=96°(Quest3)
-        //   d=15.1m→0.3787, d=250m→0.0229. 상대 높이라 단위 무관 — 거리(m)를 그대로 넣지 말 것.
+        //   상대 높이라 단위 무관 — 거리(m)를 그대로 넣지 말 것.
         const float CargoLod0Height = 0.3787f;   // ≈15.1m 이내 원본
         const float CargoLod1Height = 0.0229f;   // ≈250m 밖 컬링
 
@@ -145,8 +145,7 @@ namespace AIXRCrane.Ship.EditorTools
                 .Select(g => g.OrderBy(v => v.y).ToList())   // 아래 단부터
                 .ToList();
 
-            // 갑판 전체에 고르게 — 앞에서부터 채우면 선미만 가득 차고 선수가 텅 빈다.
-            // 0 이면 슬롯 전부.
+            // 갑판 전체에 고르게(앞부터 채우면 선수가 빈다). 0 이면 슬롯 전부.
             int want = ShipConfig.DeckCargoCount <= 0
                      ? slots.Count
                      : Mathf.Clamp(ShipConfig.DeckCargoCount, 0, slots.Count);
@@ -222,8 +221,7 @@ namespace AIXRCrane.Ship.EditorTools
             float t = ProceduralContainerMesh.HeightStd * ms;
             if (m > 1e-6f) go.transform.localScale *= t / m;
 
-            // 원점 규약이 FBX 마다 다르다 — 정밀본은 바닥, LOD1 은 중앙. 안 맞추면 LOD 전환 때 반 통
-            //   (2.591/2=1.296m) 만큼 튀어오른다 — 피봇을 바운즈 중앙으로 통일해 흡수한다.
+            // 원점 규약이 FBX 마다 다르다(정밀본 바닥, LOD1 중앙) — 피봇을 바운즈 중앙으로 통일해 LOD 전환 튐 방지.
             go.transform.position += parent.position
                 - AIXRCrane.Crane.Sts.EditorTools.RtgCraneFbxPlacer.CombinedBounds(go).center;
             return go;

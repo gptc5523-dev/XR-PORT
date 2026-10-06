@@ -3,8 +3,7 @@ using UnityEngine.UI;
 
 namespace AIXRCrane.Crane.Sts
 {
-    /// <summary>처음 잡는 사람을 위한 글자 없는 화살표 HUD — 각 컨트롤러 위에 그 모드에서 미는 방향만 표시(모드 자동 전환).
-    /// 표시 전용(입력은 StsCraneVRController), 관전자에겐 숨김. 씬에 안 붙여도 자동 스폰.</summary>
+    /// <summary>글자 없는 화살표 HUD — 각 컨트롤러 위에 현재 모드의 미는 방향만 표시. 관전자 숨김, 자동 스폰.</summary>
     [AddComponentMenu("AI-XR Crane/STS Crane/Crane Controller Arrow HUD")]
     [DisallowMultipleComponent]
     public sealed class CraneControllerArrowHUD : MonoBehaviour
@@ -47,8 +46,7 @@ namespace AIXRCrane.Crane.Sts
         {
             if (leftCanvas == null || rightCanvas == null) return;
 
-            // 표시 조건: 호스트(IsServer) 또는 네트워킹 없음(싱글)이고, 조종 활성(ControlActive)일 때만.
-            //   접속 전·관전자·관찰 모드에선 숨김.
+            // 표시: 호스트 또는 싱글이고 조종 활성일 때만(관전자·관찰 모드 숨김).
             if (controller == null || !controller.isActiveAndEnabled) controller = CraneHud.FindVrController();
             var nm = Unity.Netcode.NetworkManager.Singleton;
             bool show = (nm == null || nm.IsServer) && controller != null && controller.ControlActive;
@@ -81,7 +79,7 @@ namespace AIXRCrane.Crane.Sts
             switch (mode)
             {
                 case StsCraneVRController.Mode.Crane:   // 왼:호이스트 상하, 오른:트롤리 좌우
-                    // 화살표는 방향만 — 버튼 안내(Y잡기/X놓기)는 모드선택 HUD가 전담(3중복 제거).
+                    // 방향만 — 버튼 안내는 모드선택 HUD 전담.
                     left = "↑   ↓";
                     right = "←   →";
                     break;
@@ -112,8 +110,7 @@ namespace AIXRCrane.Crane.Sts
                 canvas.gameObject.SetActive(on);
         }
 
-        // 부착(왼/오른 각각, 실패 쪽은 다음 주기에 재시도)
-        //   원점/미추적 객체는 거른다 → 못 찾으면 안 붙이고(=숨김) 다음 주기에 재시도 → 바닥 잔상 방지.
+        // 왼/오른 각각 부착, 못 찾으면(원점/미추적 제외) 숨긴 채 다음 주기 재시도 — 바닥 잔상 방지.
         void TryAttach()
         {
             if (!leftAttached)
@@ -141,12 +138,12 @@ namespace AIXRCrane.Crane.Sts
             return true;
         }
 
-        // 컨트롤러 탐색 — ModeSelectorHUD와 동일한 견고한 공유 로직(CraneHud) 사용.
+        // 컨트롤러 탐색 — 공유 로직(CraneHud).
         static Transform FindController(string side) => CraneHud.FindController(side);
 
         static bool Has(string name, string sub) => name.IndexOf(sub, System.StringComparison.OrdinalIgnoreCase) >= 0;
 
-        // 진단용 — side+'controller' 들어간 활성 객체와 그 위치 나열(실제 이름/원점 여부 확인용)
+        // 진단용 — side/'controller' 이름의 활성 객체와 위치 나열
         static string Candidates(string side)
         {
             var s = new System.Text.StringBuilder();

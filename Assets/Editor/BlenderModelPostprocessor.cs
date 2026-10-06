@@ -20,7 +20,7 @@ namespace Sts.Art
 
             var mi = (ModelImporter)assetImporter;
 
-            // 스케일: 실척 1:1 그대로 받기 (두 기존 FBX와 동일 값 → 변화 없음, 신규 파일 안전)
+            // 스케일: 실척 1:1 그대로 받기
             mi.useFileScale = true;
             mi.globalScale  = 1f;
 

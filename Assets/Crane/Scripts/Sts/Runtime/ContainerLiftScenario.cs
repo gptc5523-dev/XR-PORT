@@ -87,7 +87,7 @@ namespace AIXRCrane.Crane.Sts
             float halfH = WorldBounds(go, out _).extents.y;
             go.transform.position = new Vector3(twCenter.x, groundY + halfH, twCenter.z);
 
-            // 잡을 강체 보장 — kinematic(안 떨어짐, FindNearest는 kinematic도 잡음) + 콜라이더
+            // 잡을 강체 보장 — kinematic + 콜라이더
             var rb = go.GetComponent<Rigidbody>();
             if (rb == null) rb = go.AddComponent<Rigidbody>();
             rb.isKinematic = true; rb.useGravity = false;

@@ -31,8 +31,7 @@ namespace AIXRCrane.Crane.Sts
         public AlarmEntry[] entries;
     }
 
-    /// <summary>알람 코드북(170개) SSOT — Resources JSON을 1회 로드해 코드→항목 색인. 코드·심각도·메시지는 임의 정의 금지, 항상 이 데이터를 따른다.
-    /// 표시·색 규칙은 CraneFault.SevColor 재사용.</summary>
+    /// <summary>알람 코드북(170개) SSOT — Resources JSON 1회 로드, 코드→항목 색인. 코드·심각도·메시지는 임의 정의 금지.</summary>
     public static class AlarmCodebook
     {
         const string ResourcePath = "Sts/AlarmCodebook";   // Assets/Crane/Resources/Sts/AlarmCodebook.json
@@ -68,14 +67,12 @@ namespace AIXRCrane.Crane.Sts
                 else Debug.LogWarning($"[AlarmCodebook] 중복 코드 {e.code} — 첫 항목 유지.");
             }
 
-            // 로드 성공 판정 = 색인된 항목이 1개 이상(파싱 성공 + 비어있지 않음).
-            // 비면 위 try/catch 또는 빈 JSON으로 LogError가 이미 찍혔거나(파싱 실패), 데이터가 0건 — 어느 쪽이든 SSOT 불가.
+            // 로드 성공 = 색인 1개 이상. 파싱 실패든 0건이든 비면 SSOT 불가.
             _loadOk = _byCode.Count > 0;
             if (!_loadOk)
                 Debug.LogError($"[AlarmCodebook] 코드북이 비어 있음(파싱 실패 또는 0건) — 알람 시스템 오프라인으로 간주(fail-to-safe).");
 
-            // 코드북 무결성 자가검증(1회만 실행): 선언 totalDefined vs 실제 항목 수, 중복 코드 누락 수,
-            //   XR 비대상(xr:false) 개수를 로깅 — 원본 문서와 대조용(23 vs 25 불일치 추적 중).
+            // 무결성 자가검증(1회) — 선언 수·중복·XR 비대상 수를 원본 문서와 대조(XR 비대상 23 vs 25 추적 중).
             if (_loadOk && data != null)
             {
                 if (_all.Length != data.totalDefined)
@@ -89,8 +86,7 @@ namespace AIXRCrane.Crane.Sts
             }
         }
 
-        /// <summary>코드북이 정상 로드됐는가(Count&gt;0, 파싱 성공) — fail-to-safe 게이트.
-        /// false면 호출부는 알람 시스템 오프라인 안전정지로 전이해야 한다.</summary>
+        /// <summary>코드북 정상 로드 여부 — fail-to-safe 게이트. false 면 호출부는 알람 오프라인 안전정지로.</summary>
         public static bool IsLoaded { get { EnsureLoaded(); return _loadOk; } }
 
         /// <summary>코드로 항목 조회. 없으면 null.</summary>
