@@ -30,6 +30,11 @@ namespace AIXRCrane.Crane.Sts
         /// <summary>면적 area(m²)에 상대풍속 v(m/s, 부호=방향)가 만드는 항력 N = ½·ρ·Cd·A·v·|v|.</summary>
         public static double WindForce(double v, double area) => 0.5 * AirDensity * ContainerCd * area * v * Math.Abs(v);
 
+        /// <summary>매달린 화물이 받는 항력 N — 풍속에서 화물 속도(매달림점 + 흔들림 L·θ̇)를 뺀 상대풍속으로 잰다.
+        /// 흔들림 속도 항이 공력 감쇠 ζ_aero = ρ·Cd·A·|w|/(2·m·ω₀)를 만든다(40ft·8m/s·25m 에서 0.018 — ZetaBare 와 같은 크기).</summary>
+        public static double WindForceOn(double wind, double pivotVel, double omega, double ropeM, double area)
+            => WindForce(wind - pivotVel - Math.Max(ropeM, MinRopeM) * omega, area);
+
         /// <summary>지금 상태의 흔들림 진폭(m) = √(d² + (ḋ/ω₀)²) — 영점을 지나는 순간에도 진폭을 준다.</summary>
         public static double Amplitude(double theta, double omega, double ropeM)
         {
@@ -37,7 +42,7 @@ namespace AIXRCrane.Crane.Sts
             return L * Math.Sqrt(theta * theta + omega * omega * L / G);
         }
 
-        /// <summary>식 검증 — 해석해가 있는 다섯 경우를 수치적분과 맞춘다. 어긋나면 예외, 맞으면 요약 문자열.</summary>
+        /// <summary>식 검증 — 해석해가 있는 여섯 경우를 수치적분과 맞춘다. 어긋나면 예외, 맞으면 요약 문자열.</summary>
         public static string SelfCheck()
         {
             const double dt = 0.02;   // Unity 고정 틱과 같다
@@ -84,6 +89,14 @@ namespace AIXRCrane.Crane.Sts
                 double A0 = Amplitude(th, om, L0) / L0;
                 for (int i = 0; i < sec / dt; i++) { Step(ref th, ref om, L, rate, 0, 0, 0, 1, dt); L += rate * dt; }
                 Expect("권상 단열", Amplitude(th, om, L1) / L1, A0 * Math.Pow(L1 / L0, -0.75), 0.03, r);
+            }
+            // ⑥ 상대풍속의 공력 감쇠 — 평형점 둘레 진폭이 e^(−(ζ+ζ_aero)ω₀t) 로 준다. 40ft, 16.8t, 8m/s, ζ = 0.02, 60초.
+            {
+                double L = 25, m = 16800, A = 12.192 * 2.591, w = 8, z = 0.02, w0 = Math.Sqrt(G / L);
+                double za = AirDensity * ContainerCd * A * w / (2 * m * w0);
+                double eq = WindForce(w, A) / (m * G), th = eq + 0.05, om = 0, A0 = Amplitude(th - eq, om, L), sec = 60;
+                for (int i = 0; i < sec / dt; i++) Step(ref th, ref om, L, 0, z, 0, WindForceOn(w, 0, om, L, A), m, dt);
+                Expect("공력 감쇠", Amplitude(th - eq, om, L), A0 * Math.Exp(-(z + za) * w0 * sec), 0.03, r);
             }
             return r.ToString();
         }

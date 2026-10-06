@@ -46,6 +46,12 @@ namespace AIXRCrane.Crane.Sts
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void Boot()
         {
+            string why;
+            bool ok;
+            try { why = SwayDynamics.SelfCheck(); ok = true; }
+            catch (System.Exception e) { why = e.Message; ok = false; }
+            QaLog.Check("SWAY", "selfcheck", ok, why.Replace('\n', ' '));
+
             foreach (var c in FindObjectsByType<StsCrane>())
                 if (c.GetComponent<CraneSway>() == null) c.gameObject.AddComponent<CraneSway>();
         }
@@ -79,7 +85,7 @@ namespace AIXRCrane.Crane.Sts
             float Ldot = (L - lastL) / dt;
             lastPivot = p; lastVel = v; lastL = L;
             if (v.magnitude > TeleportMps || Mathf.Abs(Ldot) > TeleportMps) { thX = omX = thZ = omZ = 0; primed = 0; }
-            if (primed < 2) { primed++; a = Vector3.zero; Ldot = 0f; }
+            if (primed < 2) { primed++; a = Vector3.zero; v = Vector3.zero; Ldot = 0f; }
 
             // 바람(실척 m/s) — 부는 방향 = 불어오는 방위의 반대
             float wMps = WindMps, wFrom = WindFromDeg;
@@ -88,15 +94,17 @@ namespace AIXRCrane.Crane.Sts
             float rad = wFrom * Mathf.Deg2Rad;
             double wx = -Mathf.Sin(rad) * wMps * gust, wz = -Mathf.Cos(rad) * wMps * gust;
 
-            double mass = SpreaderMassKg, fx = 0, fz = 0;
+            double mass = SpreaderMassKg, fx = 0, fz = 0, fx0 = 0, fz0 = 0;
             var attach = crane.Attach;
             var held = attach != null ? attach.AttachedContainer : null;
             if (held != sizedFor) { sizedFor = held; heldSizeM = held != null && CraneDemoRunner.TryBounds(held, out var hb) ? hb.size * inv : Vector3.zero; }
             if (held != null)
             {
                 mass += attach.AttachedMassKg;
-                fx = SwayDynamics.WindForce(wx, heldSizeM.z * heldSizeM.y);
-                fz = SwayDynamics.WindForce(wz, heldSizeM.x * heldSizeM.y);
+                fx = SwayDynamics.WindForceOn(wx, v.x, omX, L, heldSizeM.z * heldSizeM.y);
+                fz = SwayDynamics.WindForceOn(wz, v.z, omZ, L, heldSizeM.x * heldSizeM.y);
+                fx0 = SwayDynamics.WindForceOn(wx, v.x, 0, L, heldSizeM.z * heldSizeM.y);   // 평형점용 — 흔들림 속도 0
+                fz0 = SwayDynamics.WindForceOn(wz, v.z, 0, L, heldSizeM.x * heldSizeM.y);
             }
 
             double zeta = AntiSway ? ZetaAntiSway : ZetaBare;
@@ -110,7 +118,7 @@ namespace AIXRCrane.Crane.Sts
             double Lc = System.Math.Max(L, SwayDynamics.MinRopeM);
             Offset = new Vector3((float)(Lc * thX), 0f, (float)(Lc * thZ)) * StsConfig.ModelScale;
             // 진폭은 평형점 기준 — θ̈ = 0, θ̇ = 0 이면 θ_eq = (F/m − a)/g. 바람의 정적 편향은 흔들림이 아니라서 뺀다.
-            double eqX = (fx / mass - a.x) / SwayDynamics.G, eqZ = (fz / mass - a.z) / SwayDynamics.G;
+            double eqX = (fx0 / mass - a.x) / SwayDynamics.G, eqZ = (fz0 / mass - a.z) / SwayDynamics.G;
             double ax = SwayDynamics.Amplitude(thX - eqX, omX, L), az = SwayDynamics.Amplitude(thZ - eqZ, omZ, L);
             AmplitudeM = (float)System.Math.Sqrt(ax * ax + az * az);
             node.localPosition = node.parent.InverseTransformVector(Offset);
