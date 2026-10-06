@@ -405,8 +405,8 @@ def main():
     s.add_argument("--host", default="0.0.0.0")
     s.add_argument("--port", type=int, default=DEFAULT_PORT)
     s.add_argument("--allow", default=DEFAULT_ALLOW, help="허용 대역 CIDR(쉼표 구분). 기본 루프백+사설망")
-    s.add_argument("--retain-hours", type=float, default=float(os.environ.get("XRCRANE_RETAIN_HOURS", "1")),
-                   help="이보다 오래된 행 삭제(개발 중 기본 1시간, 0=무기한). 크레인 3대 100ms 면 시간당 약 150MB")
+    s.add_argument("--retain-hours", type=float, default=float(os.environ.get("XRCRANE_RETAIN_HOURS", "3")),
+                   help="이보다 오래된 행 삭제(개발 중 기본 3시간 ≈ 450MB, 0=무기한). 크레인 3대 100ms 면 시간당 약 150MB")
     s.add_argument("--prune-every", type=float, default=600, help="보존 삭제 주기(초)")
     s.set_defaults(func=cmd_serve)
 
