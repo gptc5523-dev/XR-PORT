@@ -29,7 +29,6 @@ namespace AIXRCrane.Crane.Sts
             public Vector2 fpMin, fpMax;     // 바닥 투영 외곽(XZ) — mover 기준 상대
             public float groundY;            // 크레인 바운즈 바닥(바퀴 밑) — 접근 띠 높이
             public LineRenderer ring;        // 접근 범위 바닥 띠
-            public bool square;              // STS — 포털 중심 정사각형(각진 모서리), RTG — 바운즈 둥근 사각형
         }
 
         static readonly Color RingIdle = new Color(0.3f, 0.85f, 1f, 0.35f);
@@ -147,10 +146,10 @@ namespace AIXRCrane.Crane.Sts
             }
             if (cranes.Count == 0 || Time.unscaledTime < nextSelect) return;
             nextSelect = Time.unscaledTime + selectInterval;
-            bool spectator = Spectator;
+            bool spectator = Spectator, mobile = Flat.FlatModeBootstrap.Mobile;
             foreach (var e in cranes)
             {
-                e.ring.enabled = !spectator;   // 관전자는 띠 숨김
+                e.ring.enabled = !spectator && !mobile;   // 관전자·모바일(운전 불가)은 띠 숨김
                 if (spectator && e.ctrl.enabled) { e.ctrl.ControlActive = false; e.ctrl.enabled = false; }   // 접속 순간 켜진 조종기까지 끈다
             }
             var cam = Camera.main;
@@ -171,7 +170,7 @@ namespace AIXRCrane.Crane.Sts
             // 운전 중(조종·갠트리 모드 또는 운전실 시점)엔 접근 띠를 숨긴다.
             foreach (var e in cranes)
             {
-                e.ring.enabled = !locked && !spectator;   // ★ !spectator 필수 — 빠지면 매 프레임 덮어써 관전자에게 띠가 되살아난다
+                e.ring.enabled = !locked && !spectator && !mobile;   // ★ !spectator 필수 — 빠지면 매 프레임 덮어써 관전자에게 띠가 되살아난다
                 e.ring.startColor = e.ring.endColor = e == active && activeNear ? RingInside : RingIdle;
             }
         }
@@ -193,7 +192,7 @@ namespace AIXRCrane.Crane.Sts
             Vector3 o = e.mover.position;
             float dx = Mathf.Max(o.x + e.fpMin.x - p.x, 0f, p.x - (o.x + e.fpMax.x));
             float dz = Mathf.Max(o.z + e.fpMin.y - p.z, 0f, p.z - (o.z + e.fpMax.y));
-            return e.square ? Mathf.Max(dx, dz) : Mathf.Sqrt(dx * dx + dz * dz);   // 정사각형 존은 체비셰프 거리라 경계도 각지다
+            return Mathf.Sqrt(dx * dx + dz * dz);
         }
 
         static void Footprint(Entry e)
@@ -205,7 +204,6 @@ namespace AIXRCrane.Crane.Sts
             e.groundY = b.min.y;
             if (IsRtg(e.crane)) return;
             // STS 는 붐까지 넣으면 존이 실척 100m 가 넘는다 — 사람이 다가가는 포털(다리 넷)을 덮는 정사각형으로.
-            e.square = true;
             Vector3 c = e.crane.transform.TransformPoint(StsConfig.LegGaugeXMeters * StsConfig.ModelScale * 0.5f, 0f, 0f) - o;
             float h = Mathf.Max(StsConfig.LegGaugeXMeters, StsConfig.GantryBaseZMeters) * StsConfig.ModelScale * 0.5f;
             e.fpMin = new Vector2(c.x - h, c.z - h);
@@ -229,15 +227,6 @@ namespace AIXRCrane.Crane.Sts
             lr.receiveShadows = false;
 
             float r = approachMeters * StsConfig.ModelScale;
-            if (e.square)
-            {
-                lr.positionCount = 4;
-                lr.SetPosition(0, new Vector3(e.fpMax.x + r, e.fpMax.y + r, 0f));
-                lr.SetPosition(1, new Vector3(e.fpMin.x - r, e.fpMax.y + r, 0f));
-                lr.SetPosition(2, new Vector3(e.fpMin.x - r, e.fpMin.y - r, 0f));
-                lr.SetPosition(3, new Vector3(e.fpMax.x + r, e.fpMin.y - r, 0f));
-                return lr;
-            }
             const int seg = 12;   // 모서리 1/4 원 분할
             lr.positionCount = 4 * (seg + 1);
             for (int k = 0; k < 4; k++)   // 모서리 k 는 k·90° 에서 시작
