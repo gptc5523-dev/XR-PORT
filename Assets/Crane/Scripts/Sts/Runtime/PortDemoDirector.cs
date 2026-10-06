@@ -72,6 +72,12 @@ namespace AIXRCrane.Crane.Sts
             get { var nm = Unity.Netcode.NetworkManager.Singleton; return nm != null && nm.IsClient && !nm.IsServer; }
         }
 
+        /// <summary>호스트(세션을 연 쪽)인가 — 접근 존은 호스트에게만 보인다(단독 실행·관전자·모바일 모두 숨김).</summary>
+        public static bool Host
+        {
+            get { var nm = Unity.Netcode.NetworkManager.Singleton; return nm != null && nm.IsServer; }
+        }
+
         static bool IsRtg(StsCrane c) => c.GetComponent<RtgBogieSteering>() != null;   // RTG 는 보기 조향이 붙어 있다
 
         void Awake() => inst = this;
@@ -146,10 +152,10 @@ namespace AIXRCrane.Crane.Sts
             }
             if (cranes.Count == 0 || Time.unscaledTime < nextSelect) return;
             nextSelect = Time.unscaledTime + selectInterval;
-            bool spectator = Spectator, mobile = Flat.FlatModeBootstrap.Mobile;
+            bool spectator = Spectator, host = Host;
             foreach (var e in cranes)
             {
-                e.ring.enabled = !spectator && !mobile;   // 관전자·모바일(운전 불가)은 띠 숨김
+                e.ring.enabled = host;
                 if (spectator && e.ctrl.enabled) { e.ctrl.ControlActive = false; e.ctrl.enabled = false; }   // 접속 순간 켜진 조종기까지 끈다
             }
             var cam = Camera.main;
@@ -170,7 +176,7 @@ namespace AIXRCrane.Crane.Sts
             // 운전 중(조종·갠트리 모드 또는 운전실 시점)엔 접근 띠를 숨긴다.
             foreach (var e in cranes)
             {
-                e.ring.enabled = !locked && !spectator && !mobile;   // ★ !spectator 필수 — 빠지면 매 프레임 덮어써 관전자에게 띠가 되살아난다
+                e.ring.enabled = !locked && host;
                 e.ring.startColor = e.ring.endColor = e == active && activeNear ? RingInside : RingIdle;
             }
         }
