@@ -87,7 +87,8 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             EditorPrefs.SetBool(Pref("forceServer"), prev.Length > 1 && prev[1] == "True");
             EditorPrefs.SetBool(PortDemoDirector.EditorPrefKey, prev.Length > 2 && prev[2] == "True");
             SessionState.EraseBool(Key);
-            EditorApplication.Exit(pass ? 0 : 1);
+            if (Application.isBatchMode) EditorApplication.Exit(pass ? 0 : 1);
+            else EditorApplication.ExitPlaymode();
         }
 
         static void Sample(PlcSnapshot s, StsCrane c)

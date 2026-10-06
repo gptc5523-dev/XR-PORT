@@ -164,7 +164,8 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             EditorApplication.update -= Tick;
             EditorPrefs.SetBool(PortDemoDirector.EditorPrefKey, SessionState.GetBool(PrevKey, false));
             SessionState.EraseBool(Key);
-            EditorApplication.Exit(pass ? 0 : 1);
+            if (Application.isBatchMode) EditorApplication.Exit(pass ? 0 : 1);
+            else EditorApplication.ExitPlaymode();
         }
     }
 }
