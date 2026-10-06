@@ -8,7 +8,7 @@ namespace AIXRCrane.Crane.Sts.Plc
     public sealed class CsvReplaySource : IPlcSource
     {
         readonly PlcSnapshot[] _frames;
-        readonly float[] _times;   // 초
+        readonly float[] _times;   // 초 — 첫 행 기준(epoch ms 가 와도 float 정밀도가 안 깨진다)
         float _t;
         int _idx;
         bool _wrapped;             // 직전 Pump 되감기 여부(1회성 플래그, H5 마스킹용)
@@ -30,12 +30,18 @@ namespace AIXRCrane.Crane.Sts.Plc
             return _frames[i < 0 ? 0 : (i >= _frames.Length ? _frames.Length - 1 : i)];
         }
 
+        /// <summary>첫 행의 t_ms — 재생 시각(초) = (t_ms − BaseMs) / 1000. 작업 이력 시각도 같은 기준으로 바꾼다.</summary>
+        public long BaseMs { get; }
+
         /// <summary>헤더에 없어 0으로 처리된 컬럼명(침묵 실패 가시화, PlcBridge 가 경고).</summary>
         public readonly List<string> MissingColumns = new List<string>();
 
         public CsvReplaySource(string csvText)
         {
-            ParseCsv(csvText, out _frames, out _times, MissingColumns);
+            ParseCsv(csvText, out _frames, out long[] ms, MissingColumns);
+            BaseMs = ms.Length > 0 ? ms[0] : 0;
+            _times = new float[ms.Length];
+            for (int i = 0; i < ms.Length; i++) _times[i] = (ms[i] - BaseMs) / 1000f;
         }
 
         /// <summary>직전 Pump가 되감겼으면 true를 1회 반환(소비 후 리셋) — PlcBridge가 가속 추적 재프라임에 사용(H5).</summary>
@@ -83,9 +89,9 @@ namespace AIXRCrane.Crane.Sts.Plc
         }
 
         // CSV 파싱(헤더 이름 기반). ServerPlcSource 도 공용.
-        internal static void ParseCsv(string text, out PlcSnapshot[] frames, out float[] times, List<string> missingCols)
+        internal static void ParseCsv(string text, out PlcSnapshot[] frames, out long[] tMs, List<string> missingCols)
         {
-            frames = new PlcSnapshot[0]; times = new float[0];
+            frames = new PlcSnapshot[0]; tMs = new long[0];
             if (string.IsNullOrEmpty(text)) return;
 
             var lines = text.Replace("\r\n", "\n").Replace("\r", "\n").Split('\n');
@@ -98,7 +104,7 @@ namespace AIXRCrane.Crane.Sts.Plc
             var missing = new HashSet<string>();   // 헤더에 없어 0으로 처리된 기대 컬럼(침묵 실패 가시화)
 
             var fr = new List<PlcSnapshot>(lines.Length);
-            var tm = new List<float>(lines.Length);
+            var tm = new List<long>(lines.Length);
             var inv = CultureInfo.InvariantCulture;
 
             for (int li = 1; li < lines.Length; li++)
@@ -139,13 +145,13 @@ namespace AIXRCrane.Crane.Sts.Plc
                     LinkStatus = !col.ContainsKey("COM_Link_Status") || B("COM_Link_Status"),
                 };
                 fr.Add(s);
-                tm.Add(I("t_ms") / 1000f);
+                tm.Add(col.TryGetValue("t_ms", out int ti) && ti < c.Length && long.TryParse(c[ti], NumberStyles.Integer, inv, out long ms) ? ms : 0);   // 64비트 — epoch ms 도 받는다(WBS 9.6)
             }
 
             foreach (var m in missing) missingCols.Add(m);   // 침묵 실패 가시화 — PlcBridge가 경고
 
             frames = fr.ToArray();
-            times = tm.ToArray();
+            tMs = tm.ToArray();
         }
     }
 }

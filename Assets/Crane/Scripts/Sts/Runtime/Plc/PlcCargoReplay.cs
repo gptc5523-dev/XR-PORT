@@ -80,7 +80,7 @@ namespace AIXRCrane.Crane.Sts.Plc
                 enabled = false;
                 return false;
             }
-            moves = ReadHistory(path);
+            moves = ReadHistory(path, csv.BaseMs);
             boxes = new Transform[moves.Length];
             spreaderT = ((Component)crane.Spreader).transform;
             var anchor = crane.Attach.AttachAnchor;
@@ -232,7 +232,7 @@ namespace AIXRCrane.Crane.Sts.Plc
             return y;
         }
 
-        static Move[] ReadHistory(string path)
+        static Move[] ReadHistory(string path, long baseMs)
         {
             var lines = File.ReadAllLines(path);
             var col = new Dictionary<string, int>();
@@ -247,9 +247,9 @@ namespace AIXRCrane.Crane.Sts.Plc
                 {
                     id = c[col["container"]], from = c[col["from"]], to = c[col["to"]],
                     ft40 = c[col["size_ft"]] == "40",
-                    // CsvReplaySource 와 같은 식(t_ms / 1000f) — FrameAt 이 정확히 그 행을 찾는다.
-                    pickS = int.Parse(c[col["pick_t_ms"]], CultureInfo.InvariantCulture) / 1000f,
-                    placeS = int.Parse(c[col["place_t_ms"]], CultureInfo.InvariantCulture) / 1000f,
+                    // CsvReplaySource 와 같은 식((t_ms − BaseMs) / 1000f) — FrameAt 이 정확히 그 행을 찾는다.
+                    pickS = (long.Parse(c[col["pick_t_ms"]], CultureInfo.InvariantCulture) - baseMs) / 1000f,
+                    placeS = (long.Parse(c[col["place_t_ms"]], CultureInfo.InvariantCulture) - baseMs) / 1000f,
                 });
             }
             return list.ToArray();

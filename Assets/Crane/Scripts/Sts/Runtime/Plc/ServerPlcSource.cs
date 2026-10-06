@@ -18,7 +18,7 @@ namespace AIXRCrane.Crane.Sts.Plc
         readonly HttpClient http = new HttpClient { Timeout = TimeSpan.FromSeconds(2) };
         readonly object gate = new object();
         readonly List<PlcSnapshot> inFrames = new List<PlcSnapshot>(), frames = new List<PlcSnapshot>();
-        readonly List<float> inTimes = new List<float>(), times = new List<float>();
+        readonly List<double> inTimes = new List<double>(), times = new List<double>();   // 초 — double 이라 epoch ms 그대로 넣어도 정밀(WBS 9.6)
         readonly List<long> inPlc = new List<long>(), plcMs = new List<long>(), inRecv = new List<long>(), recvMs = new List<long>();   // 지표1 스탬프(epoch ms, 행과 같은 순서)
         Thread thread;
         volatile bool running = true, online;
@@ -26,7 +26,10 @@ namespace AIXRCrane.Crane.Sts.Plc
         int shown = -1;   // 마지막으로 로그한 연결 상태(−1 모름 · 0 끊김 · 1 연결)
         bool warnedMissing, wrapped;
         long lastId = -1;
-        float playT;
+        double playT;
+        long clockOffset, clockRtt;   // 서버 시계 − 이 기기 시계, 그 표본의 왕복(ms)
+        bool clockSynced;
+        DateTime nextClock;
 
         public ServerPlcSource(string baseUrl, string craneName)
         {
@@ -52,6 +55,12 @@ namespace AIXRCrane.Crane.Sts.Plc
             return plc > 0 && recv > 0;
         }
 
+        /// <summary>서버 시계 − 이 기기 시계(ms)와 그 추정의 왕복시간 — 오차는 왕복의 절반 이내. 아직 못 쟀으면 false.</summary>
+        public bool TryClock(out long offsetMs, out long rttMs)
+        {
+            lock (gate) { offsetMs = clockOffset; rttMs = clockRtt; return clockSynced; }
+        }
+
         public void Pump(float dt)
         {
             if (thread == null) (thread = new Thread(PollLoop) { IsBackground = true, Name = "ServerPlc" }).Start();
@@ -68,7 +77,7 @@ namespace AIXRCrane.Crane.Sts.Plc
             LogState();
             if (times.Count == 0) return;
 
-            float newest = times[times.Count - 1];
+            double newest = times[times.Count - 1];
             playT += dt;
             if (wrapped || playT < newest - MaxLagS) playT = newest - DelayS;
             if (playT > newest) playT = newest;   // 새 행이 안 오면 마지막 자세에서 멈춘다
@@ -82,8 +91,8 @@ namespace AIXRCrane.Crane.Sts.Plc
             snap = default;
             if (times.Count == 0) return false;
             if (times.Count == 1) { snap = frames[0]; return true; }
-            float span = times[1] - times[0];
-            snap = CsvReplaySource.LerpFrame(frames[0], frames[1], span > 1e-6f ? Mathf.Clamp01((playT - times[0]) / span) : 0f);
+            double span = times[1] - times[0];
+            snap = CsvReplaySource.LerpFrame(frames[0], frames[1], span > 1e-6 ? Mathf.Clamp01((float)((playT - times[0]) / span)) : 0f);
             return true;
         }
 
@@ -97,6 +106,7 @@ namespace AIXRCrane.Crane.Sts.Plc
         {
             while (running)
             {
+                if (DateTime.UtcNow >= nextClock) { SyncClock(); nextClock = DateTime.UtcNow.AddSeconds(10); }   // 시계 차는 10초마다
                 try
                 {
                     string q = $"{url}/since?crane={Uri.EscapeDataString(crane)}" + (lastId >= 0 ? $"&after_id={lastId}" : "");
@@ -111,7 +121,7 @@ namespace AIXRCrane.Crane.Sts.Plc
                         var pl = new List<long>(f.Length); var rc = new List<long>(f.Length);
                         ParseStamps(text, pl, rc);
                         if (pl.Count != f.Length) { pl.Clear(); rc.Clear(); for (int i = 0; i < f.Length; i++) { pl.Add(0); rc.Add(0); } }   // 행 수가 어긋나면 스탬프를 버린다(잘못 짝짓기 방지)
-                        lock (gate) { inFrames.AddRange(f); inTimes.AddRange(t); inPlc.AddRange(pl); inRecv.AddRange(rc); }
+                        lock (gate) { inFrames.AddRange(f); foreach (long ms in t) inTimes.Add(ms / 1000.0); inPlc.AddRange(pl); inRecv.AddRange(rc); }
                     }
                     online = true;
                 }
@@ -125,7 +135,28 @@ namespace AIXRCrane.Crane.Sts.Plc
             }
         }
 
-        // plc_ms·recv_ms 열을 long 으로 — ParseCsv 는 int·float 라 epoch ms 가 깨진다(WBS 9.6). 빈 줄 건너뛰기는 ParseCsv 와 같다.
+        // 서버 /time 을 5번 불러 왕복이 가장 짧은 표본으로 시계 차를 잡는다(Cristian) — 기기가 나뉘어도 지표1 시각을 서버 시계로 맞춘다.
+        void SyncClock()
+        {
+            long bestRtt = long.MaxValue, bestOff = 0;
+            for (int i = 0; i < 5 && running; i++)
+            {
+                try
+                {
+                    long t0 = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                    string body = http.GetStringAsync(url + "/time").Result;
+                    long t1 = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                    var m = System.Text.RegularExpressions.Regex.Match(body, "\"server_ms\"\\s*:\\s*(\\d+)");
+                    if (!m.Success) return;   // 옛 서버(/time 없음) — 시계 차 0 으로 둔다
+                    if (t1 - t0 < bestRtt) { bestRtt = t1 - t0; bestOff = long.Parse(m.Groups[1].Value) - (t0 + t1) / 2; }
+                }
+                catch { return; }
+            }
+            if (bestRtt == long.MaxValue) return;
+            lock (gate) { clockOffset = bestOff; clockRtt = bestRtt; clockSynced = true; }
+        }
+
+        // plc_ms·recv_ms 열을 long 으로 — ParseCsv 는 이 둘을 안 읽는다. 빈 줄 건너뛰기는 ParseCsv 와 같다.
         static void ParseStamps(string text, List<long> plc, List<long> recv)
         {
             var lines = text.Replace("\r\n", "\n").Replace("\r", "\n").Split('\n');

@@ -189,14 +189,15 @@ def cmd_adapter(args):
     cli = Client()
     url = args.url.rstrip("/") + "/ingest"
     source = f"s7/{args.plc}"
-    t0 = time.monotonic()
-    nxt, up, down_logged, sent = t0, False, False, 0
+    from xrcrane_db import clock_offset
+    nxt, up, down_logged, sent = time.monotonic(), False, False, 0
+    off, synced_at = 0, -1e9
     while True:
         try:
             if not cli.get_connected():
                 cli.connect(args.plc, args.rack, args.slot, args.port)
             dbs = {db: cli.db_read(db, 0, DB_SIZE) for db in DBS}
-            read_ms = int(time.time() * 1000)   # PLC 읽은 시각(epoch ms) — 지표1 시작점
+            read_ms = int(time.time() * 1000) + off   # PLC 읽은 시각(서버 시계 epoch ms) — 지표1 시작점
         except Exception as e:
             if not down_logged:   # 끊길 때 한 번만 — 1초마다 찍으면 로그가 묻힌다
                 print(f"[plc-adapter] {args.plc}:{args.port} 읽기 실패: {e} — 1초마다 재접속", flush=True)
@@ -212,9 +213,16 @@ def cmd_adapter(args):
             print(f"[plc-adapter] {args.plc}:{args.port} 연결 — DB100·DB101 을 {args.period * 1000:.0f}ms 마다 읽어 {url} (crane={args.crane})", flush=True)
             up, down_logged = True, False
 
-        # t_ms 는 어댑터가 읽은 시각 — PLC 엔 시나리오 시각이 없다. Unity 는 이 간격으로 보간한다.
+        if time.monotonic() - synced_at > 60:   # 1분마다 서버 시계와의 차를 다시 잰다
+            try:
+                off, rtt = clock_offset(args.url)
+                print(f"[plc-adapter] 시계 차 {off:+d}ms (왕복 {rtt}ms)", flush=True)
+            except Exception as e:
+                print(f"[plc-adapter] 시계 차 측정 실패: {e} — 직전 값 {off:+d}ms 유지", flush=True)
+            synced_at = time.monotonic()
+        # t_ms = 읽은 시각(epoch ms) — 어댑터를 다시 켜도 0 으로 돌아가지 않아 런이 섞이지 않는다(WBS 9.6)
         row = decode(dbs)
-        row.update(crane=args.crane, source=source, t_ms=int((time.monotonic() - t0) * 1000), plc_ms=read_ms)
+        row.update(crane=args.crane, source=source, t_ms=read_ms, plc_ms=read_ms)
         try:
             req = urllib.request.Request(url, json.dumps(row).encode("utf-8"), {"Content-Type": "application/json"})
             urllib.request.urlopen(req, timeout=2).read()

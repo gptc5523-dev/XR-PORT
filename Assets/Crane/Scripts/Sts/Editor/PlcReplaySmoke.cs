@@ -42,7 +42,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             string hist = Path.ChangeExtension(csv, ".history.csv");
             // 이동 수·끝 시각은 이력 파일에서 직접 센다 — PlcCargo 로그는 구독 전에 찍혀 놓칠 수 있다.
             var rows = File.Exists(hist) ? File.ReadAllLines(hist).Skip(1).Where(l => l.Trim().Length > 0).ToArray() : new string[0];
-            float endS = rows.Length > 0 ? rows.Max(l => int.Parse(l.Split(',')[7], CultureInfo.InvariantCulture)) / 1000f + 5f : 60f;   // place_t_ms
+            float endS = rows.Length > 0 ? rows.Max(l => long.Parse(l.Split(',')[7], CultureInfo.InvariantCulture)) / 1000f + 5f : 60f;   // place_t_ms
 
             SessionState.SetBool(Key, true);
             SessionState.SetFloat(EndKey, endS);

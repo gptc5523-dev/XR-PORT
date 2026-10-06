@@ -10,6 +10,7 @@ XR 크레인 통합서버 v0.5 — PLC 이력 수집·저장·조회. 파트ID �
 
 엔드포인트
   GET  /health                                  살아있는지 + 적재 행 수
+  GET  /time                                    서버 벽시계(epoch ms) — 기기 간 시계 차 추정용(지표1)
   POST /ingest                                  스냅샷 1건 또는 배열 적재(JSON)
   GET  /latest?crane=STS_Crane                  가장 최근 스냅샷 1건
   GET  /history?crane=&from_ms=&to_ms=&limit=   구간 조회(기본 최근 500)
@@ -31,6 +32,7 @@ import os
 import sqlite3
 import sys
 import threading
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs
 
@@ -165,6 +167,9 @@ class Handler(BaseHTTPRequestHandler):
         except ValueError:
             limit = 500
 
+        if path == "/time":
+            return self.send_json({"server_ms": int(time.time() * 1000)})
+
         if path == "/health":
             n = self.con.execute("SELECT COUNT(*) c FROM snapshot").fetchone()["c"]
             return self.send_json({"ok": True, "rows": n, "db": self.server.db_path})
@@ -277,6 +282,20 @@ def cmd_import(args):
     con.close()
 
 
+def clock_offset(base_url, n=8):
+    """(서버 시계 − 내 시계, 왕복시간) ms — 왕복이 가장 짧은 표본을 쓴다(Cristian). 오차는 왕복의 절반 이내."""
+    import time
+    import urllib.request
+    best = None
+    for _ in range(n):
+        t0 = time.time() * 1000
+        server = json.loads(urllib.request.urlopen(base_url.rstrip("/") + "/time", timeout=2).read())["server_ms"]
+        t1 = time.time() * 1000
+        if best is None or t1 - t0 < best[1]:
+            best = (server - (t0 + t1) / 2, t1 - t0)
+    return int(round(best[0])), int(round(best[1]))
+
+
 def cmd_feed(args):
     """PLC 대역 — CSV 를 t_ms 간격 그대로 /ingest 에 한 행씩 보낸다. 서버→크레인 경로를 살아 있는 데이터로 돌린다."""
     import time
@@ -287,12 +306,14 @@ def cmd_feed(args):
     url = args.url.rstrip("/") + "/ingest"
     print(f"[xrcrane-db] feed {source} {len(rows)}행 → {url} crane={args.crane}{' 반복' if args.loop else ''}", flush=True)
     while True:
+        off, rtt = clock_offset(args.url)   # 바퀴마다 다시 — 장시간 반복 중 시계가 흘러도 따라간다
+        print(f"[xrcrane-db] feed 시계 차 {off:+d}ms (왕복 {rtt}ms) — plc_ms 를 서버 시계로 맞춰 보냄", flush=True)
         t0 = time.monotonic()
         for row in rows:
             wait = t0 + float(row["t_ms"]) / 1000 - time.monotonic()
             if wait > 0:
                 time.sleep(wait)
-            row.update(crane=args.crane, source=source, plc_ms=int(time.time() * 1000))   # PLC 측 송출 시각(epoch ms) — 지표1 시작점
+            row.update(crane=args.crane, source=source, plc_ms=int(time.time() * 1000) + off)   # PLC 측 송출 시각(서버 시계 epoch ms) — 지표1 시작점
             req = urllib.request.Request(url, json.dumps(row).encode("utf-8"), {"Content-Type": "application/json"})
             urllib.request.urlopen(req, timeout=5).read()
         if not args.loop:
