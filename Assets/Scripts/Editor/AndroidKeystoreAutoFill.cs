@@ -1,16 +1,16 @@
 #if UNITY_EDITOR
+using System.IO;
 using UnityEditor;
+using UnityEngine;
 
 namespace AIXRCrane.EditorTools
 {
-    /// <summary>도메인 리로드마다 비는 Android 키스토어 비밀번호를 자동으로 채운다.
-    /// 주의: 비밀번호가 평문으로 들어간다 — 외부 배포 빌드면 빼거나 환경변수로.</summary>
+    /// <summary>도메인 리로드마다 비는 Android 키스토어 비밀번호를 채운다 — 환경변수 XRCRANE_KEYSTORE_PASS, 없으면 루트 user.keystore.pass(git 제외).</summary>
     [InitializeOnLoad]
     public static class AndroidKeystoreAutoFill
     {
         const string KeyaliasName  = "container";
-        const string KeystorePass  = "container123";
-        const string KeyaliasPass  = "container123";
+        const string PassFile = "user.keystore.pass";
 
         static AndroidKeystoreAutoFill()
         {
@@ -20,10 +20,17 @@ namespace AIXRCrane.EditorTools
 
         static void Apply()
         {
+            string pass = System.Environment.GetEnvironmentVariable("XRCRANE_KEYSTORE_PASS");
+            if (string.IsNullOrEmpty(pass) && File.Exists(PassFile)) pass = File.ReadAllText(PassFile).Trim();
+            if (string.IsNullOrEmpty(pass))
+            {
+                Debug.LogWarning($"[Keystore] 비밀번호 없음 — XRCRANE_KEYSTORE_PASS 또는 프로젝트 루트 {PassFile} 에 넣어야 Android 빌드가 서명된다.");
+                return;
+            }
             PlayerSettings.Android.useCustomKeystore = true;
             PlayerSettings.Android.keyaliasName = KeyaliasName;
-            PlayerSettings.Android.keystorePass = KeystorePass;
-            PlayerSettings.Android.keyaliasPass = KeyaliasPass;
+            PlayerSettings.Android.keystorePass = pass;
+            PlayerSettings.Android.keyaliasPass = pass;
         }
     }
 }

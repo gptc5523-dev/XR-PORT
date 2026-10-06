@@ -57,6 +57,7 @@ ExportedObj/
 # Android signing keys (secret — never commit)
 *.keystore
 *.jks
+*.keystore.pass
 
 # 문서(코드 백업에서 제외)
 문서/
