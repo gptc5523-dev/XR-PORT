@@ -32,7 +32,8 @@ namespace AIXRCrane.Crane.Sts.Plc
 
         [Header("Server 모드")]
         [Tooltip("통합서버(Server/xrcrane_db.py) 주소. 크레인 이름(gameObject.name)을 DB 의 crane 값으로 조회한다.")]
-        [SerializeField] string serverUrl = "http://192.168.0.167:5006";
+        [SerializeField] string serverUrl = "http://192.168.0.167:5006";   // 기본값일 뿐 — 기기에선 XRCRANE_SERVER_URL 또는 xrcrane_server.txt 가 이긴다
+        bool serverUrlFixed;
 
         [Header("정규화 범위 (실척 m)")]
         // 0이면 무버 기하에서 자동 산출(rangeM = (Max−Min)×(1/ModelScale), SSOT=무버). 0이 아니면 수동 오버라이드.
@@ -101,6 +102,7 @@ namespace AIXRCrane.Crane.Sts.Plc
             {
                 sourceMode = SourceMode.Server; active = true;
                 serverUrl = UnityEditor.EditorPrefs.GetString(PrefKey("serverUrl"), serverUrl);   // 측정 도구가 로컬 서버를 가리킬 때
+                serverUrlFixed = UnityEditor.EditorPrefs.HasKey(PrefKey("serverUrl"));   // 측정 중엔 기기 설정보다 측정 도구가 먼저
             }
 #endif
             source = BuildSource();
@@ -159,7 +161,7 @@ namespace AIXRCrane.Crane.Sts.Plc
 
         IPlcSource BuildSource()
         {
-            if (sourceMode == SourceMode.Server) return new ServerPlcSource(serverUrl, gameObject.name);   // 폴백 없음 — 끊기면 멈춘 채로 둔다
+            if (sourceMode == SourceMode.Server) return new ServerPlcSource(serverUrlFixed ? serverUrl : ServerPlcSource.ResolveUrl(serverUrl), gameObject.name);   // 폴백 없음 — 끊기면 멈춘 채로 둔다
             if (sourceMode == SourceMode.CsvReplay)
             {
                 string text = LoadCsvText();

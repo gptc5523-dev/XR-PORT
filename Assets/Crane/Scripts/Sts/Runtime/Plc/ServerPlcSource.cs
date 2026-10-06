@@ -49,6 +49,18 @@ namespace AIXRCrane.Crane.Sts.Plc
             return File.Exists(f) ? File.ReadAllText(f).Trim() : "";
         }
 
+        /// <summary>서버 주소(WBS 8.2) — 환경변수 XRCRANE_SERVER_URL, 없으면 기기의 persistentDataPath/xrcrane_server.txt, 둘 다 없으면 씬 값.</summary>
+        public static string ResolveUrl(string sceneUrl)
+        {
+            string u = Environment.GetEnvironmentVariable("XRCRANE_SERVER_URL");
+            if (string.IsNullOrWhiteSpace(u))
+            {
+                string f = Path.Combine(Application.persistentDataPath, "xrcrane_server.txt");
+                if (File.Exists(f)) u = File.ReadAllText(f);
+            }
+            return string.IsNullOrWhiteSpace(u) ? sceneUrl : u.Trim();
+        }
+
         public string Name => "Server";
         public bool IsConnected => online;
 

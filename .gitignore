@@ -62,3 +62,6 @@ ExportedObj/
 # 문서(코드 백업에서 제외)
 문서/
 운전실_배치도.png
+
+# 통합서버 실제 설정(토큰 등) — 예시는 Server/xrcrane.env.example
+Server/xrcrane.env
