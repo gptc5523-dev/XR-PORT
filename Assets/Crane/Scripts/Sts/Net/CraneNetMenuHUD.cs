@@ -188,9 +188,11 @@ namespace AIXRCrane.Crane.Sts.Net
         // 크레인 조종 입력 차단/복구
         void SuppressController()
         {
+            // 매 프레임 켜진(Active) 조종기를 막는다 — 메뉴 중에 감독(PortDemoDirector)이 가까운 크레인으로 바꿔 켜면 그 조종기가 새로 켜진다.
+            var a = StsCraneVRController.Active;
+            if (a != null) { a.enabled = false; craneController = a; controllerSuppressed = true; return; }
             if (controllerSuppressed) return;
-            // 켜진(Active) 조종기를 막는다 — FindAnyObjectByType 은 크레인이 여럿이면 다른 걸 집는다.
-            if (craneController == null) craneController = StsCraneVRController.Active != null ? StsCraneVRController.Active : FindAnyObjectByType<StsCraneVRController>();
+            if (craneController == null) craneController = FindAnyObjectByType<StsCraneVRController>();
             if (craneController != null) { craneController.enabled = false; controllerSuppressed = true; }
         }
 

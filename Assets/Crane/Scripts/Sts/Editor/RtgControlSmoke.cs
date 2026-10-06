@@ -79,21 +79,20 @@ namespace AIXRCrane.Crane.Sts.EditorTools
                             mb.GetType().GetMethod("RestoreController", Priv)?.Invoke(mb, new object[] { true });
                             Object.Destroy(mb);
                         }
-                    // 실제 흐름 재현: STS 조종 켬 → 조종모드 → B 로 이동모드(조종 토글은 켠 채)
-                    stsCtrl.QaBeginDrive(StsCraneVRController.Mode.Crane);
-                    stsCtrl.QaBeginDrive(StsCraneVRController.Mode.Move);
+                    // 시작 위치는 씬 배치에 따라 RTG 옆일 수 있다 — STS 발치로 걸어간 뒤 잰다(감독이 가까운 크레인 조종기만 켠다).
+                    if (!WalkTo(sts)) return;
                     Next(); return;
 
-                case 1:   // 걸어서 RTG 발치로
+                case 1:   // STS 조종 켬 → 조종모드 → B 로 이동모드(조종 토글은 켠 채) → 걸어서 RTG 발치로
                     if (Wall - stepAt < 1f) return;
                     int on = 0;
                     foreach (var vc in Object.FindObjectsByType<StsCraneVRController>(FindObjectsInactive.Include)) if (vc.enabled) on++;
                     hudSts = HudCrane() == sts && StsCraneVRController.Active == stsCtrl && on == 1;   // 켜진 조종기는 STS 한 대
-                    Log($"접속 직후 — 켜진 조종기 {on}대(=1), Active {Name(StsCraneVRController.Active)}, 상태 HUD {Name(HudCrane())} ({(hudSts ? "OK" : "FAIL")})");
-                    var cam = Camera.main;
-                    if (cam == null) { Log("Camera.main 없음"); fail = true; Finish(); return; }
+                    Log($"접속 후 STS 발치 — 켜진 조종기 {on}대(=1), Active {Name(StsCraneVRController.Active)}, 상태 HUD {Name(HudCrane())} ({(hudSts ? "OK" : "FAIL")})");
+                    stsCtrl.QaBeginDrive(StsCraneVRController.Mode.Crane);
+                    stsCtrl.QaBeginDrive(StsCraneVRController.Mode.Move);
+                    if (!WalkTo(rtg)) return;
                     SceneUtil.TryBounds(rtg.transform, out var b);
-                    cam.transform.root.position += new Vector3(b.center.x - cam.transform.position.x, 0f, b.center.z - cam.transform.position.z);
                     Log($"리그 → {rtg.name} 발치 {b.center:F3}");
                     Next(); return;
 
@@ -155,6 +154,15 @@ namespace AIXRCrane.Crane.Sts.EditorTools
         {
             var hud = Object.FindAnyObjectByType<CraneStatusHUD>();
             return hud != null ? typeof(CraneStatusHUD).GetField("crane", Priv)?.GetValue(hud) as StsCrane : null;
+        }
+
+        // 리그를 크레인 바닥 외곽 중심으로 옮긴다(수평만) — 감독이 0.2초 주기로 가장 가까운 크레인 조종기를 켠다.
+        static bool WalkTo(StsCrane c)
+        {
+            var cam = Camera.main;
+            if (cam == null || !SceneUtil.TryBounds(c.transform, out var b)) { Log("Camera.main 또는 크레인 바운즈 없음"); fail = true; Finish(); return false; }
+            cam.transform.root.position += new Vector3(b.center.x - cam.transform.position.x, 0f, b.center.z - cam.transform.position.z);
+            return true;
         }
 
         // 가까운 끝단 반대쪽으로 민다 — 1.5초에 끝단에 닿아 속도가 잘리지 않게.
