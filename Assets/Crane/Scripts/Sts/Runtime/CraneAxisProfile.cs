@@ -12,6 +12,8 @@ namespace AIXRCrane.Crane.Sts
         public const float TrolleyMaxSpeed = 3.5f;
         /// <summary>권상 정격 속도(정격하중) 75 m/min. 공차는 약 2×.</summary>
         public const float HoistMaxSpeed   = 1.25f;
+        /// <summary>권상 공하(빈 스프레더) 속도 = 정격하중 속도 × 2.</summary>
+        public const float HoistEmptySpeed = HoistMaxSpeed * 2f;
 
         // 2) 정격 가속도(실척 m/s²) — VirtualPlcSource 램프 한계. a = v_정격 / τ_ramp(τ≈2~6s).
 

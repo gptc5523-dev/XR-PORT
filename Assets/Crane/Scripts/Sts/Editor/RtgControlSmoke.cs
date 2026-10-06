@@ -118,7 +118,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
 
                 case 4:   // 트롤리
                     if (Wall - stepAt < StepS) return;
-                    Check("트롤리", rtg.Trolley, 3.3f);
+                    Check("트롤리", rtg.Trolley, CraneAxisProfile.TrolleyMaxSpeed);
                     Begin(rtg.Spreader, out float dh);
                     rtgCtrl.QaSticks(Vector2.zero, new Vector2(0f, dh));
                     Next(); return;
@@ -127,7 +127,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
                     if (Wall - stepAt < StepS) return;
                     var at = rtg.Attach;
                     float tons = at != null && at.HasContainer ? at.AttachedLoadTons : 0f;
-                    Check("호이스트", rtg.Spreader, tons > 0f ? Mathf.Lerp(1.8f, 0.9f, Mathf.InverseLerp(8f, 32f, tons)) : 2.7f);
+                    Check("호이스트", rtg.Spreader, tons > 0f ? Mathf.Lerp(1.8f, CraneAxisProfile.HoistMaxSpeed, Mathf.InverseLerp(8f, 32f, tons)) : CraneAxisProfile.HoistEmptySpeed);
                     rtgCtrl.QaBeginDrive(StsCraneVRController.Mode.Gantry);
                     Begin(rtg.Gantry, out float dg);
                     WheelBegin();
@@ -136,7 +136,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
 
                 case 6:   // 갠트리 + 타이어 굴림
                     if (Wall - stepAt < StepS) return;
-                    Check("갠트리", rtg.Gantry, 0.75f);
+                    Check("갠트리", rtg.Gantry, CraneAxisProfile.GantryMaxSpeed);
                     rtgCtrl.QaSticks(Vector2.zero, Vector2.zero);
                     WheelCheck();
                     typeof(StsCraneVRController).GetMethod("EnterCabView", Priv).Invoke(rtgCtrl, null);   // 갠트리 모드에서 A
@@ -233,7 +233,8 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             EditorApplication.update -= Tick;
             EditorPrefs.SetBool(PortDemoDirector.EditorPrefKey, SessionState.GetBool(PrevKey, false));
             SessionState.EraseBool(Key);
-            EditorApplication.Exit(pass ? 0 : 1);
+            if (Application.isBatchMode) EditorApplication.Exit(pass ? 0 : 1);
+            else EditorApplication.ExitPlaymode();
         }
     }
 }

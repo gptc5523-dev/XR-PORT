@@ -21,21 +21,18 @@ namespace AIXRCrane.Crane.Sts
         [Tooltip("운전/갠트리 모드일 때 끌 커스텀 이동 스크립트(있으면). XR 표준 로코모션은 자동 탐색됨.")]
         [SerializeField] Behaviour[] suppressWhileControlling;
 
+        // 정격 속도는 CraneAxisProfile 하나에서 — PLC 데이터·가상 PLC·시연과 같은 값(WBS 3.10/9.9). 씬에 직렬화하지 않아 어긋날 수 없다.
+        static float trolleySpeedMps => CraneAxisProfile.TrolleyMaxSpeed;
+        static float gantrySpeedMps => CraneAxisProfile.GantryMaxSpeed;
+        static float hoistEmptySpeedMps => CraneAxisProfile.HoistEmptySpeed;
+        static float hoistLoadedHeavyMps => CraneAxisProfile.HoistMaxSpeed;
         [Header("속도 (실제 m/s, 스틱 최대 시 — 모델 1/24 축척 자동 반영)")]
-        [Tooltip("트롤리 횡행 — 실제 STS 정격 ≈ 198 m/min = 3.3 m/s (240/4.0에서 묵직하게 하향)")]
-        [SerializeField] float trolleySpeedMps = 3.3f;
-        [Tooltip("호이스트 공하(빈 스프레더) 권상/권하 ≈ 2.7 m/s — 컨테이너 안 잡았을 때")]
-        [SerializeField] float hoistEmptySpeedMps = 2.7f;
         [Tooltip("호이스트 적재-경하중(가벼운 컨테이너) 권상/권하 ≈ 1.8 m/s")]
         [SerializeField] float hoistLoadedLightMps = 1.8f;
-        [Tooltip("호이스트 적재-정격(무거운 컨테이너) 권상/권하 ≈ 0.9 m/s — 무게 클수록 이 값에 수렴")]
-        [SerializeField] float hoistLoadedHeavyMps = 0.9f;
         [Tooltip("권상 속도 보간의 경하중 톤수 브레이크포인트(이하면 light 속도). 정격 용량 바꾸면 여기를 조정.")]
         [SerializeField] float hoistLightLoadTons = 8f;
         [Tooltip("권상 속도 보간의 정격 톤수 브레이크포인트(이상이면 heavy 속도). 정격 용량 바꾸면 여기를 조정.")]
         [SerializeField] float hoistRatedLoadTons = 32f;
-        [Tooltip("갠트리 주행 — 실제 정격 ≈ 45 m/min = 0.75 m/s")]
-        [SerializeField] float gantrySpeedMps = 0.75f;
 
         [Header("이동(걷기) 속도")]
         [Tooltip("이동모드 걷기 속도(m/s, 체감). 시작 시 XR 로코모션 Move Speed를 이 값으로 설정한다. 0 이하면 안 건드림. 수직이동(ViewHeightSpeed)과 동일한 8로 맞춤. 너무 빠르면/느리면 이 값만 조정.")]

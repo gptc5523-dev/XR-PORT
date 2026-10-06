@@ -26,7 +26,7 @@ namespace AIXRCrane.Crane.Sts.Plc
         [Header("CsvReplay 모드")]
         [Tooltip("Assets 안에 둔 CSV(TextAsset). 빌드/Quest 포함. 비우면 csvPath 사용.")]
         [SerializeField] TextAsset csvAsset;
-        [Tooltip("CSV 절대/상대 경로(에디터·스탠드얼론 전용). 예: <프로젝트>/PlcSim/output/S02/run_01.csv")]
+        [Tooltip("CSV 경로(에디터·스탠드얼론 전용). 상대 경로는 프로젝트 루트 기준. 예: PlcSim/output/S02/run_01.csv")]
         [SerializeField] string csvPath = "";
         [SerializeField] bool loop = true;
 
@@ -70,7 +70,7 @@ namespace AIXRCrane.Crane.Sts.Plc
         public IPlcSource Source => source;
         public bool Active => active;
         /// <summary>재생 중인 CSV 경로(csvAsset 이면 빈 값) — 옆의 작업 이력(run_NN.history.csv)을 찾는 데 쓴다.</summary>
-        public string CsvPath => csvPath;
+        public string CsvPath => ResolveCsvPath(csvPath);
         /// <summary>정규화 range 를 무버 기하에서 산출했는지. 산출 전엔 WorldAtPose 가 틀린다.</summary>
         public bool RangesResolved => rangesResolved;
 
@@ -184,10 +184,22 @@ namespace AIXRCrane.Crane.Sts.Plc
             if (csvAsset != null) return csvAsset.text;
             if (!string.IsNullOrEmpty(csvPath))
             {
-                try { if (File.Exists(csvPath)) return File.ReadAllText(csvPath); }
+                string path = CsvPath;
+                try { if (File.Exists(path)) return File.ReadAllText(path); }
                 catch (System.Exception e) { Debug.LogWarning($"[PlcBridge] CSV 읽기 실패: {e.Message}"); }
             }
             return null;
+        }
+
+        /// <summary>상대 경로는 프로젝트 루트(에디터) 또는 persistentDataPath(기기) 기준 — 씬에 다른 PC 절대경로가 박히지 않게.</summary>
+        public static string ResolveCsvPath(string p)
+        {
+            if (string.IsNullOrEmpty(p) || Path.IsPathRooted(p)) return p;
+#if UNITY_EDITOR
+            return Path.Combine(Directory.GetParent(Application.dataPath).FullName, p);
+#else
+            return Path.Combine(Application.persistentDataPath, p);
+#endif
         }
 
         // 축 이동은 물리틱(FixedUpdate)에서, PLC 로직은 고정 scanPeriod 그리드(ScanStep)에서만 돈다(H4).

@@ -10,21 +10,18 @@ namespace AIXRCrane.Crane.Flat
     [DisallowMultipleComponent]
     public sealed class FlatCraneController : MonoBehaviour
     {
+        // 정격 속도는 CraneAxisProfile 하나에서 — PLC 데이터·가상 PLC·시연과 같은 값(WBS 3.10/9.9). 씬에 직렬화하지 않아 어긋날 수 없다.
+        static float trolleySpeedMps => CraneAxisProfile.TrolleyMaxSpeed;
+        static float gantrySpeedMps => CraneAxisProfile.GantryMaxSpeed;
+        static float hoistEmptySpeedMps => CraneAxisProfile.HoistEmptySpeed;
+        static float hoistLoadedHeavyMps => CraneAxisProfile.HoistMaxSpeed;
         [Header("속도 (실제 m/s — StsCraneVRController 와 같은 정격값)")]
-        [Tooltip("트롤리 횡행 — 실제 STS 정격 ≈ 198 m/min = 3.3 m/s")]
-        [SerializeField] float trolleySpeedMps = 3.3f;
-        [Tooltip("호이스트 공하(빈 스프레더) ≈ 2.7 m/s")]
-        [SerializeField] float hoistEmptySpeedMps = 2.7f;
         [Tooltip("호이스트 적재-경하중 ≈ 1.8 m/s")]
         [SerializeField] float hoistLoadedLightMps = 1.8f;
-        [Tooltip("호이스트 적재-정격(무거운 컨테이너) ≈ 0.9 m/s")]
-        [SerializeField] float hoistLoadedHeavyMps = 0.9f;
         [Tooltip("경하중 브레이크포인트(t) — 이하면 light 속도")]
         [SerializeField] float hoistLightLoadTons = 8f;
         [Tooltip("정격 브레이크포인트(t) — 이상이면 heavy 속도")]
         [SerializeField] float hoistRatedLoadTons = 32f;
-        [Tooltip("갠트리 주행 — 실제 정격 ≈ 45 m/min = 0.75 m/s")]
-        [SerializeField] float gantrySpeedMps = 0.75f;
 
         [Header("입력")]
         [Tooltip("트리거를 이만큼 눌러야 호이스트가 움직인다(0~1).")]
