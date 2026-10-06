@@ -19,6 +19,7 @@ namespace AIXRCrane.Crane.Sts.Plc
         readonly object gate = new object();
         readonly List<PlcSnapshot> inFrames = new List<PlcSnapshot>(), frames = new List<PlcSnapshot>();
         readonly List<float> inTimes = new List<float>(), times = new List<float>();
+        readonly List<long> inPlc = new List<long>(), plcMs = new List<long>(), inRecv = new List<long>(), recvMs = new List<long>();   // 지표1 스탬프(epoch ms, 행과 같은 순서)
         Thread thread;
         volatile bool running = true, online;
         volatile string error, missing;
@@ -42,6 +43,15 @@ namespace AIXRCrane.Crane.Sts.Plc
             bool w = wrapped; wrapped = false; return w;
         }
 
+        /// <summary>지금 화면에 다 도달한 행(재생 위치가 지난 첫 행)의 PLC·서버 수신 시각(epoch ms). 스탬프 없는 행이면 false.</summary>
+        public bool TryShownStamp(out long plc, out long recv)
+        {
+            plc = recv = 0;
+            if (times.Count == 0 || times[0] > playT) return false;
+            plc = plcMs[0]; recv = recvMs[0];
+            return plc > 0 && recv > 0;
+        }
+
         public void Pump(float dt)
         {
             if (thread == null) (thread = new Thread(PollLoop) { IsBackground = true, Name = "ServerPlc" }).Start();
@@ -50,10 +60,10 @@ namespace AIXRCrane.Crane.Sts.Plc
             {
                 for (int i = 0; i < inTimes.Count; i++)
                 {
-                    if (times.Count > 0 && inTimes[i] < times[times.Count - 1]) { frames.Clear(); times.Clear(); wrapped = true; }   // 새 런(피더 반복·PLC 재시작)
-                    frames.Add(inFrames[i]); times.Add(inTimes[i]);
+                    if (times.Count > 0 && inTimes[i] < times[times.Count - 1]) { frames.Clear(); times.Clear(); plcMs.Clear(); recvMs.Clear(); wrapped = true; }   // 새 런(피더 반복·PLC 재시작)
+                    frames.Add(inFrames[i]); times.Add(inTimes[i]); plcMs.Add(inPlc[i]); recvMs.Add(inRecv[i]);
                 }
-                inFrames.Clear(); inTimes.Clear();
+                inFrames.Clear(); inTimes.Clear(); inPlc.Clear(); inRecv.Clear();
             }
             LogState();
             if (times.Count == 0) return;
@@ -64,7 +74,7 @@ namespace AIXRCrane.Crane.Sts.Plc
             if (playT > newest) playT = newest;   // 새 행이 안 오면 마지막 자세에서 멈춘다
             int drop = 0;                          // 재생 위치 직전 한 칸만 남긴다
             while (drop + 1 < times.Count && times[drop + 1] <= playT) drop++;
-            if (drop > 0) { frames.RemoveRange(0, drop); times.RemoveRange(0, drop); }
+            if (drop > 0) { frames.RemoveRange(0, drop); times.RemoveRange(0, drop); plcMs.RemoveRange(0, drop); recvMs.RemoveRange(0, drop); }
         }
 
         public bool TryRead(out PlcSnapshot snap)
@@ -98,7 +108,10 @@ namespace AIXRCrane.Crane.Sts.Plc
                         var miss = new List<string>();
                         CsvReplaySource.ParseCsv(text, out var f, out var t, miss);
                         if (miss.Count > 0) missing = string.Join(", ", miss);
-                        lock (gate) { inFrames.AddRange(f); inTimes.AddRange(t); }
+                        var pl = new List<long>(f.Length); var rc = new List<long>(f.Length);
+                        ParseStamps(text, pl, rc);
+                        if (pl.Count != f.Length) { pl.Clear(); rc.Clear(); for (int i = 0; i < f.Length; i++) { pl.Add(0); rc.Add(0); } }   // 행 수가 어긋나면 스탬프를 버린다(잘못 짝짓기 방지)
+                        lock (gate) { inFrames.AddRange(f); inTimes.AddRange(t); inPlc.AddRange(pl); inRecv.AddRange(rc); }
                     }
                     online = true;
                 }
@@ -109,6 +122,22 @@ namespace AIXRCrane.Crane.Sts.Plc
                     online = false;
                 }
                 Thread.Sleep(PollMs);
+            }
+        }
+
+        // plc_ms·recv_ms 열을 long 으로 — ParseCsv 는 int·float 라 epoch ms 가 깨진다(WBS 9.6). 빈 줄 건너뛰기는 ParseCsv 와 같다.
+        static void ParseStamps(string text, List<long> plc, List<long> recv)
+        {
+            var lines = text.Replace("\r\n", "\n").Replace("\r", "\n").Split('\n');
+            if (lines.Length < 2) return;
+            var h = lines[0].Split(',');
+            int ip = Array.FindIndex(h, x => x.Trim() == "plc_ms"), ir = Array.FindIndex(h, x => x.Trim() == "recv_ms");
+            for (int li = 1; li < lines.Length; li++)
+            {
+                if (string.IsNullOrEmpty(lines[li])) continue;
+                var c = lines[li].Split(',');
+                plc.Add(ip >= 0 && ip < c.Length && long.TryParse(c[ip], out long p) ? p : 0);
+                recv.Add(ir >= 0 && ir < c.Length && long.TryParse(c[ir], out long r) ? r : 0);
             }
         }
 

@@ -91,7 +91,7 @@ def insert_rows(con, lock, rows):
             r.get("crane", "unknown"),
             r.get("source", "unknown"),
             int(to_num(r.get("t_ms")) or 0),
-            int(to_num(r.get("recv_ms")) or now),
+            now,   # 수신 시각은 서버만 찍는다 — 클라이언트가 보낸 recv_ms 는 버린다(지표1 독립성)
             to_num(r.get(PROMOTED["gt_position"])),
             to_num(r.get(PROMOTED["tr_position"])),
             to_num(r.get(PROMOTED["ho_position"])),
@@ -113,8 +113,16 @@ def rows_to_dicts(cur):
 
 
 class Handler(BaseHTTPRequestHandler):
-    con = None
+    db_path = None
     lock = threading.Lock()
+    local = threading.local()
+
+    @property
+    def con(self):   # 요청 스레드마다 자기 연결 — 연결 하나를 스레드끼리 나눠 쓰면 동시 읽기·쓰기에서 서버가 멈췄다
+        c = getattr(self.local, "con", None)
+        if c is None:
+            c = self.local.con = connect(self.db_path)
+        return c
 
     # 접속 로그를 stderr 로 (도커 logs 에서 보이게), 다만 헬스체크 폭주는 접어둔다.
     def log_message(self, fmt, *args):
@@ -131,7 +139,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def send_csv(self, rows, last_id):
         # 헤더는 PlcSim CSV 와 같다(t_ms + raw 태그) — Unity 쪽이 CsvReplaySource 파서를 그대로 써서 태그 계약이 한 곳에 남는다.
-        dicts = [{"t_ms": r["t_ms"], **json.loads(r["raw"])} for r in rows]
+        dicts = [{"t_ms": r["t_ms"], "recv_ms": r["recv_ms"], **json.loads(r["raw"])} for r in rows]
         buf = io.StringIO()
         w = csv.DictWriter(buf, fieldnames=list(dict.fromkeys(k for d in dicts for k in d)), restval="", lineterminator="\n")
         w.writeheader()
@@ -196,10 +204,10 @@ class Handler(BaseHTTPRequestHandler):
             after = self.q("after_id")
             try:
                 if after is None:
-                    rows = self.con.execute("SELECT id, t_ms, raw FROM snapshot WHERE crane=? ORDER BY id DESC LIMIT 1",
+                    rows = self.con.execute("SELECT id, t_ms, recv_ms, raw FROM snapshot WHERE crane=? ORDER BY id DESC LIMIT 1",
                                             (crane,)).fetchall()
                 else:
-                    rows = self.con.execute("SELECT id, t_ms, raw FROM snapshot WHERE crane=? AND id>? ORDER BY id LIMIT ?",
+                    rows = self.con.execute("SELECT id, t_ms, recv_ms, raw FROM snapshot WHERE crane=? AND id>? ORDER BY id LIMIT ?",
                                             (crane, int(after), limit)).fetchall()
             except ValueError:
                 return self.send_json({"error": "after_id must be an integer"}, 400)
@@ -235,8 +243,8 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def cmd_serve(args):
-    con = connect(args.db)
-    Handler.con = con
+    con = connect(args.db)   # 스키마만 만들고, 요청은 Handler.con 이 스레드별로 연다
+    Handler.db_path = args.db
     srv = ThreadingHTTPServer((args.host, args.port), Handler)
     srv.db_path = args.db
     print(f"[xrcrane-db] listening on {args.host}:{args.port} · db={args.db}", flush=True)
@@ -284,7 +292,7 @@ def cmd_feed(args):
             wait = t0 + float(row["t_ms"]) / 1000 - time.monotonic()
             if wait > 0:
                 time.sleep(wait)
-            row.update(crane=args.crane, source=source)
+            row.update(crane=args.crane, source=source, plc_ms=int(time.time() * 1000))   # PLC 측 송출 시각(epoch ms) — 지표1 시작점
             req = urllib.request.Request(url, json.dumps(row).encode("utf-8"), {"Content-Type": "application/json"})
             urllib.request.urlopen(req, timeout=5).read()
         if not args.loop:

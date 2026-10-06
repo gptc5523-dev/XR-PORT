@@ -97,7 +97,11 @@ namespace AIXRCrane.Crane.Sts.Plc
                 if (!string.IsNullOrEmpty(p)) { sourceMode = SourceMode.CsvReplay; csvPath = p; csvAsset = null; active = true; }
             }
             // 재생 복원이 먼저 — 남은 서버 선택이 forceReplay 측정을 가로채지 않게.
-            else if (UnityEditor.EditorPrefs.GetBool(PrefKey("forceServer"), false)) { sourceMode = SourceMode.Server; active = true; }
+            else if (UnityEditor.EditorPrefs.GetBool(PrefKey("forceServer"), false))
+            {
+                sourceMode = SourceMode.Server; active = true;
+                serverUrl = UnityEditor.EditorPrefs.GetString(PrefKey("serverUrl"), serverUrl);   // 측정 도구가 로컬 서버를 가리킬 때
+            }
 #endif
             source = BuildSource();
             // CSV 재생이면 화물 재생도 붙인다 — 안 붙이면 '축은 재생되는데 스프레더는 빈손'. 작업 이력이 없으면 스스로 꺼진다.

@@ -196,6 +196,7 @@ def cmd_adapter(args):
             if not cli.get_connected():
                 cli.connect(args.plc, args.rack, args.slot, args.port)
             dbs = {db: cli.db_read(db, 0, DB_SIZE) for db in DBS}
+            read_ms = int(time.time() * 1000)   # PLC 읽은 시각(epoch ms) — 지표1 시작점
         except Exception as e:
             if not down_logged:   # 끊길 때 한 번만 — 1초마다 찍으면 로그가 묻힌다
                 print(f"[plc-adapter] {args.plc}:{args.port} 읽기 실패: {e} — 1초마다 재접속", flush=True)
@@ -213,7 +214,7 @@ def cmd_adapter(args):
 
         # t_ms 는 어댑터가 읽은 시각 — PLC 엔 시나리오 시각이 없다. Unity 는 이 간격으로 보간한다.
         row = decode(dbs)
-        row.update(crane=args.crane, source=source, t_ms=int((time.monotonic() - t0) * 1000))
+        row.update(crane=args.crane, source=source, t_ms=int((time.monotonic() - t0) * 1000), plc_ms=read_ms)
         try:
             req = urllib.request.Request(url, json.dumps(row).encode("utf-8"), {"Content-Type": "application/json"})
             urllib.request.urlopen(req, timeout=2).read()
