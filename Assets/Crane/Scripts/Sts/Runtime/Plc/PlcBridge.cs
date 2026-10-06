@@ -77,6 +77,15 @@ namespace AIXRCrane.Crane.Sts.Plc
         /// <summary>최신 스냅샷(없으면 default) — HUD·WebSocket 송신(추후 항목) 공용 출처.</summary>
         public PlcSnapshot Latest => source != null && source.TryRead(out var s) ? s : default;
 
+        /// <summary>PLC 가 지금 이 크레인을 구동 중이면 최신 스냅샷 — 그동안 화면의 알람·운전 상태·하중은 PLC 값이 출처다(지표 4).</summary>
+        public static bool TryLatest(StsCrane crane, out PlcSnapshot s)
+        {
+            s = default;
+            if (crane == null || !crane.TryGetComponent<PlcBridge>(out var b) || !b.isActiveAndEnabled || !b.active) return false;
+            s = b.Latest;
+            return true;
+        }
+
         void Awake()
         {
             crane = GetComponent<StsCrane>();

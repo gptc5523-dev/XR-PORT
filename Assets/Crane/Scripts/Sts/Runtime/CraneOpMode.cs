@@ -77,6 +77,13 @@ namespace AIXRCrane.Crane.Sts
             {
                 // ⓪ fail-to-safe(최우선): 알람 시스템 오프라인이면 무조건 Fault — '알람 0'으로 조용히 정상 운전하는 단일 실패점 차단.
                 if (AlarmSystemOffline)                 return OpMode.Fault;    // ⓪ 알람 시스템 오프라인 — 안전정지
+                if (Plc.PlcBridge.TryLatest(crane, out var plc))
+                {
+                    // PLC 구동 중 — 비상정지·이상(Critical 이상) 알람이면 이상, 그 외는 PLC 운전 비트(코드북 §8: 주의는 '이상' 아님)
+                    var f = CraneFault.Evaluate(crane);
+                    if (plc.EmergencyStop || (f.IsValid && f.Sev >= FaultSeverity.Critical)) return OpMode.Fault;
+                    return plc.OpRunning ? OpMode.Running : OpMode.Stopped;
+                }
                 if (CraneFault.Evaluate(crane).IsValid) return OpMode.Fault;    // ① 이상 — 안전 최우선
                 if (IsMoving)                           return OpMode.Running;  // ② 축 이동 중
                 return OpMode.Stopped;                                          // ③ 정지(미가동)

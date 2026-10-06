@@ -135,6 +135,14 @@ namespace AIXRCrane.Crane.Sts
             return FindAnyObjectByType<StsCraneVRController>();
         }
 
+        /// <summary>HUD 가 보여주는 하중(t) — PLC 구동 중이면 PLC HO_Load, 아니면 매단 컨테이너 하중. 지표 4 측정도 이 값을 읽는다.</summary>
+        public static float DisplayLoadTons(StsCrane crane)
+        {
+            if (Plc.PlcBridge.TryLatest(crane, out var s)) return s.HoLoad;
+            var a = crane != null ? crane.Attach : null;
+            return a != null && a.HasContainer ? a.AttachedLoadTons : 0f;
+        }
+
         void UpdateAxisSpeed(IAxisMover m, ref float prev, ref float spd, float dt)
         {
             if (m == null) { spd = 0f; return; }
@@ -216,11 +224,11 @@ namespace AIXRCrane.Crane.Sts
 
             var attach = crane.Attach;
             bool has = attach != null && attach.HasContainer;
+            float t = DisplayLoadTons(crane);
             sb.Append("적재     ");
-            if (has)
+            if (has || t > 0.05f)
             {
-                sb.Append($"<color=#{CraneHud.Hex(CraneHud.HudColor.Ok)}>{attach.AttachedDisplayId}</color>");
-                float t = attach.AttachedMassKg / 1000f;
+                if (has) sb.Append($"<color=#{CraneHud.Hex(CraneHud.HudColor.Ok)}>{attach.AttachedDisplayId}</color>");
                 if (t > 0.05f)   // 하중(t) + 등급(정상/주의/이상) 색
                 {
                     var g = AIXRCrane.ContainerLoad.Grade(t);

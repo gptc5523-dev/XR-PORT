@@ -36,6 +36,15 @@ namespace AIXRCrane.Crane.Sts
         /// <summary>지금 강조 중인 렌더러 수(검증용).</summary>
         public int LitCount => lit.Count;
 
+        /// <summary>이 부품(또는 그룹) ID 가 minSev 이상으로 강조 중인가 — 지표 4 측정(Kpi4StatusAccuracy)이 쓴다.</summary>
+        public bool IsLit(StsCrane crane, string partId, FaultSeverity minSev)
+        {
+            foreach (var rs in PartRenderers(crane.transform, partId))
+                foreach (var r in rs)
+                    if (r != null && lit.TryGetValue(r, out var l) && l.sev >= minSev) return true;
+            return false;
+        }
+
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void AutoSpawn() => CraneHud.EnsureSpawned<CraneAlarmHighlight>("AlarmLit");
 

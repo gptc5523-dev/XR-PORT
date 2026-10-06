@@ -88,10 +88,30 @@ namespace AIXRCrane.Crane.Sts
         /// <summary>HUD 한 줄 표기: "[3012] HO 과부하 (정격 초과)".</summary>
         public static string Format(FaultDef f) => $"[{f.Code}] {f.Message}";
 
+        // PLC 가 구동 중이면 화면 알람의 출처는 PLC — 3D 형상 판정(끝단·충돌·과부하·걸림)은 PLC 와 어긋나면 헛알람이다
+        //   (지표 4 첫 측정: PLC 정상인데 3D 충돌방지 1012 가 100회 중 19회). 남기는 것은 PLC 알람 코드(XR 대상)와
+        //   PLC 위치로 잰 가속 트립(1021/2021/3021 — 원래 PLC 데이터 검증용).
+        static FaultDef PlcAlarm(in Plc.PlcSnapshot s)
+        {
+            if (!s.AlarmActive || s.AlarmCode == 0) return default;
+            var e = AlarmCodebook.Get(s.AlarmCode);
+            return e != null && e.xr ? FromCodebook(e.code) : default;
+        }
+
+        // 축 판정기의 PLC 구동 분기 — 이 축 소스(천 단위)의 PLC 알람과 이 축 가속 트립만.
+        static FaultDef PlcAxis(in Plc.PlcSnapshot s, int srcA, int srcB, FaultDef accel)
+        {
+            var a = PlcAlarm(s);
+            int src = a.Code / 1000;
+            return Higher(src == srcA || src == srcB ? a : default, accel);
+        }
+
         /// <summary>스프레더(권상) 알람 — 과부하/호이스트 끝단.</summary>
         public static FaultDef EvaluateSpreader(StsCrane crane)
         {
             if (crane == null) return default;
+            if (Plc.PlcBridge.TryLatest(crane, out var plc))
+                return PlcAxis(plc, 3, 4, crane.OpMode != null && crane.OpMode.PlcDriven && crane.OpMode.HoistAccelTripped ? HoistAccel : default);
             var attach = crane.Attach;
             // 과부하(3012)는 크레인 정격(SWL) 초과 — 컨테이너 ISO 과적이 아니라 SWL %임계로 판정.
             if (attach != null && attach.HasContainer && ContainerLoad.CraneLoadGrade(attach.AttachedLoadTons) == LoadGrade.Over)
@@ -112,6 +132,8 @@ namespace AIXRCrane.Crane.Sts
         /// <summary>트롤리 알람 — 안벽/선박측 끝단.</summary>
         public static FaultDef EvaluateTrolley(StsCrane crane)
         {
+            if (Plc.PlcBridge.TryLatest(crane, out var plc))
+                return PlcAxis(plc, 2, 2, crane.OpMode != null && crane.OpMode.PlcDriven && crane.OpMode.TrolleyAccelTripped ? TrolleyAccel : default);
             if (crane?.Trolley is AxisMoverBase t)
             {
                 if (t.IsBlocked) return TrolleyColl;      // 충돌방지 (Fatal)
@@ -126,6 +148,8 @@ namespace AIXRCrane.Crane.Sts
         /// <summary>갠트리 알람 — 충돌 정지/주행 끝단.</summary>
         public static FaultDef EvaluateGantry(StsCrane crane)
         {
+            if (Plc.PlcBridge.TryLatest(crane, out var plc))
+                return PlcAxis(plc, 1, 1, crane.OpMode != null && crane.OpMode.PlcDriven && crane.OpMode.GantryAccelTripped ? GantryAccel : default);
             if (crane?.Gantry is AxisMoverBase g)
             {
                 if (g.IsBlocked) return Collision;        // 충돌 (Fatal)
@@ -148,6 +172,7 @@ namespace AIXRCrane.Crane.Sts
             var best = EvaluateSpreader(crane);
             best = Higher(best, EvaluateGantry(crane));
             best = Higher(best, EvaluateTrolley(crane));
+            if (Plc.PlcBridge.TryLatest(crane, out var plc)) best = Higher(PlcAlarm(plc), best);   // SYS·ENV 알람은 축 판정기에 없다
             return best;   // IsValid=false → "이상 없음"
         }
 
@@ -172,6 +197,11 @@ namespace AIXRCrane.Crane.Sts
             Add(EvaluateSpreader(crane));
             Add(EvaluateGantry(crane));
             Add(EvaluateTrolley(crane));
+            if (Plc.PlcBridge.TryLatest(crane, out var plc))
+            {
+                var a = PlcAlarm(plc);
+                if (a.Code / 1000 >= 5) Add(a);   // SYS·ENV — 축 판정기(1~4)가 이미 담은 것은 빼고
+            }
             // 작은 n — 삽입정렬로 심각도 내림차순(안정: 동급은 추가 순서 유지).
             for (int i = 1; i < n; i++)
             {
