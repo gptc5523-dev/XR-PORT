@@ -1,4 +1,6 @@
 using UnityEngine;
+using UnityEngine.InputSystem;
+using UnityEngine.XR;
 
 namespace AIXRCrane.Crane.Sts
 {
@@ -12,8 +14,23 @@ namespace AIXRCrane.Crane.Sts
         [SerializeField] bool enableScaling = true;
         [Tooltip("리그 스케일. 크레인과 동일한 1/24가 기본. 씬에 StsCrane이 있으면 그 ModelScale을 우선 사용.")]
         [SerializeField] float scale = StsConfig.ModelScale;   // 폴백 기본(씬 StsCrane 있으면 그 ModelScale 우선). 값은 StsConfig SSOT.
+        [Tooltip("조감 배율 상한 — 확대/축소(WBS 3.8)는 모델이 아니라 보는 사람(리그) 크기를 바꾼다. 20이면 실척 33m 거인 시점.")]
+        [SerializeField, Min(1f)] float overviewZoom = 20f;
+        [Tooltip("PC 마우스 휠 한 칸당 배율.")]
+        [SerializeField, Min(1.01f)] float wheelStep = 1.15f;
         [SerializeField] bool debugLog = true;
-        bool configured;   // 1회성 설정(near clip·CC 우회·걷기속도) 완료 여부
+        bool configured;
+        bool prevZoomBtn;
+
+        /// <summary>현재 조감 배율(1 = 실물 크기, 클수록 모델이 작게 보인다). 내 리그만 바뀌어 다른 접속자·크레인 상태와 무관.</summary>
+        public static float Zoom { get; private set; } = 1f;
+
+        /// <summary>다음 배율 — 휠(칸 수, 위 = 확대)은 연속, 토글은 실물 크기 ↔ 상한. 범위 [1, max].</summary>
+        public static float NextZoom(float cur, float wheelNotches, bool toggle, float max, float step)
+        {
+            if (toggle) return cur > 1.001f ? 1f : max;
+            return Mathf.Clamp(cur * Mathf.Pow(step, -wheelNotches), 1f, max);
+        }   // 1회성 설정(near clip·CC 우회·걷기속도) 완료 여부
         Transform cachedRig;   // 한 번 찾은 리그(XR Origin) 재사용 — 파괴되면 다시 탐색
         Camera cachedCam;      // 리그의 카메라(near clip 조정용)
         int noRigFrames;       // 리그 못 찾은 동안 경고 스로틀용 프레임 카운터
@@ -43,7 +60,7 @@ namespace AIXRCrane.Crane.Sts
 
             // 크레인 ModelScale을 단일 소스로 우선 사용(있으면) — 크레인과 항상 같은 비율 보장.
             var crane = FindAnyObjectByType<StsCrane>();
-            float s = crane != null ? crane.ModelScale : scale;
+            float s = (crane != null ? crane.ModelScale : scale) * StepZoom();
 
             // ★ 매 프레임 재확인 — XR 시스템/드라이버가 리그 localScale을 1로 되돌려 '1:1로 보이는' 것을 방지.
             //   (이미 맞으면 아무 것도 안 함 → 비용 거의 0.)
@@ -81,6 +98,22 @@ namespace AIXRCrane.Crane.Sts
                           $"※ 정상이면 카메라 lossyScale~0.0417·눈높이~0.05m. " +
                           $"카메라 lossyScale=1인데 리그는 0.04면 → 카메라가 이 리그 밖(엉뚱한 리그를 줄인 것).");
             }
+        }
+
+        // VR 왼쪽 스틱 클릭 = 실물 크기 ↔ 조감 토글, PC 마우스 휠 = 연속 배율. 왼쪽 X·Y·오른쪽 A·B·스틱 클릭은 다른 기능이 쓴다.
+        float StepZoom()
+        {
+            bool btn = InputDevices.GetDeviceAtXRNode(XRNode.LeftHand).TryGetFeatureValue(UnityEngine.XR.CommonUsages.primary2DAxisClick, out bool b) && b;
+            float notches = Mouse.current != null && Application.isFocused ? Mouse.current.scroll.ReadValue().y / 120f : 0f;
+            float z = NextZoom(Zoom, notches, btn && !prevZoomBtn, overviewZoom, wheelStep);
+            prevZoomBtn = btn;
+            if (!Mathf.Approximately(z, Zoom))
+            {
+                Zoom = z;
+                FindAnyObjectByType<StsCraneVRController>()?.ReapplyWalkSpeed();
+                if (debugLog) Debug.Log($"[PlayerRigScale] 조감 배율 ×{Zoom:0.##}");
+            }
+            return Zoom;
         }
 
         /// <summary>스케일 대상 리그를 찾는다 — 카메라를 실제로 자식으로 가진 리그를 줄여야 눈높이가 바뀐다.

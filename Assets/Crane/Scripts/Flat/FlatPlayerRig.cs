@@ -27,6 +27,8 @@ namespace AIXRCrane.Crane.Flat
         [SerializeField] float verticalSpeedMps = 8f;
         [Tooltip("시선 회전 속도(도/초, 스틱 최대 시).")]
         [SerializeField] float lookDegPerSec = 140f;
+        [Tooltip("마우스 오른쪽 끌기 — 화면 가운데가 가리키는 점을 축으로 도는 속도(도/픽셀). 모델 회전(WBS 3.8)을 보는 사람이 도는 것으로 한다.")]
+        [SerializeField] float orbitDegPerPixel = 0.25f;
 
         [Header("입력")]
         [SerializeField, Range(0f, 0.5f)] float deadzone = 0.15f;
@@ -99,6 +101,7 @@ namespace AIXRCrane.Crane.Flat
             ReadInput(out Vector2 move, out Vector2 look, out float vertical, out bool sprint);
             Vector3 flyDir = PointerNav ? PointerStep(dt) : Vector3.zero;
 
+            if (!PointerNav) Orbit();
             yaw += look.x * lookDegPerSec * dt;
             pitch += (invertPitch ? look.y : -look.y) * lookDegPerSec * dt;
             pitch = Mathf.Clamp(pitch, -89f, 89f);
@@ -118,6 +121,20 @@ namespace AIXRCrane.Crane.Flat
                               + Vector3.up * (vertical * verticalSpeedMps * s * dt);
                 transform.position += delta;
             }
+        }
+
+        // 오른쪽 끌기: 가운데 광선이 닿은 점(없으면 앞 50m 실척)을 수직축으로 돈다 — 모델을 돌려 보는 것과 같고 공유 상태는 안 건드린다.
+        void Orbit()
+        {
+            var mouse = Mouse.current;
+            if (mouse == null || cam == null || !mouse.rightButton.isPressed || !Application.isFocused) return;
+            float d = mouse.delta.ReadValue().x * orbitDegPerPixel;
+            if (Mathf.Abs(d) < 1e-4f) return;
+            float s = Mathf.Max(transform.lossyScale.x, 1e-6f);
+            var ray = new Ray(cam.transform.position, cam.transform.forward);
+            Vector3 pivot = Physics.Raycast(ray, out var hit, 5000f * s) ? hit.point : ray.GetPoint(50f * s);
+            transform.position = pivot + Quaternion.Euler(0f, d, 0f) * (transform.position - pivot);
+            yaw += d;
         }
 
         void ApplyLook()
