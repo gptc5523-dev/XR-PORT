@@ -51,9 +51,9 @@ namespace AIXRCrane.EditorTools
 
         static void SpawnSingle(float length, string suffix)
         {
-            // 기존 컨테이너 모두 삭제
-            var existing = Object.FindObjectsByType<CubeReset>();
-            foreach (var c in existing) Undo.DestroyObjectImmediate(c.gameObject);
+            // 이 메뉴로 만든 기존 컨테이너 모두 삭제(이름으로)
+            foreach (var t in Object.FindObjectsByType<Transform>(FindObjectsSortMode.None))
+                if (t != null && t.parent == null && t.name.StartsWith("Container_Procedural")) Undo.DestroyObjectImmediate(t.gameObject);
 
             string name = string.IsNullOrEmpty(suffix) ? "Container_Procedural" : "Container_Procedural_" + suffix;
             var go = BuildOne(PaletteRandom(), name, length);
@@ -113,7 +113,6 @@ namespace AIXRCrane.EditorTools
             // useDynamicAttach: 손이 닿은 지점이 그립 포인트(피봇 스냅 방지)
             var grab = root.AddComponent<XRGrabInteractable>();
             grab.useDynamicAttach = true;
-            root.AddComponent<CubeReset>();
 
             // 6. 적층 안정화(방식 A) — 컨테이너 한정(전역 물리 미변경).
             ContainerPhysics.Apply(rb, box);
