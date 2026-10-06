@@ -12,6 +12,7 @@ import random
 import sys
 import threading
 import time
+import urllib.parse
 import urllib.request
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -80,6 +81,7 @@ class LiveSim(g.Sim):
 class Box:
     def __init__(self, d):
         self.id, self.t, self.ft, self.h = d["id"], d["t"], d["ft"], d.get("h", H_STD)   # h = 씬 실측 높이(하이큐브 2.896)
+        self.o = self.c = (d["gt"], d["tr"], d["ho_top"])   # 원래 자리·지금 자리(PLC m) — 컨테이너 이름이 겹쳐 자리가 신원이다
 
 
 class Stack:
@@ -107,6 +109,8 @@ class Crane(threading.Thread):
         self.home = h
         self.comm_down_until = 0.0
         self.stacks = self._stacks(spec["containers"])
+        self.boxes = [b for st in self.stacks for b in st.boxes]
+        self.held = None   # 매단 컨테이너의 집기 전 자리 — 운반 중에 뜬 XR 이 스프레더에 매달게
         self.sender = threading.Thread(target=self._send, daemon=True, name=self.name_ + "/send")
 
     # ── 배치 ──
@@ -197,6 +201,8 @@ class Crane(threading.Thread):
         s.detected = True; s.landed = True; self.wait(1.0)
         s.locked = True; s.carry = True; self.wait(1.5); s.landed = False
         src.boxes.pop()
+        self.held = b.c
+        self.post_cargo()
         s.goto(ho=self.clear)
         if self.chance(0.03):   # 스내그 — 권상 중 걸림(S07)
             self.wait(2.5); s.ho_snag = True; s.event(3013); self.log("스내그(3013) — 권상 보호정지")
@@ -217,9 +223,23 @@ class Crane(threading.Thread):
         s.locked = False; s.carry = False; self.wait(1.5); s.landed = False; s.detected = False
         dst.boxes.append(b)
         dst.gt, dst.tr = (s.gt.pos, s.tr.pos) if len(dst.boxes) == 1 else (dst.gt, dst.tr)   # 빈 자리에 놓으면 실제 선 자리가 그 더미의 자리
+        b.c = (s.gt.pos, s.tr.pos, s.ho.pos)
+        self.held = None
+        self.post_cargo()
         s.goto(ho=self.clear); self.settle()
         s.cycle += 1
         self.log(f"{label} {b.id} {b.t:.1f}t ({b.ft}ft) · 금일 {s.cycle}회 · 풍속 {s.wind_inst:.1f}")
+
+    # 옮겨진 컨테이너(원래 자리에서 30cm 넘게)만 서버에 — 늦게 뜬 XR 이 씬을 지금 상태로 맞춘다(TOS 재고와 같은 역할).
+    def post_cargo(self):
+        moved = [{"o": [round(v, 3) for v in b.o], "c": [round(v, 3) for v in b.c]} for b in self.boxes
+                 if max(abs(x - y) for x, y in zip(b.o, b.c)) > 0.3]
+        try:
+            req = urllib.request.Request(f"{self.args.url.rstrip('/')}/cargo?crane={urllib.parse.quote(self.name_)}",
+                                         json.dumps({"boxes": moved, "held": [round(v, 3) for v in self.held] if self.held else []}).encode("utf-8"), auth_headers({"Content-Type": "application/json"}))
+            urllib.request.urlopen(req, timeout=3).read()
+        except Exception as e:
+            self.log(f"화물 상태 올리기 실패: {e}")
 
     # ── 작업 계획 ──
     def sts_job(self):
@@ -254,6 +274,7 @@ class Crane(threading.Thread):
         self.sender.start()
         s.ready = False; s.op_mode = g.MANUAL; self.wait(3.0)
         s.event(5016, kind="event"); s.ready = True; s.op_mode = g.AUTO; self.wait(2.0)
+        self.post_cargo()   # 기동 = 원래 배치(옮긴 것 0개)
         self.log(f"기동 — {self.kind}, 컨테이너 {sum(len(x.boxes) for x in self.stacks)}개 · 더미 {len(self.stacks)}개")
         while True:
             (self.sts_job if self.kind == "STS" else self.rtg_job)()

@@ -16,6 +16,7 @@ XR 크레인 통합서버 v0.5 — PLC 이력 수집·저장·조회. 파트ID �
   GET  /history?crane=&from_ms=&to_ms=&limit=   구간 조회(기본 최근 500)
   GET  /alarms?crane=&limit=                    알람 코드가 0이 아닌 행만
   GET  /runs                                    적재된 (크레인, 출처) 별 행 수·시간 범위
+  GET/POST /cargo?crane=                       옮겨진 컨테이너(원래 자리 → 지금 자리) — 라이브 PLC 가 올리고 늦게 뜬 XR 이 맞춘다
   GET  /since?crane=&after_id=                  크레인이 이어 받는 경로(CSV, X-Last-Id) — Unity ServerPlcSource
 
 접근 제어(WBS 9.2, 폐쇄망 전제 9.1)
@@ -157,6 +158,7 @@ class Handler(BaseHTTPRequestHandler):
     token = ""
     lock = threading.Lock()
     local = threading.local()
+    cargo = {}   # 크레인 → 원래 자리에서 옮겨진 컨테이너 목록(라이브 PLC 가 올리고 XR 이 접속할 때 맞춘다) — 메모리만, 재시작하면 원래 배치
 
     @property
     def con(self):   # 요청 스레드마다 자기 연결 — 연결 하나를 스레드끼리 나눠 쓰면 동시 읽기·쓰기에서 서버가 멈췄다
@@ -272,6 +274,10 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_json({"error": "after_id must be an integer"}, 400)
             return self.send_csv(rows, rows[-1]["id"] if rows else after)
 
+        if path == "/cargo":
+            with self.lock:
+                return self.send_json(self.cargo.get(crane or "", {"boxes": [], "held": []}))
+
         if path == "/runs":
             cur = self.con.execute(
                 "SELECT crane, source, COUNT(*) rows, MIN(t_ms) t_min, MAX(t_ms) t_max, "
@@ -285,13 +291,20 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         if self.denied():
             return
-        if urlparse(self.path).path != "/ingest":
+        if urlparse(self.path).path not in ("/ingest", "/cargo"):
             return self.send_json({"error": "not found"}, 404)
         try:
             n = int(self.headers.get("Content-Length", "0"))
             body = json.loads(self.rfile.read(n).decode("utf-8")) if n else None
         except (ValueError, json.JSONDecodeError) as e:
             return self.send_json({"error": f"bad json: {e}"}, 400)
+        if urlparse(self.path).path == "/cargo":
+            crane = self.q("crane")
+            if not crane or not isinstance(body, dict) or not isinstance(body.get("boxes"), list):
+                return self.send_json({"error": "crane 와 {\"boxes\": [...]} 필요"}, 400)
+            with self.lock:
+                self.cargo[crane] = {"boxes": body["boxes"], "held": body.get("held") or []}
+            return self.send_json({"ok": True, "boxes": len(body["boxes"])})
         if isinstance(body, dict):
             body = [body]
         if not isinstance(body, list) or not body:

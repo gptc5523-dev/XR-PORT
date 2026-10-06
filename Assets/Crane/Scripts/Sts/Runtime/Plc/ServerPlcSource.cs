@@ -61,6 +61,9 @@ namespace AIXRCrane.Crane.Sts.Plc
             return string.IsNullOrWhiteSpace(u) ? sceneUrl : u.Trim();
         }
 
+        /// <summary>같은 서버의 다른 경로를 읽는다(토큰·주소 공유) — 라이브 화물 상태(/cargo) 등.</summary>
+        public System.Threading.Tasks.Task<string> GetText(string pathAndQuery) => http.GetStringAsync(url + pathAndQuery);
+
         public string Name => "Server";
         public bool IsConnected => online;
 
