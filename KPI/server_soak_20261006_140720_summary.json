@@ -1,0 +1,45 @@
+{
+ "minutes": 30.0,
+ "clients": 5,
+ "cranes": 3,
+ "poll_ms": 50,
+ "server_alive_at_end": true,
+ "requests": {
+  "read": 504086,
+  "write": 54002,
+  "time": 4475
+ },
+ "failures": {
+  "read": 0,
+  "write": 0,
+  "time": 0
+ },
+ "read_ms": {
+  "p50": 2.1,
+  "p95": 4.5,
+  "p99": 8.4,
+  "max": 240.3
+ },
+ "write_ms": {
+  "p50": 2.0,
+  "p95": 5.0,
+  "max": 189.2
+ },
+ "rows_written": 54003,
+ "max_rows_missed_by_a_client": 2,
+ "rss_mb": {
+  "start": 15.1,
+  "end": 14.5,
+  "peak": 18.3
+ },
+ "fds": {
+  "start": 46,
+  "end": 55,
+  "peak": 64
+ },
+ "db_mb_end": 17.9,
+ "wal_mb_peak": 4.07,
+ "db_mb_per_hour": 35.8,
+ "series_csv": "/Users/seoyeonsoft/00. Project/00. AI-XR-Crane/00. AI-XR-Crane/KPI/server_soak_20261006_140720.csv",
+ "verdict": "PASS"
+}

@@ -61,17 +61,33 @@ CREATE TABLE IF NOT EXISTS snapshot (
   raw         TEXT    NOT NULL           -- 45컬럼 전량(JSON)
 );
 CREATE INDEX IF NOT EXISTS ix_snap_crane_t ON snapshot(crane, t_ms);
+CREATE INDEX IF NOT EXISTS ix_snap_recv    ON snapshot(recv_ms);   -- 보존 기간 삭제용
 CREATE INDEX IF NOT EXISTS ix_snap_alarm   ON snapshot(crane, alarm_code) WHERE alarm_code IS NOT NULL AND alarm_code != 0;
 """
 
 
-def connect(path):
+def connect(path, schema=True):
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
-    con = sqlite3.connect(path, check_same_thread=False)
+    con = sqlite3.connect(path, check_same_thread=False, timeout=5)
     con.row_factory = sqlite3.Row
-    con.execute("PRAGMA journal_mode=WAL")      # 읽는 쪽이 쓰는 쪽을 막지 않게
-    con.executescript(SCHEMA)
+    con.execute("PRAGMA busy_timeout=5000")     # 쓰기 잠금이 겹치면 실패 대신 5초까지 기다린다
+    if schema:   # 요청마다 스키마를 다시 돌리지 않는다 — WAL 모드는 파일에 남는다
+        con.execute("PRAGMA journal_mode=WAL")      # 읽는 쪽이 쓰는 쪽을 막지 않게
+        con.executescript(SCHEMA)
     return con
+
+
+def prune(con, lock, retain_hours, chunk=5000):
+    """보존 기간보다 오래된 행을 나눠 지운다 — 한 번에 지우면 쓰기 잠금이 길어 PLC 적재가 밀린다. 지운 행 수."""
+    cutoff = int(time.time() * 1000 - retain_hours * 3600_000)
+    total = 0
+    while True:
+        with lock:
+            n = con.execute("DELETE FROM snapshot WHERE id IN (SELECT id FROM snapshot WHERE recv_ms < ? LIMIT ?)", (cutoff, chunk)).rowcount
+            con.commit()
+        total += n
+        if n < chunk:
+            return total
 
 
 def to_num(v):
@@ -123,7 +139,7 @@ class Handler(BaseHTTPRequestHandler):
     def con(self):   # 요청 스레드마다 자기 연결 — 연결 하나를 스레드끼리 나눠 쓰면 동시 읽기·쓰기에서 서버가 멈췄다
         c = getattr(self.local, "con", None)
         if c is None:
-            c = self.local.con = connect(self.db_path)
+            c = self.local.con = connect(self.db_path, schema=False)
         return c
 
     # 접속 로그를 stderr 로 (도커 logs 에서 보이게), 다만 헬스체크 폭주는 접어둔다.
@@ -247,12 +263,28 @@ class Handler(BaseHTTPRequestHandler):
         return self.send_json({"ok": True, "inserted": count})
 
 
+def prune_loop(db, retain_hours, every_s):
+    """서버 수명 동안 every_s 마다 보존 기간을 넘은 행을 지운다 — 빈 페이지는 다음 적재가 다시 쓰므로 파일이 더 자라지 않는다."""
+    con = connect(db, schema=False)
+    while True:
+        try:
+            n = prune(con, Handler.lock, retain_hours)
+            if n:
+                print(f"[xrcrane-db] 보존 {retain_hours:g}시간 넘은 {n}행 삭제", flush=True)
+        except sqlite3.Error as e:
+            print(f"[xrcrane-db] 보존 삭제 실패: {e}", flush=True)
+        time.sleep(every_s)
+
+
 def cmd_serve(args):
     con = connect(args.db)   # 스키마만 만들고, 요청은 Handler.con 이 스레드별로 연다
     Handler.db_path = args.db
     srv = ThreadingHTTPServer((args.host, args.port), Handler)
     srv.db_path = args.db
-    print(f"[xrcrane-db] listening on {args.host}:{args.port} · db={args.db}", flush=True)
+    if args.retain_hours > 0:
+        threading.Thread(target=prune_loop, args=(args.db, args.retain_hours, args.prune_every), daemon=True).start()
+    keep = f"보존 {args.retain_hours:g}시간" if args.retain_hours > 0 else "보존 무기한"
+    print(f"[xrcrane-db] listening on {args.host}:{args.port} · db={args.db} · {keep}", flush=True)
     try:
         srv.serve_forever()
     except KeyboardInterrupt:
@@ -328,6 +360,9 @@ def main():
     s = sub.add_parser("serve", help="REST 서버 기동")
     s.add_argument("--host", default="0.0.0.0")
     s.add_argument("--port", type=int, default=DEFAULT_PORT)
+    s.add_argument("--retain-hours", type=float, default=float(os.environ.get("XRCRANE_RETAIN_HOURS", "168")),
+                   help="이보다 오래된 행 삭제(기본 7일, 0=무기한). 크레인 3대 100ms 면 시간당 약 150MB")
+    s.add_argument("--prune-every", type=float, default=600, help="보존 삭제 주기(초)")
     s.set_defaults(func=cmd_serve)
 
     i = sub.add_parser("import", help="PlcSim CSV 적재")
