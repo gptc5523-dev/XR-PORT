@@ -32,7 +32,7 @@ namespace AIXRCrane.Crane.Sts.Plc
 
         [Header("Server 모드")]
         [Tooltip("통합서버(Server/xrcrane_db.py) 주소. 크레인 이름(gameObject.name)을 DB 의 crane 값으로 조회한다.")]
-        [SerializeField] string serverUrl = "http://192.168.0.167:5006";   // 기본값일 뿐 — 기기에선 XRCRANE_SERVER_URL 또는 xrcrane_server.txt 가 이긴다
+        [SerializeField] string serverUrl = "http://100.93.77.48:5006";   // aiserver 의 Tailscale 주소(서버는 VPN 안에서 돈다). 기본값일 뿐 — 기기에선 XRCRANE_SERVER_URL 또는 xrcrane_server.txt 가 이긴다
         bool serverUrlFixed;
 
         [Header("정규화 범위 (실척 m)")]
