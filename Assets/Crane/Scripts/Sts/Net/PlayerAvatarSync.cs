@@ -55,9 +55,12 @@ namespace AIXRCrane.Crane.Sts.Net
             if (IsOwner) return;
             if (tag == null)
             {
-                tag = AIXRCrane.Crane.Sts.CraneHud.BuildPanel(transform, "NameTag", new Vector2(420f, 60f), 0.004f,
-                    new Color(1f, 1f, 1f, 0.85f), 26, Color.black, TextAnchor.MiddleCenter,
-                    new Vector2(12, 6), out tagText, fitToText: true);
+                // 큰 글꼴을 작게 줄여 또렷하게(글자 높이 약 0.1 m).
+                tag = AIXRCrane.Crane.Sts.CraneHud.BuildPanel(transform, "NameTag", new Vector2(1000f, 150f), 0.0016f,
+                    new Color(1f, 1f, 1f, 0.85f), 64, Color.black, TextAnchor.MiddleCenter,
+                    new Vector2(30, 15), out tagText, fitToText: true);
+                // 공용 HUD 의 검정 외곽선·그림자가 검정 글자를 뭉갠다 — 흰 바탕이라 뺀다.
+                foreach (var fx in tagText.GetComponents<UnityEngine.UI.Shadow>()) Destroy(fx);
                 tag.transform.localPosition = Vector3.up * TagHeight;
             }
             string label = Label.Value.ToString();
