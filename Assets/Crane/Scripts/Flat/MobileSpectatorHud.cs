@@ -88,8 +88,8 @@ namespace AIXRCrane.Crane.Flat
             // 위 왼쪽: 역할 · 크레인
             roleText = Label(root, "Role", new Vector2(0f, 1f), new Vector2(ix, -iy), new Vector2(900f, BarH), TextAnchor.MiddleLeft, bg: true);
 
-            // 아래: 크레인마다 한 줄
-            float h = BarH * 0.75f * Mathf.Max(1, cranes.Length) + 12f;
+            // 아래: 크레인마다 한 줄 + 참가자 한 줄(칸이 모자라면 그 줄이 잘려 안 보였다)
+            float h = BarH * 0.75f * (Mathf.Max(1, cranes.Length) + 1) + 12f;
             statusText = Label(root, "Status", new Vector2(0.5f, 0f), new Vector2(0f, iy), new Vector2(RefW - 2f * ix, h), TextAnchor.MiddleLeft, bg: true);
         }
 
