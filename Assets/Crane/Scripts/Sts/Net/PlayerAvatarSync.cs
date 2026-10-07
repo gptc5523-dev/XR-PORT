@@ -55,7 +55,7 @@ namespace AIXRCrane.Crane.Sts.Net
             if (IsOwner) return;
             if (tag == null)
             {
-                tag = AIXRCrane.Crane.Sts.CraneHud.BuildPanel(transform, "NameTag", new Vector2(420f, 60f), 0.0009f,
+                tag = AIXRCrane.Crane.Sts.CraneHud.BuildPanel(transform, "NameTag", new Vector2(420f, 60f), 0.004f,
                     new Color(1f, 1f, 1f, 0.85f), 26, Color.black, TextAnchor.MiddleCenter,
                     new Vector2(12, 6), out tagText, fitToText: true);
                 tag.transform.localPosition = Vector3.up * TagHeight;

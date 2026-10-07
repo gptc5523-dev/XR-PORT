@@ -73,9 +73,9 @@ namespace AIXRCrane.Crane.Sts.Net
             Debug.Log(Me != null ? $"[Device] 등록 사용자 {Me.name} · {Me.position} · {Me.role} ({Me.device_id})" : $"[Device] 미등록 기기 (등록 {list.Length}명 중 없음)");
         }
 
-        /// <summary>이름표 문구 — 등록이면 "이름 · 직급 · 역할", 아니면 "미등록 VR-N"·"관전".</summary>
+        /// <summary>이름표 문구 — 등록이면 "소속\n직급 이름"(빈 칸은 뺀다), 아니면 "미등록 VR-N"·"관전".</summary>
         public static string Label =>
-            Me != null ? $"{Me.name} · {Me.position} · {Me.role.Replace(",", "/")}" : Slot > 0 ? $"미등록 VR-{Slot}" : "관전";
+            Me != null ? $"{Me.department}\n{Me.position} {Me.name}".Trim() : Slot > 0 ? $"미등록 VR-{Slot}" : "관전";
 
         static string Arg(string name)
         {
