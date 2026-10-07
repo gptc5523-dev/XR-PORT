@@ -27,10 +27,12 @@ namespace AIXRCrane.Crane.Sts
             public CraneDemoRunner runner;
             public Transform mover;          // 크레인과 같이 주행하는 기준(갠트리)
             public Vector2 fpMin, fpMax;     // 바닥 투영 외곽(XZ) — mover 기준 상대
-            public float groundY;            // 크레인 바운즈 바닥(바퀴 밑) — 접근 띠 높이
+            public float groundY;            // 크레인 바운즈 바닥(바퀴 밑)
+            public float ringY;              // 접근 띠 높이 — 레일 윗면보다 위(아래면 레일이 띠를 끊는다)
             public LineRenderer ring;        // 접근 범위 바닥 띠
         }
 
+        const float RingWidthM = 0.8f;   // 띠 폭 실척 m
         static readonly Color RingIdle = new Color(0.3f, 0.85f, 1f, 0.35f);
         static readonly Color RingInside = new Color(0.3f, 0.85f, 1f, 0.9f);
 
@@ -98,7 +100,7 @@ namespace AIXRCrane.Crane.Sts
                     runner = c.gameObject.AddComponent<CraneDemoRunner>(),
                     mover = c.Gantry is Component g ? g.transform : c.transform,
                 };
-                Footprint(e);
+                Footprint(e, approachMeters * StsConfig.ModelScale);
                 e.ring = Ring(e, ringMat);
                 cranes.Add(e);
             }
@@ -149,7 +151,7 @@ namespace AIXRCrane.Crane.Sts
             foreach (var e in cranes)   // 띠는 매 프레임 추종 — 판정 주기로 옮기면 VR 에서 끊긴다
             {
                 Vector3 o = e.mover.position;
-                e.ring.transform.position = new Vector3(o.x, e.groundY + 0.1f * StsConfig.ModelScale, o.z);   // 바닥과 z-파이팅 방지 실척 0.1m
+                e.ring.transform.position = new Vector3(o.x, e.ringY, o.z);
             }
             if (cranes.Count == 0 || Time.unscaledTime < nextSelect) return;
             nextSelect = Time.unscaledTime + selectInterval;
@@ -202,19 +204,46 @@ namespace AIXRCrane.Crane.Sts
             return Mathf.Sqrt(dx * dx + dz * dz);
         }
 
-        static void Footprint(Entry e)
+        static void Footprint(Entry e, float approach)
         {
             Vector3 o = e.mover.position;
             if (!SceneUtil.TryBounds(e.crane.transform, out var b)) b = new Bounds(o, Vector3.zero);
             e.fpMin = new Vector2(b.min.x - o.x, b.min.z - o.z);
             e.fpMax = new Vector2(b.max.x - o.x, b.max.z - o.z);
             e.groundY = b.min.y;
+            e.ringY = Mathf.Max(e.groundY + 0.1f * StsConfig.ModelScale, RailTopY() + 0.05f * StsConfig.ModelScale);   // 바닥 z-파이팅·레일 가림 방지
             if (IsRtg(e.crane)) return;
             // STS 는 붐까지 넣으면 존이 실척 100m 가 넘는다 — 사람이 다가가는 포털(다리 넷)을 덮는 정사각형으로.
             Vector3 c = e.crane.transform.TransformPoint(StsConfig.LegGaugeXMeters * StsConfig.ModelScale * 0.5f, 0f, 0f) - o;
             float h = Mathf.Max(StsConfig.LegGaugeXMeters, StsConfig.GantryBaseZMeters) * StsConfig.ModelScale * 0.5f;
             e.fpMin = new Vector2(c.x - h, c.z - h);
             e.fpMax = new Vector2(c.x + h, c.z + h);
+            // 바다 쪽(+X)은 안벽 끝 연석 안쪽까지만 — 넘으면 띠가 연석 밑·물 위로 나가 잘려 보인다.
+            if (CranePlayerStartPlacer.TryGetLand(out var land))
+                e.fpMax.x = Mathf.Min(e.fpMax.x, SeaEdgeX(land) - RingWidthM * 0.5f * StsConfig.ModelScale - approach - o.x);
+        }
+
+        // 레일 윗면 y(없으면 -∞) — 접근 띠를 그 위에 그린다.
+        static float RailTopY()
+        {
+            float top = float.NegativeInfinity;
+            foreach (var r in FindObjectsByType<Renderer>(FindObjectsSortMode.None))
+                if (r.name.StartsWith(StsPartNames.QuayRail)) top = Mathf.Max(top, r.bounds.max.y);
+            return top;
+        }
+
+        // 안벽 끝(+X)의 낮은 구조물(연석 등, 데크 위 1 m 이하) 안쪽 면 x — 걷는 땅 끝에 붙은 것만 본다.
+        static float SeaEdgeX(Bounds land)
+        {
+            float edge = land.max.x, deck = land.max.y, low = deck + 1f * StsConfig.ModelScale;
+            var quay = GameObject.Find(StsPartNames.QuayGround);
+            if (quay == null) return edge;
+            foreach (var r in quay.GetComponentsInChildren<Renderer>())
+            {
+                var b = r.bounds;
+                if (b.max.x >= land.max.x - 1e-4f && b.max.y > deck + 1e-4f && b.max.y < low) edge = Mathf.Min(edge, b.min.x);
+            }
+            return edge;
         }
 
         // 접근 띠 = 바닥 투영 사각형을 approach 로 부풀린 둥근 사각형. 외곽이 런타임에 정해져 LineRenderer 로 그린다.
@@ -228,7 +257,7 @@ namespace AIXRCrane.Crane.Sts
             lr.loop = true;
             lr.alignment = LineAlignment.TransformZ;
             lr.material = mat;
-            lr.widthMultiplier = 0.8f * StsConfig.ModelScale;   // 띠 폭 실척 0.8m
+            lr.widthMultiplier = RingWidthM * StsConfig.ModelScale;
             lr.startColor = lr.endColor = RingIdle;
             lr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             lr.receiveShadows = false;
