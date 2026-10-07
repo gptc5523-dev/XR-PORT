@@ -101,6 +101,7 @@ namespace AIXRCrane.Crane.Flat
             Vector3 flyDir = PointerNav ? PointerStep(dt) : Vector3.zero;
 
             if (!PointerNav) Orbit();
+            if (!MovementLocked) ViewCrane(CraneKey());
             yaw += look.x * lookDegPerSec * dt;
             pitch += (invertPitch ? look.y : -look.y) * lookDegPerSec * dt;
             pitch = Mathf.Clamp(pitch, -89f, 89f);
@@ -136,6 +137,40 @@ namespace AIXRCrane.Crane.Flat
                 pivot = Physics.Raycast(ray, out var hit, 5000f * s) ? hit.point : ray.GetPoint(50f * s);
             transform.position = pivot + Quaternion.Euler(0f, d, 0f) * (transform.position - pivot);
             yaw += d;
+        }
+
+        static int CraneKey()
+        {
+            var kb = Keyboard.current;
+            if (kb == null) return -1;
+            return kb.digit1Key.wasPressedThisFrame ? 0 : kb.digit2Key.wasPressedThisFrame ? 1 : kb.digit3Key.wasPressedThisFrame ? 2 : -1;
+        }
+
+        // 숫자 키 1·2·3 = STS·RTG1·RTG2 — 주행축과 45° 비낀 땅 위(땅 가운데 쪽)에서 크레인 전체가 화면에 들어오게 선다.
+        void ViewCrane(int i)
+        {
+            if (i < 0 || cam == null) return;
+            var cs = MobileSpectatorHud.Ordered();
+            if (i >= cs.Length || !(cs[i].Gantry is AIXRCrane.Crane.Sts.AxisMoverBase g) || !SceneUtil.TryBounds(cs[i].transform, out var b)) return;
+            Vector3 ax = Vector3.ProjectOnPlane(g.WorldAxis, Vector3.up).normalized, side = Vector3.Cross(Vector3.up, ax), c = b.center;
+            float half = 0.5f * new Vector2(b.size.x, b.size.z).magnitude;   // 수평 대각 반 — 어느 방향에서 봐도 들어간다
+            float vHalf = cam.fieldOfView * 0.5f * Mathf.Deg2Rad, hHalf = Mathf.Atan(Mathf.Tan(vHalf) * cam.aspect);
+            float dist = half + 1.1f * Mathf.Max(half / Mathf.Tan(hHalf), b.extents.y / Mathf.Tan(vHalf));
+            bool land = AIXRCrane.Crane.Sts.CranePlayerStartPlacer.TryGetLand(out var lb);
+            Vector3 p = c, toLand = land ? lb.center - c : side;   // 주행축(적재 줄·배 선체)을 피해 비낀다
+            foreach (float sa in new[] { 1f, -1f })
+                foreach (float sb in new[] { 1f, -1f })
+                {
+                    Vector3 q = c + (sa * ax + sb * side).normalized * dist;
+                    if (p == c || Vector3.Dot(q - c, toLand) > Vector3.Dot(p - c, toLand)) p = q;
+                }
+            p.y = land ? lb.max.y : b.min.y;
+            transform.position = p;
+            Vector3 to = c - p;
+            float eye = eyeHeightMeters * Mathf.Max(transform.lossyScale.x, 1e-6f);
+            yaw = Mathf.Atan2(to.x, to.z) * Mathf.Rad2Deg;
+            pitch = -Mathf.Atan2(to.y - eye, new Vector2(to.x, to.z).magnitude) * Mathf.Rad2Deg;
+            if (debugLog) Debug.Log($"[FlatRig] 시점 {i + 1} — {cs[i].name} 앞 {dist / AIXRCrane.Crane.Sts.StsConfig.ModelScale:F0} m");
         }
 
         void ApplyLook()

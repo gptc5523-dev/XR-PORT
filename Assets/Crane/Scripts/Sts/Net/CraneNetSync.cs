@@ -291,7 +291,7 @@ namespace AIXRCrane.Crane.Sts.Net
             if (clientHeld == null) return;
             attach.Detach();
             var rb = clientHeld.GetComponent<Rigidbody>();
-            if (rb != null) { rb.isKinematic = false; rb.useGravity = true; }
+            if (rb != null && !Plc.PlcLiveMode.On) { rb.isKinematic = false; rb.useGravity = true; }   // 라이브 PLC 면 놓은 자리 고정(PlcCargoFollow)
             clientHeld = null;
         }
 

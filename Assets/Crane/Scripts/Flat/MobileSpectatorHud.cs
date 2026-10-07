@@ -33,6 +33,10 @@ namespace AIXRCrane.Crane.Flat
         NetLanUI net;
         FlatPlayerRig rig;
         StsCrane[] cranes = new StsCrane[0];
+
+        /// <summary>STS 먼저, RTG 는 이름 순 — 아래 줄 순서이자 숫자 키 1·2·3 시점 순서(FlatPlayerRig).</summary>
+        internal static StsCrane[] Ordered() => FindObjectsByType<StsCrane>(FindObjectsSortMode.None)
+            .OrderBy(c => c.GetComponent<RtgBogieSteering>() != null).ThenBy(c => c.name, System.StringComparer.Ordinal).ToArray();
         string[] names = new string[0];
 
         void Start()   // 부트스트랩이 리그를 만든 뒤라 Start 에서 찾는다
@@ -43,8 +47,7 @@ namespace AIXRCrane.Crane.Flat
             rig = FindAnyObjectByType<FlatPlayerRig>();
 
             // STS 먼저, RTG 는 이름 순 — 줄 앞 이름은 STS·RTG1·RTG2 (RTG 번호는 씬 이름 끝 번호)
-            cranes = FindObjectsByType<StsCrane>(FindObjectsSortMode.None)
-                .OrderBy(c => c.GetComponent<RtgBogieSteering>() != null).ThenBy(c => c.name, System.StringComparer.Ordinal).ToArray();
+            cranes = Ordered();
             names = cranes.Select(c => c.GetComponent<RtgBogieSteering>() == null ? "STS" : "RTG" + c.name.Substring(c.name.LastIndexOf('_') + 1)).ToArray();
             Build();
 

@@ -45,6 +45,7 @@ namespace AIXRCrane.Crane.Sts.Plc
             {
                 if (bridge.Source == null || !bridge.Source.TryRead(out _)) return;
                 was = locked; primed = true; needSync = true;
+                foreach (var t in Candidates()) if (t.TryGetComponent<Rigidbody>(out var rb)) { rb.isKinematic = true; rb.useGravity = false; }   // PLC 가 진실 — 배 화물도 놓은 자리 그대로(중력으로 굴러 PLC 자세와 어긋나지 않게)
             }
             if (locked && !was) Pick();
             else if (!locked && was) Place();
