@@ -9,7 +9,7 @@ namespace AIXRCrane.Crane.Sts.Plc
     public sealed class PlcCargoFollow : MonoBehaviour
     {
         [Tooltip("잠금 순간 스프레더 기준점과 컨테이너 윗면 중심의 허용 거리(실척 m) — 수평·수직.")]
-        [SerializeField] float pickRadiusM = 0.5f, pickHeightM = 0.5f;   // PLC 위치결정 ±3cm — 이보다 크게 어긋나면 매달지 않고 경고(어긋남을 숨기지 않게)
+        [SerializeField] float pickRadiusM = 0.5f, pickHeightM = 0.15f;   // PLC 위치결정 ±3cm — 높이는 하이큐브 차(0.305m)보다 작게 해 일반·하이큐브를 헷갈리지 않는다
 
         StsCrane crane;
         PlcBridge bridge;
@@ -23,9 +23,10 @@ namespace AIXRCrane.Crane.Sts.Plc
         bool needSync = true;   // 접속 직후·놓을 때마다·30초마다 서버 화물 상태(/cargo)에 씬을 맞춘다 — 늦게 뜬 XR 도 같은 배치
         float nextSync;
 
-        [System.Serializable] class Moved { public float[] o, c, p; }
+        [System.Serializable] class Moved { public float[] o, c; }
         [System.Serializable] class Cargo { public Moved[] boxes; public float[] held; }
         bool primed;   // 접속 순간의 잠금 상태는 기준일 뿐 — 이미 매단 채 접속하면 상승 엣지로 오인해 헛집기를 했다
+        readonly Dictionary<Transform, Vector3> origin = new();   // 컨테이너마다 씬 시작 때 윗면 중심 = 서버 o — 자리로만 짝지으면 같은 칸에 놓인 다른 컨테이너를 헷갈렸다
 
         void Awake()
         {
@@ -45,7 +46,11 @@ namespace AIXRCrane.Crane.Sts.Plc
             {
                 if (bridge.Source == null || !bridge.Source.TryRead(out _)) return;
                 was = locked; primed = true; needSync = true;
-                foreach (var t in Candidates()) if (t.TryGetComponent<Rigidbody>(out var rb)) { rb.isKinematic = true; rb.useGravity = false; }   // PLC 가 진실 — 배 화물도 놓은 자리 그대로(중력으로 굴러 PLC 자세와 어긋나지 않게)
+                foreach (var t in Candidates())
+                {
+                    if (t.TryGetComponent<Rigidbody>(out var rb)) { rb.isKinematic = true; rb.useGravity = false; }
+                    if (!t.IsChildOf(crane.transform) && SceneUtil.TryBounds(t, out var b)) origin[t] = new Vector3(b.center.x, b.max.y, b.center.z);
+                }   // PLC 가 진실 — 배 화물도 놓은 자리 그대로(중력으로 굴러 PLC 자세와 어긋나지 않게)
             }
             if (locked && !was) Pick();
             else if (!locked && was) Place();
@@ -67,7 +72,7 @@ namespace AIXRCrane.Crane.Sts.Plc
             pending = null;
         }
 
-        // 원래 자리(o)에 남아 있는 컨테이너를 지금 자리(c)로 옮긴다. 이미 c 에 있는 것부터 빼 두어 연쇄 이동을 잘못 짝짓지 않는다.
+        // 원래 자리(o)가 신원 — 씬 시작 때 그 자리에 있던 컨테이너를 지금 자리(c)로 옮긴다.
         void Apply(string json)
         {
             var data = JsonUtility.FromJson<Cargo>(json);
@@ -75,33 +80,26 @@ namespace AIXRCrane.Crane.Sts.Plc
             data.boxes ??= new Moved[0];
             var sway = CraneSway.Of(crane);
             Vector3 gp = (grabber != null ? grabber.GrabPoint() : ((Component)crane.Spreader).transform.position) - (sway != null ? sway.Offset : Vector3.zero);
-            float tol = pickRadiusM * crane.ModelScale;
-            var all = new List<Transform>();
-            foreach (var t in Candidates()) if (!t.IsChildOf(crane.transform)) all.Add(t);
-            var used = new HashSet<Transform>();
-            var todo = new List<Moved>();
+            float tol = pickRadiusM * crane.ModelScale, tolY = pickHeightM * crane.ModelScale;
+            int moved = 0;
             foreach (var m in data.boxes)
             {
                 if (m.o == null || m.c == null || m.o.Length < 3 || m.c.Length < 3) continue;
-                var at = Find(all, Pose(m.c, gp), tol, used);
-                if (at != null) used.Add(at); else todo.Add(m);
-            }
-            int moved = 0;
-            foreach (var m in todo)
-            {
-                var t = Find(all, Pose(m.o, gp), tol, used);
-                if (t == null && m.p != null && m.p.Length >= 3) t = Find(all, Pose(m.p, gp), tol, used);   // 이 씬이 직전 이동을 봤으면 직전 자리에 있다
-                if (t == null || !SceneUtil.TryBounds(t, out var b)) continue;
-                t.position += Pose(m.c, gp) - new Vector3(b.center.x, b.max.y, b.center.z);
+                var t = Origin(Pose(m.o, gp), tol, tolY);
+                if (t == null || t.IsChildOf(crane.transform) || !SceneUtil.TryBounds(t, out var b)) continue;
+                var d = Pose(m.c, gp) - new Vector3(b.center.x, b.max.y, b.center.z);
+                if (d.magnitude < 0.02f * crane.ModelScale) continue;   // 이미 그 자리(PLC ±3cm)
+                t.position += d;
                 if (t.TryGetComponent<Rigidbody>(out var rb)) { rb.position = t.position; if (!rb.isKinematic) rb.linearVelocity = Vector3.zero; }
-                used.Add(t);
                 moved++;
             }
+            var all = new List<Transform>();
+            foreach (var t in Candidates()) if (!t.IsChildOf(crane.transform)) all.Add(t);
             if (moved > 0) Debug.Log($"[PlcCargo] {crane.name} 화물 상태 맞춤 — {moved}개를 라이브 PLC 의 지금 자리로");
             // 운반 중에 접속했으면 그 컨테이너를 스프레더 밑에 매단다(집기 전 자리에서 찾아서).
             if (data.held != null && data.held.Length >= 3 && was && crane.Attach != null && !crane.Attach.HasContainer)
             {
-                var h = Find(all, Pose(data.held, gp), tol, new HashSet<Transform>());
+                var h = Find(all, Pose(data.held, gp), tol, tolY, new HashSet<Transform>());
                 if (h != null && SceneUtil.TryBounds(h, out var hb))
                 {
                     heldYardRoot = h.parent != null && h.parent.name == "Yard_Containers" ? h.parent : null;
@@ -114,15 +112,28 @@ namespace AIXRCrane.Crane.Sts.Plc
 
         Vector3 Pose(float[] v, Vector3 gp) => bridge.WorldAtPose(new PlcSnapshot { GtPosition = v[0], TrPosition = v[1], HoPosition = v[2] }, gp);
 
-        static Transform Find(List<Transform> all, Vector3 top, float tol, HashSet<Transform> used)
+        Transform Origin(Vector3 top, float tol, float tolY)
+        {
+            Transform best = null;
+            float bd = float.MaxValue;
+            foreach (var kv in origin)
+            {
+                if (kv.Key == null) continue;
+                float d = new Vector2(kv.Value.x - top.x, kv.Value.z - top.z).magnitude;
+                if (d <= tol && Mathf.Abs(kv.Value.y - top.y) <= tolY && d < bd) { bd = d; best = kv.Key; }
+            }
+            return best;
+        }
+
+        static Transform Find(List<Transform> all, Vector3 top, float tol, float tolY, HashSet<Transform> used)
         {
             Transform best = null;
             float bd = float.MaxValue;
             foreach (var t in all)
             {
                 if (used.Contains(t) || !SceneUtil.TryBounds(t, out var b)) continue;
-                float d = Vector3.Distance(new Vector3(b.center.x, b.max.y, b.center.z), top);
-                if (d <= tol && d < bd) { bd = d; best = t; }
+                float d = new Vector2(b.center.x - top.x, b.center.z - top.z).magnitude;
+                if (d <= tol && Mathf.Abs(b.max.y - top.y) <= tolY && d < bd) { bd = d; best = t; }
             }
             return best;
         }
