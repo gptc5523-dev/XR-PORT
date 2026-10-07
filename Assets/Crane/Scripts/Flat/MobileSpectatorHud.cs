@@ -146,8 +146,6 @@ namespace AIXRCrane.Crane.Flat
                         : "○ 호스트 기다리는 중";
             var notice = CraneAlarmHUD.ActiveNotice;   // 나가는 존 카운트 등
             if (notice != null) role = $"<color=#{CraneHud.Hex(CraneHud.HudColor.Danger)}>{notice}</color>";
-            else if (AIXRCrane.Crane.Sts.Net.DeviceIdentity.Looked)   // 나는 누구로 보고 있나
-                role += $"    <b>{AIXRCrane.Crane.Sts.Net.DeviceIdentity.LineText(AIXRCrane.Crane.Sts.Net.DeviceIdentity.Label)}</b>";
             CraneHud.SetTextIfChanged(roleText, ref lastRole, role);
             CraneHud.SetTextIfChanged(statusText, ref lastStatus, StatusBody());
         }
@@ -169,6 +167,9 @@ namespace AIXRCrane.Crane.Flat
             foreach (var a in FindObjectsByType<AIXRCrane.Crane.Sts.Net.PlayerAvatarSync>(FindObjectsSortMode.None))
                 if (a.IsSpawned && a.Label.Value.Length > 0)
                     who.Append(who.Length > 0 ? "   " : "\n<b>참가자</b>  ").Append($"<color=#{CraneHud.Hex(a.TintColor)}>●</color> {AIXRCrane.Crane.Sts.Net.DeviceIdentity.LineText(a.Label.Value.ToString())}");
+            // 세션 밖이면 아바타가 없다 — 나라도 보인다.
+            if (who.Length == 0 && AIXRCrane.Crane.Sts.Net.DeviceIdentity.Looked)
+                who.Append("\n<b>참가자</b>  ● ").Append(AIXRCrane.Crane.Sts.Net.DeviceIdentity.LineText(AIXRCrane.Crane.Sts.Net.DeviceIdentity.Label));
             return string.Join("\n", lines) + who;
         }
 
