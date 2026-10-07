@@ -169,7 +169,11 @@ namespace AIXRCrane.Crane.Flat
                     who.Append(who.Length > 0 ? "   " : "\n<b>참가자</b>  ").Append($"<color=#{CraneHud.Hex(a.TintColor)}>●</color> {AIXRCrane.Crane.Sts.Net.DeviceIdentity.LineText(a.Label.Value.ToString())}");
             // 세션 밖이면 아바타가 없다 — 나라도 보인다.
             if (who.Length == 0 && AIXRCrane.Crane.Sts.Net.DeviceIdentity.Looked)
-                who.Append("\n<b>참가자</b>  ● ").Append(AIXRCrane.Crane.Sts.Net.DeviceIdentity.LineText(AIXRCrane.Crane.Sts.Net.DeviceIdentity.Label));
+            {
+                var me = AIXRCrane.Crane.Sts.Net.DeviceIdentity.Me;
+                var tint = me != null && !string.IsNullOrEmpty(me.color) && ColorUtility.TryParseHtmlString(me.color, out var c) ? c : AIXRCrane.Crane.Sts.Net.PlayerAvatarSync.FirstColor;
+                who.Append($"\n<b>참가자</b>  <color=#{CraneHud.Hex(tint)}>●</color> ").Append(AIXRCrane.Crane.Sts.Net.DeviceIdentity.LineText(AIXRCrane.Crane.Sts.Net.DeviceIdentity.Label));
+            }
             return string.Join("\n", lines) + who;
         }
 
