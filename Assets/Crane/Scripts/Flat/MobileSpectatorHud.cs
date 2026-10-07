@@ -86,7 +86,7 @@ namespace AIXRCrane.Crane.Flat
             var root = canvasGo.transform;
 
             // 위 왼쪽: 역할 · 크레인
-            roleText = Label(root, "Role", new Vector2(0f, 1f), new Vector2(ix, -iy), new Vector2(900f, BarH), TextAnchor.MiddleLeft, bg: true);
+            roleText = Label(root, "Role", new Vector2(0f, 1f), new Vector2(ix, -iy), new Vector2(1300f, BarH), TextAnchor.MiddleLeft, bg: true);
 
             // 아래: 크레인마다 한 줄 + 참가자 한 줄(칸이 모자라면 그 줄이 잘려 안 보였다)
             float h = BarH * 0.75f * (Mathf.Max(1, cranes.Length) + 1) + 12f;
@@ -160,6 +160,8 @@ namespace AIXRCrane.Crane.Flat
                         : "○ 호스트 기다리는 중";
             var notice = CraneAlarmHUD.ActiveNotice;   // 나가는 존 카운트 등
             if (notice != null) role = $"<color=#{CraneHud.Hex(CraneHud.HudColor.Danger)}>{notice}</color>";
+            else if (AIXRCrane.Crane.Sts.Net.DeviceIdentity.Looked)   // 나는 누구로 보고 있나
+                role += $"    <b>{AIXRCrane.Crane.Sts.Net.DeviceIdentity.LineText(AIXRCrane.Crane.Sts.Net.DeviceIdentity.Label)}</b>";
             CraneHud.SetTextIfChanged(roleText, ref lastRole, role);
             CraneHud.SetTextIfChanged(statusText, ref lastStatus, StatusBody());
         }
