@@ -23,7 +23,6 @@ namespace AIXRCrane.Crane.Flat
         [SerializeField] float joinRetrySeconds = 3f;
 
         const float RefW = 1920f, RefH = 1080f;
-        const float BarH = 84f;
 
         Canvas canvas;
         Text roleText, statusText;
@@ -86,53 +85,40 @@ namespace AIXRCrane.Crane.Flat
             var root = canvasGo.transform;
 
             // 위 왼쪽: 역할 · 크레인
-            roleText = Label(root, "Role", new Vector2(0f, 1f), new Vector2(ix, -iy), new Vector2(1300f, BarH), TextAnchor.MiddleLeft, bg: true);
+            roleText = Label(root, "Role", new Vector2(0f, 1f), new Vector2(ix, -iy));
 
-            // 아래: 크레인마다 한 줄 + 참가자 한 줄(칸이 모자라면 그 줄이 잘려 안 보였다)
-            float h = BarH * 0.75f * (Mathf.Max(1, cranes.Length) + 1) + 12f;
-            statusText = Label(root, "Status", new Vector2(0.5f, 0f), new Vector2(0f, iy), new Vector2(RefW - 2f * ix, h), TextAnchor.MiddleLeft, bg: true);
+            // 아래: 크레인마다 한 줄(+ 참가자 줄) — 배경은 글자 분량만큼만
+            statusText = Label(root, "Status", new Vector2(0.5f, 0f), new Vector2(0f, iy));
         }
 
-        Text Label(Transform parent, string name, Vector2 anchor, Vector2 pos, Vector2 size, TextAnchor align, bool bg)
+        // 반투명 검정 배경 + 글자. 배경은 글자 크기에 맞춰 늘고 준다(앵커 모서리 기준으로 자란다).
+        Text Label(Transform parent, string name, Vector2 anchor, Vector2 pos)
         {
             var go = new GameObject(name, typeof(RectTransform));
             go.transform.SetParent(parent, worldPositionStays: false);
-            Place(go.GetComponent<RectTransform>(), anchor, pos, size);
-            if (bg)
-            {
-                var img = go.AddComponent<Image>();
-                img.color = new Color(0f, 0f, 0f, CraneHud.PanelBgAlpha);
-                img.raycastTarget = false;
-            }
-            return AddText(go.transform, align);
-        }
-
-        // 앵커 모서리에 붙이고 pivot도 같은 모서리 — pos는 그 모서리에서 안쪽 거리(참조 해상도 px).
-        static void Place(RectTransform rt, Vector2 anchor, Vector2 pos, Vector2 size)
-        {
-            rt.anchorMin = rt.anchorMax = rt.pivot = anchor;
-            rt.sizeDelta = size;
-            rt.anchoredPosition = pos;
-        }
-
-        Text AddText(Transform parent, TextAnchor align)
-        {
-            var go = new GameObject("Text", typeof(RectTransform), typeof(Text));
-            go.transform.SetParent(parent, worldPositionStays: false);
             var rt = go.GetComponent<RectTransform>();
-            rt.anchorMin = Vector2.zero; rt.anchorMax = Vector2.one;
-            rt.offsetMin = new Vector2(20f, 6f); rt.offsetMax = new Vector2(-20f, -6f);
-            var t = go.GetComponent<Text>();
+            rt.anchorMin = rt.anchorMax = rt.pivot = anchor;
+            rt.anchoredPosition = pos;
+            var img = go.AddComponent<Image>();
+            img.color = new Color(0f, 0f, 0f, CraneHud.PanelBgAlpha);
+            img.raycastTarget = false;
+            var layout = go.AddComponent<VerticalLayoutGroup>();
+            layout.padding = new RectOffset(20, 20, 8, 8);
+            layout.childControlWidth = layout.childControlHeight = true;
+            layout.childForceExpandWidth = layout.childForceExpandHeight = false;
+            var fit = go.AddComponent<ContentSizeFitter>();
+            fit.horizontalFit = fit.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+            var t = new GameObject("Text", typeof(RectTransform), typeof(Text)).GetComponent<Text>();
+            t.transform.SetParent(go.transform, worldPositionStays: false);
             t.font = CraneHud.CreateKoreanFont(fontSize);
             t.fontSize = fontSize;
             t.color = Color.white;
-            t.alignment = align;
+            t.alignment = TextAnchor.MiddleLeft;
             t.supportRichText = true;
             t.raycastTarget = false;
-            // 넘치면 칸 밖으로 흘리지 않고 줄인다.
-            t.resizeTextForBestFit = true;
-            t.resizeTextMinSize = Mathf.Max(12, fontSize / 2);
-            t.resizeTextMaxSize = fontSize;
+            t.horizontalOverflow = HorizontalWrapMode.Overflow;
+            t.verticalOverflow = VerticalWrapMode.Overflow;
             return t;
         }
 
