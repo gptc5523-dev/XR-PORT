@@ -159,8 +159,8 @@ namespace AIXRCrane.Crane.Sts.Plc
         {
             if (crane.Attach == null || !crane.Attach.HasContainer) return;
             var held = crane.Attach.AttachedContainer;
-            if (grabber != null) grabber.Release();
-            else { crane.Attach.Detach(); if (lockAnim != null) lockAnim.SetLocked(false); }
+            crane.Attach.Detach();   // grabber.Release 는 야드 칸 중앙으로 몰래 정렬한다 — PLC 가 진실이니 놓은 자리 그대로
+            if (lockAnim != null) lockAnim.SetLocked(false);
             if (held != null && heldYardRoot != null) held.SetParent(heldYardRoot, true);
             heldYardRoot = null;
             needSync = true;

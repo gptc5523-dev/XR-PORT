@@ -374,7 +374,11 @@ class Crane(threading.Thread):
         """야드 정리 1회 — 한 더미 맨 위를 가까운 다른 더미(3단 미만)로 옮긴다. 가까운 쪽을 고르는 게 실제 RTG 운전 습관."""
         full = [x for x in self.stacks if x.boxes]
         src = self.rng.choice(full)
-        cands = [x for x in self.stacks if x is not src and len(x.boxes) < x.cap]
+        b = src.boxes[-1]
+        fits = lambda x: not x.boxes or ((x.boxes[-1].ft == 20) == (b.ft == 20))   # 20ft 위엔 20ft, 40·45ft 위엔 40·45ft — 40ft 를 20ft 하나에 걸치지 않는다
+        cands = [x for x in self.stacks if x is not src and len(x.boxes) < x.cap and fits(x)]
+        if not cands:
+            return
         cands.sort(key=lambda x: abs(x.gt - src.gt) + 0.3 * abs(x.tr - src.tr))
         dst = self.rng.choice(cands[:3])
         self.move(src, dst, "야드 정리")
