@@ -112,11 +112,12 @@ namespace AIXRCrane.Crane.Flat
             // 공간 마우스 비행 — 바닥 아래·부두 밖 클램프는 CranePlayerStartPlacer 담당.
             if (flyDir != Vector3.zero) transform.position += flyDir * (flySpeedMps * s * dt);
 
-            // ── 이동: 카메라 yaw 기준 전후좌우 + 수직 ───────────────────────────────────
+            // ── 이동: 보는 방향(몸+고개) 기준 전후좌우 + 수직 ───────────────────────────────────
             if (move.sqrMagnitude > 1e-6f || Mathf.Abs(vertical) > 1e-6f)
             {
                 float speed = walkSpeedMps * (sprint ? sprintMultiplier : 1f);
-                Vector3 fwd = transform.forward, right = transform.right;
+                Quaternion facing = Quaternion.Euler(0f, cam != null ? cam.transform.eulerAngles.y : transform.eulerAngles.y, 0f);   // 고개(안경) 방향 포함 — 보는 쪽이 앞
+                Vector3 fwd = facing * Vector3.forward, right = facing * Vector3.right;
                 Vector3 delta = (fwd * move.y + right * move.x) * (speed * s * dt)
                               + Vector3.up * (vertical * verticalSpeedMps * s * dt);
                 transform.position += delta;

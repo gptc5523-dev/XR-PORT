@@ -45,6 +45,9 @@ namespace AIXRCrane.Crane.Sts
 
         static bool NoticeActive => !string.IsNullOrEmpty(notice) && Time.unscaledTime < noticeUntil;
 
+        /// <summary>지금 떠 있는 공지(없으면 null) — 머리 고정 캔버스가 안 보이는 모바일 관전 화면이 대신 띄운다.</summary>
+        public static string ActiveNotice => NoticeActive ? notice : null;
+
         Canvas canvas;
         Text text;
         string lastText;

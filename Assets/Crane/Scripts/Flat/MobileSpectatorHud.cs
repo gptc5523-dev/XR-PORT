@@ -158,6 +158,8 @@ namespace AIXRCrane.Crane.Flat
             string role = connected ? "● 관전 중"
                         : nm != null && nm.IsClient ? "◌ 호스트에 접속 중…"
                         : "○ 호스트 기다리는 중";
+            var notice = CraneAlarmHUD.ActiveNotice;   // 나가는 존 카운트 등
+            if (notice != null) role = $"<color=#{CraneHud.Hex(CraneHud.HudColor.Danger)}>{notice}</color>";
             CraneHud.SetTextIfChanged(roleText, ref lastRole, role);
             CraneHud.SetTextIfChanged(statusText, ref lastStatus, StatusBody());
         }

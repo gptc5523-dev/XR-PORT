@@ -64,7 +64,8 @@ namespace AIXRCrane.Crane.Sts.Net
         {
             var nm = NetworkManager.Singleton;
             bool connected = nm != null && (nm.IsClient || nm.IsServer);
-            if (!connected) { SetVisible(false); dwell = 0f; xrLostFor = 0f; return; }
+            bool mobile = AIXRCrane.Crane.Flat.FlatModeBootstrap.Mobile;   // 모바일 관전은 접속과 무관하게 존이 '앱 종료'다
+            if (!connected && !mobile) { SetVisible(false); dwell = 0f; xrLostFor = 0f; return; }
 
             WatchHeadset();                       // ② 자동 종료 — 존 배치와 무관하게 항상 돈다
             if (!placed && !TryPlace()) return;   // 걷는 땅이 아직 없으면(빌더 미완) 다음 프레임에 재시도
@@ -89,6 +90,7 @@ namespace AIXRCrane.Crane.Sts.Net
             if (arming && dwell >= dwellSeconds)
             {
                 CraneAlarmHUD.ClearNotice();
+                if (mobile) { Quit(); return; }
                 Leave(host ? $"존에서 나감 — 호스트(관전자 {spectators}명 함께 종료)" : "존을 밟고 나감");
                 return;
             }
@@ -99,7 +101,7 @@ namespace AIXRCrane.Crane.Sts.Net
             {
                 float left = Mathf.Max(0f, dwellSeconds - dwell);
                 string more = spectators > 0 ? $"  <size=26>(관전자 {spectators}명도 함께)</size>" : "";
-                CraneAlarmHUD.Notify($"<b>{left:0}초 후 종료합니다</b>{more}", CraneHud.HudColor.Danger);
+                CraneAlarmHUD.Notify(mobile ? $"<b>{left:0}초 후 앱을 종료합니다</b>" : $"<b>{left:0}초 후 종료합니다</b>{more}", CraneHud.HudColor.Danger);
             }
 
         }
@@ -141,6 +143,17 @@ namespace AIXRCrane.Crane.Sts.Net
         }
 
         // 오른손 검지 트리거 — 모드 변경(StsCraneVRController)과 같은 입력·같은 임계값 관례.
+
+        // 모바일 관전자 = 그만 보기 — 앱을 끄면 서버 관전 인스턴스도 GPU 를 놓는다(다시 켜기는 Sunshine 접속 시 기동).
+        void Quit()
+        {
+            dwell = 0f;
+            var nm = NetworkManager.Singleton;
+            if (nm != null && (nm.IsClient || nm.IsServer)) nm.Shutdown();
+            Debug.Log("[ExitZone] 모바일 관전 — 존에서 앱 종료");
+            QaLog.Info("EXIT", "quit", "mobile");
+            Application.Quit();
+        }
 
         void Leave(string why)
         {
