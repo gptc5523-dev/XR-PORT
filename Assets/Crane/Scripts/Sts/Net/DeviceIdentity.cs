@@ -80,8 +80,8 @@ namespace AIXRCrane.Crane.Sts.Net
         /// <summary>머리 위 이름표 — "관전\n소속 직급 이름", 미등록이면 둘째 줄이 "미등록".</summary>
         public static string TagText(string raw) { var p = Split(raw); return $"{p[0]}\n{Info(p, " ")}"; }
 
-        /// <summary>참가자 목록 한 줄 — "관전(소속, 직급, 이름)".</summary>
-        public static string LineText(string raw) { var p = Split(raw); return $"{p[0]}({Info(p, ", ")})"; }
+        /// <summary>참가자 목록 한 줄 — "관전  소속 직급 이름".</summary>
+        public static string LineText(string raw) { var p = Split(raw); return $"{p[0]}  {Info(p, " ")}"; }
 
         static string[] Split(string raw)
         {

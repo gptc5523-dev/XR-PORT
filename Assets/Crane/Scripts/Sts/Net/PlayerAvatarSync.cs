@@ -13,18 +13,18 @@ namespace AIXRCrane.Crane.Sts.Net
         [Tooltip("메시가 들어갈 자리. 비어 있어도 동작한다 — 위치 동기화는 그대로 돌고 화면에만 안 보인다.")]
         [SerializeField] Transform body;
 
-        /// <summary>식별색 첫 번째(호박) — 세션 밖이라 번호가 없을 때 쓴다.</summary>
-        public static readonly Color FirstColor = new Color(1.00f, 0.72f, 0.10f);
-
-        [Tooltip("참가자 식별색. 인원(NetConfig.MaxPlayers)만큼 필요하다.")]
-        [SerializeField] Color[] palette =
+        /// <summary>기본 식별색 — 세션 밖이라 번호가 없을 때도 쓴다.</summary>
+        public static readonly Color[] DefaultPalette =
         {
-            FirstColor,                       // 호박
+            new Color(1.00f, 0.72f, 0.10f),   // 호박
             new Color(0.20f, 0.78f, 0.95f),   // 하늘
             new Color(0.45f, 0.85f, 0.30f),   // 연두
             new Color(0.95f, 0.35f, 0.55f),   // 분홍
             new Color(1.00f, 0.45f, 0.15f),   // 주황
         };
+
+        [Tooltip("참가자 식별색. 인원(NetConfig.MaxPlayers)만큼 필요하다.")]
+        [SerializeField] Color[] palette = (Color[])DefaultPalette.Clone();
 
         /// <summary>이름표 문구·식별색(#RRGGBB) — 주인이 등록 정보로 쓰고 모두가 본다.</summary>
         public readonly NetworkVariable<Unity.Collections.FixedString128Bytes> Label = new(writePerm: NetworkVariableWritePermission.Owner);

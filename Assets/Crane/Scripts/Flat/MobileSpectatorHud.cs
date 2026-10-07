@@ -25,8 +25,8 @@ namespace AIXRCrane.Crane.Flat
         const float RefW = 1920f, RefH = 1080f;
 
         Canvas canvas;
-        Text roleText, statusText;
-        string lastRole, lastStatus;
+        Text roleText, statusText, whoText;
+        string lastRole, lastStatus, lastWho;
         float nextRefresh, nextJoinTry;
 
         NetLanUI net;
@@ -87,7 +87,10 @@ namespace AIXRCrane.Crane.Flat
             // 위 왼쪽: 역할 · 크레인
             roleText = Label(root, "Role", new Vector2(0f, 1f), new Vector2(ix, -iy));
 
-            // 아래: 크레인마다 한 줄(+ 참가자 줄) — 배경은 글자 분량만큼만
+            // 위 오른쪽: 참가자 목록
+            whoText = Label(root, "Who", new Vector2(1f, 1f), new Vector2(-ix, -iy));
+
+            // 아래: 크레인마다 한 줄 — 배경은 글자 분량만큼만
             statusText = Label(root, "Status", new Vector2(0.5f, 0f), new Vector2(0f, iy));
         }
 
@@ -148,6 +151,9 @@ namespace AIXRCrane.Crane.Flat
             if (notice != null) role = $"<color=#{CraneHud.Hex(CraneHud.HudColor.Danger)}>{notice}</color>";
             CraneHud.SetTextIfChanged(roleText, ref lastRole, role);
             CraneHud.SetTextIfChanged(statusText, ref lastStatus, StatusBody());
+            string who = WhoBody();
+            whoText.transform.parent.gameObject.SetActive(who.Length > 0);
+            CraneHud.SetTextIfChanged(whoText, ref lastWho, who);
         }
 
         string StatusBody()
@@ -163,19 +169,25 @@ namespace AIXRCrane.Crane.Flat
                     : $"<color=#{CraneHud.Hex(CraneHud.HudColor.IdleDim)}>없음</color>";
                 lines[i] = $"<b>{names[i],-5}</b>  트롤리 {Pct(c.Trolley)}    호이스트 {Pct(c.Spreader)}    갠트리 {Pct(c.Gantry)}    화물 {cargo}";
             }
-            var who = new System.Text.StringBuilder();
+            return string.Join("\n", lines);
+        }
+
+        // 오른쪽 위 참가자 목록 — 한 사람 한 줄 "● 관전  소속 직급 이름". 세션 밖이면 아바타가 없으니 나만.
+        string WhoBody()
+        {
+            var rows = new System.Collections.Generic.List<string>();
             foreach (var a in FindObjectsByType<AIXRCrane.Crane.Sts.Net.PlayerAvatarSync>(FindObjectsSortMode.None))
-                if (a.IsSpawned && a.Label.Value.Length > 0)
-                    who.Append(who.Length > 0 ? "   " : "\n<b>참가자</b>  ").Append($"<color=#{CraneHud.Hex(a.TintColor)}>●</color> {AIXRCrane.Crane.Sts.Net.DeviceIdentity.LineText(a.Label.Value.ToString())}");
-            // 세션 밖이면 아바타가 없다 — 나라도 보인다.
-            if (who.Length == 0 && AIXRCrane.Crane.Sts.Net.DeviceIdentity.Looked)
+                if (a.IsSpawned && a.Label.Value.Length > 0) rows.Add(Row(a.TintColor, a.Label.Value.ToString()));
+            if (rows.Count == 0 && AIXRCrane.Crane.Sts.Net.DeviceIdentity.Looked)
             {
                 var me = AIXRCrane.Crane.Sts.Net.DeviceIdentity.Me;
-                var tint = me != null && !string.IsNullOrEmpty(me.color) && ColorUtility.TryParseHtmlString(me.color, out var c) ? c : AIXRCrane.Crane.Sts.Net.PlayerAvatarSync.FirstColor;
-                who.Append($"\n<b>참가자</b>  <color=#{CraneHud.Hex(tint)}>●</color> ").Append(AIXRCrane.Crane.Sts.Net.DeviceIdentity.LineText(AIXRCrane.Crane.Sts.Net.DeviceIdentity.Label));
+                var tint = me != null && !string.IsNullOrEmpty(me.color) && ColorUtility.TryParseHtmlString(me.color, out var c) ? c : AIXRCrane.Crane.Sts.Net.PlayerAvatarSync.DefaultPalette[0];
+                rows.Add(Row(tint, AIXRCrane.Crane.Sts.Net.DeviceIdentity.Label));
             }
-            return string.Join("\n", lines) + who;
+            return rows.Count == 0 ? "" : $"<b>참가자 {rows.Count}</b>\n" + string.Join("\n", rows);
         }
+
+        static string Row(Color tint, string raw) => $"<color=#{CraneHud.Hex(tint)}>●</color> {AIXRCrane.Crane.Sts.Net.DeviceIdentity.LineText(raw)}";
 
         static string Pct(IAxisMover axis) => axis == null ? "—" : $"{FlatHud.Percent(axis):0.0}%";
     }
