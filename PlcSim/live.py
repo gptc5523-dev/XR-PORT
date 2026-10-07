@@ -178,7 +178,8 @@ class Crane(threading.Thread):
         self.in_cmd = True
         try:
             self.log(f"지시 사고 — {do}")
-            if do == "estop": self.estop()
+            if do == "estop": self.estop(hold=True)
+            elif do == "release": self.log("해제할 비상정지가 없다")
             elif do == "motor": self.motor_fault()
             elif do == "comm": self.comm_blip()
             elif do == "wind": self.wind.force(float(cmd.get("peak", 27)), float(cmd.get("secs", 180)))
@@ -213,10 +214,16 @@ class Crane(threading.Thread):
     def chance(self, p):
         return self.rng.random() < p * self.args.incidents
 
-    def estop(self):
+    def estop(self, hold=False):
         s = self.s
-        s.event(5001); self.log("비상정지(5001)")
-        s.arrest(estop=True); self.wait(self.rng.uniform(8, 20))
+        s.event(5001); self.log("비상정지(5001)" + (" — 'release' 지시까지 유지" if hold else ""))
+        s.arrest(estop=True)
+        if hold:   # 지시로 건 비상정지 — 사람이 리셋할 때까지 그대로(실제 운전실 버튼과 같다)
+            while True:
+                s._tick()
+                if not self.cmds.empty() and self.cmds.get().get("do") == "release": break
+        else:
+            self.wait(self.rng.uniform(8, 20))
         s.estop = False; s.clear_alarm(); s.ready = True; self.wait(1.0); self.log("비상정지 해제")
 
     def motor_fault(self):

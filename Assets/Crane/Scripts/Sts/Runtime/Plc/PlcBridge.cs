@@ -33,7 +33,7 @@ namespace AIXRCrane.Crane.Sts.Plc
         [Header("Server 모드")]
         [Tooltip("통합서버(Server/xrcrane_db.py) 주소. 크레인 이름(gameObject.name)을 DB 의 crane 값으로 조회한다.")]
         [SerializeField] string serverUrl = "http://100.93.77.48:5006";   // aiserver 의 Tailscale 주소(서버는 VPN 안에서 돈다). 기본값일 뿐 — 기기에선 XRCRANE_SERVER_URL 또는 xrcrane_server.txt 가 이긴다
-        bool serverUrlFixed;
+        bool serverUrlFixed, measuring;
 
         [Header("정규화 범위 (실척 m)")]
         // 0이면 무버 기하에서 자동 산출(rangeM = (Max−Min)×(1/ModelScale), SSOT=무버). 0이 아니면 수동 오버라이드.
@@ -74,6 +74,8 @@ namespace AIXRCrane.Crane.Sts.Plc
         public string CsvPath => ResolveCsvPath(csvPath);
         /// <summary>정규화 range 를 무버 기하에서 산출했는지. 산출 전엔 WorldAtPose 가 틀린다.</summary>
         public bool RangesResolved => rangesResolved;
+        /// <summary>측정 도구(지표 1·2·4·6)가 소스를 정했다 — 라이브 화물 추종은 손대지 않는다.</summary>
+        public bool Measuring => measuring;
         /// <summary>PLC 위치 정규화 분모(실척 m) — x 갠트리 · y 트롤리 · z 권상.</summary>
         public Vector3 RangesM => new Vector3(gtRangeM, trRangeM, hoRangeM);
 
@@ -94,6 +96,7 @@ namespace AIXRCrane.Crane.Sts.Plc
             crane = GetComponent<StsCrane>();
 #if UNITY_EDITOR
             // 도메인 리로드로 설정이 기본값으로 돌아가도 마지막 메뉴 선택(EditorPrefs)에서 복원.
+            measuring = UnityEditor.EditorPrefs.GetBool(PrefKey("forceReplay"), false) || UnityEditor.EditorPrefs.GetBool(PrefKey("forceServer"), false);
             if (UnityEditor.EditorPrefs.GetBool(PrefKey("forceReplay"), false))
             {
                 string p = UnityEditor.EditorPrefs.GetString(PrefKey("csvPath"), "");
@@ -107,7 +110,7 @@ namespace AIXRCrane.Crane.Sts.Plc
                 serverUrlFixed = UnityEditor.EditorPrefs.HasKey(PrefKey("serverUrl"));   // 측정 중엔 기기 설정보다 측정 도구가 먼저
             }
 #endif
-            if (PlcLiveMode.On)   // 라이브 PLC — 씬의 재생 설정보다 먼저, 모든 크레인을 통합서버 데이터로
+            if (PlcLiveMode.On && !measuring)   // 라이브 PLC — 씬의 재생 설정보다 먼저. 측정 도구가 정한 소스(로컬 서버·CSV)는 건드리지 않는다
             {
                 sourceMode = SourceMode.Server; active = true;
                 if (!string.IsNullOrEmpty(PlcLiveMode.EditorUrl)) { serverUrl = PlcLiveMode.EditorUrl; serverUrlFixed = true; }

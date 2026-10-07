@@ -35,7 +35,7 @@ namespace AIXRCrane.Crane.Sts.Plc
 
         void LateUpdate()
         {
-            if (crane == null || bridge == null || !bridge.Active) return;
+            if (crane == null || bridge == null || !bridge.Active || bridge.Measuring) return;
             bool locked = bridge.Latest.TwistLockLocked;
             if (!primed)
             {
