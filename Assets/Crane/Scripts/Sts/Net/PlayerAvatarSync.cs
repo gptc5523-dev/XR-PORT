@@ -49,20 +49,19 @@ namespace AIXRCrane.Crane.Sts.Net
             if (!IsOwner) RefreshTag();
         }
 
-        // 남의 아바타 머리 위 이름표 — 식별색 글자. 내 것은 안 만든다(1인칭).
+        // 남의 아바타 머리 위 이름표 — 흰 바탕 검정 글자. 내 것은 안 만든다(1인칭).
         void RefreshTag()
         {
             if (IsOwner) return;
             if (tag == null)
             {
                 tag = AIXRCrane.Crane.Sts.CraneHud.BuildPanel(transform, "NameTag", new Vector2(420f, 60f), 0.0009f,
-                    new Color(0f, 0f, 0f, AIXRCrane.Crane.Sts.CraneHud.PanelBgAlpha), 26, Color.white, TextAnchor.MiddleCenter,
+                    new Color(1f, 1f, 1f, 0.85f), 26, Color.black, TextAnchor.MiddleCenter,
                     new Vector2(12, 6), out tagText, fitToText: true);
                 tag.transform.localPosition = Vector3.up * TagHeight;
             }
             string label = Label.Value.ToString();
             tagText.text = string.IsNullOrEmpty(label) ? "참가자" : label;
-            tagText.color = TintColor;
         }
 
         const float TagHeight = 2.1f;   // 리그 로컬(실척 m) — 리그가 1/24 로 줄어 있어 머리 위가 된다
