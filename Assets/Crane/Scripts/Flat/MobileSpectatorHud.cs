@@ -177,7 +177,11 @@ namespace AIXRCrane.Crane.Flat
                     : $"<color=#{CraneHud.Hex(CraneHud.HudColor.IdleDim)}>없음</color>";
                 lines[i] = $"<b>{names[i],-5}</b>  트롤리 {Pct(c.Trolley)}    호이스트 {Pct(c.Spreader)}    갠트리 {Pct(c.Gantry)}    화물 {cargo}";
             }
-            return string.Join("\n", lines);
+            var who = new System.Text.StringBuilder();
+            foreach (var a in FindObjectsByType<AIXRCrane.Crane.Sts.Net.PlayerAvatarSync>(FindObjectsSortMode.None))
+                if (a.IsSpawned && a.Label.Value.Length > 0)
+                    who.Append(who.Length > 0 ? "   " : "\n<b>참가자</b>  ").Append($"<color=#{CraneHud.Hex(a.TintColor)}>●</color> {a.Label.Value}");
+            return string.Join("\n", lines) + who;
         }
 
         static string Pct(IAxisMover axis) => axis == null ? "—" : $"{FlatHud.Percent(axis):0.0}%";

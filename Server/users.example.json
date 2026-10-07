@@ -1,0 +1,4 @@
+[
+  {"device_id": "SLOT:1", "device_type": "Meta Quest 3", "device_label": "담당자 전용 기기", "name": "홍길동", "position": "과장",
+   "department": "(주) 예시회사", "role": "운전,관리,관전", "can_host": true, "color": "#F28C6B", "memo": "예시"}
+]

@@ -13,8 +13,16 @@ namespace AIXRCrane.Crane.Sts.Net
         /// <summary>헤드셋이 알려 준 이름·제조사·일련번호(WiVRn 이 넘기는지 확인용).</summary>
         public static string Headset { get; private set; } = "";
 
+        /// <summary>서버에 등록된 내 정보(GET /users) — 미등록·미조회면 null(조회 끝났는지는 Looked).</summary>
+        public static User Me { get; private set; }
+        public static bool Looked { get; private set; }
+
+        [System.Serializable] public sealed class User { public string device_id, device_type, device_label, name, position, department, role, color, memo; public int can_host; }
+        [System.Serializable] sealed class UserList { public User[] users; }
+
         bool headLogged;
-        float next;
+        float next, nextLookup;
+        System.Threading.Tasks.Task<string> lookup;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void AutoSpawn() => CraneHud.EnsureSpawned<DeviceIdentity>("Device");
@@ -30,6 +38,7 @@ namespace AIXRCrane.Crane.Sts.Net
 
         void Update()
         {
+            LookupStep();
             if (headLogged || Time.unscaledTime < next) return;
             next = Time.unscaledTime + 1f;
             var head = InputDevices.GetDeviceAtXRNode(XRNode.Head);
@@ -39,6 +48,34 @@ namespace AIXRCrane.Crane.Sts.Net
             if (DeviceId == "" && !string.IsNullOrEmpty(head.serialNumber)) DeviceId = "SN:" + head.serialNumber;
             Debug.Log($"[Device] 헤드셋 {Headset} → 기기 {(DeviceId == "" ? "모름" : DeviceId)}");
         }
+
+        // 통합서버 /users 에서 내 기기 ID, 없으면 자리(SLOT:N)로 찾는다 — 서버가 붙은 PLC 브리지의 연결을 빌려 5초마다 될 때까지.
+        void LookupStep()
+        {
+            if (Looked) return;
+            if (lookup == null)
+            {
+                if (Time.unscaledTime < nextLookup) return;
+                nextLookup = Time.unscaledTime + 5f;
+                foreach (var b in FindObjectsByType<Plc.PlcBridge>(FindObjectsSortMode.None))
+                    if (b.Source is Plc.ServerPlcSource src && src.IsConnected) { lookup = src.GetText("/users"); break; }
+                return;
+            }
+            if (!lookup.IsCompleted) return;
+            var t = lookup;
+            lookup = null;
+            if (t.Status != System.Threading.Tasks.TaskStatus.RanToCompletion) return;
+            var list = JsonUtility.FromJson<UserList>(t.Result)?.users ?? new User[0];
+            string slotKey = Slot > 0 ? "SLOT:" + Slot : null;
+            foreach (var u in list) if (DeviceId != "" && u.device_id == DeviceId) Me = u;
+            if (Me == null) foreach (var u in list) if (u.device_id == slotKey) Me = u;
+            Looked = true;
+            Debug.Log(Me != null ? $"[Device] 등록 사용자 {Me.name} · {Me.position} · {Me.role} ({Me.device_id})" : $"[Device] 미등록 기기 (등록 {list.Length}명 중 없음)");
+        }
+
+        /// <summary>이름표 문구 — 등록이면 "이름 · 직급 · 역할", 아니면 "미등록 VR-N"·"관전".</summary>
+        public static string Label =>
+            Me != null ? $"{Me.name} · {Me.position} · {Me.role.Replace(",", "/")}" : Slot > 0 ? $"미등록 VR-{Slot}" : "관전";
 
         static string Arg(string name)
         {

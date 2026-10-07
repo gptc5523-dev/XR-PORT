@@ -86,7 +86,36 @@ CREATE TABLE IF NOT EXISTS snapshot (
 CREATE INDEX IF NOT EXISTS ix_snap_crane_t ON snapshot(crane, t_ms);
 CREATE INDEX IF NOT EXISTS ix_snap_recv    ON snapshot(recv_ms);   -- 보존 기간 삭제용
 CREATE INDEX IF NOT EXISTS ix_snap_alarm   ON snapshot(crane, alarm_code) WHERE alarm_code IS NOT NULL AND alarm_code != 0;
+CREATE TABLE IF NOT EXISTS users (
+  device_id     TEXT PRIMARY KEY,          -- 'SLOT:1'(VR 자리) · 'MAC:aa:bb:…' · 'SN:…' · 'BEAM:…'
+  device_type   TEXT NOT NULL,
+  device_label  TEXT, name TEXT NOT NULL, position TEXT, department TEXT,
+  role          TEXT NOT NULL,             -- 쉼표 구분: 운전,관리,관전
+  can_host      INTEGER NOT NULL DEFAULT 0,
+  color         TEXT, memo TEXT,
+  registered_at INTEGER NOT NULL,          -- epoch ms
+  last_seen     INTEGER,
+  active        INTEGER NOT NULL DEFAULT 1
+);
 """
+
+USER_FIELDS = ("device_type", "device_label", "name", "position", "department", "role", "can_host", "color", "memo", "active")
+
+
+def load_users(con, path):
+    """등록 파일(JSON 배열)을 users 에 넣는다 — 이미 있으면 내용만 갱신하고 등록 시각은 둔다. 넣은 수."""
+    with open(path, encoding="utf-8") as f:
+        users = json.load(f)
+    now = int(time.time() * 1000)
+    for u in users:
+        vals = [u.get(k) for k in USER_FIELDS]
+        vals[USER_FIELDS.index("can_host")] = 1 if u.get("can_host") else 0
+        vals[USER_FIELDS.index("active")] = 0 if u.get("active") is False else 1
+        con.execute(f"INSERT INTO users(device_id, {', '.join(USER_FIELDS)}, registered_at) VALUES (?{', ?' * len(USER_FIELDS)}, ?) "
+                    f"ON CONFLICT(device_id) DO UPDATE SET {', '.join(f'{k}=excluded.{k}' for k in USER_FIELDS)}",
+                    [u["device_id"], *vals, now])
+    con.commit()
+    return len(users)
 
 
 def connect(path, schema=True):
@@ -284,6 +313,12 @@ class Handler(BaseHTTPRequestHandler):
             with self.lock:
                 return self.send_json(self.cargo.get(crane or "", {"boxes": [], "held": []}))
 
+        if path == "/users":
+            sql, args = "SELECT * FROM users WHERE active=1", []
+            if self.q("device"):
+                sql += " AND device_id=?"; args.append(self.q("device"))
+            return self.send_json({"users": rows_to_dicts(self.con.execute(sql, args))})
+
         if path == "/runs":
             cur = self.con.execute(
                 "SELECT crane, source, COUNT(*) rows, MIN(t_ms) t_min, MAX(t_ms) t_max, "
@@ -292,7 +327,7 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json(rows_to_dicts(cur))
 
         return self.send_json({"error": "not found",
-                               "endpoints": ["/health", "/latest", "/history", "/alarms", "/runs", "/since", "POST /ingest"]}, 404)
+                               "endpoints": ["/health", "/latest", "/history", "/alarms", "/runs", "/since", "/users", "POST /ingest"]}, 404)
 
     def do_POST(self):
         if self.denied():
@@ -344,6 +379,9 @@ def prune_loop(db, retain_hours, every_s):
 
 def cmd_serve(args):
     con = connect(args.db)   # 스키마만 만들고, 요청은 Handler.con 이 스레드별로 연다
+    users_path = os.environ.get("XRCRANE_USERS", "")
+    if users_path and os.path.exists(users_path):
+        print(f"[xrcrane-db] 사용자 등록 {load_users(con, users_path)}명 ← {users_path}", flush=True)
     Handler.db_path = args.db
     Handler.allow = parse_allow(args.allow)
     Handler.token = os.environ.get("XRCRANE_TOKEN", "")

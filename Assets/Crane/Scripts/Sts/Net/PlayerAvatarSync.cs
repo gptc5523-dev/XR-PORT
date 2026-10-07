@@ -23,13 +23,20 @@ namespace AIXRCrane.Crane.Sts.Net
             new Color(1.00f, 0.45f, 0.15f),   // 주황
         };
 
+        /// <summary>이름표 문구·식별색(#RRGGBB) — 주인이 등록 정보로 쓰고 모두가 본다.</summary>
+        public readonly NetworkVariable<Unity.Collections.FixedString128Bytes> Label = new(writePerm: NetworkVariableWritePermission.Owner);
+        readonly NetworkVariable<Unity.Collections.FixedString32Bytes> colorHex = new(writePerm: NetworkVariableWritePermission.Owner);
+
         readonly List<Renderer> rends = new();
+        Canvas tag;
+        UnityEngine.UI.Text tagText;
         Transform rig;
         Camera cam;
 
         /// <summary>이 아바타의 식별색 — HUD·이름표에서 같은 색을 쓰고 싶을 때.</summary>
         public Color TintColor =>
-            palette.Length == 0 ? Color.white : palette[(int)(OwnerClientId % (ulong)palette.Length)];
+            ColorUtility.TryParseHtmlString(colorHex.Value.ToString(), out var c) ? c
+            : palette.Length == 0 ? Color.white : palette[(int)(OwnerClientId % (ulong)palette.Length)];
 
         public override void OnNetworkSpawn()
         {
@@ -37,7 +44,28 @@ namespace AIXRCrane.Crane.Sts.Net
             ApplyTint();
             // 자기 아바타는 1인칭이라 숨긴다. 남의 아바타는 보여야 한다.
             SetVisible(!IsOwner);
+            Label.OnValueChanged += (_, _) => RefreshTag();
+            colorHex.OnValueChanged += (_, _) => { ApplyTint(); RefreshTag(); };
+            if (!IsOwner) RefreshTag();
         }
+
+        // 남의 아바타 머리 위 이름표 — 식별색 글자. 내 것은 안 만든다(1인칭).
+        void RefreshTag()
+        {
+            if (IsOwner) return;
+            if (tag == null)
+            {
+                tag = AIXRCrane.Crane.Sts.CraneHud.BuildPanel(transform, "NameTag", new Vector2(420f, 60f), 0.0009f,
+                    new Color(0f, 0f, 0f, AIXRCrane.Crane.Sts.CraneHud.PanelBgAlpha), 26, Color.white, TextAnchor.MiddleCenter,
+                    new Vector2(12, 6), out tagText, fitToText: true);
+                tag.transform.localPosition = Vector3.up * TagHeight;
+            }
+            string label = Label.Value.ToString();
+            tagText.text = string.IsNullOrEmpty(label) ? "참가자" : label;
+            tagText.color = TintColor;
+        }
+
+        const float TagHeight = 2.1f;   // 리그 로컬(실척 m) — 리그가 1/24 로 줄어 있어 머리 위가 된다
 
         void CollectRenderers()
         {
@@ -67,7 +95,18 @@ namespace AIXRCrane.Crane.Sts.Net
 
         void LateUpdate()
         {
+            if (IsSpawned && !IsOwner && tag != null)
+            {
+                var c = AIXRCrane.Crane.Sts.CraneHud.HudCamera(null);
+                if (c != null) tag.transform.rotation = Quaternion.LookRotation(tag.transform.position - c.transform.position, Vector3.up);
+            }
             if (!IsSpawned || !IsOwner) return;
+            if (DeviceIdentity.Looked && Label.Value.Length == 0)
+            {
+                Label.Value = DeviceIdentity.Label;
+                colorHex.Value = DeviceIdentity.Me?.color ?? "";
+                ApplyTint();
+            }
 
             if (cam == null)
             {
