@@ -180,7 +180,7 @@ namespace AIXRCrane.Crane.Flat
             var who = new System.Text.StringBuilder();
             foreach (var a in FindObjectsByType<AIXRCrane.Crane.Sts.Net.PlayerAvatarSync>(FindObjectsSortMode.None))
                 if (a.IsSpawned && a.Label.Value.Length > 0)
-                    who.Append(who.Length > 0 ? "   " : "\n<b>참가자</b>  ").Append($"<color=#{CraneHud.Hex(a.TintColor)}>●</color> {a.Label.Value.ToString().Replace("\n", " ")}");
+                    who.Append(who.Length > 0 ? "   " : "\n<b>참가자</b>  ").Append($"<color=#{CraneHud.Hex(a.TintColor)}>●</color> {AIXRCrane.Crane.Sts.Net.DeviceIdentity.LineText(a.Label.Value.ToString())}");
             return string.Join("\n", lines) + who;
         }
 

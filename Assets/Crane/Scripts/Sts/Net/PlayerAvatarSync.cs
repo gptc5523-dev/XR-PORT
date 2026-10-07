@@ -46,7 +46,21 @@ namespace AIXRCrane.Crane.Sts.Net
             SetVisible(!IsOwner);
             Label.OnValueChanged += (_, _) => RefreshTag();
             colorHex.OnValueChanged += (_, _) => { ApplyTint(); RefreshTag(); };
-            if (!IsOwner) RefreshTag();
+            if (!IsOwner)
+            {
+                RefreshTag();
+                UnityEngine.Rendering.RenderPipelineManager.beginCameraRendering += FaceCamera;
+            }
+        }
+
+        public override void OnNetworkDespawn() => UnityEngine.Rendering.RenderPipelineManager.beginCameraRendering -= FaceCamera;
+
+        // 그리는 카메라마다 이름표를 그쪽으로 — Camera.main 이 보는 카메라와 다르면 글자가 뒤집혀 보였다. 좌우로만 돌려 서 있게.
+        void FaceCamera(UnityEngine.Rendering.ScriptableRenderContext _, Camera c)
+        {
+            if (tag == null) return;
+            var d = Vector3.ProjectOnPlane(tag.transform.position - c.transform.position, Vector3.up);
+            if (d.sqrMagnitude > 1e-8f) tag.transform.rotation = Quaternion.LookRotation(d, Vector3.up);
         }
 
         // 남의 아바타 머리 위 이름표 — 흰 바탕 검정 글자. 내 것은 안 만든다(1인칭).
@@ -63,8 +77,7 @@ namespace AIXRCrane.Crane.Sts.Net
                 foreach (var fx in tagText.GetComponents<UnityEngine.UI.Shadow>()) Destroy(fx);
                 tag.transform.localPosition = Vector3.up * TagHeight;
             }
-            string label = Label.Value.ToString();
-            tagText.text = string.IsNullOrEmpty(label) ? "참가자" : label;
+            tagText.text = DeviceIdentity.TagText(Label.Value.ToString());
         }
 
         const float TagHeight = 2.1f;   // 리그 로컬(실척 m) — 리그가 1/24 로 줄어 있어 머리 위가 된다
@@ -97,13 +110,6 @@ namespace AIXRCrane.Crane.Sts.Net
 
         void LateUpdate()
         {
-            if (IsSpawned && !IsOwner && tag != null)
-            {
-                var c = AIXRCrane.Crane.Sts.CraneHud.HudCamera(null);
-                // 좌우로만 돌린다 — 위에서 내려다봐도 이름표는 서 있게.
-                var d = c != null ? Vector3.ProjectOnPlane(tag.transform.position - c.transform.position, Vector3.up) : Vector3.zero;
-                if (d.sqrMagnitude > 1e-8f) tag.transform.rotation = Quaternion.LookRotation(d, Vector3.up);
-            }
             if (!IsSpawned || !IsOwner) return;
             if (DeviceIdentity.Looked && Label.Value.Length == 0)
             {

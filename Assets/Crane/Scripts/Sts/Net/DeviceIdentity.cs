@@ -73,9 +73,27 @@ namespace AIXRCrane.Crane.Sts.Net
             Debug.Log(Me != null ? $"[Device] 등록 사용자 {Me.name} · {Me.position} · {Me.role} ({Me.device_id})" : $"[Device] 미등록 기기 (등록 {list.Length}명 중 없음)");
         }
 
-        /// <summary>이름표 문구 — 등록이면 "소속\n직급 이름"(빈 칸은 뺀다), 아니면 "미등록 VR-N"·"관전".</summary>
+        /// <summary>아바타에 실어 보내는 원문 "구분|소속|직급|이름" — 구분은 VR-N 또는 관전. 표시는 TagText·LineText.</summary>
         public static string Label =>
-            Me != null ? $"{Me.department}\n{Me.position} {Me.name}".Trim() : Slot > 0 ? $"미등록 VR-{Slot}" : "관전";
+            string.Join("|", Slot > 0 ? $"VR-{Slot}" : "관전", Me?.department ?? "", Me?.position ?? "", Me?.name ?? "");
+
+        /// <summary>머리 위 이름표 — "관전\n소속 직급 이름", 미등록이면 둘째 줄이 "미등록".</summary>
+        public static string TagText(string raw) { var p = Split(raw); return $"{p[0]}\n{Info(p, " ")}"; }
+
+        /// <summary>참가자 목록 한 줄 — "관전(소속, 직급, 이름)".</summary>
+        public static string LineText(string raw) { var p = Split(raw); return $"{p[0]}({Info(p, ", ")})"; }
+
+        static string[] Split(string raw)
+        {
+            var p = (raw ?? "").Split('|');
+            return p.Length == 4 ? p : new[] { string.IsNullOrEmpty(raw) ? "참가자" : raw, "", "", "" };
+        }
+
+        static string Info(string[] p, string sep)
+        {
+            string s = string.Join(sep, System.Array.FindAll(new[] { p[1], p[2], p[3] }, x => x.Length > 0));
+            return s.Length > 0 ? s : "미등록";
+        }
 
         static string Arg(string name)
         {
