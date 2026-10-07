@@ -36,6 +36,17 @@ namespace AIXRCrane.Crane.Sts
             attachPoint = point;
         }
 
+        /// <summary>컨테이너 표시 번호·하중(톤) — ContainerInstance 값, 없으면 이름 시드로 결정적 생성(잡을 때·고를 때 같은 값).</summary>
+        public static string Identify(Transform container, out float tons)
+        {
+            var inst = container.GetComponentInParent<ContainerInstance>();   // 부두 배치 등 없을 수 있음
+            tons = inst != null ? inst.LoadTons : 0f;
+            if (tons <= 0f) tons = ContainerLoad.WeightTons(container.name);
+            return inst != null && !string.IsNullOrEmpty(inst.DisplayId)
+                ? inst.DisplayId
+                : ContainerIdGenerator.FormatForDisplay(ContainerIdGenerator.GenerateDeterministic(CraneHud.BaseName(container.name)));
+        }
+
         /// <summary>컨테이너 결합(이미 잡고 있으면 무시). 월드 자세 유지한 채 부착점 자식으로만 — 정렬은 호출자 몫.</summary>
         public bool Attach(Transform container)
         {
@@ -43,18 +54,8 @@ namespace AIXRCrane.Crane.Sts
 
             attached = container;
             attachedBody = container.GetComponent<Rigidbody>();
-            // 표시용 하중: ContainerInstance 무게, 없으면 이름 해시로 결정적 산출.
-            float tons = 0f;
-            var attachedInstance = container.GetComponentInParent<ContainerInstance>();   // 부두 배치 등 없을 수 있음
-            if (attachedInstance != null) tons = attachedInstance.LoadTons;
-            if (tons <= 0f) tons = ContainerLoad.WeightTons(container.name);
+            attachedDisplayId = Identify(container, out float tons);
             attachedLoadKg = tons * 1000f;
-            // 표시 번호: DisplayId, 없으면 이름 시드로 결정적 생성(다시 잡아도 같은 번호).
-            attachedDisplayId =
-                attachedInstance != null && !string.IsNullOrEmpty(attachedInstance.DisplayId)
-                    ? attachedInstance.DisplayId
-                    : ContainerIdGenerator.FormatForDisplay(
-                          ContainerIdGenerator.GenerateDeterministic(CraneHud.BaseName(container.name)));
             if (attachedBody != null)
             {
                 savedUseGravity = attachedBody.useGravity;

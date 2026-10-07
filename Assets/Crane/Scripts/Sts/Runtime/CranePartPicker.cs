@@ -10,11 +10,7 @@ using UnityEngine.XR.Interaction.Toolkit.Interactables;
 
 namespace AIXRCrane.Crane.Sts
 {
-    /// <summary>부위 선택·정보 조회(WBS 3.7) — 부품 ID(CranePartId)가 붙은 부품을 가리켜 고르면 옆에 말풍선으로
-    /// 이름·ID·설명, 연결된 PLC 태그 실시간 값, 그 부품의 현재 알람을 띄운다.
-    /// 입력: VR = 오른손 그립을 누른 채 가리키고 놓기 · PC 평면 = 마우스 왼쪽 클릭. 빈 곳을 고르면 해제.
-    /// 부품엔 콜라이더가 없어(시각 전용) 광선 ↔ 렌더러 바운즈로 고른다 — 여러 개 맞으면 가장 작은 부품(조립체보다 구성품).
-    /// 읽기 전용이라 관전자도 쓴다(네트워크 동기화 없음).</summary>
+    /// <summary>부위·컨테이너 선택(WBS 3.7) — VR 그립 광선·PC 클릭·모바일 탭·Enter(화면 가운데 조준점)로 골라 말풍선에 PLC 값·알람·컨테이너 정보를 띄운다(바운즈 광선, 작은 것 우선, 읽기 전용).</summary>
     [DisallowMultipleComponent]
     public sealed class CranePartPicker : MonoBehaviour
     {
@@ -26,12 +22,16 @@ namespace AIXRCrane.Crane.Sts
         [SerializeField] float vrRayLength = 30f;      // 월드 — 미니어처라 실척 720m
         [SerializeField] Color boxColor = new Color(0.373f, 0.878f, 1f, 0.9f);   // HudColor.Accent
 
-        sealed class Entry { public CranePartId part; public Renderer[] rends; public StsCrane crane; }
+        sealed class Entry { public CranePartId part; public Transform box; public Renderer[] rends; public StsCrane crane; }
         float tapAt; Vector2 tapPos; bool tapOnUi, clickOnUi;
         [Tooltip("모바일 탭 판정 — 누른 자리에서 이 픽셀 넘게 움직이면 탭이 아니다.")]
         [SerializeField] float tapSlopPx = 12f;
 
         readonly List<Entry> entries = new List<Entry>();
+        readonly List<Entry> boxes = new List<Entry>();
+        float nextBoxScan;
+        Canvas reticle;
+        bool reticleOn;
         readonly StringBuilder sb = new StringBuilder(256);
         readonly FaultDef[] faults = new FaultDef[8];
         Entry selected, hovered;
@@ -40,7 +40,8 @@ namespace AIXRCrane.Crane.Sts
         LineRenderer box, laser;
         string lastText;
         float nextText, nextScan;
-        bool gripWas, grabbedDuringGrip;
+        bool gripWas;
+        Transform grabbedDuringGrip;   // 그립 중 잡힌 컨테이너 — 놓을 때 부품 대신 이것을 고른다
         Transform hand;   // 오른손 컨트롤러 — 찾는 데 씬 전체를 훑으니 한 번 찾으면 둔다
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
@@ -66,6 +67,7 @@ namespace AIXRCrane.Crane.Sts
             canvas.enabled = false;
             box = MakeLine("PartBox", 16, 0.002f, boxColor);
             laser = MakeLine("PartLaser", 2, 0.002f, boxColor);
+            reticle = MakeReticle();
             SelfCheck();
         }
 
@@ -73,6 +75,7 @@ namespace AIXRCrane.Crane.Sts
         {
             if (entries.Count == 0 && Time.unscaledTime >= nextScan) Scan();
             if (entries.Count == 0) return;
+            if (Time.unscaledTime >= nextBoxScan) ScanBoxes();
 
             bool flat = Flat.FlatModeBootstrap.Active;
             if (flat) PcInput();
@@ -81,7 +84,9 @@ namespace AIXRCrane.Crane.Sts
 
         void LateUpdate()
         {
-            bool show = selected != null && selected.part != null;
+            var head = Flat.XrealHeadTracker.Instance;
+            reticle.enabled = Flat.FlatModeBootstrap.Active && (reticleOn || (head != null && head.Connected));
+            bool show = Union(selected, out _);
             canvas.enabled = show;
             box.enabled = show || hovered != null;
             if (!show && hovered == null) return;
@@ -92,7 +97,7 @@ namespace AIXRCrane.Crane.Sts
             if (!show) return;
 
             if (!Union(selected, out b)) return;
-            var cam = Camera.main;
+            var cam = CraneHud.HudCamera(null);
             if (cam == null) return;
             Vector3 top = new Vector3(b.center.x, b.max.y, b.center.z);
             Vector3 bubble = top + Vector3.up * bubbleHeight;
@@ -110,13 +115,21 @@ namespace AIXRCrane.Crane.Sts
 
         void PcInput()
         {
+            var kb = Keyboard.current;
+            if (kb != null && (kb.enterKey.wasPressedThisFrame || kb.numpadEnterKey.wasPressedThisFrame))
+            {
+                reticleOn = true;
+                var c = CraneHud.HudCamera(null);
+                if (c != null) Select(Pick(c.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0f))));
+                return;
+            }
             if (Flat.FlatModeBootstrap.Mobile) { TapInput(); return; }
             var mouse = Mouse.current;
             if (mouse == null) return;
             if (mouse.leftButton.wasPressedThisFrame) clickOnUi = EventSystem.current != null && EventSystem.current.IsPointerOverGameObject();
             // 뗄 때 고른다 — 접속 메뉴(IMGUI) 버튼은 EventSystem 에 안 잡히지만 누르는 동안 hotControl 을 쥐고 있어 뗄 때 걸러진다.
             if (!mouse.leftButton.wasReleasedThisFrame || clickOnUi || GUIUtility.hotControl != 0) return;
-            var cam = Camera.main;
+            var cam = CraneHud.HudCamera(null);
             if (cam == null) return;
             Select(Pick(cam.ScreenPointToRay(mouse.position.ReadValue())));
         }
@@ -134,11 +147,11 @@ namespace AIXRCrane.Crane.Sts
             if (!p.press.wasReleasedThisFrame || tapOnUi) return;
             Vector2 pos = p.position.ReadValue();
             if (Time.unscaledTime - tapAt > Flat.FlatPlayerRig.TapMaxS || (pos - tapPos).magnitude > tapSlopPx) return;
-            var cam = Camera.main;
+            var cam = CraneHud.HudCamera(null);
             if (cam != null) Select(Pick(cam.ScreenPointToRay(pos)));
         }
 
-        // 그립을 누른 동안 광선·후보 상자 표시, 놓으면 선택. 그립으로 컨테이너를 잡았으면(XRI) 고르지 않는다.
+        // 그립을 누른 동안 광선·후보 상자 표시, 놓으면 선택. 그립으로 컨테이너를 잡았으면(XRI) 그 컨테이너를 고른다.
         void VrInput()
         {
             var dev = InputDevices.GetDeviceAtXRNode(XRNode.RightHand);
@@ -148,26 +161,33 @@ namespace AIXRCrane.Crane.Sts
             {
                 var ray = new Ray(hand.position, hand.forward);
                 hovered = Pick(ray);
-                grabbedDuringGrip |= AnyGrabbed();
+                if (grabbedDuringGrip == null) grabbedDuringGrip = AnyGrabbed();
                 laser.enabled = true;
                 laser.SetPosition(0, ray.origin);
                 laser.SetPosition(1, ray.GetPoint(hovered != null && Union(hovered, out var hb) && hb.IntersectRay(ray, out float d) ? d : vrRayLength));
             }
             else if (gripWas)
             {
-                if (!grabbedDuringGrip) Select(hovered);
+                Select(grabbedDuringGrip != null ? BoxEntry(grabbedDuringGrip) : hovered);
                 hovered = null;
-                grabbedDuringGrip = false;
+                grabbedDuringGrip = null;
                 laser.enabled = false;
             }
             gripWas = grip;
         }
 
-        static bool AnyGrabbed()
+        static Transform AnyGrabbed()
         {
             foreach (var g in FindObjectsByType<XRGrabInteractable>(FindObjectsSortMode.None))
-                if (g.isSelected) return true;
-            return false;
+                if (g.isSelected) return g.transform;
+            return null;
+        }
+
+        Entry BoxEntry(Transform t)
+        {
+            foreach (var e in boxes) if (e.box == t) return e;
+            var r = t.GetComponentsInChildren<Renderer>();
+            return r.Length > 0 ? new Entry { box = t, rends = r } : null;
         }
 
         void Select(Entry e)
@@ -175,7 +195,7 @@ namespace AIXRCrane.Crane.Sts
             selected = e;
             lastText = null;
             nextText = 0f;
-            if (e != null) Debug.Log($"[PartPick] 선택 {e.part.id} ({e.part.name})");
+            if (e != null) Debug.Log(e.box != null ? $"[PartPick] 선택 컨테이너 {SpreaderAttach.Identify(e.box, out _)} ({e.box.name})" : $"[PartPick] 선택 {e.part.id} ({e.part.name})");
         }
 
         // ── 고르기 ───────────────────────────────────────────────────────────
@@ -191,24 +211,38 @@ namespace AIXRCrane.Crane.Sts
             }
         }
 
-        /// <summary>광선이 맞힌 부품 중 바운즈가 가장 작은 것(조립체보다 구성품). 없으면 null.</summary>
+        // 컨테이너는 생기고 사라지니(스폰·재생) 2초마다 다시 모은다.
+        void ScanBoxes()
+        {
+            nextBoxScan = Time.unscaledTime + 2f;
+            boxes.Clear();
+            foreach (var rb in FindObjectsByType<Rigidbody>(FindObjectsSortMode.None))
+            {
+                if (rb.name.IndexOf("Container", System.StringComparison.OrdinalIgnoreCase) < 0) continue;
+                var r = rb.GetComponentsInChildren<Renderer>();
+                if (r.Length > 0) boxes.Add(new Entry { box = rb.transform, rends = r });
+            }
+        }
+
+        /// <summary>광선이 맞힌 부품·컨테이너 중 바운즈가 가장 작은 것(조립체보다 구성품). 없으면 null.</summary>
         Entry Pick(Ray ray)
         {
             Entry best = null;
             float bestVol = float.MaxValue;
-            foreach (var e in entries)
-            {
-                if (!Union(e, out var b) || !b.IntersectRay(ray)) continue;
-                float vol = b.size.x * b.size.y * b.size.z;
-                if (vol < bestVol) { bestVol = vol; best = e; }
-            }
+            foreach (var list in new[] { entries, boxes })
+                foreach (var e in list)
+                {
+                    if (!Union(e, out var b) || !b.IntersectRay(ray)) continue;
+                    float vol = b.size.x * b.size.y * b.size.z;
+                    if (vol < bestVol) { bestVol = vol; best = e; }
+                }
             return best;
         }
 
         static bool Union(Entry e, out Bounds b)
         {
             b = default;
-            if (e == null || e.part == null) return false;
+            if (e == null || (e.part == null && e.box == null)) return false;
             bool any = false;
             foreach (var r in e.rends)
             {
@@ -222,6 +256,7 @@ namespace AIXRCrane.Crane.Sts
 
         string BuildText(Entry e)
         {
+            if (e.box != null) return BoxText(e);
             string id = e.part.id;
             sb.Clear();
             string note = "";
@@ -263,6 +298,26 @@ namespace AIXRCrane.Crane.Sts
                 if (a != null) any |= AppendAlarm(a.code, a.Severity, a.ToString(), id);
             }
             if (!any) sb.Append("\n<color=#7FFF7F>알람 없음</color>");
+            return sb.ToString();
+        }
+
+        string BoxText(Entry e)
+        {
+            var c = e.box;
+            Union(e, out var b);
+            string id = SpreaderAttach.Identify(c, out float tons);
+            float k = 1f / StsConfig.ModelScale;   // 월드 바운즈 → 실척 m
+            float len = Mathf.Max(b.size.x, b.size.z) * k, hgt = b.size.y * k;
+            string holder = null;
+            foreach (var cr in FindObjectsByType<StsCrane>(FindObjectsSortMode.None))
+                if (cr.Attach != null && cr.Attach.AttachedContainer == c) { holder = cr.name; id = cr.Attach.AttachedDisplayId ?? id; break; }
+            var g = ContainerLoad.Grade(tons);
+            sb.Clear();
+            sb.Append("<b>컨테이너 ").Append(id).Append("</b>");
+            sb.Append("\n규격  <b>").Append(len > 9f ? "40ft" : "20ft").Append(hgt > 2.75f ? " 하이큐브" : "").Append("</b>");
+            sb.Append("\n하중  <b>").Append(tons.ToString("F1")).Append(" t</b>  <color=#")
+              .Append(CraneHud.Hex(ContainerLoad.GradeColor(g))).Append(">").Append(ContainerLoad.GradeLabel(g)).Append("</color>");
+            sb.Append("\n상태  <b>").Append(holder != null ? holder + " 스프레더에 체결" : (c.GetComponent<Rigidbody>() is Rigidbody rb && !rb.isKinematic && rb.linearVelocity.sqrMagnitude > 1e-4f ? "이동 중" : "적치")).Append("</b>");
             return sb.ToString();
         }
 
@@ -343,6 +398,29 @@ namespace AIXRCrane.Crane.Sts
             l.receiveShadows = false;
             l.enabled = false;
             return l;
+        }
+
+        // 화면 가운데 조준점 — 리모컨 '선택'(Enter)이 고르는 자리. 안경 머리 추적이 붙었거나 Enter 를 한 번 쓰면 보인다.
+        Canvas MakeReticle()
+        {
+            var go = new GameObject("PickReticle");
+            go.transform.SetParent(transform, false);
+            var cv = go.AddComponent<Canvas>();
+            cv.renderMode = RenderMode.ScreenSpaceOverlay;
+            cv.sortingOrder = 500;
+            var t = new GameObject("Dot").AddComponent<Text>();
+            t.transform.SetParent(go.transform, false);
+            t.font = CraneHud.CreateKoreanFont(40);
+            t.fontSize = 40;
+            t.text = "+";
+            t.alignment = TextAnchor.MiddleCenter;
+            t.color = boxColor;
+            t.raycastTarget = false;
+            var rt = t.rectTransform;
+            rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
+            rt.sizeDelta = new Vector2(60f, 60f);
+            cv.enabled = false;
+            return cv;
         }
 
         // 상자 12모서리를 한 줄로(몇 모서리는 두 번 지난다).
