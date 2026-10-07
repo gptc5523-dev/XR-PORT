@@ -9,15 +9,23 @@ using NQuat = System.Numerics.Quaternion;
 
 namespace AIXRCrane.Crane.Flat
 {
-    /// <summary>XREAL One Pro 머리 추적 — USB 이더넷 169.254.2.1:52998(TCP, 읽기 전용) IMU를 Mahony로 합쳐 고개 방향을 낸다. SDK 불필요, 없으면 3초마다 재시도.
-    /// ★ 실측 규약: 메시지 134B, 34B부터 자이로·가속 float 6개, 축 X=오른쪽·Y=아래·Z=앞. 방위는 흐르니 R로 재설정. Moonlight 경로에선 안 씀.</summary>
+    /// <summary>XREAL One Pro 머리 추적 — 안경 IMU(TCP 52998, 읽기 전용)를 Mahony로 합쳐 고개 방향을 낸다. SDK 불필요, 없으면 3초마다 재시도.
+    /// 주소는 USB 직결 169.254.2.1, 서버 관전(Moonlight)은 `-head <Beam Pro IP>` 로 리모컨 앱 중계를 받는다.
+    /// ★ 실측 규약: 메시지 134B, 34B부터 자이로·가속 float 6개, 축 X=오른쪽·Y=아래·Z=앞. 방위는 흐르니 R로 재설정.</summary>
     [AddComponentMenu("AI-XR Crane/Flat Mode/XREAL Head Tracker")]
     [DisallowMultipleComponent]
     public sealed class XrealHeadTracker : MonoBehaviour
     {
         public static XrealHeadTracker Instance { get; private set; }
 
-        const string Ip = "169.254.2.1";
+        static readonly string Ip = ArgIp() ?? "169.254.2.1";
+
+        static string ArgIp()
+        {
+            var a = Environment.GetCommandLineArgs();
+            int i = Array.FindIndex(a, x => string.Equals(x, "-head", StringComparison.OrdinalIgnoreCase));
+            return i >= 0 && i + 1 < a.Length ? a[i + 1] : null;
+        }
         const int Port = 52998, MsgLen = 134, StampAt = 14, FloatsAt = 34, MarkAt = 78;
         static readonly byte[] Header = { 0x28, 0x36, 0x00, 0x00, 0x00, 0x80 };
         static readonly byte[] SensorMark = { 0x00, 0x40, 0x1F, 0x00, 0x00, 0x40 };
@@ -100,7 +108,7 @@ namespace AIXRCrane.Crane.Flat
                         }
                         c.EndConnect(ar);
                         loggedMissing = false;
-                        Debug.Log("[HeadTracker] 안경 IMU 연결 — 치우침을 재는 동안(0.5초) 가만히 두세요.");
+                        Debug.Log($"[HeadTracker] 안경 IMU 연결({Ip}) — 치우침을 재는 동안(0.5초) 가만히 두세요.");
                         ReadLoop(c.GetStream());
                     }
                 }
@@ -124,6 +132,8 @@ namespace AIXRCrane.Crane.Flat
             int len = 0, calN = 0;
             NVec bias = default, calSum = default;
             long lastStamp = 0; bool haveQ = false;
+            var clock = System.Diagnostics.Stopwatch.StartNew();   // 준비 시간·초당 샘플 로그 — 무선 중계 지연·끊김을 보려고
+            long nextRate = 10000; int samples = 0;
 
             while (running)
             {
@@ -155,7 +165,9 @@ namespace AIXRCrane.Crane.Flat
                         if (!haveQ) { q = FromUp(a); haveQ = true; zeroPending = true; }
                         q = MahonyStep(q, g - bias, a, dt, kp);
                     }
-                    Interlocked.Exchange(ref ready, 1);
+                    if (Interlocked.Exchange(ref ready, 1) == 0) Debug.Log($"[HeadTracker] 준비 {clock.ElapsedMilliseconds} ms (연결→치우침 측정 끝)");
+                    samples++;
+                    if (clock.ElapsedMilliseconds >= nextRate) { Debug.Log($"[HeadTracker] 초당 {samples / 10f:0} 샘플"); samples = 0; nextRate += 10000; }
                 }
                 // 처리한 앞부분을 버리고 남은 조각을 앞으로
                 int keep = len - i;
