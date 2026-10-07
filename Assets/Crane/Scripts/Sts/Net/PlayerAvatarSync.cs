@@ -97,7 +97,9 @@ namespace AIXRCrane.Crane.Sts.Net
             if (IsSpawned && !IsOwner && tag != null)
             {
                 var c = AIXRCrane.Crane.Sts.CraneHud.HudCamera(null);
-                if (c != null) tag.transform.rotation = Quaternion.LookRotation(tag.transform.position - c.transform.position, Vector3.up);
+                // 좌우로만 돌린다 — 위에서 내려다봐도 이름표는 서 있게.
+                var d = c != null ? Vector3.ProjectOnPlane(tag.transform.position - c.transform.position, Vector3.up) : Vector3.zero;
+                if (d.sqrMagnitude > 1e-8f) tag.transform.rotation = Quaternion.LookRotation(d, Vector3.up);
             }
             if (!IsSpawned || !IsOwner) return;
             if (DeviceIdentity.Looked && Label.Value.Length == 0)
