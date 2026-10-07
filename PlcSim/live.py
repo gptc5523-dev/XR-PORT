@@ -22,6 +22,8 @@ from xrcrane_db import auth_headers, clock_offset                      # noqa: E
 
 FT = {20: (g.SP20, 6058.0), 40: (g.SP40, 12192.0), 45: (g.SP45, 13716.0)}
 H_STD = 2.591
+g.ALM.setdefault(1012, (3, 1, "GT 충돌방지 센서 작동"))   # 코드북 1012 — 배치 생성기 알람표엔 없다
+ANTI_COLL_M = 0.5   # 다리 안쪽면 ↔ 장애물 끝 간격이 이보다 줄면 충돌방지 센서가 선다
 SETTLE_S = 400.0   # 축 정착 대기 상한 — 갠트리 140m 를 0.7m/s 로 가도 200초
 
 
@@ -87,7 +89,7 @@ class LiveSim(g.Sim):
 class Box:
     def __init__(self, d):
         self.id, self.t, self.ft, self.h = d["id"], d["t"], d["ft"], d.get("h", H_STD)   # h = 씬 실측 높이(하이큐브 2.896)
-        self.o = self.c = (d["gt"], d["tr"], d["ho_top"])   # 원래 자리·지금 자리(PLC m) — 컨테이너 이름이 겹쳐 자리가 신원이다
+        self.o = self.c = self.p = (d["gt"], d["tr"], d["ho_top"])   # 원래·지금·직전 자리(PLC m) — 이름이 겹쳐 자리가 신원이다
 
 
 class Stack:
@@ -119,6 +121,8 @@ class Crane(threading.Thread):
         self.cmds = queue.Queue()   # 사고 지시(/command) — 다음 스캔에 그 자리에서 실행
         self.in_cmd = False
         self.wind = wind
+        self.obstacle = None   # (주행로 위 더미, 원래 더미) — 갠트리가 다가가면 1012 로 선다
+        self.want_obstruct = False
         self.held = None   # 매단 컨테이너의 집기 전 자리 — 운반 중에 뜬 XR 이 스프레더에 매달게
         self.sender = threading.Thread(target=self._send, daemon=True, name=self.name_ + "/send")
 
@@ -141,6 +145,7 @@ class Crane(threading.Thread):
         s = self.s
         for _ in range(int(timeout / g.DT)):
             self.weather()
+            self.anti_collision()
             s._tick()
             if s.gt.settled() and s.tr.settled() and s.ho.settled():
                 return
@@ -180,6 +185,11 @@ class Crane(threading.Thread):
             self.log(f"지시 사고 — {do}")
             if do == "estop": self.estop(hold=True)
             elif do == "release": self.log("해제할 비상정지가 없다")
+            elif do == "obstruct":
+                if self.kind != "STS": self.log("장애물 배치는 STS 만 — 다리 사이 주행 레일 위")
+                elif self.obstacle: self.log("이미 주행로에 장애물이 있다")
+                else: self.want_obstruct = True; self.log("다음 동작 전에 컨테이너를 갠트리 주행로에 놓는다")
+            elif do == "clear": self.remove_obstacle()
             elif do == "motor": self.motor_fault()
             elif do == "comm": self.comm_blip()
             elif do == "wind": self.wind.force(float(cmd.get("peak", 27)), float(cmd.get("secs", 180)))
@@ -194,10 +204,50 @@ class Crane(threading.Thread):
             elif do == "landing":
                 s.mismatch = True; s.event(4003); self.wait(5.0); s.mismatch = False; s.clear_alarm()
             else:
-                self.log(f"모르는 지시 '{do}' — estop·snag·motor·overcurrent·overload·landing·comm·wind")
+                self.log(f"모르는 지시 '{do}' — estop·release·snag·motor·overcurrent·overload·landing·comm·wind·obstruct·clear")
         finally:
             s.gt.target, s.tr.target, s.ho.target = saved
             self.in_cmd = False
+
+    # 지시 장애물 — 배에서 컨테이너 하나를 집어 육측 주행 레일 위(지금 갠트리 자리, 앞뒤 다리 사이)에 놓는다.
+    def place_obstacle(self):
+        here = self.s.gt.pos
+        src = min((x for x in self.stacks if x.boxes and x.tr > 40), key=lambda x: abs(x.gt - here))
+        rail = Stack(here, g.sts_tr(g.RAIL_LAND_X), g.HO_GROUND - H_STD, 1)
+        self.move(src, rail, "장애물 배치(갠트리 주행 레일 위)")
+        self.obstacle = (rail, src)
+
+    # 갠트리 충돌방지 센서 — 다리가 장애물 끝으로 ANTI_COLL_M 안까지 오면 비상제동·1012, 'clear'(지상 반출)까지 정지.
+    def anti_collision(self):
+        if self.obstacle is None or self.in_cmd or abs(self.s.gt.vel) < 1e-3:
+            return
+        s, (rail, _) = self.s, self.obstacle
+        clearance = g.LEG_Z - g.LEG_FOOT / 2 - g.CONT_L / 2 - abs(s.gt.pos - rail.gt)
+        if clearance > ANTI_COLL_M:
+            return
+        saved = (s.gt.target, s.tr.target, s.ho.target)
+        self.in_cmd = True
+        s.event(1012); self.log(f"갠트리 충돌방지(1012) — 다리↔장애물 {clearance:.2f}m, 'clear' 지시까지 정지")
+        s.arrest(estop=False)
+        while self.obstacle is not None:
+            s._tick()
+            if not self.cmds.empty() and self.cmds.get().get("do") == "clear":
+                self.remove_obstacle()
+        s.gt.target, s.tr.target, s.ho.target = saved
+        self.in_cmd = False
+
+    # 지상 장비가 주행로 컨테이너를 원래 배 자리로 되돌렸다고 본다 — 화물 상태만 고쳐 올리면 XR 이 그 자리로 옮긴다.
+    def remove_obstacle(self):
+        if self.obstacle is None:
+            self.log("치울 장애물이 없다"); return
+        rail, src = self.obstacle
+        b = rail.boxes.pop()
+        b.p, b.c = b.c, (src.gt, src.tr, src.top() + b.h)
+        src.boxes.append(b)
+        self.obstacle = None
+        self.s.clear_alarm()
+        self.post_cargo()
+        self.log("주행로 장애물 반출 — 1012 해제, 작업 재개")
 
     def _poll_commands(self):
         url = f"{self.args.url.rstrip('/')}/command?crane={urllib.parse.quote(self.name_)}"
@@ -242,6 +292,9 @@ class Crane(threading.Thread):
 
     # ── 한 번 옮기기 — 사고는 이 동작들 사이에 끼어든다 ──
     def move(self, src, dst, label):
+        if self.want_obstruct:
+            self.want_obstruct = False
+            self.place_obstacle()
         s, b = self.s, src.boxes[-1]
         s.op_mode = g.AUTO
         s.goto(ho=self.clear); self.settle()
@@ -279,7 +332,7 @@ class Crane(threading.Thread):
         s.locked = False; s.carry = False; self.wait(1.5); s.landed = False; s.detected = False
         dst.boxes.append(b)
         dst.gt, dst.tr = (s.gt.pos, s.tr.pos) if len(dst.boxes) == 1 else (dst.gt, dst.tr)   # 빈 자리에 놓으면 실제 선 자리가 그 더미의 자리
-        b.c = (s.gt.pos, s.tr.pos, s.ho.pos)
+        b.p, b.c = b.c, (s.gt.pos, s.tr.pos, s.ho.pos)
         self.held = None
         self.post_cargo()
         s.goto(ho=self.clear); self.settle()
@@ -288,8 +341,9 @@ class Crane(threading.Thread):
 
     # 옮겨진 컨테이너(원래 자리에서 30cm 넘게)만 서버에 — 늦게 뜬 XR 이 씬을 지금 상태로 맞춘다(TOS 재고와 같은 역할).
     def post_cargo(self):
-        moved = [{"o": [round(v, 3) for v in b.o], "c": [round(v, 3) for v in b.c]} for b in self.boxes
-                 if max(abs(x - y) for x, y in zip(b.o, b.c)) > 0.3]
+        far = lambda a, b: max(abs(x - y) for x, y in zip(a, b)) > 0.3
+        moved = [{"o": [round(v, 3) for v in b.o], "c": [round(v, 3) for v in b.c], "p": [round(v, 3) for v in b.p]}
+                 for b in self.boxes if far(b.o, b.c) or far(b.p, b.c)]   # 제자리로 돌아온 것도 직전 자리(p)에서 찾게 남긴다
         try:
             req = urllib.request.Request(f"{self.args.url.rstrip('/')}/cargo?crane={urllib.parse.quote(self.name_)}",
                                          json.dumps({"boxes": moved, "held": [round(v, 3) for v in self.held] if self.held else []}).encode("utf-8"), auth_headers({"Content-Type": "application/json"}))

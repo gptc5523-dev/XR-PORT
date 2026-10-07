@@ -21,7 +21,7 @@ namespace AIXRCrane.Crane.Sts.Plc
         bool needSync = true;   // 접속 직후·놓을 때마다·30초마다 서버 화물 상태(/cargo)에 씬을 맞춘다 — 늦게 뜬 XR 도 같은 배치
         float nextSync;
 
-        [System.Serializable] class Moved { public float[] o, c; }
+        [System.Serializable] class Moved { public float[] o, c, p; }
         [System.Serializable] class Cargo { public Moved[] boxes; public float[] held; }
         bool primed;   // 접속 순간의 잠금 상태는 기준일 뿐 — 이미 매단 채 접속하면 상승 엣지로 오인해 헛집기를 했다
 
@@ -85,6 +85,7 @@ namespace AIXRCrane.Crane.Sts.Plc
             foreach (var m in todo)
             {
                 var t = Find(all, Pose(m.o, gp), tol, used);
+                if (t == null && m.p != null && m.p.Length >= 3) t = Find(all, Pose(m.p, gp), tol, used);   // 이 씬이 직전 이동을 봤으면 직전 자리에 있다
                 if (t == null || !SceneUtil.TryBounds(t, out var b)) continue;
                 t.position += Pose(m.c, gp) - new Vector3(b.center.x, b.max.y, b.center.z);
                 if (t.TryGetComponent<Rigidbody>(out var rb)) { rb.position = t.position; if (!rb.isKinematic) rb.linearVelocity = Vector3.zero; }
