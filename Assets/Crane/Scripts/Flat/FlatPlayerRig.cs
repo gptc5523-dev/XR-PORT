@@ -62,9 +62,6 @@ namespace AIXRCrane.Crane.Flat
         float pressedAt;
         /// <summary>이보다 짧게 눌렀다 떼면 탭(부품 선택, CranePartPicker) — 비행은 이만큼 누른 뒤부터.</summary>
         public const float TapMaxS = 0.25f;
-        bool glide; float glideT, glideDur;         // 시점 버튼 비행
-        Vector3 glideFrom, glideTo;
-        float yawFrom, yawTo, pitchFrom, pitchTo;
 
         void Awake()
         {
@@ -99,7 +96,6 @@ namespace AIXRCrane.Crane.Flat
             float curYaw = transform.eulerAngles.y;
             if (float.IsNaN(appliedYaw) || Mathf.Abs(Mathf.DeltaAngle(curYaw, appliedYaw)) > 0.01f) yaw = curYaw;
 
-            if (glide) { StepGlide(dt); ApplyLook(); return; }   // 시점 버튼 비행 중엔 다른 입력을 안 받는다
 
             ReadInput(out Vector2 move, out Vector2 look, out float vertical, out bool sprint);
             Vector3 flyDir = PointerNav ? PointerStep(dt) : Vector3.zero;
@@ -153,29 +149,6 @@ namespace AIXRCrane.Crane.Flat
             float hy = 0f, hp = 0f;
             if (head != null && head.Connected) { hy = head.YawRightDeg; hp = head.PitchUpDeg; }
             cam.transform.localRotation = Quaternion.Euler(0f, hy, 0f) * Quaternion.Euler(Mathf.Clamp(pitch - hp, -89f, 89f), 0f, 0f);
-        }
-
-        /// <summary>시점 버튼 — 카메라 눈이 eye 에 와서 lookAt 을 보도록 부드럽게 옮긴다.
-        ///   루트는 발밑이고 눈은 그 위 eyeHeight(실척)×리그 축척이라, 루트 목표 = eye − 위×그 높이.</summary>
-        public void FlyTo(Vector3 eye, Vector3 lookAt, float seconds)
-        {
-            float s = Mathf.Max(transform.lossyScale.x, 1e-6f);
-            glideFrom = transform.position;
-            glideTo = eye - Vector3.up * (eyeHeightMeters * s);
-            Vector3 d = lookAt - eye;
-            yawFrom = yaw;     yawTo = Mathf.Atan2(d.x, d.z) * Mathf.Rad2Deg;
-            pitchFrom = pitch; pitchTo = Mathf.Clamp(-Mathf.Atan2(d.y, new Vector2(d.x, d.z).magnitude) * Mathf.Rad2Deg, -89f, 89f);
-            glideT = 0f; glideDur = Mathf.Max(0.01f, seconds); glide = true;
-        }
-
-        void StepGlide(float dt)
-        {
-            glideT = Mathf.Min(1f, glideT + dt / glideDur);
-            float k = Mathf.SmoothStep(0f, 1f, glideT);
-            transform.position = Vector3.Lerp(glideFrom, glideTo, k);
-            yaw = Mathf.LerpAngle(yawFrom, yawTo, k);
-            pitch = Mathf.Lerp(pitchFrom, pitchTo, k);
-            if (glideT >= 1f) glide = false;
         }
 
         // 공간 마우스 한 프레임 — 가장자리 회전은 여기서 yaw/pitch 에 바로 더하고, 비행 방향(없으면 0)을 돌려준다.

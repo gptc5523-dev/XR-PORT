@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+using System.Linq;
 using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -6,11 +6,10 @@ using UnityEngine.InputSystem.UI;
 using UnityEngine.UI;
 using AIXRCrane.Crane.Sts;
 using AIXRCrane.Crane.Sts.Net;
-using AIXRCrane.Ship;
 
 namespace AIXRCrane.Crane.Flat
 {
-    /// <summary>모바일 관전 화면(안경·폰) — Beam Pro 공간 마우스 전제라 버튼은 크게. 위: 상태·시점 버튼, 아래: 고른 크레인 축·화물.
+    /// <summary>모바일 관전 화면(안경·폰). 위: 접속 상태, 아래: 크레인마다 한 줄(이름·축·화물).
     /// ★ 모바일은 무조건 참가자(관전) — 호스트·접속 버튼 없음, 세션 밖이면 스스로 호스트에 붙는다. NetLanUI는 컴포넌트만 끈다.</summary>
     [AddComponentMenu("AI-XR Crane/Flat Mode/Mobile Spectator HUD")]
     [DisallowMultipleComponent]
@@ -20,17 +19,11 @@ namespace AIXRCrane.Crane.Flat
         [SerializeField, Range(0f, 0.2f)] float safeInset = 0.06f;
         [Tooltip("글자 크기(참조 1920×1080 기준). 안경으로 멀리 떠 보이는 화면이라 PC HUD(24)보다 크게.")]
         [SerializeField] int fontSize = 34;
-        [Tooltip("시점 버튼을 누른 뒤 그 자리까지 나는 시간(초).")]
-        [SerializeField] float viewSeconds = 1.2f;
-        [Tooltip("시점 버튼 — 대상을 내려다보는 각(도).")]
-        [SerializeField] float viewElevationDeg = 28f;
-        [Tooltip("시점 버튼 — 대상 바운즈 반지름 × 이 값만큼 떨어진다. 세로 시야 60° 에 구가 꽉 차는 거리가 2.0.")]
-        [SerializeField] float viewDistanceFactor = 1.9f;
         [Tooltip("호스트 비콘이 이 시간(초) 안에 왔을 때만 붙고, 붙어 보는 간격도 이 값이다.")]
         [SerializeField] float joinRetrySeconds = 3f;
 
         const float RefW = 1920f, RefH = 1080f;
-        const float BarH = 84f, ViewBtnW = 170f, Gap = 16f;
+        const float BarH = 84f;
 
         Canvas canvas;
         Text roleText, statusText;
@@ -39,8 +32,8 @@ namespace AIXRCrane.Crane.Flat
 
         NetLanUI net;
         FlatPlayerRig rig;
-        StsCrane selected;
-        string selectedLabel = "STS";
+        StsCrane[] cranes = new StsCrane[0];
+        string[] names = new string[0];
 
         void Start()   // 부트스트랩이 리그를 만든 뒤라 Start 에서 찾는다
         {
@@ -49,15 +42,18 @@ namespace AIXRCrane.Crane.Flat
             if (net != null) net.enabled = false;
             rig = FindAnyObjectByType<FlatPlayerRig>();
 
-            int views = Build();
-            Select(StsPartNames.StsCraneRoot, "STS", fly: false);
+            // STS 먼저, RTG 는 이름 순 — 줄 앞 이름은 STS·RTG1·RTG2 (RTG 번호는 씬 이름 끝 번호)
+            cranes = FindObjectsByType<StsCrane>(FindObjectsSortMode.None)
+                .OrderBy(c => c.GetComponent<RtgBogieSteering>() != null).ThenBy(c => c.name, System.StringComparer.Ordinal).ToArray();
+            names = cranes.Select(c => c.GetComponent<RtgBogieSteering>() == null ? "STS" : "RTG" + c.name.Substring(c.name.LastIndexOf('_') + 1)).ToArray();
+            Build();
 
             bool intentOk = FlatPlayerRig.PointerIntentSelfCheck(out string why);
             QaLog.Check("MOBILE", "intent", intentOk, why);
             bool es = EventSystem.current != null;
             QaLog.Check("MOBILE", "boot", canvas != null && rig != null && rig.PointerNav && es && (net == null || !net.enabled),
-                $"views={views} rig={rig != null} pointerNav={(rig != null && rig.PointerNav)} eventSystem={es} " +
-                $"imguiHidden={(net == null || !net.enabled)} crane={(selected != null ? selected.name : "null")}");
+                $"rig={rig != null} pointerNav={(rig != null && rig.PointerNav)} eventSystem={es} " +
+                $"imguiHidden={(net == null || !net.enabled)} cranes={string.Join(",", names)}");
         }
 
         // EventSystem이 없으면 버튼이 클릭을 못 받는다(VR은 XRI가 다룸). 런타임 AddComponent는 Reset이 안 불려
@@ -70,7 +66,7 @@ namespace AIXRCrane.Crane.Flat
             go.AddComponent<InputSystemUIInputModule>().AssignDefaultActions();
         }
 
-        int Build()
+        void Build()
         {
             var canvasGo = new GameObject("MobileHudCanvas");
             canvasGo.transform.SetParent(transform, worldPositionStays: false);
@@ -89,23 +85,9 @@ namespace AIXRCrane.Crane.Flat
             // 위 왼쪽: 역할 · 크레인
             roleText = Label(root, "Role", new Vector2(0f, 1f), new Vector2(ix, -iy), new Vector2(900f, BarH), TextAnchor.MiddleLeft, bg: true);
 
-            // 시점 버튼 — 씬에 있는 대상만 만든다(RTG 가 한 대뿐이면 버튼도 하나)
-            var views = new List<(string label, string root, bool crane)> { ("STS", StsPartNames.StsCraneRoot, true) };
-            for (int i = 1; i <= 4; i++) views.Add(($"RTG{i}", $"{StsPartNames.RtgCraneRoot}_{i}", true));
-            views.Add(("배", ShipConfig.ShipRootName, false));
-            float x = ix; int n = 0;
-            foreach (var v in views)
-            {
-                if (GameObject.Find(v.root) == null) continue;
-                var (label, rootName) = (v.label, v.root);
-                ButtonWithLabel(root, "View_" + label, new Vector2(0f, 1f), new Vector2(x, -(iy + BarH + Gap)), new Vector2(ViewBtnW, BarH),
-                    () => Select(rootName, label, fly: true), new Color(0f, 0f, 0f, CraneHud.PanelBgAlpha)).text = label;
-                x += ViewBtnW + Gap; n++;
-            }
-
-            // 아래: 고른 크레인의 축·화물 한 줄
-            statusText = Label(root, "Status", new Vector2(0.5f, 0f), new Vector2(0f, iy), new Vector2(RefW - 2f * ix, BarH + 12f), TextAnchor.MiddleCenter, bg: true);
-            return n;
+            // 아래: 크레인마다 한 줄
+            float h = BarH * 0.75f * Mathf.Max(1, cranes.Length) + 12f;
+            statusText = Label(root, "Status", new Vector2(0.5f, 0f), new Vector2(0f, iy), new Vector2(RefW - 2f * ix, h), TextAnchor.MiddleLeft, bg: true);
         }
 
         Text Label(Transform parent, string name, Vector2 anchor, Vector2 pos, Vector2 size, TextAnchor align, bool bg)
@@ -120,17 +102,6 @@ namespace AIXRCrane.Crane.Flat
                 img.raycastTarget = false;
             }
             return AddText(go.transform, align);
-        }
-
-        Text ButtonWithLabel(Transform parent, string name, Vector2 anchor, Vector2 pos, Vector2 size,
-                             UnityEngine.Events.UnityAction onClick, Color color)
-        {
-            var go = new GameObject(name, typeof(RectTransform), typeof(Image), typeof(Button));
-            go.transform.SetParent(parent, worldPositionStays: false);
-            Place(go.GetComponent<RectTransform>(), anchor, pos, size);
-            go.GetComponent<Image>().color = color;
-            go.GetComponent<Button>().onClick.AddListener(onClick);
-            return AddText(go.transform, TextAnchor.MiddleCenter);
         }
 
         // 앵커 모서리에 붙이고 pivot도 같은 모서리 — pos는 그 모서리에서 안쪽 거리(참조 해상도 px).
@@ -162,39 +133,6 @@ namespace AIXRCrane.Crane.Flat
             return t;
         }
 
-        // 시점 버튼 — 크레인이면 아래 상태 줄 대상도 바꾼다(배는 대상만 보고 상태 줄은 그대로).
-        void Select(string rootName, string label, bool fly)
-        {
-            var go = GameObject.Find(rootName);
-            if (go == null) return;
-            var crane = go.GetComponent<StsCrane>();
-            if (crane != null) { selected = crane; selectedLabel = label; }
-            if (fly && rig != null && rig.Cam != null && TryBounds(go, out Bounds b))
-                rig.FlyTo(ViewEye(b), b.center, viewSeconds);
-            nextRefresh = 0f;   // 바로 다시 그린다
-        }
-
-        // 지금 쪽에서 대상을 내려다보는 자리 — 대상 크기에서 거리를 낸다. 방향이 안 나오면 육지(−X) 쪽에서 본다.
-        Vector3 ViewEye(Bounds b)
-        {
-            Vector3 dir = rig.Cam.transform.position - b.center; dir.y = 0f;
-            if (dir.sqrMagnitude < 1e-8f) dir = Vector3.left;
-            dir.Normalize();
-            float el = viewElevationDeg * Mathf.Deg2Rad;
-            return b.center + (dir * Mathf.Cos(el) + Vector3.up * Mathf.Sin(el)) * (b.extents.magnitude * viewDistanceFactor);
-        }
-
-        static bool TryBounds(GameObject go, out Bounds b)
-        {
-            b = default; bool any = false;
-            foreach (var r in go.GetComponentsInChildren<Renderer>())
-            {
-                if (!r.enabled) continue;
-                if (!any) { b = r.bounds; any = true; } else b.Encapsulate(r.bounds);
-            }
-            return any;
-        }
-
         // 세션 밖이면 참가자로 붙는다(호스트 시작 없음). ★ 호스트 비콘이 방금 왔을 때만, 비콘 IP로만 붙는다 —
         //   호스트 없이 붙으면 Netcode가 재시도마다 오류를 쌓았다. 끊기면 다음 비콘에 다시 붙는다.
         void EnsureParticipant()
@@ -217,17 +155,24 @@ namespace AIXRCrane.Crane.Flat
             string role = connected ? "● 관전 중"
                         : nm != null && nm.IsClient ? "◌ 호스트에 접속 중…"
                         : "○ 호스트 기다리는 중";
-            CraneHud.SetTextIfChanged(roleText, ref lastRole, $"{role}  ·  {selectedLabel} 크레인");
+            CraneHud.SetTextIfChanged(roleText, ref lastRole, role);
             CraneHud.SetTextIfChanged(statusText, ref lastStatus, StatusBody());
         }
 
         string StatusBody()
         {
-            if (selected == null) return $"<color=#{CraneHud.Hex(CraneHud.HudColor.IdleDim)}>크레인 없음</color>";
-            string cargo = selected.Attach != null && selected.Attach.HasContainer
-                ? $"<color=#{CraneHud.Hex(CraneHud.HudColor.Ok)}>체결 {selected.Attach.AttachedLoadTons:0.#} t</color>"
-                : $"<color=#{CraneHud.Hex(CraneHud.HudColor.IdleDim)}>없음</color>";
-            return $"트롤리 {Pct(selected.Trolley)}     호이스트 {Pct(selected.Spreader)}     갠트리 {Pct(selected.Gantry)}     화물 {cargo}";
+            if (cranes.Length == 0) return $"<color=#{CraneHud.Hex(CraneHud.HudColor.IdleDim)}>크레인 없음</color>";
+            var lines = new string[cranes.Length];
+            for (int i = 0; i < cranes.Length; i++)
+            {
+                var c = cranes[i];
+                if (c == null) { lines[i] = $"<b>{names[i]}</b>  —"; continue; }
+                string cargo = c.Attach != null && c.Attach.HasContainer
+                    ? $"<color=#{CraneHud.Hex(CraneHud.HudColor.Ok)}>체결 {c.Attach.AttachedLoadTons:0.#} t</color>"
+                    : $"<color=#{CraneHud.Hex(CraneHud.HudColor.IdleDim)}>없음</color>";
+                lines[i] = $"<b>{names[i],-5}</b>  트롤리 {Pct(c.Trolley)}    호이스트 {Pct(c.Spreader)}    갠트리 {Pct(c.Gantry)}    화물 {cargo}";
+            }
+            return string.Join("\n", lines);
         }
 
         static string Pct(IAxisMover axis) => axis == null ? "—" : $"{FlatHud.Percent(axis):0.0}%";
