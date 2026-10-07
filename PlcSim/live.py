@@ -47,6 +47,12 @@ class Wind:
         with self.lock:
             return self.v
 
+    def force(self, peak=27.0, secs=180.0):
+        """지시로 강풍 장을 연다 — 모든 크레인이 같은 바람을 맞는다."""
+        with self.lock:
+            self.storm_until, self.storm_peak = time.time() + secs, peak
+            self.v = max(self.v, peak - 4.0)
+
 
 class Stream(list):
     """Sim.rows 대신 — 행을 큐에 넣고, 큐가 차면 막혀 생성 속도가 송신(100ms)에 묶인다."""
@@ -110,6 +116,9 @@ class Crane(threading.Thread):
         self.comm_down_until = 0.0
         self.stacks = self._stacks(spec["containers"])
         self.boxes = [b for st in self.stacks for b in st.boxes]
+        self.cmds = queue.Queue()   # 사고 지시(/command) — 다음 스캔에 그 자리에서 실행
+        self.in_cmd = False
+        self.wind = wind
         self.held = None   # 매단 컨테이너의 집기 전 자리 — 운반 중에 뜬 XR 이 스프레더에 매달게
         self.sender = threading.Thread(target=self._send, daemon=True, name=self.name_ + "/send")
 
@@ -143,6 +152,8 @@ class Crane(threading.Thread):
 
     # 풍속 규칙(코드북 6001/6002) — 18 이상 감속 70%, 25 이상 작업 중지·안전 위치로 회수 후 16 아래로 1분 내려가면 재개.
     def weather(self):
+        if not self.in_cmd and not self.cmds.empty():
+            self.run_command(self.cmds.get())
         s, w = self.s, self.s.wind_inst
         if w >= 25.0 and s.op_mode != g.MAINT:
             s.wind_alarm = True; s.event(6002); self.log(f"풍속 {w:.1f}m/s — 운전 중지(6002), 스프레더 회수")
@@ -159,6 +170,44 @@ class Crane(threading.Thread):
             s.wind_alarm = True; s.vmul = 0.7; s.event(6001); self.log(f"풍속 {w:.1f}m/s — 주의(6001), 70% 감속")
         elif s.wind_alarm and w < 16.0 and s.alm_code in (6001, 0):
             s.wind_alarm = False; s.vmul = 1.0; s.clear_alarm()
+
+    # 지시 사고 — 동작 도중이어도 그 스캔에 낸다. 끝나면 하던 동작의 목표를 되살려 이어서 간다(급정지가 목표를 현재 위치로 덮는다).
+    def run_command(self, cmd):
+        s, do = self.s, cmd.get("do", "")
+        saved = (s.gt.target, s.tr.target, s.ho.target)
+        self.in_cmd = True
+        try:
+            self.log(f"지시 사고 — {do}")
+            if do == "estop": self.estop()
+            elif do == "motor": self.motor_fault()
+            elif do == "comm": self.comm_blip()
+            elif do == "wind": self.wind.force(float(cmd.get("peak", 27)), float(cmd.get("secs", 180)))
+            elif do == "snag":
+                s.ho_snag = True; s.event(3013); s.arrest(2.0); self.wait(3.0)
+                s.ho_snag = False; s.clear_alarm(); self.wait(1.0)
+            elif do == "overcurrent":
+                s.event(3001); self.wait(5.0); s.clear_alarm()
+            elif do == "overload":
+                s.ho_overload = True; s.event(3012); s.arrest(2.0); self.wait(10.0)
+                s.ho_overload = False; s.clear_alarm(); self.wait(1.0)
+            elif do == "landing":
+                s.mismatch = True; s.event(4003); self.wait(5.0); s.mismatch = False; s.clear_alarm()
+            else:
+                self.log(f"모르는 지시 '{do}' — estop·snag·motor·overcurrent·overload·landing·comm·wind")
+        finally:
+            s.gt.target, s.tr.target, s.ho.target = saved
+            self.in_cmd = False
+
+    def _poll_commands(self):
+        url = f"{self.args.url.rstrip('/')}/command?crane={urllib.parse.quote(self.name_)}"
+        while True:
+            try:
+                req = urllib.request.Request(url, headers=auth_headers({}))
+                for c in json.loads(urllib.request.urlopen(req, timeout=3).read()).get("commands", []):
+                    self.cmds.put(c)
+            except Exception:
+                pass
+            time.sleep(1.0)
 
     # ── 사고 ──
     def chance(self, p):
@@ -272,6 +321,7 @@ class Crane(threading.Thread):
     def run(self):
         s = self.s
         self.sender.start()
+        threading.Thread(target=self._poll_commands, daemon=True, name=self.name_ + "/cmd").start()
         s.ready = False; s.op_mode = g.MANUAL; self.wait(3.0)
         s.event(5016, kind="event"); s.ready = True; s.op_mode = g.AUTO; self.wait(2.0)
         self.post_cargo()   # 기동 = 원래 배치(옮긴 것 0개)
