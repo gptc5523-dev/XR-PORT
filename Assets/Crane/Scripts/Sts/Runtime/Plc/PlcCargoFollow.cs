@@ -9,12 +9,14 @@ namespace AIXRCrane.Crane.Sts.Plc
     public sealed class PlcCargoFollow : MonoBehaviour
     {
         [Tooltip("잠금 순간 스프레더 기준점과 컨테이너 윗면 중심의 허용 거리(실척 m) — 수평·수직.")]
-        [SerializeField] float pickRadiusM = 1.5f, pickHeightM = 1.5f;
+        [SerializeField] float pickRadiusM = 0.5f, pickHeightM = 0.5f;   // PLC 위치결정 ±3cm — 이보다 크게 어긋나면 매달지 않고 경고(어긋남을 숨기지 않게)
 
         StsCrane crane;
         PlcBridge bridge;
         SpreaderGrabber grabber;
         SpreaderLockAnimator lockAnim;
+        SpreaderTelescope telescope;      // STS 20/40ft
+        RtgSpreaderTelescope rtgTele;     // RTG 20/40/45ft
         bool was;
         Transform heldYardRoot;   // 야드에서 집었으면 놓을 때 Yard_Containers 밑으로 되돌린다(다음 집기 후보에 남게)
         System.Threading.Tasks.Task<string> pending;
@@ -31,6 +33,8 @@ namespace AIXRCrane.Crane.Sts.Plc
             bridge = GetComponent<PlcBridge>();
             grabber = GetComponent<SpreaderGrabber>();
             lockAnim = GetComponentInChildren<SpreaderLockAnimator>(true);
+            telescope = GetComponentInChildren<SpreaderTelescope>(true);
+            rtgTele = GetComponentInChildren<RtgSpreaderTelescope>(true);
         }
 
         void LateUpdate()
@@ -101,7 +105,7 @@ namespace AIXRCrane.Crane.Sts.Plc
                 {
                     heldYardRoot = h.parent != null && h.parent.name == "Yard_Containers" ? h.parent : null;
                     h.position += gp - new Vector3(hb.center.x, hb.max.y, hb.center.z);
-                    if (crane.Attach.Attach(h) && lockAnim != null) lockAnim.SetLocked(true);
+                    Lock(h, gp);
                     Debug.Log($"[PlcCargo] {crane.name} 운반 중 접속 — {h.name} 을 스프레더에 매닮");
                 }
             }
@@ -140,10 +144,25 @@ namespace AIXRCrane.Crane.Sts.Plc
                 return;
             }
             heldYardRoot = c.parent != null && c.parent.name == "Yard_Containers" ? c.parent : null;
-            Vector3 p = c.position; Quaternion q = c.rotation;
+            Lock(c, gp);
+        }
+
+        // 잠금 = 코너캐스팅에 콘이 물린 상태 — 스프레더를 컨테이너 길이로 맞추고, 컨테이너를 스프레더 중심·방향에 맞춘 뒤 매단다.
+        void Lock(Transform c, Vector3 gp)
+        {
+            if (!SceneUtil.TryBounds(c, out var b)) return;
+            float lenM = Mathf.Max(b.size.x, b.size.z) / crane.ModelScale;
+            float offXZ = new Vector2(b.center.x - gp.x, b.center.z - gp.z).magnitude / crane.ModelScale, gapY = (b.max.y - gp.y) / crane.ModelScale;
+            if (telescope != null) telescope.Set40(lenM > 9f);
+            if (rtgTele != null) rtgTele.SetSize(lenM > 13f ? RtgSpreaderTelescope.Size.Ft45 : lenM > 9f ? RtgSpreaderTelescope.Size.Ft40 : RtgSpreaderTelescope.Size.Ft20);
+            float spYaw = ((Component)crane.Spreader).transform.eulerAngles.y, yaw = c.eulerAngles.y;
+            float d = Mathf.DeltaAngle(yaw, spYaw);
+            if (Mathf.Abs(d) > 90f) d = Mathf.DeltaAngle(yaw + 180f, spYaw) ;   // 컨테이너는 앞뒤 대칭 — 가까운 쪽으로만 돌린다
+            c.RotateAround(new Vector3(b.center.x, b.max.y, b.center.z), Vector3.up, d);
+            if (SceneUtil.TryBounds(c, out b)) c.position += new Vector3(gp.x - b.center.x, 0f, gp.z - b.center.z);
             if (!crane.Attach.Attach(c)) return;
-            c.SetPositionAndRotation(p, q);   // Attach 는 부착점으로 스냅한다 — PLC 자세 그대로 둔다(PlcCargoReplay 와 같다)
             if (lockAnim != null) lockAnim.SetLocked(true);
+            QaLog.Info("PLCCARGO", "lock", $"crane={crane.name} box={c.name} len={lenM:F1}m tele={(rtgTele != null ? (lenM > 13f ? "45" : lenM > 9f ? "40" : "20") : telescope != null ? (lenM > 9f ? "40" : "20") : "-")} offXZ={offXZ * 1000f:F0}mm gapY={gapY * 1000f:F0}mm");
         }
 
         /// <summary>집을 수 있는 컨테이너 — 물리 화물(배, 이름에 Container) + 야드 정적 배치(Yard_Containers 자식, Rigidbody 없음). 배치 내보내기와 같은 목록.</summary>
@@ -161,6 +180,7 @@ namespace AIXRCrane.Crane.Sts.Plc
             var held = crane.Attach.AttachedContainer;
             crane.Attach.Detach();   // grabber.Release 는 야드 칸 중앙으로 몰래 정렬한다 — PLC 가 진실이니 놓은 자리 그대로
             if (lockAnim != null) lockAnim.SetLocked(false);
+            if (rtgTele != null) rtgTele.SetSize(RtgSpreaderTelescope.Size.Ft40);   // 빈 스프레더 기준자세(SpreaderGrabber.Release 와 같다)
             if (held != null && heldYardRoot != null) held.SetParent(heldYardRoot, true);
             heldYardRoot = null;
             needSync = true;

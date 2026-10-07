@@ -112,6 +112,7 @@ class Crane(threading.Thread):
         h = spec["home"]
         self.s = LiveSim(sp_mode=g.SP40, wind=8.0, rng=rng_sim, range_m=spec["range"], gt0=h["gt"], tr0=h["tr"], ho0=h["ho"])
         self.s.rows = Stream(self.q)
+        self.s.sigma = {"gt": 0.03, "tr": 0.03, "ho": 0.01}   # 자동 위치결정 + 플리퍼 — 수동 운전 산포(±0.25m)로는 코너캐스팅에 안 물린다
         self.s.wind_src = wind
         self.clear = g.HO_CLEAR if self.kind == "STS" else g.RTG_HO_CLEAR
         self.home = h
