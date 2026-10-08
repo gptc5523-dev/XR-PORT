@@ -86,6 +86,7 @@ namespace AIXRCrane.Crane.Flat
             {
                 // 모바일 = 관전 먼저 — 패드 조종기·PC HUD 없이 공간 마우스(커서+누르기)로 다닌다.
                 rig.PointerNav = true;
+                Cursor.visible = false;   // 서버 관전 화면은 안경으로 스트리밍된다 — 포인터가 찍히지 않게(위치는 그대로 읽힌다)
                 new GameObject("MobileSpectatorHud").AddComponent<MobileSpectatorHud>();
             }
             else
