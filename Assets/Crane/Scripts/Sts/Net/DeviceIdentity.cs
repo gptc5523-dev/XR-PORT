@@ -69,6 +69,10 @@ namespace AIXRCrane.Crane.Sts.Net
             string slotKey = Slot > 0 ? "SLOT:" + Slot : null;
             foreach (var u in list) if (DeviceId != "" && u.device_id == DeviceId) Me = u;
             if (Me == null) foreach (var u in list) if (u.device_id == slotKey) Me = u;
+#if UNITY_EDITOR
+            // 에디터 관전은 서버 관전 화면과 같게 — 등록된 안경(BEAM:) 사용자로 본다.
+            if (Me == null && Slot == 0) foreach (var u in list) if (u.device_id.StartsWith("BEAM:")) { Me = u; break; }
+#endif
             Looked = true;
             Debug.Log(Me != null ? $"[Device] 등록 사용자 {Me.name} · {Me.position} · {Me.role} ({Me.device_id})" : $"[Device] 미등록 기기 (등록 {list.Length}명 중 없음)");
         }
