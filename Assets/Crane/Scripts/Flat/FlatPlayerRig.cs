@@ -27,8 +27,6 @@ namespace AIXRCrane.Crane.Flat
         [SerializeField] float verticalSpeedMps = 8f;
         [Tooltip("시선 회전 속도(도/초, 스틱 최대 시).")]
         [SerializeField] float lookDegPerSec = 140f;
-        [Tooltip("마우스 오른쪽 끌기 — 화면 가운데가 가리키는 점을 축으로 도는 속도(도/픽셀). 모델 회전(WBS 3.8)을 보는 사람이 도는 것으로 한다.")]
-        [SerializeField] float orbitDegPerPixel = 0.25f;
 
         [Header("입력")]
         [SerializeField, Range(0f, 0.5f)] float deadzone = 0.15f;
@@ -50,13 +48,6 @@ namespace AIXRCrane.Crane.Flat
 
         /// <summary>평면 모드 카메라. 부트스트랩·HUD·크레인 컨트롤러가 참조(타입명 Camera 와 겹치지 않게 Cam).</summary>
         public Camera Cam => cam;
-
-        /// <summary>true면 수평/수직 이동 입력을 무시한다(운전실 시점 등에서 위치를 남이 잡을 때).</summary>
-        public bool MovementLocked { get; set; }
-
-        /// <summary>모바일 관전 — Beam Pro '공간 마우스'(커서 하나 + 누르기)로 돌아다닌다. 부트스트랩이 모바일일 때만 켠다.
-        ///   PC 평면 모드에서 켜면 IMGUI·HUD 를 누르려던 클릭이 비행이 되므로 모바일 전용이다.</summary>
-        public bool PointerNav { get; set; }
 
         bool wasPressed, pressOnUi;                 // 누름이 버튼 위에서 시작됐으면 뗄 때까지 날지 않는다
         float pressedAt;
@@ -98,16 +89,13 @@ namespace AIXRCrane.Crane.Flat
 
 
             ReadInput(out Vector2 move, out Vector2 look, out float vertical, out bool sprint);
-            Vector3 flyDir = PointerNav ? PointerStep(dt) : Vector3.zero;
+            Vector3 flyDir = PointerStep(dt);   // 모바일 관전 — Beam Pro '공간 마우스'(커서 하나 + 누르기)
 
-            if (!PointerNav) Orbit();
-            if (!MovementLocked) ViewCrane(CraneKey());
+            ViewCrane(CraneKey());
             yaw += look.x * lookDegPerSec * dt;
             pitch += (invertPitch ? look.y : -look.y) * lookDegPerSec * dt;
             pitch = Mathf.Clamp(pitch, -89f, 89f);
             ApplyLook();
-
-            if (MovementLocked) return;
 
             // 공간 마우스 비행 — 바닥 아래·부두 밖 클램프는 CranePlayerStartPlacer 담당.
             if (flyDir != Vector3.zero) transform.position += flyDir * (flySpeedMps * s * dt);
@@ -122,22 +110,6 @@ namespace AIXRCrane.Crane.Flat
                               + Vector3.up * (vertical * verticalSpeedMps * s * dt);
                 transform.position += delta;
             }
-        }
-
-        // 오른쪽 끌기: 고른 부품이 있으면 그 중심, 없으면 가운데 광선이 닿은 점(없으면 앞 50m 실척)을 수직축으로 돈다 — 공유 상태는 안 건드린다.
-        void Orbit()
-        {
-            var mouse = Mouse.current;
-            if (mouse == null || cam == null || !mouse.rightButton.isPressed) return;
-            float d = mouse.delta.ReadValue().x * orbitDegPerPixel;
-            if (Mathf.Abs(d) < 1e-4f) return;
-            float s = Mathf.Max(transform.lossyScale.x, 1e-6f);
-            var ray = new Ray(cam.transform.position, cam.transform.forward);
-            Vector3 pivot;
-            if (!AIXRCrane.Crane.Sts.CranePartPicker.TrySelectedCenter(out pivot))
-                pivot = Physics.Raycast(ray, out var hit, 5000f * s) ? hit.point : ray.GetPoint(50f * s);
-            transform.position = pivot + Quaternion.Euler(0f, d, 0f) * (transform.position - pivot);
-            yaw += d;
         }
 
         static int CraneKey()

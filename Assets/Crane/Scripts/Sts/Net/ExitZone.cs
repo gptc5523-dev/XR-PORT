@@ -64,7 +64,7 @@ namespace AIXRCrane.Crane.Sts.Net
         {
             var nm = NetworkManager.Singleton;
             bool connected = nm != null && (nm.IsClient || nm.IsServer);
-            bool mobile = AIXRCrane.Crane.Flat.FlatModeBootstrap.Mobile;   // 모바일 관전은 접속과 무관하게 존이 '앱 종료'다
+            bool mobile = AIXRCrane.Crane.Flat.FlatModeBootstrap.Active;   // 모바일 관전은 접속과 무관하게 존이 '앱 종료'다
             if (!connected && !mobile) { SetVisible(false); dwell = 0f; xrLostFor = 0f; return; }
 
             WatchHeadset();                       // ② 자동 종료 — 존 배치와 무관하게 항상 돈다

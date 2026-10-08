@@ -30,7 +30,6 @@ namespace AIXRCrane.Crane.Sts
 
         // 이탈 차단(LateUpdate) 캐시 — 매 프레임 Find 하지 않게.
         Bounds landCache; bool haveLand;   // 땅은 런타임에 안 움직인다 — 한 번 구하면 끝
-        AIXRCrane.Crane.Flat.FlatPlayerRig flatCache;
         float nextRefind;           // 캐시가 비었을 때만 이 시각 이후 재탐색.
         bool clampActive;           // 이탈 차단 중 — 엣지에서만 로그(매 프레임 스팸 방지).
 
@@ -69,16 +68,14 @@ namespace AIXRCrane.Crane.Sts
 
         // 운전실 시점인가 — 시점이 바다 위로 나가므로 클램프를 쉰다. VR 은 켜진(Active) 컨트롤러 한 대를 본다.
         bool InCabView()
-            => (StsCraneVRController.Active != null && StsCraneVRController.Active.CabView) || (flatCache != null && flatCache.MovementLocked);
+            => StsCraneVRController.Active != null && StsCraneVRController.Active.CabView;
 
-        // 비어 있는 캐시만 1초에 한 번 다시 찾는다(리그·크레인·부두가 늦게 떠도 붙는다).
+        // 땅을 못 찾았으면 1초에 한 번 다시 찾는다(부두가 늦게 떠도 붙는다).
         void RefreshCaches()
         {
-            if (haveLand && flatCache != null) return;
-            if (Time.unscaledTime < nextRefind) return;
+            if (haveLand || Time.unscaledTime < nextRefind) return;
             nextRefind = Time.unscaledTime + 1f;
-            if (!haveLand) haveLand = TryGetLand(out landCache);
-            if (flatCache == null) flatCache = FindAnyObjectByType<AIXRCrane.Crane.Flat.FlatPlayerRig>();
+            haveLand = TryGetLand(out landCache);
         }
 
         void Update()

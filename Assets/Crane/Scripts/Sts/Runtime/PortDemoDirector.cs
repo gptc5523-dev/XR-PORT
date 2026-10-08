@@ -69,7 +69,6 @@ namespace AIXRCrane.Crane.Sts
         }
 
         // 관전자는 운전 불가(미접속·싱글은 조종 가능). CraneNetSync 는 조종기 하나만 끄므로 크레인 전환 때 재검사.
-        //   ★ '운전은 호스트만' SSOT — FlatCraneController 도 이 판정을 쓴다.
         public static bool Spectator
         {
             get { var nm = Unity.Netcode.NetworkManager.Singleton; return nm != null && nm.IsClient && !nm.IsServer; }

@@ -11,12 +11,8 @@ namespace AIXRCrane.Crane.Flat
     [DisallowMultipleComponent]
     public sealed class FlatModeBootstrap : MonoBehaviour
     {
-        /// <summary>평면 모드로 부팅됐는가. HUD·컨트롤러가 자기 활성 여부 판단에 참조.</summary>
+        /// <summary>평면 모드(= VR 이 아닌 모든 실행 = 모바일 관전 화면)로 부팅됐는가.</summary>
         public static bool Active { get; private set; }
-
-        /// <summary>평면 모드 안에서 '모바일 관전 화면'으로 떴는가 — 안드로이드·에디터 휴대폰 시뮬레이터·`-mobile` 인자.
-        /// VR·PC 평면 모드(모니터+패드)는 그대로다.</summary>
-        public static bool Mobile { get; private set; }
 
         /// <summary>강제 모드 PlayerPrefs 키 — 0=자동, 1=평면 강제, 2=VR 강제. 에디터 메뉴가 이 값을 쓴다.</summary>
         public const string ForcePrefKey = "AIXRCrane.FlatMode.Force";
@@ -81,26 +77,13 @@ namespace AIXRCrane.Crane.Flat
             // 안경이 이 기기에 꽂혀 있으면 고개로 둘러본다(없으면 조용히 기다림) — 평면·모바일 공통.
             new GameObject("XrealHeadTracker").AddComponent<XrealHeadTracker>();
 
-            Mobile = ResolveMobile();
-            if (Mobile)
-            {
-                // 모바일 = 관전 먼저 — 패드 조종기·PC HUD 없이 공간 마우스(커서+누르기)로 다닌다.
-                rig.PointerNav = true;
-                Cursor.visible = false;   // 서버 관전 화면은 안경으로 스트리밍된다 — 포인터가 찍히지 않게(위치는 그대로 읽힌다)
-                new GameObject("MobileSpectatorHud").AddComponent<MobileSpectatorHud>();
-            }
-            else
-            {
-                var ctrlGo = new GameObject("FlatCraneController");
-                ctrlGo.AddComponent<FlatCraneController>();
-
-                var hudGo = new GameObject("FlatHud");
-                hudGo.AddComponent<FlatHud>();
-            }
+            // VR 이 아니면 언제나 모바일 관전 화면 — PC 평면 화면(패드 조종기·LAN 패널)은 없다. 공간 마우스(커서+누르기)로 다닌다.
+            Cursor.visible = false;   // 서버 관전 화면은 안경으로 스트리밍된다 — 포인터가 찍히지 않게(위치는 그대로 읽힌다)
+            new GameObject("MobileSpectatorHud").AddComponent<MobileSpectatorHud>();
 
             if (debugLog)
                 Debug.Log($"[FlatMode] 평면 모드 진입 — XR 리그 {disabled}개·기존 MainCamera {camsOff}개 비활성, " +
-                          $"평면 리그·조작·HUD 생성. 판정={(wasForced ? "강제" : "자동(XR 미검출)")}. 게임패드로 조작합니다.");
+                          $"평면 리그·모바일 관전 화면 생성. 판정={(wasForced ? "강제" : "자동(XR 미검출)")}.");
 
             // QA: '카메라 1대 + MainCamera 태그'로 끝났는지 — 깨지면 StartPlacer·RigScale(1/24)이 평면 리그를 못 잡는다.
             var cam = rig.Cam;
@@ -140,15 +123,6 @@ namespace AIXRCrane.Crane.Flat
                 n++;
             }
             return n;
-        }
-
-        // 모바일 관전 화면인가. ★ UnityEngine.Device를 쓴다 — Device Simulator는 이쪽 값만 바꾼다(Application은 맥을 본다).
-        //   서버 관전 인스턴스(윈도 빌드)는 `-mobile`로 켠다.
-        static bool ResolveMobile()
-        {
-            foreach (var a in System.Environment.GetCommandLineArgs())
-                if (string.Equals(a, "-mobile", System.StringComparison.OrdinalIgnoreCase)) return true;
-            return UnityEngine.Device.Application.isMobilePlatform;
         }
 
         // -1=자동, 0=VR 강제, 1=평면 강제. 실행 인자가 PlayerPrefs 보다 우선.

@@ -53,8 +53,8 @@ namespace AIXRCrane.Crane.Flat
             bool intentOk = FlatPlayerRig.PointerIntentSelfCheck(out string why);
             QaLog.Check("MOBILE", "intent", intentOk, why);
             bool es = EventSystem.current != null;
-            QaLog.Check("MOBILE", "boot", canvas != null && rig != null && rig.PointerNav && es && (net == null || !net.enabled),
-                $"rig={rig != null} pointerNav={(rig != null && rig.PointerNav)} eventSystem={es} " +
+            QaLog.Check("MOBILE", "boot", canvas != null && rig != null && es && (net == null || !net.enabled),
+                $"rig={rig != null} eventSystem={es} " +
                 $"imguiHidden={(net == null || !net.enabled)} cranes={string.Join(",", names)}");
         }
 
@@ -199,6 +199,13 @@ namespace AIXRCrane.Crane.Flat
         // 오른쪽 위 참가자 목록 — 한 사람 한 줄 "● 관전  소속 직급 이름". 세션 밖이면 아바타가 없으니 나만.
         static string WhoBody() => AIXRCrane.Crane.Sts.Net.PlayerAvatarSync.ListText();
 
-        static string Pct(IAxisMover axis) => axis == null ? "—" : $"{FlatHud.Percent(axis):0.0}%";
+        static string Pct(IAxisMover axis) => axis == null ? "—" : $"{Percent(axis):0.0}%";
+
+        /// <summary>가동범위 안의 위치(%).</summary>
+        static float Percent(IAxisMover axis)
+        {
+            float span = axis.Max - axis.Min;
+            return span > 1e-6f ? Mathf.Clamp01((axis.Current - axis.Min) / span) * 100f : 0f;
+        }
     }
 }

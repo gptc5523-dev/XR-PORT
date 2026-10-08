@@ -396,7 +396,7 @@ namespace AIXRCrane.Crane.Sts
 
         // 운전실 바닥 부품 찾기 — 눈 위치를 이 바닥 아래에 둬 발밑 화물을 보이게 한다.
         // 우선순위: 직렬화 이름 → Cab_Fb_FloorRear → RTG 바닥. 못 찾으면 null(좌석 눈높이로 폴백).
-        public static Transform FindCabFloor(Transform trolleyT, string preferredName)
+        static Transform FindCabFloor(Transform trolleyT, string preferredName)
         {
             Transform byName = null, byRear = null, byRtg = null;
             foreach (var t in trolleyT.GetComponentsInChildren<Transform>(true))
@@ -411,7 +411,7 @@ namespace AIXRCrane.Crane.Sts
 
         /// <summary>바닥 패널 중심에서 drop 만큼 아래 — 운전실 시점 눈 위치.
         /// FBX RTG 는 피벗이 트롤리 원점이라 렌더러 바운즈 중심을 쓴다(STS 는 피벗=중심이라 값이 같다).</summary>
-        public static Vector3 BelowCabFloor(Transform floor, float drop)
+        static Vector3 BelowCabFloor(Transform floor, float drop)
         {
             var r = floor.GetComponent<Renderer>();
             return (r != null ? r.bounds.center : floor.position) + Vector3.down * drop;

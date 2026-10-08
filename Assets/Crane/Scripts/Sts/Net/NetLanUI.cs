@@ -75,7 +75,7 @@ namespace AIXRCrane.Crane.Sts.Net
             if (nm == null || Transport == null) return;
 
             // ★ 모바일(안경·폰 관전)은 호스트 불가(오너 결정). 호스트를 여는 길은 여기 하나뿐이라 여기서 막는다.
-            if (AIXRCrane.Crane.Flat.FlatModeBootstrap.Mobile)
+            if (AIXRCrane.Crane.Flat.FlatModeBootstrap.Active)
             {
                 Debug.LogWarning("[NetLanUI] 모바일은 호스트가 될 수 없습니다 — 참가자로만 접속합니다.");
                 hostFailed = true;
