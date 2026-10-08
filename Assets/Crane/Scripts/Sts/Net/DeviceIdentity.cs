@@ -101,7 +101,8 @@ namespace AIXRCrane.Crane.Sts.Net
         {
             try
             {
-                string f = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(Application.dataPath), "glasses_device.txt");
+                int.TryParse(Arg("-seat"), out int seat);   // 안경 자리(관전 앱이 여러 개일 때) — 1·없음 = glasses_device.txt
+                string f = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(Application.dataPath), seat > 1 ? $"glasses_device_{seat}.txt" : "glasses_device.txt");
                 return System.IO.File.Exists(f) ? System.IO.File.ReadAllText(f).Trim() : "";
             }
             catch (System.Exception) { return ""; }
