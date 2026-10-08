@@ -87,15 +87,15 @@ namespace AIXRCrane.Crane.Flat
             // 위 왼쪽: 역할 · 크레인
             roleText = Label(root, "Role", new Vector2(0f, 1f), new Vector2(ix, -iy));
 
-            // 위 오른쪽: 참가자 목록
-            whoText = Label(root, "Who", new Vector2(1f, 1f), new Vector2(-ix, -iy));
+            // 위 오른쪽: 참가자 목록 — 화면이 작아 글자를 줄이고 모서리에 더 붙인다
+            whoText = Label(root, "Who", new Vector2(1f, 1f), new Vector2(-ix * 0.5f, -iy * 0.5f), 0.75f);
 
             // 아래: 크레인마다 한 줄 — 배경은 글자 분량만큼만
             statusText = Label(root, "Status", new Vector2(0.5f, 0f), new Vector2(0f, iy));
         }
 
         // 반투명 검정 배경 + 글자. 배경은 글자 크기에 맞춰 늘고 준다(앵커 모서리 기준으로 자란다).
-        Text Label(Transform parent, string name, Vector2 anchor, Vector2 pos)
+        Text Label(Transform parent, string name, Vector2 anchor, Vector2 pos, float textScale = 1f)
         {
             var go = new GameObject(name, typeof(RectTransform));
             go.transform.SetParent(parent, worldPositionStays: false);
@@ -114,8 +114,9 @@ namespace AIXRCrane.Crane.Flat
 
             var t = new GameObject("Text", typeof(RectTransform), typeof(Text)).GetComponent<Text>();
             t.transform.SetParent(go.transform, worldPositionStays: false);
-            t.font = CraneHud.CreateKoreanFont(fontSize);
-            t.fontSize = fontSize;
+            int size = Mathf.RoundToInt(fontSize * textScale);
+            t.font = CraneHud.CreateKoreanFont(size);
+            t.fontSize = size;
             t.color = Color.white;
             t.alignment = TextAnchor.MiddleLeft;
             t.supportRichText = true;
