@@ -314,7 +314,7 @@ namespace AIXRCrane.Crane.Sts
             var g = ContainerLoad.Grade(tons);
             sb.Clear();
             sb.Append("<b>컨테이너 ").Append(id).Append("</b>");
-            sb.Append("\n규격  <b>").Append(len > 9f ? "40ft" : "20ft").Append(hgt > 2.75f ? " 하이큐브" : "").Append("</b>");
+            sb.Append("\n규격  <b>").Append(len > 13f ? "45ft" : len > 9f ? "40ft" : "20ft").Append(hgt > 2.75f ? " 하이큐브" : "").Append("</b>");
             sb.Append("\n하중  <b>").Append(tons.ToString("F1")).Append(" t</b>  <color=#")
               .Append(CraneHud.Hex(ContainerLoad.GradeColor(g))).Append(">").Append(ContainerLoad.GradeLabel(g)).Append("</color>");
             sb.Append("\n상태  <b>").Append(holder != null ? holder + " 스프레더에 체결" : (c.GetComponent<Rigidbody>() is Rigidbody rb && !rb.isKinematic && rb.linearVelocity.sqrMagnitude > 1e-4f ? "이동 중" : "적치")).Append("</b>");
