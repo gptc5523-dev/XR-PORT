@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-XR 크레인 통합서버 v0.5 — PLC 이력 수집·저장·조회. 파트ID 매핑·WebSocket 전파·실 PLC 어댑터는 범위 밖.
+XR 크레인 통합서버 v0.5 — PLC 이력 수집·저장·조회. 파트ID 매핑·WebSocket 전파는 범위 밖(실 PLC 는 plc_s7.py 어댑터).
 
 의존성 0 — 표준 라이브러리(http.server+sqlite3)만 쓴다. 엔드포인트 5개에 FastAPI 는 과투자.
 
@@ -19,6 +19,8 @@ XR 크레인 통합서버 v0.5 — PLC 이력 수집·저장·조회. 파트ID �
   GET/POST /command?crane=                     사고 지시 {"do": "estop|snag|motor|overcurrent|overload|landing|comm|wind"} — 라이브 PLC 가 1초 안에 실행
   GET/POST /cargo?crane=                       옮겨진 컨테이너(원래 자리 → 지금 자리) — 라이브 PLC 가 올리고 늦게 뜬 XR 이 맞춘다
   GET  /since?crane=&after_id=                  크레인이 이어 받는 경로(CSV, X-Last-Id) — Unity ServerPlcSource
+  GET/POST /users?all=&device=                  등록 사용자(기기 ID → 이름·자리), POST 는 API 로 추가·수정
+  GET  /register                               등록 사용자 목록 페이지(읽기 전용)
 
 접근 제어(WBS 9.2, 폐쇄망 전제 9.1)
   XRCRANE_ALLOW  허용 대역(쉼표 구분 CIDR). 기본 = 루프백 + 사설망(10/8, 172.16/12, 192.168/16) + Tailscale(100.64/10). 밖이면 403.
@@ -43,6 +45,7 @@ import sqlite3
 import sys
 import threading
 import time
+import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs
 
@@ -128,7 +131,7 @@ def upsert_user(con, u, overwrite=True):
 
 
 def load_users(con, path):
-    """등록 파일(JSON 배열)의 처음 등록만 넣는다 — 이미 있는 기기는 웹(/register)에서 고친 값을 지킨다. 파일 건수."""
+    """등록 파일(JSON 배열)의 처음 등록만 넣는다 — 이미 있는 기기는 POST /users 로 고친 값을 지킨다. 파일 건수."""
     with open(path, encoding="utf-8") as f:
         users = json.load(f)
     for u in users:
@@ -170,7 +173,6 @@ def to_num(v):
 
 def insert_rows(con, lock, rows):
     """rows: dict 리스트. 각 dict 는 crane/source/t_ms/recv_ms + CSV 컬럼 전량."""
-    import time
     now = int(time.time() * 1000)
     payload = []
     for r in rows:
@@ -217,7 +219,7 @@ class Handler(BaseHTTPRequestHandler):
             c = self.local.con = connect(self.db_path, schema=False)
         return c
 
-    # 접속 로그를 stderr 로 (도커 logs 에서 보이게), 다만 헬스체크 폭주는 접어둔다.
+    # 접속 로그를 stderr 로 (serve.sh 로그에서 보이게), 다만 헬스체크 폭주는 접어둔다.
     def log_message(self, fmt, *args):
         if "/health" not in self.path:
             sys.stderr.write("%s - %s\n" % (self.address_string(), fmt % args))
@@ -355,7 +357,7 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json(rows_to_dicts(cur))
 
         return self.send_json({"error": "not found",
-                               "endpoints": ["/health", "/latest", "/history", "/alarms", "/runs", "/since", "/users", "/register", "POST /ingest", "POST /users"]}, 404)
+                               "endpoints": ["/health", "/time", "/latest", "/history", "/alarms", "/runs", "/since", "/command", "/cargo", "/users", "/register", "POST /ingest", "POST /command", "POST /cargo", "POST /users"]}, 404)
 
     def do_POST(self):
         if self.denied():
@@ -459,8 +461,6 @@ def cmd_import(args):
 
 def clock_offset(base_url, n=8):
     """(서버 시계 − 내 시계, 왕복시간) ms — 왕복이 가장 짧은 표본을 쓴다(Cristian). 오차는 왕복의 절반 이내."""
-    import time
-    import urllib.request
     best = None
     for _ in range(n):
         t0 = time.time() * 1000
@@ -474,8 +474,6 @@ def clock_offset(base_url, n=8):
 
 def cmd_feed(args):
     """PLC 대역 — CSV 를 t_ms 간격 그대로 /ingest 에 한 행씩 보낸다. 서버→크레인 경로를 살아 있는 데이터로 돌린다."""
-    import time
-    import urllib.request
     with open(args.csv, newline="", encoding="utf-8") as f:
         rows = list(csv.DictReader(f))
     source = args.source or "feed/" + "/".join(args.csv.replace("\\", "/").split("/")[-2:]).replace(".csv", "")

@@ -9,8 +9,6 @@ DT = 0.1  # 100ms 폴링 (사양서 §3.2)
 # ── 실척 가동 범위 · 정격 속도(m/s)/가속(m/s²) ──
 # SSOT 는 Unity 크레인 기하 — PlcBridge 가 무버 Min/Max 로 rangeM 을 산출해 realPos/rangeM 으로 정규화한다.
 #   여기 값이 실제 가동범위와 다르면 위치가 그 비율만큼 어긋나고 초과분은 클램프된다. RANGE 는 '씬 기하'절에서 유도.
-# ── 비활성(설계 상수 gt 가 씬 런타임과 달라 베이가 어긋났다) ──
-# RANGE = {"gt": 105.6, "tr": 78.9, "ho": 39.2}
 # 정격 — SSOT = CraneAxisProfile.cs (VirtualPlcSource 와 같은 출처를 쓴다)
 VMAX  = {"gt": 0.7,  "tr": 3.5, "ho": 1.25}   # CraneAxisProfile.*MaxSpeed
 AMAX  = {"gt": 0.15, "tr": 0.6, "ho": 0.50}   # CraneAxisProfile.*RatedAccel
@@ -265,34 +263,8 @@ class Sim:
 
 
 
-# ── 비활성(씬과 불일치 — 갠트리 105.6m 가정·선측 모서리를 열로·해치커버 뺀 갑판고 → 허공 작업) ──
-# # 씬 기하에서 유도한 작업 좌표(실척 m) — StsConfig·StsCraneCreator·ShipConfig·ShipBerthMenu 값에서 유도.
-# # ── 트롤리: PLC 좌표 = 붐로컬 X + 15.9 (0 = 백리치 끝) ──
-# TR_LANDLEG   = 15.9                     # 육지쪽 다리      (X = 0)
-# TR_QUAY      = 33.9                     # 바다쪽 다리·안벽 (X = 18)
-# TR_SHIP_NEAR = 39.4                     # 배 현측          (X = 18 + 5.5 = 23.5)
-# TR_SHIP_FAR  = 78.9                     # 배 원측          (X = 23.5 + 39.53 = 63.03) — 아웃리치가 전폭을 덮는다
-# ROW_PITCH    = 2.478                    # 갑판 열간 피치 = 컨테이너폭 2.438 + 라싱 0.04
-# TR_CHASSIS   = 8.0                      # 육지 섀시(트럭) — 백리치 안(< TR_LANDLEG 15.9)
-# TR_SHIP_WORK = TR_SHIP_NEAR + 2 * ROW_PITCH   # 배 위 기본 작업 열(현측에서 3번째)
-#
-# # ── 권상: PLC 좌표 = 스프레더 하단의 안벽 상면 기준 높이 − 0.8 ──
-# QUAY_TO_DECK = 11.0 - 4.0               # 주갑판 − 안벽 = 건현 − 안벽고 = 7.0
-# CONT_H       = 2.591                    # ISO 1AA 높이
-# HO_DECK_T1   = QUAY_TO_DECK + CONT_H - 0.8         #  8.79  갑판 1단 상면
-# HO_DECK_T2   = QUAY_TO_DECK + 2 * CONT_H - 0.8     # 11.38  갑판 2단 상면(최대 2단)
-# HO_CHASSIS   = 1.51 - 0.8                          #  0.71  섀시 데크 상면(40ft 샤시 1.51m)
-# HO_CLEAR     = HO_DECK_T2 + 3.0                    # 14.38  이송 클리어고
-#
-# # ── 시나리오 — 옛 HI/LO/SEA 는 씬 이전 추상 좌표(클리어고까지만 올린다) ──
-# HI   = HO_CLEAR       # 이송 클리어고
-# LO   = HO_DECK_T2     # 배쪽 작업고(갑판 2단 상면)
-# LO_L = HO_CHASSIS     # 육지쪽 작업고(섀시 데크)
-# SEA  = TR_SHIP_WORK   # 트롤리 선박측
-# LAND = TR_CHASSIS     # 트롤리 육지측
-
 # ═══════════════════ 씬 기하 — 전부 Unity SSOT 수식에서 유도 (실척 m, 데크 윗면 y=0) ═══════════════════
-# 아래는 C# 원본 식을 그대로 옮긴 것이다. verify.py ⑦ 이 Port.unity 를 파싱해 좌표·점유를 전부 대조한다.
+# 아래는 C# 원본 식을 그대로 옮긴 것이다. verify.py ⑥ 이 Port.unity 를 파싱해 좌표·점유를 전부 대조한다.
 
 CONT_W, CONT_H, CONT_L = 2.438, 2.591, 12.192          # ISO 1AA — ProceduralContainerMesh
 
@@ -305,7 +277,7 @@ LANE_HALF_Z = math.floor(BERTH_LEN / LANE_PITCH) * LANE_PITCH / 2   # 노란 차
 
 # ── STS (StsCraneCreator · StsConfig · GantryRangeFit) — 루트 = 육지측 레일 위 ──
 STS_ROOT_X = RAIL_LAND_X
-STS_ROOT_Z = -40.0                  # 씬 배치값(STS_Crane z −1.6667u) — 배치 결정이라 식이 없다. verify ⑦ 대조
+STS_ROOT_Z = -40.0                  # 씬 배치값(STS_Crane z −1.6667u) — 배치 결정이라 식이 없다. verify ⑥ 대조
 BOOM_Y     = 44.0                   # RailH — 붐(트롤리 레일) 높이
 TROLLEY_MIN_X, TROLLEY_MAX_X = -13.0 - 0.12 * 24, 63.0  # TrolleyMinX = −13·Scale − BoomBackExtra(0.12u) = −15.88
 TROLLEY_REST_X = 8.0                # TrolleyRestX = 8·Scale — 트롤리·SpreaderRoot 휴지 위치(붐 로컬). verify ⑥ 대조
@@ -315,7 +287,7 @@ SPREADER_MIN_Y, SPREADER_MAX_Y = -(BOOM_Y - 0.8), -4.0  # 붐 로컬 — 행정 
 SPREADER_REST_Y = -10.0             # SpreaderRestY = −10·Scale — 스프레더 휴지 높이(붐 로컬). verify ⑥ 대조
 LEG_FOOT = 1.0 * 1.7                # 격자 다리 footprint = LegSec × 1.7
 LEG_Z    = 16.0 / 2                 # 앞뒤 다리 Z ±8 = GantryBaseZMeters / 2
-WHEEL_HALF_Z = 9.5114               # 크레인 중심 → 바깥 바퀴(Wheel 렌더러 실측) — GantryRangeFit 이 재는 값. verify ⑦ 대조
+WHEEL_HALF_Z = 9.5114               # 크레인 중심 → 바깥 바퀴(Wheel 렌더러 실측) — GantryRangeFit 이 재는 값. verify ⑥ 대조
 
 GT_HALF  = min(LANE_HALF_Z - STS_ROOT_Z, STS_ROOT_Z + LANE_HALF_Z) - WHEEL_HALF_Z   # 128 − 9.51 = 118.49
 GT_MIN_Z = STS_ROOT_Z - GT_HALF                                                     # GT 0 인 루트 Z = −158.49
@@ -340,7 +312,7 @@ DECK_MAX_TIERS, SECOND_TIER_RATIO, STACK_SEED = 2, 0.5, 20260907
 FENDER = 1.5                                            # ShipBerthMenu.FenderClearanceM
 SHIP_X = RAIL_WATER_X + (APRON_SEAWARD + FENDER) + SHIP_BEAM / 2   # 21.265 — 배 중심선
 SHIP_Y = -4.0                                           # 흘수선 = 수면 = 데크 − QuayDeckAboveSeaMeters
-SHIP_Z = 0.0                                            # 선석 중앙 — 씬 배치값, verify ⑦ 대조
+SHIP_Z = 0.0                                            # 선석 중앙 — 씬 배치값, verify ⑥ 대조
 
 
 def ship_half_beam(z):                                  # ProceduralShipHull.HalfBeam
@@ -653,7 +625,7 @@ def gen_S14(s):  # STS 20개 양하 — 가까운 베이부터, 안벽쪽 스택
 
 def gen_S15(s):  # STS 5개 양하(시연) — 작업 베이의 실제 컨테이너 5개 → 포털 밑 에이프런 레인 5칸
     """크레인 홈에서 출발해 작업 베이로 주행 → 안벽쪽 스택부터 위 단 먼저 집고 바다쪽 레인(L1)부터 데크에 내려놓는다.
-    좌표는 전부 '씬 기하' 식에서 나오고 verify ⑦ 이 씬과 대조한다."""
+    좌표는 전부 '씬 기하' 식에서 나오고 verify ⑥ 이 씬과 대조한다."""
     s.op_mode = AUTO; s.sigma = dict(AUTO_SIGMA)
     s.gt.pos = s.gt.target = GT_HOME
     for n, k in enumerate(discharge_order([WORK_BAY])[:5]):

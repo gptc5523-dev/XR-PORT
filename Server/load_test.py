@@ -3,10 +3,10 @@
 """통합서버 장시간·다중 접속 부하 시험(WBS 2.13) — 서버를 새 DB 로 띄우고 실속도 PLC 쓰기 + XR 폴링을 걸어 30초마다 기록한다."""
 
 import argparse
+import atexit
 import csv
 import json
 import os
-import statistics
 import subprocess
 import sys
 import threading
@@ -145,6 +145,7 @@ def main():
 
     srv = subprocess.Popen([sys.executable, os.path.join(HERE, "xrcrane_db.py"), "--db", db, "serve", "--host", "127.0.0.1",
                             "--port", str(args.port)] + args.server_args.split(), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    atexit.register(srv.kill)  # Ctrl-C·예외로 빠져도 서버 프로세스를 남기지 않는다
     for _ in range(50):
         try:
             request(base + "/time", timeout=1)
@@ -159,7 +160,7 @@ def main():
         rows = list(csv.DictReader(f))
     stats, stop = Stats(), threading.Event()
     written = {c: 0 for c in CRANES}
-    got = {(k, c): 0 for k in range(args.clients) for c in CRANES}
+    got = {}
     threads = [threading.Thread(target=writer, args=(base, c, rows, stats, stop, written), daemon=True) for c in CRANES]
     for k in range(args.clients):
         for c in CRANES:
@@ -207,6 +208,7 @@ def main():
     alive = srv.poll() is None
     lag = {f"{k}:{c}": written[c] - got[(k, c)][c] for k in range(args.clients) for c in CRANES}
     srv.terminate()
+    srv.wait()
     elapsed = (time.monotonic() - t_start) / 60
     summary = {
         "minutes": round(elapsed, 1), "clients": args.clients, "cranes": len(CRANES), "poll_ms": args.poll_ms,
