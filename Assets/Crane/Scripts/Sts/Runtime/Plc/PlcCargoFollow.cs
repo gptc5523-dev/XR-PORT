@@ -167,14 +167,39 @@ namespace AIXRCrane.Crane.Sts.Plc
             float offXZ = new Vector2(b.center.x - gp.x, b.center.z - gp.z).magnitude / crane.ModelScale, gapY = (b.max.y - gp.y) / crane.ModelScale;
             if (telescope != null) telescope.Set40(lenM > 9f);
             if (rtgTele != null) rtgTele.SetSize(lenM > 13f ? RtgSpreaderTelescope.Size.Ft45 : lenM > 9f ? RtgSpreaderTelescope.Size.Ft40 : RtgSpreaderTelescope.Size.Ft20);
-            float spYaw = ((Component)crane.Spreader).transform.eulerAngles.y, yaw = c.eulerAngles.y;
-            float d = Mathf.DeltaAngle(yaw, spYaw);
-            if (Mathf.Abs(d) > 90f) d = Mathf.DeltaAngle(yaw + 180f, spYaw) ;   // 컨테이너는 앞뒤 대칭 — 가까운 쪽으로만 돌린다
+            // 긴 축끼리 맞춘다 — STS 스프레더는 자기 축이 90° 돌아 있어 오브젝트 회전값으로 맞추면 컨테이너를 90° 돌려 잡았다.
+            float d = Mathf.DeltaAngle(LongYaw(c), LongYaw(((Component)crane.Spreader).transform));
+            if (Mathf.Abs(d) > 90f) d -= Mathf.Sign(d) * 180f;   // 컨테이너는 앞뒤 대칭 — 가까운 쪽으로만 돌린다
             c.RotateAround(new Vector3(b.center.x, b.max.y, b.center.z), Vector3.up, d);
             if (SceneUtil.TryBounds(c, out b)) c.position += new Vector3(gp.x - b.center.x, 0f, gp.z - b.center.z);
             if (!crane.Attach.Attach(c)) return;
             if (lockAnim != null) lockAnim.SetLocked(true);
             QaLog.Info("PLCCARGO", "lock", $"crane={crane.name} box={c.name} len={lenM:F1}m tele={(rtgTele != null ? (lenM > 13f ? "45" : lenM > 9f ? "40" : "20") : telescope != null ? (lenM > 9f ? "40" : "20") : "-")} offXZ={offXZ * 1000f:F0}mm gapY={gapY * 1000f:F0}mm");
+        }
+
+        // 수평 긴 축의 방향(도) — 메시를 이 물체 기준으로 잰 크기에서 가장 긴 수평 축.
+        static float LongYaw(Transform t)
+        {
+            var size = Vector3.zero;
+            foreach (var mf in t.GetComponentsInChildren<MeshFilter>())
+            {
+                if (mf.sharedMesh == null) continue;
+                var mb = mf.sharedMesh.bounds;
+                for (int i = 0; i < 8; i++)
+                {
+                    var w = mf.transform.TransformPoint(mb.center + Vector3.Scale(mb.extents, new Vector3((i & 1) * 2 - 1, (i & 2) - 1, (i & 4) / 2 - 1)));
+                    var l = t.InverseTransformPoint(w);
+                    size = Vector3.Max(size, new Vector3(Mathf.Abs(l.x), Mathf.Abs(l.y), Mathf.Abs(l.z)));
+                }
+            }
+            Vector3 best = t.forward; float bestLen = -1f;
+            Vector3[] axes = { t.right, t.up, t.forward };
+            for (int i = 0; i < 3; i++)
+            {
+                float len = size[i] * t.lossyScale[i];
+                if (Mathf.Abs(axes[i].y) < 0.7f && len > bestLen) { bestLen = len; best = axes[i]; }
+            }
+            return Mathf.Atan2(best.x, best.z) * Mathf.Rad2Deg;
         }
 
         /// <summary>집을 수 있는 컨테이너 — 물리 화물(배, 이름에 Container) + 야드 정적 배치(Yard_Containers 자식, Rigidbody 없음). 배치 내보내기와 같은 목록.</summary>
