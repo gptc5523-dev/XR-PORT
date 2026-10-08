@@ -78,10 +78,10 @@ namespace AIXRCrane.Crane.Sts
         /// <summary>베이 피치 = 컨테이너 길이 + 베이간격.</summary>
         public static float BayPitchM => ContainerLenM + BayGapM;
 
-        // ② RTG 앵커 — RtgCraneCreator(Editor) 미러. ★ 바꿀 땐 양쪽을 같이 고칠 것.
+        // ② RTG 앵커 — 야드 폭·여유 계산의 기준(RTG_Crane.fbx 실측).
         /// <summary>RTG 다리 중심 간격 — 실척 m.</summary>
         public const float RtgSpanM = 23.6f;
-        /// <summary>RTG 다리 박스 단면 한 변 — 실척 m. RtgCraneCreator.LegSec 미러.</summary>
+        /// <summary>RTG 다리 박스 단면 한 변 — 실척 m.</summary>
         public const float RtgLegSectionM = 0.9f;
         /// <summary>다리 '안쪽면' 사이 순간격 — 실척 m.
         /// ★ 스팬(중심 간격)을 쓰면 블록·차선이 다리 밑으로 들어간다 — 쓸 수 있는 폭은 이것.</summary>

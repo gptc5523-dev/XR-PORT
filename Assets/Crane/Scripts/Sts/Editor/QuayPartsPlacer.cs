@@ -609,7 +609,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
         }
 
         /// <summary>야드 — 포장 1장 + 블록 마킹. 포장은 케이슨과 정확히 맞댄다(겹치면 Z-fighting).
-        /// ★ 블록 이름은 반드시 YardBlock_Zone — RtgCraneCreator가 이 bounds로 RTG 위치·갠트리 범위를 잡는 SSOT.</summary>
+        /// ★ 블록 이름은 반드시 YardBlock_Zone — RtgCraneFbxPlacer가 이 bounds로 RTG 위치·갠트리 범위를 잡는 SSOT.</summary>
         [MenuItem("Model/FBX/항구/야드 배치 (Yard)", false, 5)]
         static void PlaceYard()
         {
@@ -809,7 +809,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             return mat;
         }
 
-        /// <summary>부두 루트 — 없으면 만든다. StsCraneCreator·RtgCraneCreator·RtgCraneFbxPlacer·GantryRangeFit·ShipBerthMenu
+        /// <summary>부두 루트 — 없으면 만든다. StsCraneCreator·RtgCraneFbxPlacer·GantryRangeFit·ShipBerthMenu
         /// 5곳이 GameObject.Find(QuayGround)로 부두를 찾으므로, 부재를 씬 루트에 흩어놓으면 아무도 못 찾는다.</summary>
         static Transform QuayRoot()
         {

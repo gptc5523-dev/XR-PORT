@@ -24,7 +24,7 @@ namespace AIXRCrane.EditorTools
             string fbx = ModelDir + size + ".fbx";
             if (!File.Exists(fbx)) { Debug.LogError($"[컨테이너] 없음: {fbx}"); return; }
 
-            // 머티리얼이 아직 없으면 만들고 FBX 를 다시 임포트한다(리맵은 ContainerModelPostprocessor 담당).
+            // 머티리얼이 아직 없으면 만들고 FBX 를 다시 임포트한다(리맵은 ContainerMaterialRemap 메뉴가 .meta 에 기록).
             if (EnsureMaterials()) AssetDatabase.ImportAsset(fbx, ImportAssetOptions.ForceUpdate);
 
             var src = AssetDatabase.LoadAssetAtPath<GameObject>(fbx);

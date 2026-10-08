@@ -40,7 +40,7 @@ namespace AIXRCrane.Ship.EditorTools
             else
             {
                 msg = $"[ShipBerth] 씬에 부두('{StsPartNames.QuayGround}')도 크레인('{CraneName}')도 없어 접안을 건너뜁니다. " +
-                      $"'Ground/부두 바닥 생성'을 먼저 실행하면 컨테이너선이 자동으로 접안합니다.";
+                      $"'Model/FBX/항구/레일 배치'를 먼저 실행하면 컨테이너선이 자동으로 접안합니다.";
                 return false;
             }
 

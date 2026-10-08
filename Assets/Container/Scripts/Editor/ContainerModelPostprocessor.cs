@@ -43,17 +43,9 @@ namespace AIXRCrane.EditorTools
             imp.weldVertices      = true;    // 노멀을 Import 하므로 위치·노멀·UV 가 모두 같은 정점만 합친다 — 하드에지 유지.
             imp.generateSecondaryUV = false; // 라이트맵 미사용
 
-            // 머티리얼은 OnAssignMaterialModel 이 프로젝트 에셋으로 연결한다.
+            // 머티리얼 연결은 ContainerMaterialRemap(메뉴 '머티리얼 리맵 (Final4)')이 .meta 리맵으로 한다.
             imp.materialImportMode = ModelImporterMaterialImportMode.ImportStandard;
             imp.materialLocation   = ModelImporterMaterialLocation.InPrefab;
-        }
-
-        /// <summary>FBX 머티리얼 이름(Blender 재질명)을 프로젝트 머티리얼 에셋으로 치환. 없으면 null(Unity 기본 처리).</summary>
-        Material OnAssignMaterialModel(Material material, Renderer renderer)
-        {
-            if (!IsContainerModel(assetPath)) return null;
-            string path = MaterialDir + material.name + ".mat";
-            return AssetDatabase.LoadAssetAtPath<Material>(path);   // 없으면 null
         }
 
         void OnPreprocessTexture()

@@ -29,7 +29,7 @@ namespace AIXRCrane.Crane.Sts.Net.EditorTools
                 " • 조종자 = '호스트 시작'\n • 관전자 = 호스트 IP로 '참가'\n\n" +
                 "참가자 아바타: " + AvatarPath + "\n" +
                 "  · 접속 인원마다 하나씩 자동 스폰됩니다.\n" +
-                "  · 모습은 Body 밑 0.5 m 정육면체(머리 높이)입니다 — 바꾸려면 Body 밑 메시를 교체하세요.", "확인");
+                "  · Body 는 비어 있습니다 — 모습을 바꾸려면 Body 밑에 메시를 넣으세요.", "확인");
         }
 
         // NetworkManager

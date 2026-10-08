@@ -132,7 +132,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             float baseX, baseY;
             if (existing != null) { baseX = existing.transform.position.x; baseY = existing.transform.position.y; }
             else if (TryFindQuayRailLandX(out float qx)) { baseX = qx; baseY = 0f; }
-            else { Debug.LogWarning("[STS] 기준 STS/QuayRail 없음 — 'STS 크레인 생성' 또는 '부두 바닥 생성' 먼저."); return; }
+            else { Debug.LogWarning("[STS] 기준 STS/QuayRail 없음 — 'STS 크레인 생성' 또는 'Model/FBX/항구/레일 배치' 먼저."); return; }
 
             // 대칭 중심 Z — 지면(슬래브) 중심. 없으면 기존 STS Z.
             float centerZ = existing != null ? existing.transform.position.z : 0f;
@@ -2310,35 +2310,6 @@ namespace AIXRCrane.Crane.Sts.EditorTools
                         new Vector3(0.003f, 0.028f, 0.003f), CSafety);   // 기둥 top을 상단레일 바깥면(+t/2)까지 위로
                 }
             }
-
-#if false   // 페스툰 삭제 — 케이블 1가닥뿐 빈약. 트랙+다발 재설계 예정.
-            // 페스툰(전력·제어 케이블) — 붐 하부 트랙 + 늘어진 케이블 다발
-            float len = x1 - x0;
-            float festZ = GirderOuterZ + 0.008f;
-            Box(boom, "Festoon_Track", new Vector3(mid, -0.006f, festZ),
-                new Vector3(len, 0.004f, 0.004f), CDark);
-            // 페스툰 트랙 행어 브래킷 — 트랙(z≈0.1905)을 옆 캣워크(z≈0.1945)에 고정(2mm 공중부양 제거).
-            foreach (float fbx in new[] { x0 + len * 0.25f, mid, x1 - len * 0.25f })
-                Box(boom, "Festoon_Bracket", new Vector3(fbx, -0.003f, GirderOuterZ + 0.010f),
-                    new Vector3(0.006f, 0.006f, 0.013f), CStruct);
-            int loops = 12;
-            var festX = new float[loops];
-            for (int i = 0; i < loops; i++)
-            {
-                float fx = Mathf.Lerp(x0 + 0.05f, x1 - 0.05f, i / (float)(loops - 1));
-                festX[i] = fx;
-                // 페스툰 새들(트랙에 매달린 케이블 행거)
-                Box(boom, "Festoon_Saddle", new Vector3(fx, -0.013f, festZ),
-                    new Vector3(0.005f, 0.014f, 0.005f), CDark);
-            }
-            // 늘어진 케이블 루프 — 인접 새들 사이가 아래로 처지는 카테너리(1가닥).
-            float festBotY = -0.020f, festSag = 0.012f;
-            for (int i = 0; i < loops - 1; i++)
-                CableCatenary(boom, "Festoon_Cable",
-                    new Vector3(festX[i], festBotY, festZ),
-                    new Vector3(festX[i + 1], festBotY, festZ),
-                    festSag, 0.0016f, CCable);
-#endif
 
             // 뒷부분(육지측 백리치) 디테일. 평형추는 없다 — 긴 아웃리치는 A프레임+포어/백스테이 텐션+기계실 질량+백리치 구조로 균형.
             // 백스테이 이퀄라이저 노드(빌트업) — 웹+상하 플랜지+수직 스티프너+거더 접속 거싯+양끝 클레비스 러그/핀.
