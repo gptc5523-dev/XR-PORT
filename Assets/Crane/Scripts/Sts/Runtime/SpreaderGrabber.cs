@@ -94,6 +94,7 @@ namespace AIXRCrane.Crane.Sts
         SpreaderHoist spreaderHoist;   // 잡은 컨테이너 밑면 기준으로 하강 바닥 한계 설정
         Transform[] twistlocks;   // Twistlock_Cone들 — 잡기 기준점
         readonly List<Rigidbody> bodies = new List<Rigidbody>();   // 씬 강체 목록(재사용 버퍼)
+        readonly List<Renderer[]> bodyRends = new List<Renderer[]>();   // bodies[i] 의 렌더러 — 틱마다 GetComponentsInChildren 하면 7.8ms·205KB GC 였다
         float nextRefresh;
 
         float floorTopY;             // 바닥 윗면 월드 Y(통과방지 기본 받침). SSOT = ContainerPhysicsStabilizer.FindFloorTopY
@@ -152,10 +153,24 @@ namespace AIXRCrane.Crane.Sts
             // 강체 전부를 담고 크레인 자식 제외는 쓰는 쪽에서 매 틱 건다.
             //   ★ 스캔 때 거르면 재스캔 전까지 통과방지가 그 컨테이너를 못 보고 관통한다.
             var all = FindObjectsByType<Rigidbody>(FindObjectsInactive.Exclude);
-            bodies.Clear();
+            bodies.Clear(); bodyRends.Clear();
             foreach (var rb in all)
-                if (rb != null) bodies.Add(rb);
+                if (rb != null) { bodies.Add(rb); bodyRends.Add(rb.GetComponentsInChildren<Renderer>()); }
             nextRefresh = Time.time + MinRescanInterval;
+        }
+
+        // bodies[i] 의 렌더러 바운즈 합 — SceneUtil.TryBounds 와 같은 기준(꺼진 오브젝트만 뺀다), 다만 렌더러는 Refresh 때 모아 둔 것.
+        bool BodyBounds(int i, out Bounds b)
+        {
+            b = default;
+            bool any = false;
+            foreach (var rd in bodyRends[i])
+            {
+                if (rd == null || !rd.gameObject.activeInHierarchy) continue;
+                if (any) b.Encapsulate(rd.bounds);
+                else { b = rd.bounds; any = true; }
+            }
+            return any;
         }
 
         // 트위스트락 콘들의 중심(없으면 부착점) — 잡기 기준점
@@ -320,12 +335,13 @@ namespace AIXRCrane.Crane.Sts
 
             // 옮길 자리가 다른 컨테이너와 '교차'하면 원복. 0.98 은 닿음(적층)과 파고듦을 가르는 여유.
             var moved = new Bounds(nb.center + delta, nb.size * 0.98f);
-            foreach (var rb in bodies)
+            for (int i = 0; i < bodies.Count; i++)
             {
+                var rb = bodies[i];
                 if (rb == null) continue;
                 Transform t = rb.transform;
                 if (t == c || t.IsChildOf(c) || c.IsChildOf(t) || t.IsChildOf(transform)) continue;
-                if (SceneUtil.TryBounds(t, out Bounds ob) && moved.Intersects(ob))
+                if (BodyBounds(i, out Bounds ob) && moved.Intersects(ob))
                 {
                     c.rotation = rotWas;
                     if (debugLog) Debug.Log($"[Crane] 야드 칸 정렬 건너뜀 — 목표 칸이 {t.name} 와(과) 겹침. 놓은 자리 그대로 둠.");
@@ -428,11 +444,12 @@ namespace AIXRCrane.Crane.Sts
             bool over = false;
             float selOverlap = 0f;        // 받침 겹침 비율(QA)
             float maxOverlapSeen = 0f;    // 본 최대 겹침(QA '옆 나란히' 근거)
-            foreach (var rb in bodies)
+            for (int i = 0; i < bodies.Count; i++)
             {
+                var rb = bodies[i];
                 if (rb == null) continue;
                 if (rb.transform.IsChildOf(transform)) continue;   // 크레인 자식 제외
-                if (!SceneUtil.TryBounds(rb.transform, out Bounds b)) continue;
+                if (!BodyBounds(i, out Bounds b)) continue;
 
                 bool below;
                 float overlapFrac = 0f;
@@ -541,10 +558,11 @@ namespace AIXRCrane.Crane.Sts
 
             // 렌더러 바운즈 최근접(콜라이더를 못 맞춘 경우)
             Transform best = null;
-            foreach (var rb in bodies)
+            for (int i = 0; i < bodies.Count; i++)
             {
+                var rb = bodies[i];
                 if (rb == null || rb.transform.IsChildOf(transform)) continue;
-                if (!SceneUtil.TryBounds(rb.transform, out Bounds b)) continue;
+                if (!BodyBounds(i, out Bounds b)) continue;
                 float d = Vector3.Distance(gp, b.ClosestPoint(gp));   // 바운즈 표면까지 거리
                 if (d <= range && d < dist) { dist = d; best = rb.transform; }
             }
