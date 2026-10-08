@@ -38,6 +38,7 @@ import io
 import ipaddress
 import json
 import os
+import re
 import sqlite3
 import sys
 import threading
@@ -102,18 +103,36 @@ CREATE TABLE IF NOT EXISTS users (
 USER_FIELDS = ("device_type", "device_label", "name", "position", "department", "role", "can_host", "color", "memo", "active")
 
 
+def user_error(u):
+    """등록 한 건이 쓸 만한가 — 문제면 사유 문자열, 괜찮으면 None."""
+    if not isinstance(u, dict):
+        return "object 필요"
+    for k in ("device_id", "device_type", "name", "role"):
+        if not str(u.get(k) or "").strip():
+            return f"{k} 필요"
+    if any(len(str(u.get(k) or "")) > 200 for k in ("device_id", *USER_FIELDS)):
+        return "값이 너무 김(200자)"
+    if u.get("color") and not re.fullmatch(r"#[0-9A-Fa-f]{6}", str(u["color"]).strip()):
+        return "color 는 #RRGGBB 형식"
+    return None
+
+
+def upsert_user(con, u, overwrite=True):
+    """users 에 한 건 넣기 — 이미 있으면 내용만 갱신(overwrite=False 면 그대로 둔다), 등록 시각은 처음 값. 커밋은 호출자."""
+    vals = [u.get(k) for k in USER_FIELDS]
+    vals[USER_FIELDS.index("can_host")] = 1 if u.get("can_host") else 0
+    vals[USER_FIELDS.index("active")] = 0 if u.get("active") is False else 1
+    con.execute(f"INSERT INTO users(device_id, {', '.join(USER_FIELDS)}, registered_at) VALUES (?{', ?' * len(USER_FIELDS)}, ?) "
+                f"ON CONFLICT(device_id) DO " + (f"UPDATE SET {', '.join(f'{k}=excluded.{k}' for k in USER_FIELDS)}" if overwrite else "NOTHING"),
+                [str(u["device_id"]).strip(), *vals, int(time.time() * 1000)])
+
+
 def load_users(con, path):
-    """등록 파일(JSON 배열)을 users 에 넣는다 — 이미 있으면 내용만 갱신하고 등록 시각은 둔다. 넣은 수."""
+    """등록 파일(JSON 배열)의 처음 등록만 넣는다 — 이미 있는 기기는 웹(/register)에서 고친 값을 지킨다. 파일 건수."""
     with open(path, encoding="utf-8") as f:
         users = json.load(f)
-    now = int(time.time() * 1000)
     for u in users:
-        vals = [u.get(k) for k in USER_FIELDS]
-        vals[USER_FIELDS.index("can_host")] = 1 if u.get("can_host") else 0
-        vals[USER_FIELDS.index("active")] = 0 if u.get("active") is False else 1
-        con.execute(f"INSERT INTO users(device_id, {', '.join(USER_FIELDS)}, registered_at) VALUES (?{', ?' * len(USER_FIELDS)}, ?) "
-                    f"ON CONFLICT(device_id) DO UPDATE SET {', '.join(f'{k}=excluded.{k}' for k in USER_FIELDS)}",
-                    [u["device_id"], *vals, now])
+        upsert_user(con, u, overwrite=False)
     con.commit()
     return len(users)
 
@@ -313,10 +332,19 @@ class Handler(BaseHTTPRequestHandler):
             with self.lock:
                 return self.send_json(self.cargo.get(crane or "", {"boxes": [], "held": []}))
 
+        if path == "/register":
+            with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "register.html"), "rb") as f:
+                page = f.read()
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(page)))
+            self.end_headers()
+            return self.wfile.write(page)
+
         if path == "/users":
-            sql, args = "SELECT * FROM users WHERE active=1", []
+            sql, args = ("SELECT * FROM users", []) if self.q("all") else ("SELECT * FROM users WHERE active=1", [])
             if self.q("device"):
-                sql += " AND device_id=?"; args.append(self.q("device"))
+                sql += (" AND" if "WHERE" in sql else " WHERE") + " device_id=?"; args.append(self.q("device"))
             return self.send_json({"users": rows_to_dicts(self.con.execute(sql, args))})
 
         if path == "/runs":
@@ -327,12 +355,12 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json(rows_to_dicts(cur))
 
         return self.send_json({"error": "not found",
-                               "endpoints": ["/health", "/latest", "/history", "/alarms", "/runs", "/since", "/users", "POST /ingest"]}, 404)
+                               "endpoints": ["/health", "/latest", "/history", "/alarms", "/runs", "/since", "/users", "/register", "POST /ingest", "POST /users"]}, 404)
 
     def do_POST(self):
         if self.denied():
             return
-        if urlparse(self.path).path not in ("/ingest", "/cargo", "/command"):
+        if urlparse(self.path).path not in ("/ingest", "/cargo", "/command", "/users"):
             return self.send_json({"error": "not found"}, 404)
         try:
             n = int(self.headers.get("Content-Length", "0"))
@@ -346,6 +374,14 @@ class Handler(BaseHTTPRequestHandler):
             with self.lock:
                 self.commands.setdefault(crane, []).append(body)
             return self.send_json({"ok": True, "queued": body["do"]})
+        if urlparse(self.path).path == "/users":
+            err = user_error(body)
+            if err:
+                return self.send_json({"error": err}, 400)
+            with self.lock:
+                upsert_user(self.con, body)
+                self.con.commit()
+            return self.send_json({"ok": True, "device_id": str(body["device_id"]).strip()})
         if urlparse(self.path).path == "/cargo":
             crane = self.q("crane")
             if not crane or not isinstance(body, dict) or not isinstance(body.get("boxes"), list):

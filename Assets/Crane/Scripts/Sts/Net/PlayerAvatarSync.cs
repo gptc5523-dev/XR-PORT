@@ -41,6 +41,23 @@ namespace AIXRCrane.Crane.Sts.Net
             ColorUtility.TryParseHtmlString(colorHex.Value.ToString(), out var c) ? c
             : palette.Length == 0 ? Color.white : palette[(int)(OwnerClientId % (ulong)palette.Length)];
 
+        /// <summary>참가자 목록 문구 — 방 안 아바타(없으면 나 혼자), 식별색 ● + 등록 정보. 모바일·VR 목록 공용.</summary>
+        public static string ListText()
+        {
+            var rows = new List<string>();
+            foreach (var a in FindObjectsByType<PlayerAvatarSync>(FindObjectsSortMode.None))
+                if (a.IsSpawned && a.Label.Value.Length > 0) rows.Add(Row(a.TintColor, a.Label.Value.ToString()));
+            if (rows.Count == 0 && DeviceIdentity.Looked)
+            {
+                var me = DeviceIdentity.Me;
+                var tint = me != null && !string.IsNullOrEmpty(me.color) && ColorUtility.TryParseHtmlString(me.color, out var c) ? c : DefaultPalette[0];
+                rows.Add(Row(tint, DeviceIdentity.Label));
+            }
+            return rows.Count == 0 ? "" : $"<b>참가자 {rows.Count}</b>\n" + string.Join("\n", rows);
+        }
+
+        static string Row(Color tint, string raw) => $"<color=#{AIXRCrane.Crane.Sts.CraneHud.Hex(tint)}>●</color> {DeviceIdentity.LineText(raw)}";
+
         public override void OnNetworkSpawn()
         {
             CollectRenderers();

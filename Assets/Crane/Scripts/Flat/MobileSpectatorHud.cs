@@ -174,21 +174,7 @@ namespace AIXRCrane.Crane.Flat
         }
 
         // 오른쪽 위 참가자 목록 — 한 사람 한 줄 "● 관전  소속 직급 이름". 세션 밖이면 아바타가 없으니 나만.
-        string WhoBody()
-        {
-            var rows = new System.Collections.Generic.List<string>();
-            foreach (var a in FindObjectsByType<AIXRCrane.Crane.Sts.Net.PlayerAvatarSync>(FindObjectsSortMode.None))
-                if (a.IsSpawned && a.Label.Value.Length > 0) rows.Add(Row(a.TintColor, a.Label.Value.ToString()));
-            if (rows.Count == 0 && AIXRCrane.Crane.Sts.Net.DeviceIdentity.Looked)
-            {
-                var me = AIXRCrane.Crane.Sts.Net.DeviceIdentity.Me;
-                var tint = me != null && !string.IsNullOrEmpty(me.color) && ColorUtility.TryParseHtmlString(me.color, out var c) ? c : AIXRCrane.Crane.Sts.Net.PlayerAvatarSync.DefaultPalette[0];
-                rows.Add(Row(tint, AIXRCrane.Crane.Sts.Net.DeviceIdentity.Label));
-            }
-            return rows.Count == 0 ? "" : $"<b>참가자 {rows.Count}</b>\n" + string.Join("\n", rows);
-        }
-
-        static string Row(Color tint, string raw) => $"<color=#{CraneHud.Hex(tint)}>●</color> {AIXRCrane.Crane.Sts.Net.DeviceIdentity.LineText(raw)}";
+        static string WhoBody() => AIXRCrane.Crane.Sts.Net.PlayerAvatarSync.ListText();
 
         static string Pct(IAxisMover axis) => axis == null ? "—" : $"{FlatHud.Percent(axis):0.0}%";
     }

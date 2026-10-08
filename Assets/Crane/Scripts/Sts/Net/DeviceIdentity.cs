@@ -66,6 +66,7 @@ namespace AIXRCrane.Crane.Sts.Net
             lookup = null;
             if (t.Status != System.Threading.Tasks.TaskStatus.RanToCompletion) return;
             var list = JsonUtility.FromJson<UserList>(t.Result)?.users ?? new User[0];
+            if (DeviceId == "" && Slot == 0) DeviceId = GlassesId();
             string slotKey = Slot > 0 ? "SLOT:" + Slot : null;
             foreach (var u in list) if (DeviceId != "" && u.device_id == DeviceId) Me = u;
             if (Me == null) foreach (var u in list) if (u.device_id == slotKey) Me = u;
@@ -93,6 +94,17 @@ namespace AIXRCrane.Crane.Sts.Net
         {
             string s = string.Join(sep, System.Array.FindAll(new[] { p[1], p[2], p[3] }, x => x.Length > 0));
             return s.Length > 0 ? s : "미등록";
+        }
+
+        // 자리 없는 관전 앱(안경) — 리모컨 수신기가 크레인 앱 폴더에 적어 둔 Beam Pro ID.
+        static string GlassesId()
+        {
+            try
+            {
+                string f = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(Application.dataPath), "glasses_device.txt");
+                return System.IO.File.Exists(f) ? System.IO.File.ReadAllText(f).Trim() : "";
+            }
+            catch (System.Exception) { return ""; }
         }
 
         static string Arg(string name)
