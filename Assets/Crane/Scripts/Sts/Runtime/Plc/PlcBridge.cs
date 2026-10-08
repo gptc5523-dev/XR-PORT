@@ -53,7 +53,7 @@ namespace AIXRCrane.Crane.Sts.Plc
 
         [Header("진단")]
         [Tooltip("켜면 구동 중 초당 1회 콘솔에 PLC 읽기/축 값 로그(실시간 검증용). 평소엔 꺼둠.")]
-        [SerializeField] bool logTelemetry = true;
+        [SerializeField] bool logTelemetry = false;
 
         StsCrane crane;
         readonly VirtualPlcSource sim = new VirtualPlcSource();

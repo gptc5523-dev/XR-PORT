@@ -24,7 +24,7 @@ namespace AIXRCrane.Crane.Sts
 
         [Tooltip("Play 시작 시 자동 스캔.")]
         [SerializeField] bool scanOnStart = true;
-        [Tooltip("스캔 결과를 콘솔에 표로 출력.")]
+        [Tooltip("스캔 결과를 콘솔에 표로 출력(에디터만).")]
         [SerializeField] bool logResults = true;
         [Tooltip("긴축(모델) 길이가 이 값을 넘으면 40ft로 인식 (20ft≈0.25 / 40ft≈0.51).")]
         [SerializeField] float fortyFtThreshold = YardGrid.Is40ThresholdU;
@@ -49,7 +49,7 @@ namespace AIXRCrane.Crane.Sts
                 if (!SceneUtil.TryBounds(t, out Bounds b)) continue;                    // 렌더러 없는 강체 제외
                 found.Add(Recognize(t, b));
             }
-            if (logResults) LogTable();
+            if (logResults && Application.isEditor) LogTable();   // 빌드에선 230줄 표를 안 찍는다 — 관전 앱마다 시작 로그를 덮었다
             ReportOverlaps();
             return found.Count;
         }

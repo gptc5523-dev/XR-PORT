@@ -30,7 +30,7 @@ namespace AIXRCrane.Crane.Sts
         [Tooltip("HMD 시야 안 패널 표시. 콘솔만 쓸 거면 꺼서 캔버스 리빌드 부하/관찰자효과 제거.")]
         [SerializeField] bool showHud = false;   // 콘솔로 보는 중 — HUD 끔(캔버스 미생성). 다시 보려면 true.
         [Tooltip("콘솔 로그 주기(초). 이 구간의 평균 FPS·최악 프레임타임·GC를 집계해 한 줄로 찍음.")]
-        [SerializeField] float logIntervalSec = 2f;
+        [SerializeField] float logIntervalSec = 10f;   // 2초면 앱마다 시간당 1800줄 — 집계 창이 길어도 최악 프레임은 잡힌다
 
         [Header("측정 설정")]
         [Tooltip("HUD 표시 갱신/집계 창 길이(초). 이 구간의 평균 FPS와 최악 프레임타임을 보여줌.")]
