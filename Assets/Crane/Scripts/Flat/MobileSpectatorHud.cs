@@ -128,10 +128,33 @@ namespace AIXRCrane.Crane.Flat
 
         // 세션 밖이면 참가자로 붙는다(호스트 시작 없음). ★ 호스트 비콘이 방금 왔을 때만, 비콘 IP로만 붙는다 —
         //   호스트 없이 붙으면 Netcode가 재시도마다 오류를 쌓았다. 끊기면 다음 비콘에 다시 붙는다.
+        // -join 127.0.0.1 = 같은 서버의 VR 호스트에 붙는다. 서버는 자기 브로드캐스트를 되받지 못해 비콘 대신
+        //   호스트 포트가 잡혀 있는지(바인드 실패)로 호스트가 떴는지 본다.
+        static readonly string LocalHost = JoinArg();
+
+        static string JoinArg()
+        {
+            var a = System.Environment.GetCommandLineArgs();
+            int i = System.Array.IndexOf(a, "-join");
+            return i >= 0 && i + 1 < a.Length ? a[i + 1] : null;
+        }
+        float nextProbe;
+
+        static bool HostPortTaken()
+        {
+            try { using (new System.Net.Sockets.UdpClient(new System.Net.IPEndPoint(System.Net.IPAddress.Any, NetConfig.DefaultPort))) return false; }
+            catch (System.Net.Sockets.SocketException) { return true; }
+        }
+
         void EnsureParticipant()
         {
             var nm = NetworkManager.Singleton;
             if (nm == null || net == null || nm.IsClient || nm.IsServer) return;
+            if (LocalHost != null && Time.unscaledTime >= nextProbe)
+            {
+                nextProbe = Time.unscaledTime + 1f;
+                if (HostPortTaken()) net.SetDiscoveredHost(LocalHost);
+            }
             if (!net.HostDiscovered || Time.unscaledTime - net.LastHostSeen > joinRetrySeconds) return;
             if (Time.unscaledTime < nextJoinTry) return;
             nextJoinTry = Time.unscaledTime + joinRetrySeconds;
