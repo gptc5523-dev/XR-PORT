@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using Unity.Netcode;
 using UnityEngine;
+using UnityEngine.XR.Interaction.Toolkit;
 using UnityEngine.XR.Interaction.Toolkit.Interactables;
 
 namespace AIXRCrane.Crane.Sts.Net
@@ -83,6 +84,7 @@ namespace AIXRCrane.Crane.Sts.Net
         // 결정적 컨테이너 스냅샷 — 초기 좌표(0.1m 반올림) 정렬. 이름이 전부 같아 이름 정렬은 불안정.
         List<Transform> containerSnapshot;
         readonly List<XRGrabInteractable> containerGrabs = new();   // snapshot과 인덱스 정렬
+        readonly List<(UnityEngine.Events.UnityAction<SelectEnterEventArgs> on, UnityEngine.Events.UnityAction<SelectExitEventArgs> off)> grabHooks = new();   // 내가 단 리스너만 뗀다
         readonly HashSet<int> myOwned = new();              // 내가 손에 든 인덱스
         readonly HashSet<int> appliedRemote = new();        // 남이 든 것(내가 kinematic 적용 중)
         readonly Dictionary<int, bool> origKinematic = new();   // 적용 전 원래 isKinematic
@@ -146,12 +148,21 @@ namespace AIXRCrane.Crane.Sts.Net
             if (!IsServer)
                 DisableControlOnClient();   // 관전자: 조종 입력/로직 정지
             SubscribeContainers();          // 호스트·관전자 모두: 손 집기/놓기 후킹(핸드오프)
+            if (IsServer) NetworkManager.OnClientDisconnectCallback += DropHeldOf;
+        }
+
+        // 컨테이너를 든 채 나간 참가자 — 놓기 RPC 가 안 오므로 서버가 놓는다(안 하면 모두에게 kinematic 으로 언 채 남는다).
+        void DropHeldOf(ulong clientId)
+        {
+            for (int i = nHeld.Count - 1; i >= 0; i--)
+                if (nHeld[i].Owner == clientId) nHeld.RemoveAt(i);
         }
 
         // 디스폰(호스트 끊김 포함) 시 정리 — 안 하면 든 컨테이너가 kinematic 으로 얼고 조종이 꺼진 채 남는다.
         public override void OnNetworkDespawn()
         {
             if (_instance == this) _instance = null;
+            if (IsServer && NetworkManager != null) NetworkManager.OnClientDisconnectCallback -= DropHeldOf;
             if (clientHeld != null) ClientDetach();   // 들고 있던 컨테이너 놓아 물리 복원
             foreach (var b in disabledOnClient)
                 if (b != null) b.enabled = true;       // 끈 조종 컴포넌트 복원
@@ -359,15 +370,16 @@ namespace AIXRCrane.Crane.Sts.Net
             });
             containerSnapshot = found;
 
-            containerGrabs.Clear();
+            containerGrabs.Clear(); grabHooks.Clear();
             for (int i = 0; i < found.Count; i++)
             {
                 var g = found[i].GetComponent<XRGrabInteractable>();
                 containerGrabs.Add(g);
-                if (g == null) continue;
                 int idx = i;
-                g.selectEntered.AddListener(_ => OnLocalGrab(idx));
-                g.selectExited.AddListener(_ => OnLocalRelease(idx));
+                grabHooks.Add((_ => OnLocalGrab(idx), _ => OnLocalRelease(idx)));
+                if (g == null) continue;
+                g.selectEntered.AddListener(grabHooks[i].on);
+                g.selectExited.AddListener(grabHooks[i].off);
             }
         }
 
@@ -377,12 +389,12 @@ namespace AIXRCrane.Crane.Sts.Net
             {
                 var g = containerGrabs[i];
                 if (g == null) continue;
-                g.selectEntered.RemoveAllListeners();
-                g.selectExited.RemoveAllListeners();
+                g.selectEntered.RemoveListener(grabHooks[i].on);
+                g.selectExited.RemoveListener(grabHooks[i].off);
                 if (!g.enabled) g.enabled = true;
             }
             foreach (var idx in new List<int>(appliedRemote)) RestoreContainerPhysics(idx);
-            containerGrabs.Clear(); myOwned.Clear(); appliedRemote.Clear();
+            containerGrabs.Clear(); grabHooks.Clear(); myOwned.Clear(); appliedRemote.Clear();
             origKinematic.Clear(); grabCooldownUntil.Clear(); _activeNow.Clear();
         }
 
