@@ -1340,35 +1340,50 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             }
             Mesh ToMesh(object model) => (Mesh) _csgToMesh.Invoke(null, new[] { model });
 
-            GameObject body = Cube(outerC, outerS);
-            object mdl = _csgSub.Invoke(null, new object[] { body, Cube(cavC, cavS) });
-            for (int i = 0; i < cutC.Count; i++)
+            // 임시 큐브·중간 메시는 성공·실패·예외 어느 쪽이든 지운다(예외로 빠지면 csg_tmp 가 씬에 남았다).
+            Mesh shellMesh = null;
+            bool ok = false;
+            try
             {
-                body = FromMesh(ToMesh(mdl));
-                mdl = _csgSub.Invoke(null, new object[] { body, Cube(cutC[i], cutS[i]) });
+                GameObject body = Cube(outerC, outerS);
+                object mdl = _csgSub.Invoke(null, new object[] { body, Cube(cavC, cavS) });
+                for (int i = 0; i < cutC.Count; i++)
+                {
+                    body = FromMesh(ToMesh(mdl));
+                    mdl = _csgSub.Invoke(null, new object[] { body, Cube(cutC[i], cutS[i]) });
+                }
+                shellMesh = ToMesh(mdl);
+                shellMesh.name = "Cab_Shell_Mesh";
+                // 메시 닫힘검사(수학적) — 정점 용접 후 삼각형 1개에만 속한 에지(경계/구멍) 수. watertight면 0.
+                //   >0이면 CSG가 면 빠짐/뒤집힘(see-through) → throw → watertight 패널 셸로 폴백.
+                int boundaryEdges = CountBoundaryEdges(shellMesh);
+                if (boundaryEdges > 0)
+                {
+                    Debug.Log($"[OperatorCab] Cab_Shell 닫힘검사 실패 — verts={shellMesh.vertexCount}, tris={shellMesh.triangles.Length / 3}, boundaryEdges={boundaryEdges}(0이어야 watertight)");
+                    throw new System.Exception($"CSG 셸 열림(구멍 {boundaryEdges}개) → watertight 패널 셸로 폴백");
+                }
+
+                var shell = new GameObject(Numbered("Cab_Shell"));
+                shell.transform.SetParent(cab, false);
+                shell.AddComponent<MeshFilter>().sharedMesh = shellMesh;
+                var mr = shell.AddComponent<MeshRenderer>();
+                int sc = Mathf.Max(1, shellMesh.subMeshCount);
+                var arr = new Material[sc]; for (int i = 0; i < sc; i++) arr[i] = mat;
+                mr.sharedMaterials = arr;
+                ok = true;
+                return shell;
             }
-            Mesh shellMesh = ToMesh(mdl);
-            shellMesh.name = "Cab_Shell_Mesh";
-            // 메시 닫힘검사(수학적) — 정점 용접 후 삼각형 1개에만 속한 에지(경계/구멍) 수. watertight면 0.
-            //   >0이면 CSG가 면 빠짐/뒤집힘(see-through) → temps 정리 후 throw → watertight 패널 셸로 폴백.
-            int boundaryEdges = CountBoundaryEdges(shellMesh);
-            if (boundaryEdges > 0)
+            finally
             {
-                Debug.Log($"[OperatorCab] Cab_Shell 닫힘검사 실패 — verts={shellMesh.vertexCount}, tris={shellMesh.triangles.Length / 3}, boundaryEdges={boundaryEdges}(0이어야 watertight)");
-                foreach (var t in temps) if (t != null) Object.DestroyImmediate(t);
-                throw new System.Exception($"CSG 셸 열림(구멍 {boundaryEdges}개) → watertight 패널 셸로 폴백");
+                foreach (var t in temps)
+                {
+                    if (t == null) continue;
+                    var mf = t.name == "csg_tmp" ? t.GetComponent<MeshFilter>() : null;
+                    if (mf != null && mf.sharedMesh != null) Object.DestroyImmediate(mf.sharedMesh);
+                    Object.DestroyImmediate(t);
+                }
+                if (!ok && shellMesh != null) Object.DestroyImmediate(shellMesh);
             }
-
-            var shell = new GameObject(Numbered("Cab_Shell"));
-            shell.transform.SetParent(cab, false);
-            shell.AddComponent<MeshFilter>().sharedMesh = shellMesh;
-            var mr = shell.AddComponent<MeshRenderer>();
-            int sc = Mathf.Max(1, shellMesh.subMeshCount);
-            var arr = new Material[sc]; for (int i = 0; i < sc; i++) arr[i] = mat;
-            mr.sharedMaterials = arr;
-
-            foreach (var t in temps) if (t != null) Object.DestroyImmediate(t);
-            return shell;
         }
 
         // 메시 닫힘 검사 — 위치(1e-5 양자화)로 정점을 용접하고, 삼각형 1개에만 속한 에지(경계=구멍) 수를 반환.
@@ -1459,10 +1474,9 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             }
         }
 
-        //  mountTopY: 통합 마운트 상단 Y(운전실이 매달리는 상부 구조 밑면, cab-local 단위).
-        //    STS(기본 −0.05)=트롤리 박스 하단. RTG는 프레임 밑면에 맞추려 −0.072를 넘긴다.
-        static void BuildOperatorCab(Transform trolley, float mountTopY = -0.05f)
+        static void BuildOperatorCab(Transform trolley)
         {
+            const float mountTopY = -0.05f;   // 통합 마운트 상단 Y = 트롤리 박스 하단(cab-local)
             // 육지쪽 매달림 — 운전실은 스프레더의 '육지쪽(−X)'에 있고 운전자가 '바다쪽(+X=배)'의 화물을 내려다본다.
             //   홀더 회전 identity(캡 Z대칭이라 180°Y와 동일 실루엣) + 평행이동 −0.018로 배치.
             Transform cab = new GameObject(StsPartNames.OperatorCab).transform;
@@ -1602,7 +1616,6 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             // 운전실 통합 마운트(Option C) — 트롤리 박스 하단(Y=-0.05)에서 운전실 지붕(-0.074)까지
             //   짧은 수직 포스트 4개 + 하부 결합 종재로 직결(운전실 4코너가 박스 풋프린트 안에 있어 안착).
             {
-                // mountTopY = 상부 결합면(STS 박스 하단 −0.05 / RTG 프레임 밑면 대응 −0.072). 파라미터로 주입.
                 float mountBotY = roofTopY - 0.001f;      // 운전실 지붕 결합부 -0.075 (1mm 묻힘)
                 float bt = 0.006f;                        // 종재 단면 t — 코너 솔리드 가로질러 덮기
                 // 수직 마운트 포스트 4 (front/back × 좌우) — 굵은 box
