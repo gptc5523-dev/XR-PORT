@@ -3,13 +3,13 @@ using UnityEngine.UI;
 
 namespace AIXRCrane.Crane.Sts.Net
 {
-    /// <summary>VR 참가자 목록 — 모바일 관전 화면과 같은 목록을 시야 좌상단(성능 HUD 자리)에 붙인다. 평면 모드에선 안 띄운다.</summary>
+    /// <summary>VR 참가자 목록 — 모바일 관전 화면과 같은 목록을 시야 왼쪽 아래에 붙인다(알람 띠·상태판 피함). 평면 모드·시작 메뉴 중엔 숨긴다.</summary>
     [DisallowMultipleComponent]
     public sealed class VrParticipantsHud : MonoBehaviour
     {
-        [SerializeField] Vector3 hmdOffset = new Vector3(-0.22f, 0.09f, CraneHud.HudDistance);
+        [SerializeField] Vector3 hmdOffset = new Vector3(-0.24f, -0.07f, CraneHud.HudDistance);
         [SerializeField, Range(-30f, 30f)] float tiltYawDeg = 15f;
-        [SerializeField, Range(-30f, 30f)] float tiltPitchDeg = 8f;
+        [SerializeField, Range(-30f, 30f)] float tiltPitchDeg = -6f;
         [SerializeField] float worldScale = 0.00075f;
         [SerializeField] int fontSize = 20;
 
@@ -42,7 +42,7 @@ namespace AIXRCrane.Crane.Sts.Net
                 attached = true;
             }
             string body = PlayerAvatarSync.ListText();
-            canvas.enabled = body.Length > 0;
+            canvas.enabled = body.Length > 0 && !CraneNetMenuHUD.MenuOpen;
             CraneHud.SetTextIfChanged(text, ref last, body);
         }
     }
