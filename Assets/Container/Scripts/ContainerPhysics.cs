@@ -130,7 +130,7 @@ namespace AIXRCrane
 
             // QA S-PHYS-3: 바닥가드 보정이 시작/종료된 순간만 한 줄(로그 폭주 방지).
             //   PASS = 보정 시점 침투가 반높이(0.054) 미만.
-            if (AIXRCrane.Crane.Sts.QaLog.Enabled && anyCorr != qaGuardActive)
+            if (anyCorr != qaGuardActive)
             {
                 qaGuardActive = anyCorr;
                 if (anyCorr)

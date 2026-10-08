@@ -30,7 +30,7 @@ namespace AIXRCrane.Crane.Sts
         public static double WindForce(double v, double area) => 0.5 * AirDensity * ContainerCd * area * v * Math.Abs(v);
 
         /// <summary>화물 항력 N — 상대풍속(풍속 − 매달림점 속도 − L·θ̇)으로 잰다.
-        /// 흔들림 속도 항이 공력 감쇠 ζ_aero = ρ·Cd·A·|w|/(2·m·ω₀)를 만든다(ZetaBare 와 같은 크기).</summary>
+        /// 흔들림 속도 항이 공력 감쇠 ζ_aero = ρ·Cd·A·|w|/(2·m·ω₀)를 만든다(장치 없는 로프·공기 감쇠 ζ≈0.02 와 같은 크기).</summary>
         public static double WindForceOn(double wind, double pivotVel, double omega, double ropeM, double area)
             => WindForce(wind - pivotVel - Math.Max(ropeM, MinRopeM) * omega, area);
 

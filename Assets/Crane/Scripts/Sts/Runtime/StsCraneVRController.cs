@@ -255,7 +255,7 @@ namespace AIXRCrane.Crane.Sts
                     float deltaModel = driveLS.x * gantrySpeedMps * crane.ModelScale / gantry.WorldPerUnit * dt;
                     gantry.MoveTo(gantry.Current + deltaModel);
                     // QA S-PHYS-1: 축 적분이 FixedUpdate에서만 일어남 — 이동 시작 엣지에서 1줄(폭주 방지).
-                    if (QaLog.Enabled && !qaGantryActive)
+                    if (!qaGantryActive)
                         QaLog.Info("GANTRY", "move", $"phase=FixedUpdate dt={QaLog.F(dt)} input={QaLog.F(driveLS.x)} " +
                             $"mps={QaLog.F(gantrySpeedMps)} scale={QaLog.F(crane.ModelScale)} deltaModel={QaLog.F(deltaModel)}");
                 }
@@ -270,7 +270,7 @@ namespace AIXRCrane.Crane.Sts
             {
                 float deltaModel = driveRS.x * trolleySpeedMps * crane.ModelScale / trolley.WorldPerUnit * dt;   // 축 단위(FBX RTG 트롤리는 루트 스케일 4.17 을 탄다)
                 trolley.MoveTo(trolley.Current + deltaModel);
-                if (QaLog.Enabled && !qaTrolleyActive)
+                if (!qaTrolleyActive)
                     QaLog.Info("TROLLEY", "move", $"phase=FixedUpdate dt={QaLog.F(dt)} input={QaLog.F(driveRS.x)} " +
                         $"mps={QaLog.F(trolleySpeedMps)} scale={QaLog.F(crane.ModelScale)} deltaModel={QaLog.F(deltaModel)}");
             }
@@ -296,7 +296,7 @@ namespace AIXRCrane.Crane.Sts
                 float deltaModel = driveLS.y * hoistMps * crane.ModelScale / hoist.WorldPerUnit * dt;
                 hoist.MoveTo(hoist.Current + deltaModel);
                 // QA S-PHYS-5: 하중별 권상속도 보간 — 권상 시작 엣지에서 1줄.
-                if (QaLog.Enabled && !qaHoistActive)
+                if (!qaHoistActive)
                     QaLog.Info("HOIST", "speed", $"phase=FixedUpdate tons={QaLog.F(tons)} mps={QaLog.F(hoistMps)} " +
                         $"band={band} scale={QaLog.F(crane.ModelScale)} deltaModel={QaLog.F(deltaModel)}");
             }

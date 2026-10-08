@@ -33,8 +33,6 @@ namespace AIXRCrane.Crane.Sts
         MaterialPropertyBlock mpb;
         float nextEval, nextPulse;
 
-        /// <summary>지금 강조 중인 렌더러 수(검증용).</summary>
-        public int LitCount => lit.Count;
 
         /// <summary>이 부품(또는 그룹) ID 가 minSev 이상으로 강조 중인가 — 지표 4 측정(Kpi4StatusAccuracy)이 쓴다.</summary>
         public bool IsLit(StsCrane crane, string partId, FaultSeverity minSev)
@@ -65,6 +63,8 @@ namespace AIXRCrane.Crane.Sts
             }
             QaLog.Check("ALARMLIT", "selfcheck", bad.Count == 0, $"alarms={n} bad={bad.Count} {string.Join(",", bad)}");
         }
+
+        void OnDestroy() { if (boxMat != null) Destroy(boxMat); }
 
         void OnDisable()
         {

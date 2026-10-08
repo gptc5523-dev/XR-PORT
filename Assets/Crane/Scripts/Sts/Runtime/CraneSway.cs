@@ -10,10 +10,8 @@ namespace AIXRCrane.Crane.Sts
     {
         public const string NodeName = "SwayNode";
 
-        /// <summary>흔들림 방지 장치 — PLC 생성기도 켠 크레인으로 데이터를 만든다(PlcSim/generate.py antisway = True).</summary>
-        public static bool AntiSway = true;
-        /// <summary>감쇠비 — 장치 있음 0.7(과도 없이 가장 빨리 잦아드는 근처), 로프·공기뿐 0.02.</summary>
-        public const double ZetaAntiSway = 0.7, ZetaBare = 0.02;
+        /// <summary>흔들림 방지 장치 감쇠비 0.7(과도 없이 가장 빨리 잦아드는 근처) — PLC 생성기도 켠 크레인으로 데이터를 만든다(PlcSim/generate.py antisway = True).</summary>
+        public const double ZetaAntiSway = 0.7;
         /// <summary>풍속(m/s)·불어오는 방위(°). 기본 = PlcSim/generate.py Sim(wind=8.0, wind_dir=270.0).</summary>
         public static float WindMps = 8f, WindFromDeg = 270f;
         /// <summary>돌풍 — 평균풍속에 ±이 비율을 펄린 잡음(주기 ~5초)으로 얹는다. 난류강도 0.15~0.2 가 항만 통상.</summary>
@@ -107,7 +105,7 @@ namespace AIXRCrane.Crane.Sts
                 fz0 = SwayDynamics.WindForceOn(wz, v.z, 0, L, heldSizeM.x * heldSizeM.y);
             }
 
-            double zeta = AntiSway ? ZetaAntiSway : ZetaBare;
+            const double zeta = ZetaAntiSway;
             SwayDynamics.Step(ref thX, ref omX, L, Ldot, zeta, a.x, fx, mass, dt);
             SwayDynamics.Step(ref thZ, ref omZ, L, Ldot, zeta, a.z, fz, mass, dt);
 

@@ -32,8 +32,6 @@ namespace AIXRCrane.Crane.Sts
         [SerializeField] bool drawGizmos = true;
 
         readonly List<Recognized> found = new List<Recognized>();
-        /// <summary>마지막 스캔 결과.</summary>
-        public IReadOnlyList<Recognized> Found => found;
 
         void Start() { if (scanOnStart) Scan(); }
 

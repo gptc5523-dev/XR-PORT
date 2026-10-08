@@ -9,15 +9,13 @@ namespace AIXRCrane.Crane.Sts
     /// 시점 회전·걷기는 이름이 달라 영향 없음.</summary>
     public static class XRTeleportActionDisabler
     {
-        const bool DebugLog = true;
         static bool _subscribed;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void Init()
         {
             int n = DisableTeleportActions();
-            if (DebugLog)
-                Debug.Log($"[XR] Teleport InputAction 자동 비활성화 — {n}개 (이후 enable되면 자동 재차단)");
+            Debug.Log($"[XR] Teleport InputAction 자동 비활성화 — {n}개 (이후 enable되면 자동 재차단)");
 
             if (!_subscribed)
             {

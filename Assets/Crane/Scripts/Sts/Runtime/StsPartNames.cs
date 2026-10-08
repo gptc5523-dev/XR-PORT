@@ -54,9 +54,6 @@ namespace AIXRCrane.Crane.Sts
         public const string QuayRail = "QuayRail";
         /// <summary>RTG 스택 존(장치장 블록) 바닥. RTG 배치가 이 렌더러를 찾아 그 위에 접지한다.</summary>
         public const string YardBlockZone = "YardBlock_Zone";
-        /// <summary>야드 마킹 계열 이름 접두 — 현행 "YardBlock_Zone/Rows/Edge" 와 구판 "Yard_Row/Slot/Edge" 를 모두 덮는다.
-        /// ★ "Yard_"(밑줄 포함)로 비교하면 현행 "YardBlock_*" 이 걸리지 않아 야드 중심 탐색이 조용히 실패한다.</summary>
-        public const string YardPrefix = "Yard";
 
         /// <summary>수면 계열 이름("Sea", "Sea_Foam" …) 판정 — 걷는 면/지면 Y 탐색에서 제외할 때 쓴다.
         /// 바다 메시가 아스팔트 슬래브보다 수평 면적이 넓어 '면적 최대' 휴리스틱이 바다를 고르는 사고를 막는다.</summary>

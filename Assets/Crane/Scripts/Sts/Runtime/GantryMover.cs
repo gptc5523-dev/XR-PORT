@@ -150,7 +150,7 @@ namespace AIXRCrane.Crane.Sts
         bool qaBlockedPrev;
         void QaBlockEdge(bool blocked, float target, string obstacle)
         {
-            if (!QaLog.Enabled || blocked == qaBlockedPrev) return;
+            if (blocked == qaBlockedPrev) return;
             qaBlockedPrev = blocked;
             if (blocked)
                 QaLog.Check("GANTRY", "block", true,

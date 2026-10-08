@@ -35,9 +35,6 @@ namespace AIXRCrane.Crane.Sts
         Vector3[] _lastSheave, _lastDrum, _lastAnchor;
         bool _dirty = true;
 
-        [Tooltip("진단 로그(약 3Hz) — 시브 높이·로프 길이가 승강 따라 변하는지 콘솔 확인용. 검증 후 끄기.")]
-        [SerializeField] bool logDiag = true;
-        float _logNext;
 
         void OnEnable()  { _dirty = true; }
         void OnDestroy()
@@ -47,7 +44,8 @@ namespace AIXRCrane.Crane.Sts
             {
                 if (mf == null) continue;
                 var m = mf.sharedMesh;
-                if (m != null && m.name.StartsWith("RopeTube")) DestroyImmediate(m);
+                if (m == null || !m.name.StartsWith("RopeTube")) continue;
+                if (Application.isPlaying) Destroy(m); else DestroyImmediate(m);
             }
         }
 
@@ -74,15 +72,6 @@ namespace AIXRCrane.Crane.Sts
                 float sr = (sheaveRadii != null && i < sheaveRadii.Length) ? sheaveRadii[i] : 0.02f;
                 BuildCenterline(de, an, ce, sr);
                 BuildTube(mf, _center);
-
-                // 진단: 코너0의 시브 높이·로프 길이를 약 3Hz로 로그(승강 따라 변하는지 검증)
-                if (logDiag && i == 0 && Time.time >= _logNext)
-                {
-                    _logNext = Time.time + 0.33f;
-                    float len = 0f;
-                    for (int p = 1; p < _center.Count; p++) len += (_center[p] - _center[p - 1]).magnitude;
-                    Debug.Log($"[ROPE] sheaveY={ce.y:F3} ropeLen={len:F3}m ({_center.Count}pt) drumY={de.y:F3} anchY={an.y:F3}");
-                }
             }
             _dirty = false;
         }

@@ -391,7 +391,7 @@ namespace AIXRCrane.Crane.Sts
             // Anti-Collision 은 접점(NotifyContact) 방식 — OverlapBox 는 일찍 뜨고 바닥을 놓쳐 폐기.
             LoadCollision = Time.time - lastAntiCollTime <= loadCollisionHold;
             // QA S-PASS-5: 경보 상태 변화만.
-            if (QaLog.Enabled && LoadCollision != qaPrevLoadColl)
+            if (LoadCollision != qaPrevLoadColl)
             {
                 QaLog.Info("SIDE", "anticoll",
                     $"hold={QaLog.F(loadCollisionHold)} LoadCollision={LoadCollision}");
@@ -494,8 +494,6 @@ namespace AIXRCrane.Crane.Sts
         void QaPassState(bool holding, bool over, bool sideHit, float corr,
                          float limit, float top, float topMinY, float refBottomY, float selOverlap, float maxOverlapSeen)
         {
-            if (!QaLog.Enabled) return;
-
             // S-PASS-2 측면충돌: sideHit 상승 엣지.
             if (sideHit && !qaPrevSideHit)
             {

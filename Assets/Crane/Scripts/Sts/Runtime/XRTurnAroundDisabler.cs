@@ -8,8 +8,6 @@ namespace AIXRCrane.Crane.Sts
     /// enableTurnAround 플래그만 리플렉션으로 false 로(XRI 버전별 타입 차이 대응). MonoBehaviour 아님, 자동 실행.</summary>
     public static class XRTurnAroundDisabler
     {
-        const bool DebugLog = true;
-
         // 회전 Provider 후보 타입 (네임스페이스 버전차 대응 — 없으면 무시)
         static readonly string[] TypeNames =
         {
@@ -23,8 +21,7 @@ namespace AIXRCrane.Crane.Sts
         static void Init()
         {
             int n = DisableTurnAround();
-            if (DebugLog)
-                Debug.Log($"[XR] 스틱 아래 180° 뒤돌기(enableTurnAround) 비활성화 — Provider {n}개 처리 (좌우 회전은 유지)");
+            Debug.Log($"[XR] 스틱 아래 180° 뒤돌기(enableTurnAround) 비활성화 — Provider {n}개 처리 (좌우 회전은 유지)");
         }
 
         static int DisableTurnAround()

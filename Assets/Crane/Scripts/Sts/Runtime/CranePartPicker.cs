@@ -47,6 +47,12 @@ namespace AIXRCrane.Crane.Sts
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void AutoSpawn() => CraneHud.EnsureSpawned<CranePartPicker>("PartPick");
 
+        void OnDestroy()
+        {
+            foreach (var l in new[] { box, laser })
+                if (l != null && l.sharedMaterial != null) Destroy(l.sharedMaterial);   // MakeLine 이 만든 인스턴스
+        }
+
         void Start()
         {
             canvas = CraneHud.BuildPanel(transform, "PartInfo", panelPixels, worldScale,

@@ -83,11 +83,17 @@ namespace AIXRCrane.Crane.Sts
         static bool IsRtg(StsCrane c) => c.GetComponent<RtgBogieSteering>() != null;   // RTG 는 보기 조향이 붙어 있다
 
         void Awake() => inst = this;
-        void OnDestroy() { if (inst == this) inst = null; }
+        Material ringMat;   // RingMaterial 이 만든 것 — 텍스처와 함께 지운다
+
+        void OnDestroy()
+        {
+            if (inst == this) inst = null;
+            if (ringMat != null) { Destroy(ringMat.mainTexture); Destroy(ringMat); }
+        }
 
         IEnumerator Start()
         {
-            var ringMat = RingMaterial();
+            ringMat = RingMaterial();
             foreach (var c in FindObjectsByType<StsCrane>())
             {
                 foreach (var b in c.GetComponents<PlcBridge>()) b.enabled = false;   // OnDisable 이 PlcDriven 도 끈다
