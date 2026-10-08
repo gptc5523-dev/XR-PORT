@@ -82,12 +82,10 @@ namespace AIXRCrane.Crane.Sts.Net
             // 호스트/관전자 구분은 경고 문구에만 남긴다(끊기는 인원 수는 보여줘야 한다).
             int spectators = SpectatorCount();
             bool host = spectators >= 0;
-            bool arming = inside;
-
-            dwell = arming ? dwell + Time.unscaledDeltaTime : 0f;
+            dwell = inside ? dwell + Time.unscaledDeltaTime : 0f;
             band.startColor = band.endColor = inside ? BandInside : BandIdle;
 
-            if (arming && dwell >= dwellSeconds)
+            if (inside && dwell >= dwellSeconds)
             {
                 CraneAlarmHUD.ClearNotice();
                 if (mobile) { Quit(); return; }
@@ -141,8 +139,6 @@ namespace AIXRCrane.Crane.Sts.Net
             if (nm == null || !nm.IsServer) return -1;
             return Mathf.Max(0, nm.ConnectedClientsIds.Count - 1);   // 호스트 자신(0번) 제외 — CraneNetMenuHUD 와 같은 셈
         }
-
-        // 오른손 검지 트리거 — 모드 변경(StsCraneVRController)과 같은 입력·같은 임계값 관례.
 
         // 모바일 관전자 = 그만 보기 — 앱을 끄면 서버 관전 인스턴스도 GPU 를 놓는다(다시 켜기는 Sunshine 접속 시 기동).
         void Quit()

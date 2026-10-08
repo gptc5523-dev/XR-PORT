@@ -29,7 +29,6 @@ namespace AIXRCrane.Crane.Sts.Net
         // VR 시작 메뉴(CraneNetMenuHUD)가 읽는 정보/조작 진입점.
         public string LocalIp => localIp;
         /// <summary>Tailscale(100.64/10) 주소 — 없으면 null. 서버·원격 참가자는 VPN 으로만 닿으므로 같이 보여 준다.</summary>
-        public string VpnIp => vpnIp;
         /// <summary>화면용 — "LAN · VPN 100.x" (VPN 없으면 LAN 만).</summary>
         public string IpLabel => vpnIp == null || vpnIp == localIp ? localIp : $"{localIp} · VPN {vpnIp}";
         public int MaxPlayers => maxPlayers;
@@ -227,7 +226,7 @@ namespace AIXRCrane.Crane.Sts.Net
         {
             if (a.AddressFamily != AddressFamily.InterNetwork) return 0;
             var b = a.GetAddressBytes();
-            if (b[0] == 127 || (b[0] == 169 && b[1] == 254) || IsVpn(a) || b[0] == 0) return 0;   // VPN 은 LAN 후보가 아니라 VpnIp 로 따로 보인다
+            if (b[0] == 127 || (b[0] == 169 && b[1] == 254) || IsVpn(a) || b[0] == 0) return 0;   // VPN 은 LAN 후보가 아니라 vpnIp 로 따로 보인다
             if (b[0] == 192 && b[1] == 168) return 4;
             if (b[0] == 10) return 3;
             if (b[0] == 172 && b[1] >= 16 && b[1] < 32) return 2;

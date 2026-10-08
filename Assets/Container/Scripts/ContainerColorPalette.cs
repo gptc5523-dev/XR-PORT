@@ -50,13 +50,5 @@ namespace AIXRCrane
                 return new ColorEntry { name = "White", color = UnityEngine.Color.white };
             return colors[index];
         }
-
-        public ColorEntry Random(System.Random rng = null)
-        {
-            if (colors == null || colors.Length == 0)
-                return new ColorEntry { name = "White", color = UnityEngine.Color.white };
-            rng ??= new System.Random();
-            return colors[rng.Next(colors.Length)];
-        }
     }
 }

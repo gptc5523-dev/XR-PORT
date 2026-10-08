@@ -111,14 +111,16 @@ namespace AIXRCrane.Crane.Sts.Net
 
         void ApplyTint()
         {
+            // 프로퍼티 블록 — sharedMaterial 은 에셋을 오염시키고, r.material 은 아바타가 나갈 때마다 인스턴스가 남았다.
+            var mpb = new MaterialPropertyBlock();
             var c = TintColor;
             foreach (var r in rends)
             {
                 if (r == null) continue;
-                // sharedMaterial 을 만지면 에셋이 오염된다. material 은 인스턴스를 만든다.
-                var m = r.material;
-                if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", c);
-                else if (m.HasProperty("_Color")) m.SetColor("_Color", c);
+                r.GetPropertyBlock(mpb);
+                mpb.SetColor("_BaseColor", c);
+                mpb.SetColor("_Color", c);
+                r.SetPropertyBlock(mpb);
             }
         }
 
