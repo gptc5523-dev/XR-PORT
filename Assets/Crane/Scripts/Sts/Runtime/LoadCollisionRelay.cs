@@ -17,7 +17,7 @@ namespace AIXRCrane.Crane.Sts
 
         void Handle(Collision c)
         {
-            var other = c.rigidbody;                                      // 우리가 부딪힌 상대 강체
+            var other = c.rigidbody;
             if (owner == null || other == null) return;                  // 강체 없는 바닥/구조물 제외
             if (other.transform.IsChildOf(owner.transform)) return;      // 크레인 자식(스프레더/든 화물) 제외
 

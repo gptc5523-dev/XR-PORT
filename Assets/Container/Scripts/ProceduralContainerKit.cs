@@ -109,8 +109,8 @@ namespace AIXRCrane
             // 지게차 포켓 개구 — 사이드 레일 관통, 언더프레임 포켓 하우징과 Z위치·개구폭 일치.
             // 20ft급(길이<9m)에만, 레일이 포켓에서 3분할된다.
             bool hasForkPockets = Length < 9.0f;      // ForkPlateT는 클래스 상수(공유)
-            float pocketZc  = ForkPocketZ;             // 기존 상수 재사용(=1.0)
-            float pocketOpenW = ForkPocketWidth;       // 기존 상수 재사용(=0.32)
+            float pocketZc  = ForkPocketZ;             // 기존 상수 재사용(=1.025)
+            float pocketOpenW = ForkPocketWidth;       // 기존 상수 재사용(=0.35)
             float halfRailZ = railZSpan * 0.5f;
             float pHalf = pocketOpenW * 0.5f;
 

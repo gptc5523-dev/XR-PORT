@@ -138,7 +138,6 @@ namespace AIXRCrane.Crane.Sts
             return true;
         }
 
-        // 컨트롤러 탐색 — 공유 로직(CraneHud).
         static Transform FindController(string side) => CraneHud.FindController(side);
 
         static bool Has(string name, string sub) => name.IndexOf(sub, System.StringComparison.OrdinalIgnoreCase) >= 0;

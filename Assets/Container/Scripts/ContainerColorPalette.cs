@@ -2,7 +2,7 @@ using UnityEngine;
 
 namespace AIXRCrane
 {
-    /// <summary>컨테이너 색상 풀(실제 선사 컬러 기반). 색상만 정의 → 런타임 MaterialPropertyBlock 으로 적용.</summary>
+    /// <summary>컨테이너 색상 풀(실제 선사 컬러 기반). 색상만 정의 — 절차 컨테이너 스폰 메뉴(VRTestMenu)가 읽는다.</summary>
     [CreateAssetMenu(fileName = "ContainerColorPalette", menuName = "Container/Color Palette")]
     public class ContainerColorPalette : ScriptableObject
     {

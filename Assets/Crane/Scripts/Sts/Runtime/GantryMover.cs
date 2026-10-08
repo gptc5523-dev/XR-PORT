@@ -47,7 +47,6 @@ namespace AIXRCrane.Crane.Sts
             transform.localPosition = p;
         }
 
-        // 주행 경로 장애물 정지
         [Header("장애물 정지")]
         [Tooltip("주행 경로(다리 콜라이더 앞)에 컨테이너 등 장애물이 있으면 그 방향 주행을 멈춘다(밀지 않음).")]
         [SerializeField] bool stopOnObstacle = true;
@@ -105,7 +104,6 @@ namespace AIXRCrane.Crane.Sts
         // 진행 방향으로 다리 콜라이더를 BoxCast — 자기 외 콜라이더에 닿으면 정지. 빠져나가는 방향은 허용.
         protected override bool IsBlockedToward(float target)
         {
-            // 보기를 꺾는 중엔 주행 금지.
             if (TravelLocked) return true;
 
             // 크레인 간 충돌방지 — 항상 검사, stopOnObstacle 과 독립.

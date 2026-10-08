@@ -70,11 +70,11 @@ namespace AIXRCrane.Crane.Flat
             // ②-a 기존 MainCamera도 끈다(Camera.main 불확정 방지) — Camera·AudioListener 컴포넌트만.
             int camsOff = DisableExistingMainCameras();
 
-            // ② 평면 리그 + 크레인 조작 + HUD 생성 — 각자 자기 GameObject.
+            // ② 평면 리그 + HUD 생성 — 각자 자기 GameObject.
             var rigGo = new GameObject("FlatPlayerRig");
             var rig = rigGo.AddComponent<FlatPlayerRig>();
 
-            // 안경이 이 기기에 꽂혀 있으면 고개로 둘러본다(없으면 조용히 기다림) — 평면·모바일 공통.
+            // 안경이 이 기기에 꽂혀 있으면 고개로 둘러본다(없으면 조용히 기다림).
             new GameObject("XrealHeadTracker").AddComponent<XrealHeadTracker>();
 
             // VR 이 아니면 언제나 모바일 관전 화면 — PC 평면 화면(패드 조종기·LAN 패널)은 없다. 공간 마우스(커서+누르기)로 다닌다.

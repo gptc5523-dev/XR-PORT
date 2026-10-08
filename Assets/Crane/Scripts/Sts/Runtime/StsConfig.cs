@@ -40,8 +40,6 @@ namespace AIXRCrane.Crane.Sts
         /// <summary>데크(안벽 윗면 y=0) ↔ 수면 높이차 = 건현/코핑고 — 실척 m.</summary>
         public const float QuayDeckAboveSeaMeters = 4f;
 
-        // 비활성: BerthWaterDepthMeters·QuayWallHeightMeters·QuayWallThickness(→ PortConfig 로 이전) — git 이력 참조
-
         /// <summary>수면 월드 Y — 모델 단위(데크 y=0 기준 아래). 바다 메시·배 흘수선의 공통 기준.</summary>
         public const float SeaLevelY = -QuayDeckAboveSeaMeters * ModelScale;
 

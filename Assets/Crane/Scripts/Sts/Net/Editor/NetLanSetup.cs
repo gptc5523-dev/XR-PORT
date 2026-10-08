@@ -32,7 +32,6 @@ namespace AIXRCrane.Crane.Sts.Net.EditorTools
                 "  · Body 는 비어 있습니다 — 모습을 바꾸려면 Body 밑에 메시를 넣으세요.", "확인");
         }
 
-        // NetworkManager
         static NetworkManager SetupNetworkManager(GameObject avatarPrefab)
         {
             var nm = Object.FindAnyObjectByType<NetworkManager>();
@@ -89,7 +88,6 @@ namespace AIXRCrane.Crane.Sts.Net.EditorTools
             return prefab;
         }
 
-        // CraneNetSync
         static void SetupCraneSync()
         {
             if (Object.FindAnyObjectByType<CraneNetSync>() != null) return;

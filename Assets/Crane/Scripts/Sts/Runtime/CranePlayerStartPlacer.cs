@@ -159,7 +159,7 @@ namespace AIXRCrane.Crane.Sts
                           $"facing {faceDir}, 기준={(marker != null ? "마커" : "저장좌표")}, 부두클램프={(forceInsideQuay && hasLand)}.");
             }
 
-            // QA 그룹 A(문서/QA_테스트시나리오.md) — 발 높이가 구조물 꼭대기 위가 아닌지.
+            // QA 그룹 A — 발 높이가 구조물 꼭대기 위가 아닌지.
             float structureTop = QuayStructureTopY();
             bool flatQuay = (structureTop - floorY) < 0.1f;        // 평탄 부두 — 거대 가드 완화
             if (hasLand)
@@ -230,7 +230,6 @@ namespace AIXRCrane.Crane.Sts
 
         static CranePlayerStartPoint FindMarker()
         {
-            // 비활성 객체까지 포함(꺼둔 마커도 인식).
             return FindAnyObjectByType<CranePlayerStartPoint>(FindObjectsInactive.Include);
         }
 

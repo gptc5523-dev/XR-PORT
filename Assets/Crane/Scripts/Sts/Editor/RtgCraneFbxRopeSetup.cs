@@ -157,7 +157,6 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             var lm = mf.transform.localToWorldMatrix;
             if (verts.Length == 0) return rope.position;
 
-            // 월드 정점 + bbox
             var w = new Vector3[verts.Length];
             Vector3 mn = lm.MultiplyPoint3x4(verts[0]), mx = mn;
             for (int i = 0; i < verts.Length; i++)

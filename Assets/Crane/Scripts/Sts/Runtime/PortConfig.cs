@@ -46,14 +46,10 @@ namespace AIXRCrane.Crane.Sts
         /// <summary>바다 길이(안벽 방향) = 선석 길이. 바다 끝이 케이슨 끝보다 15mm 앞서 Z-fighting 없음.</summary>
         public static float SeaLengthMeters => BerthLengthMeters;
 
-        // 비활성: 선석 양끝으로 바다폭만큼 더 뻗던 SeaLengthMeters 산식 — git 이력 참조
-
         /// <summary>접안한 배가 수면 안에 들어오나 — 바다 폭 &gt; 선폭, 바다 길이 &gt; LOA.
         /// 바다를 줄이기 전에 이걸 본다.</summary>
         public static bool SeaFitsShip =>
             SeaWidthMeters > ShipConfig.BeamMeters && SeaLengthMeters > ShipConfig.LoaMeters;
-
-        // 비활성: 선폭 앵커 SeaMarginRatio, 선회장 직경 TurningBasinMeters — git 이력 참조
 
         /// <summary>바다가 안벽 안쪽으로 파고드는 깊이 — 실척 m. x=0 에서 수면·안벽이 딱 겹치면
         /// Z-fighting. 겹친 부분은 불투명 케이슨에 가려진다.</summary>

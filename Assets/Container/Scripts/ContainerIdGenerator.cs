@@ -62,7 +62,7 @@ namespace AIXRCrane
             {
                 char c = combined[i];
                 int value = char.IsDigit(c) ? c - '0' : LetterValues[c];
-                sum += value * (1 << i); // 2^i
+                sum += value * (1 << i);
             }
             int check = sum % 11;
             return check == 10 ? 0 : check;

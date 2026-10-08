@@ -67,7 +67,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
                 return;
             }
             Undo.RecordObject(tele, "Spreader Resize");
-            tele.SetSizeNow(s);               // 즉시 빔 슬라이드
+            tele.SetSizeNow(s);
             if (!Application.isPlaying)
             {
                 EditorUtility.SetDirty(tele);

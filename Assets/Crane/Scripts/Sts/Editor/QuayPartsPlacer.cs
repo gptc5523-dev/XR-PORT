@@ -856,7 +856,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
         {
             var probe = (GameObject)PrefabUtility.InstantiatePrefab(fbx);
             probe.transform.localScale = Vector3.one;
-            float h = SceneUtil.BoundsOrPoint(probe).size.y;   // 기존 헬퍼 재사용
+            float h = SceneUtil.BoundsOrPoint(probe).size.y;
             Object.DestroyImmediate(probe);
             return h > 1e-5f ? realHeightM * StsConfig.ModelScale / h : 1f;
         }

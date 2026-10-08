@@ -637,7 +637,7 @@ def gen_S15(s):  # STS 5개 양하(시연) — 작업 베이의 실제 컨테이
 RTG_RANGE     = {"gt": 140.887, "tr": 20.19, "ho": 19.566}
 RTG_ROW_PITCH = 2.438 + 0.4                                     # 2.838 = 컨테이너폭 + 열간격
 RTG_TR_ROW0   = RTG_RANGE["tr"] / 2 - 2.5 * RTG_ROW_PITCH       # 3.000 — 6열이 스팬 중앙 대칭
-RTG_TR_HOME   = RTG_RANGE["tr"] / 2                             # 10.095 — 트롤리 x=0 파킹(RtgCraneCreator), 범위 ±10.095 대칭
+RTG_TR_HOME   = RTG_RANGE["tr"] / 2                             # 10.095 — 트롤리 x=0 파킹, 범위 ±10.095 대칭
 RTG_GT_HOME   = RTG_RANGE["gt"] / 2                             # 70.44 — 크레인이 블록 존 한가운데 선다(씬 z ±3.5313u = 범위 중앙)
 RTG_HO_HOME   = 9.94                                            # FBX 스프레더 파킹 높이(그랩 평면) 실측 — 프리팹 오버라이드가 없어
                                                                 #   씬 파일엔 안 남는다. CraneDemoRunner 의 '축 시작(PLC m)' 로그로 잰 값

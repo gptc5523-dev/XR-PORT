@@ -103,7 +103,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             go.name = index > 0 ? $"{CraneName}_{index}" : CraneName;
             Undo.RegisterCreatedObjectUndo(go, "Create " + CraneName);
 
-            // 스케일 목표 = 실척 높이 × ModelScale → 절차생성 RTG 와 같은 크기.
+            // 스케일 목표 = 실척 높이 × ModelScale.
             //   FBX 가 cm 단위로 임포트되므로 목표/실측 비율로 보정한다.
             go.transform.localScale = Vector3.one;
             float fbxH = SceneUtil.BoundsOrPoint(go).size.y;

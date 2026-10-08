@@ -20,7 +20,6 @@ namespace AIXRCrane.Crane.Sts
         [SerializeField] float runCoast = 0.25f;
 
         // 가속도 한계 알람(1021/2021/3021) — 속도를 한 번 더 미분한 실척 m/s²로 급조작 검출.
-        // 기본값 SSOT=CraneAxisProfile, 트립=정격×k(=5/3).
         [Header("가속도 한계 (실척 m/s²) — 코드북 1021/2021/3021 (SSOT=CraneAxisProfile, 트립=정격×k)")]
         [Tooltip("갠트리(주행) 가속 트립 한계. SSOT=CraneAxisProfile.GantryAccelTrip (= 정격 0.15 × k 1.667 = 0.250). STS 주행 정격 가속 ~0.15 m/s².")]
         [SerializeField] float gantryAccelLimit = CraneAxisProfile.GantryAccelTrip;
@@ -73,7 +72,7 @@ namespace AIXRCrane.Crane.Sts
             get
             {
                 // ⓪ fail-to-safe(최우선): 알람 시스템 오프라인이면 무조건 Fault — '알람 0'으로 조용히 정상 운전하는 단일 실패점 차단.
-                if (AlarmSystemOffline)                 return OpMode.Fault;    // ⓪ 알람 시스템 오프라인 — 안전정지
+                if (AlarmSystemOffline)                 return OpMode.Fault;
                 if (Plc.PlcBridge.TryLatest(crane, out var plc))
                 {
                     // PLC 구동 중 — 비상정지·이상(Critical 이상) 알람이면 이상, 그 외는 PLC 운전 비트(코드북 §8: 주의는 '이상' 아님)

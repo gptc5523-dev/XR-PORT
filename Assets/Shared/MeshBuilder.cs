@@ -38,7 +38,6 @@ namespace Procedural
         public void AddBox(int submesh, Vector3 center, Vector3 size)
         {
             Vector3 h = size * 0.5f;
-            // 8 corners
             Vector3 p000 = center + new Vector3(-h.x, -h.y, -h.z);
             Vector3 p100 = center + new Vector3( h.x, -h.y, -h.z);
             Vector3 p110 = center + new Vector3( h.x,  h.y, -h.z);

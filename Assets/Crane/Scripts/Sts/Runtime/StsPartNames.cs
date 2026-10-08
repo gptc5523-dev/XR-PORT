@@ -34,10 +34,10 @@ namespace AIXRCrane.Crane.Sts
         /// <summary>결박 봉 이름 접두사. TiedownController가 StartsWith로 수집(여러 개).</summary>
         public const string TiedownRodPrefix = "Tiedown_Rod";
 
-        // 붐/기계실/평형추(정적 라벨용)
-        /// <summary>붐 거더(트롤리 레일). 정적 라벨 앵커(현재 라벨 호출은 주석 처리됨).</summary>
+        // 붐/기계실/운전실
+        /// <summary>붐 거더(트롤리 레일).</summary>
         public const string BoomGirder = "Boom_Girder";
-        /// <summary>기계실. 정적 라벨 앵커(현재 주석 처리됨).</summary>
+        /// <summary>기계실. 소비부 CranePartId(SYS.MH).</summary>
         public const string MachineryHouse = "Machinery_House";
         /// <summary>운전실 루트. 생산부 StsCraneCreator.BuildOperatorCab, 소비부 CranePartId(OP).</summary>
         public const string OperatorCab = "OperatorCab";

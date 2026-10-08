@@ -3,7 +3,7 @@
 """
 XR 크레인 통합서버 v0.5 — PLC 이력 수집·저장·조회. 파트ID 매핑·WebSocket 전파는 범위 밖(실 PLC 는 plc_s7.py 어댑터).
 
-의존성 0 — 표준 라이브러리(http.server+sqlite3)만 쓴다. 엔드포인트 5개에 FastAPI 는 과투자.
+의존성 0 — 표준 라이브러리(http.server+sqlite3)만 쓴다. 이 규모 엔드포인트에 FastAPI 는 과투자.
 
 스키마: PlcSim CSV 45컬럼을 그대로 받는다. 자주 쓰는 6개만 컬럼 승격+인덱스, 나머지는 raw(JSON) 보존
   → 벤더가 태그를 추가해도 스키마 변경 없이 쌓인다.
@@ -16,7 +16,7 @@ XR 크레인 통합서버 v0.5 — PLC 이력 수집·저장·조회. 파트ID �
   GET  /history?crane=&from_ms=&to_ms=&limit=   구간 조회(기본 최근 500)
   GET  /alarms?crane=&limit=                    알람 코드가 0이 아닌 행만
   GET  /runs                                    적재된 (크레인, 출처) 별 행 수·시간 범위
-  GET/POST /command?crane=                     사고 지시 {"do": "estop|snag|motor|overcurrent|overload|landing|comm|wind"} — 라이브 PLC 가 1초 안에 실행
+  GET/POST /command?crane=                     사고 지시 {"do": "estop|release|snag|motor|overcurrent|overload|landing|comm|wind|obstruct|clear"} — 라이브 PLC 가 1초 안에 실행
   GET/POST /cargo?crane=                       옮겨진 컨테이너(원래 자리 → 지금 자리) — 라이브 PLC 가 올리고 늦게 뜬 XR 이 맞춘다
   GET  /since?crane=&after_id=                  크레인이 이어 받는 경로(CSV, X-Last-Id) — Unity ServerPlcSource
   GET/POST /users?all=&device=                  등록 사용자(기기 ID → 이름·자리), POST 는 API 로 추가·수정

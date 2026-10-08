@@ -35,7 +35,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             {
                 for (int j = i + 1; j < n; j++)
                 {
-                    if (t[i].IsChildOf(t[j]) || t[j].IsChildOf(t[i])) continue;    // 부모-자식 제외
+                    if (t[i].IsChildOf(t[j]) || t[j].IsChildOf(t[i])) continue;
                     if (!b[i].Intersects(b[j])) continue;
                     float ov = IntersectVol(b[i], b[j]);
                     float vi = Vol(b[i]), vj = Vol(b[j]);
@@ -81,7 +81,6 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             Debug.Log(sb.ToString());
         }
 
-        // 헬퍼
         static float Vol(Bounds x) { var s = x.size; return s.x * s.y * s.z; }
         static float IntersectVol(Bounds a, Bounds c)
         {

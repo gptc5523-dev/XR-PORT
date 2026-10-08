@@ -93,7 +93,7 @@ namespace AIXRCrane.Ship.EditorTools
 
             // 생성 직후 자동 접안 정렬. 크레인이 아직 없으면 배는 원점에 두고 안내만(재생성 시 자동 접안).
             if (!ShipBerthMenu.TryBerth(root, out string berthMsg))
-                Debug.LogWarning(berthMsg);   // 크레인 미존재 — 배는 원점, 안내만
+                Debug.LogWarning(berthMsg);
             Selection.activeGameObject = root;
             EditorGUIUtility.PingObject(root);
         }
@@ -130,8 +130,6 @@ namespace AIXRCrane.Ship.EditorTools
             Object.DestroyImmediate(probe);
 
             float ms = ShipConfig.ModelScale;
-            // 콜라이더는 루트 로컬 공간 — 루트 스케일(4.1667)로 나누고, FBX 의 −90° X 회전(Blender Z-up→Unity
-            //   Y-up)으로 로컬 Y·Z 가 월드에서 뒤바뀐다: 로컬 (폭,길이,높이) 순 → 월드 (폭,높이,길이).
 
             // 갑판/해치커버 받침 콜라이더 보장 — 동적 화물이 갑판을 뚫고 떨어지지 않게(멱등).
             EnsureRestingColliders(ship);

@@ -188,7 +188,6 @@ namespace AIXRCrane.Crane.Sts
             text.text = "...";
         }
 
-        // 상태 텍스트
         string BuildText()
         {
             sb.Clear();

@@ -185,7 +185,6 @@ namespace AIXRCrane.Crane.Sts.Net
             return 1;
         }
 
-        // 크레인 조종 입력 차단/복구
         void SuppressController()
         {
             // 매 프레임 켜진(Active) 조종기를 막는다 — 메뉴 중에 감독(PortDemoDirector)이 가까운 크레인으로 바꿔 켜면 그 조종기가 새로 켜진다.
@@ -203,7 +202,7 @@ namespace AIXRCrane.Crane.Sts.Net
             controllerSuppressed = false;   // 관전자(forceEnable=false)는 꺼둔 채로 둠
         }
 
-        // 메뉴 중 모든 LocomotionProvider 잠금 — 내가 끈 것만 기억해 복구(StsCraneVRController.ApplyMode 방식).
+        // 메뉴 중 모든 LocomotionProvider 잠금 — 내가 끈 것만 기억해 복구.
         void LockLocomotion()
         {
             if (lockedLoco.Count > 0) return;   // 이미 잠금

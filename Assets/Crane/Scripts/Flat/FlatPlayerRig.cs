@@ -46,7 +46,7 @@ namespace AIXRCrane.Crane.Flat
         float yaw, pitch;
         float appliedYaw = float.NaN;   // 내가 마지막으로 적용한 yaw — 외부(StartPlacer)가 돌렸는지 판별용
 
-        /// <summary>평면 모드 카메라. 부트스트랩·HUD·크레인 컨트롤러가 참조(타입명 Camera 와 겹치지 않게 Cam).</summary>
+        /// <summary>평면 모드 카메라. 부트스트랩이 참조(타입명 Camera 와 겹치지 않게 Cam).</summary>
         public Camera Cam => cam;
 
         bool wasPressed, pressOnUi;                 // 누름이 버튼 위에서 시작됐으면 뗄 때까지 날지 않는다
@@ -152,7 +152,7 @@ namespace AIXRCrane.Crane.Flat
             appliedYaw = yaw;
             if (cam == null) return;
             // 안경 고개 방향은 카메라에만 — VR 처럼 몸(리그 yaw·이동 방향)과 머리를 나눈다.
-            //   공간 마우스 비행은 카메라 광선을 따르므로 보는 쪽으로 난다. 안경이 없으면 0 이라 예전과 같다.
+            //   공간 마우스 비행은 카메라 광선을 따르므로 보는 쪽으로 난다.
             var head = XrealHeadTracker.Instance;
             float hy = 0f, hp = 0f;
             if (head != null && head.Connected) { hy = head.YawRightDeg; hp = head.PitchUpDeg; }

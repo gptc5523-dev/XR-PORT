@@ -21,7 +21,7 @@ namespace AIXRCrane.EditorTools
             new Color(0.85f, 0.78f, 0.58f),  // Beige
         };
 
-        // 24색 팔레트(런타임 ContainerInstance 와 같은 SSOT).
+        // 24색 팔레트 에셋.
         const string PalettePath = "Assets/Container/Container_Palette_Default.asset";
         static ContainerColorPalette _palette;
         static ContainerColorPalette Palette()
@@ -73,7 +73,7 @@ namespace AIXRCrane.EditorTools
             // 1. 셰이더
             Shader litShader = Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Standard");
 
-            // 2. 이름 시드로 Body·Door 명도/채도/광택 변주(ContainerInstance.ApplyColor 와 같은 기법).
+            // 2. 이름 시드로 Body·Door 명도/채도/광택 변주.
             float h1 = StableHash.Hash01(name, 0x9E3779B9u);
             float h2 = StableHash.Hash01(name, 0x85EBCA6Bu);
             float h3 = StableHash.Hash01(name, 0xC2B2AE35u);

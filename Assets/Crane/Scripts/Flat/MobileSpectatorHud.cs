@@ -45,7 +45,7 @@ namespace AIXRCrane.Crane.Flat
             if (net != null) net.enabled = false;
             rig = FindAnyObjectByType<FlatPlayerRig>();
 
-            // STS 먼저, RTG 는 이름 순 — 줄 앞 이름은 STS·RTG1·RTG2 (RTG 번호는 씬 이름 끝 번호)
+            // 줄 앞 이름은 STS·RTG1·RTG2 (RTG 번호는 씬 이름 끝 번호)
             cranes = Ordered();
             names = cranes.Select(c => c.GetComponent<RtgBogieSteering>() == null ? "STS" : "RTG" + c.name.Substring(c.name.LastIndexOf('_') + 1)).ToArray();
             Build();

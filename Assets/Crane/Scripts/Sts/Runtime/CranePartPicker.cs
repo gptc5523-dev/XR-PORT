@@ -10,7 +10,7 @@ using UnityEngine.XR.Interaction.Toolkit.Interactables;
 
 namespace AIXRCrane.Crane.Sts
 {
-    /// <summary>부위·컨테이너 선택(WBS 3.7) — VR 그립 광선·PC 클릭·모바일 탭·Enter(화면 가운데 조준점)로 골라 말풍선에 PLC 값·알람·컨테이너 정보를 띄운다(바운즈 광선, 작은 것 우선, 읽기 전용).</summary>
+    /// <summary>부위·컨테이너 선택(WBS 3.7) — VR 그립 광선·모바일 탭·Enter(화면 가운데 조준점)로 골라 말풍선에 PLC 값·알람·컨테이너 정보를 띄운다(바운즈 광선, 작은 것 우선, 읽기 전용).</summary>
     [DisallowMultipleComponent]
     public sealed class CranePartPicker : MonoBehaviour
     {

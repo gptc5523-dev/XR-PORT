@@ -19,7 +19,7 @@ namespace AIXRCrane.Crane.Sts
         [Tooltip("PC 마우스 휠 한 칸당 배율.")]
         [SerializeField, Min(1.01f)] float wheelStep = 1.15f;
         [SerializeField] bool debugLog = true;
-        bool configured;
+        bool configured;   // 1회성 설정(near clip·CC 우회·걷기속도) 완료 여부
         bool prevZoomBtn;
 
         /// <summary>현재 조감 배율(1 = 실물 크기, 클수록 모델이 작게 보인다). 내 리그만 바뀌어 다른 접속자·크레인 상태와 무관.</summary>
@@ -30,7 +30,7 @@ namespace AIXRCrane.Crane.Sts
         {
             if (toggle) return cur > 1.001f ? 1f : max;
             return Mathf.Clamp(cur * Mathf.Pow(step, -wheelNotches), 1f, max);
-        }   // 1회성 설정(near clip·CC 우회·걷기속도) 완료 여부
+        }
         Transform cachedRig;   // 한 번 찾은 리그(XR Origin) 재사용 — 파괴되면 다시 탐색
         Camera cachedCam;      // 리그의 카메라(near clip 조정용)
         int noRigFrames;       // 리그 못 찾은 동안 경고 스로틀용 프레임 카운터

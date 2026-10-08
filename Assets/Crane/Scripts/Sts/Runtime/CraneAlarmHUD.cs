@@ -116,7 +116,7 @@ namespace AIXRCrane.Crane.Sts
 
             var e = AlarmCodebook.Get(code);
             curSev = e != null ? AlarmCodebook.Color(e) : CraneHud.HudColor.Danger;
-            // 배너 텍스트 제거 — ⚠ 아이콘만(상세 알람 내용·코드는 상태판이 표시).
+            // ⚠ 아이콘만 — 상세 알람 내용·코드는 상태판이 표시.
             text.color = curSev;
             CraneHud.SetTextIfChanged(text, ref lastText, "<b>⚠</b>");
         }

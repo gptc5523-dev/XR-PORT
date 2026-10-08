@@ -148,7 +148,7 @@ namespace AIXRCrane.Crane.Sts.Plc
                 tm.Add(col.TryGetValue("t_ms", out int ti) && ti < c.Length && long.TryParse(c[ti], NumberStyles.Integer, inv, out long ms) ? ms : 0);   // 64비트 — epoch ms 도 받는다(WBS 9.6)
             }
 
-            foreach (var m in missing) missingCols.Add(m);   // 침묵 실패 가시화 — PlcBridge가 경고
+            foreach (var m in missing) missingCols.Add(m);
 
             frames = fr.ToArray();
             tMs = tm.ToArray();

@@ -181,7 +181,7 @@ namespace AIXRCrane.Crane.Sts
             if (!locked && best != active && (active == null || bestD + switchMarginMeters * StsConfig.ModelScale < Distance(active, p)))
                 Activate(best);
             activeNear = active != null && Distance(active, p) <= approachMeters * StsConfig.ModelScale;
-            // 운전 중(조종·갠트리 모드 또는 운전실 시점)엔 접근 띠를 숨긴다.
+            // 운전 중엔 접근 띠를 숨긴다.
             foreach (var e in cranes)
             {
                 e.ring.enabled = !locked && host;

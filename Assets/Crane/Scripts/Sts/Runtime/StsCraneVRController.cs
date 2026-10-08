@@ -429,7 +429,7 @@ namespace AIXRCrane.Crane.Sts
         void ExitCabView()
         {
             if (rigSaved && rig != null) { rig.position = savedRigPos; rig.rotation = savedRigRot; }
-            foreach (var c in rigColliders) if (c != null) c.enabled = true;   // 콜라이더 복구
+            foreach (var c in rigColliders) if (c != null) c.enabled = true;
             rigColliders.Clear();
             cabView = false;
             rigSaved = false;
