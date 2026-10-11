@@ -31,7 +31,7 @@ namespace AIXRCrane.Crane.Sts.Net
         readonly NetworkVariable<Unity.Collections.FixedString32Bytes> colorHex = new(writePerm: NetworkVariableWritePermission.Owner);
 
         readonly List<Renderer> rends = new();
-        Canvas tag;
+        Canvas nameTag;
         UnityEngine.UI.Text tagText;
         Transform rig;
         Camera cam;
@@ -45,7 +45,7 @@ namespace AIXRCrane.Crane.Sts.Net
         public static string ListText()
         {
             var rows = new List<string>();
-            foreach (var a in FindObjectsByType<PlayerAvatarSync>(FindObjectsSortMode.None))
+            foreach (var a in FindObjectsByType<PlayerAvatarSync>())
                 if (a.IsSpawned && a.Label.Value.Length > 0) rows.Add(Row(a.TintColor, a.Label.Value.ToString()));
             if (rows.Count == 0 && DeviceIdentity.Looked)
             {
@@ -78,24 +78,24 @@ namespace AIXRCrane.Crane.Sts.Net
         // 그리는 카메라마다 이름표를 그쪽으로 — Camera.main 이 보는 카메라와 다르면 글자가 뒤집혀 보였다. 좌우로만 돌려 서 있게.
         void FaceCamera(UnityEngine.Rendering.ScriptableRenderContext _, Camera c)
         {
-            if (tag == null) return;
-            var d = Vector3.ProjectOnPlane(tag.transform.position - c.transform.position, Vector3.up);
-            if (d.sqrMagnitude > 1e-8f) tag.transform.rotation = Quaternion.LookRotation(d, Vector3.up);
+            if (nameTag == null) return;
+            var d = Vector3.ProjectOnPlane(nameTag.transform.position - c.transform.position, Vector3.up);
+            if (d.sqrMagnitude > 1e-8f) nameTag.transform.rotation = Quaternion.LookRotation(d, Vector3.up);
         }
 
         // 남의 아바타 머리 위 이름표 — 흰 바탕 검정 글자. 내 것은 안 만든다(1인칭).
         void RefreshTag()
         {
             if (IsOwner) return;
-            if (tag == null)
+            if (nameTag == null)
             {
                 // 큰 글꼴을 작게 줄여 또렷하게(글자 높이 약 0.1 m).
-                tag = AIXRCrane.Crane.Sts.CraneHud.BuildPanel(transform, "NameTag", new Vector2(1000f, 150f), 0.0016f,
+                nameTag = AIXRCrane.Crane.Sts.CraneHud.BuildPanel(transform, "NameTag", new Vector2(1000f, 150f), 0.0016f,
                     new Color(1f, 1f, 1f, 0.85f), 64, Color.black, TextAnchor.MiddleCenter,
                     new Vector2(30, 15), out tagText, fitToText: true);
                 // 공용 HUD 의 검정 외곽선·그림자가 검정 글자를 뭉갠다 — 흰 바탕이라 뺀다.
                 foreach (var fx in tagText.GetComponents<UnityEngine.UI.Shadow>()) Destroy(fx);
-                tag.transform.localPosition = Vector3.up * TagHeight;
+                nameTag.transform.localPosition = Vector3.up * TagHeight;
             }
             tagText.text = DeviceIdentity.TagText(Label.Value.ToString());
         }

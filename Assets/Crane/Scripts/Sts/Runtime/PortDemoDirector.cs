@@ -232,7 +232,7 @@ namespace AIXRCrane.Crane.Sts
         static float RailTopY()
         {
             float top = float.NegativeInfinity;
-            foreach (var r in FindObjectsByType<Renderer>(FindObjectsSortMode.None))
+            foreach (var r in FindObjectsByType<Renderer>())
                 if (r.name.StartsWith(StsPartNames.QuayRail)) top = Mathf.Max(top, r.bounds.max.y);
             return top;
         }

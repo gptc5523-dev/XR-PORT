@@ -57,7 +57,7 @@ namespace AIXRCrane.Crane.Sts.Net
             {
                 if (Time.unscaledTime < nextLookup) return;
                 nextLookup = Time.unscaledTime + 5f;
-                foreach (var b in FindObjectsByType<Plc.PlcBridge>(FindObjectsSortMode.None))
+                foreach (var b in FindObjectsByType<Plc.PlcBridge>())
                     if (b.Source is Plc.ServerPlcSource src && src.IsConnected) { lookup = src.GetText("/users"); break; }
                 return;
             }

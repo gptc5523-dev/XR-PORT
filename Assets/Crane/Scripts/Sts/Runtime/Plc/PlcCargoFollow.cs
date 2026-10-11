@@ -205,7 +205,7 @@ namespace AIXRCrane.Crane.Sts.Plc
         /// <summary>집을 수 있는 컨테이너 — 물리 화물(배, 이름에 Container) + 야드 정적 배치(Yard_Containers 자식, Rigidbody 없음). 배치 내보내기와 같은 목록.</summary>
         public static IEnumerable<Transform> Candidates()
         {
-            foreach (var rb in FindObjectsByType<Rigidbody>(FindObjectsSortMode.InstanceID))
+            foreach (var rb in FindObjectsByType<Rigidbody>())
                 if (rb.name.IndexOf("Container", System.StringComparison.OrdinalIgnoreCase) >= 0) yield return rb.transform;
             var yard = GameObject.Find("Yard_Containers");
             if (yard != null) foreach (Transform t in yard.transform) yield return t;

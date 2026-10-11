@@ -55,7 +55,7 @@ namespace AIXRCrane.Crane.Sts.Net
         void Scan()
         {
             nextScan = Time.unscaledTime + 2f;
-            foreach (var c in FindObjectsByType<StsCrane>(FindObjectsSortMode.None))
+            foreach (var c in FindObjectsByType<StsCrane>())
                 if (!cranes.Contains(c)) { cranes.Add(c); locks[c] = c.GetComponentInChildren<SpreaderLockAnimator>(true); }
         }
 

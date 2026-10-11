@@ -15,7 +15,6 @@ namespace AIXRCrane.Crane.Sts
         [SerializeField] GantryMover gantry;
 
         [Header("Gizmo 표시")]
-        [SerializeField] bool drawGizmos = true;
         [SerializeField] Color boomColor    = new Color(0.3f, 0.7f, 1f, 0.6f);
         [SerializeField] Color railColor    = new Color(0.2f, 0.9f, 1f, 1f);
         [SerializeField] Color hoistColor   = new Color(1f, 0.85f, 0.2f, 1f);
@@ -49,8 +48,6 @@ namespace AIXRCrane.Crane.Sts
 #if UNITY_EDITOR
         void OnDrawGizmos()
         {
-            if (!drawGizmos) return;
-
             if (boom != null && trolley != null)
             {
                 // 붐 레일 전체 길이를 한 줄로 표시 (트롤리 가동 범위 = 붐 작업 범위).

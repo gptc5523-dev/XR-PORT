@@ -44,7 +44,7 @@ namespace AIXRCrane.Crane.Sts.Plc
         {
             if (!On) return;
             int n = 0;
-            foreach (var c in Object.FindObjectsByType<StsCrane>(FindObjectsSortMode.None))
+            foreach (var c in Object.FindObjectsByType<StsCrane>())
             {
                 if (c.GetComponent<PlcBridge>() == null) c.gameObject.AddComponent<PlcBridge>();
                 if (c.GetComponent<PlcCargoFollow>() == null) c.gameObject.AddComponent<PlcCargoFollow>();

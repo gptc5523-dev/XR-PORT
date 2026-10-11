@@ -1,4 +1,5 @@
 #if UNITY_EDITOR
+using System.Linq;
 using System.Globalization;
 using System.IO;
 using System.Text;
@@ -39,7 +40,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             var sb = new StringBuilder("{\"cont_h_m\":2.591,\"cranes\":[");
             bool firstCrane = true;
             int total = 0;
-            foreach (var c in Object.FindObjectsByType<StsCrane>(FindObjectsSortMode.InstanceID))
+            foreach (var c in Object.FindObjectsByType<StsCrane>().OrderBy(c => c.name, System.StringComparer.Ordinal))
             {
                 var bridge = c.GetComponent<PlcBridge>();
                 var grabber = c.GetComponent<SpreaderGrabber>();

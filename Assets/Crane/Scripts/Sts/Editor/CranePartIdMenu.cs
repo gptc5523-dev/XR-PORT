@@ -16,7 +16,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
         [MenuItem("PLC/부품 ID 부여 (STS·RTG)", false, 20)]
         public static void StampScene()
         {
-            var cranes = Object.FindObjectsByType<StsCrane>(FindObjectsSortMode.None);
+            var cranes = Object.FindObjectsByType<StsCrane>();
             if (cranes.Length == 0) { Debug.LogWarning("[PartId] 씬에 크레인 없음"); return; }
             foreach (var c in cranes)
             {

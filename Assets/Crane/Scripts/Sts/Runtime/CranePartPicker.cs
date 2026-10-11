@@ -164,7 +164,7 @@ namespace AIXRCrane.Crane.Sts
 
         static Transform AnyGrabbed()
         {
-            foreach (var g in FindObjectsByType<XRGrabInteractable>(FindObjectsSortMode.None))
+            foreach (var g in FindObjectsByType<XRGrabInteractable>())
                 if (g.isSelected) return g.transform;
             return null;
         }
@@ -190,7 +190,7 @@ namespace AIXRCrane.Crane.Sts
         {
             nextScan = Time.unscaledTime + 1f;
             entries.Clear();
-            foreach (var p in FindObjectsByType<CranePartId>(FindObjectsSortMode.None))
+            foreach (var p in FindObjectsByType<CranePartId>())
             {
                 var r = p.GetComponentsInChildren<Renderer>();
                 if (r.Length > 0) entries.Add(new Entry { part = p, rends = r, crane = p.GetComponentInParent<StsCrane>() });
@@ -202,7 +202,7 @@ namespace AIXRCrane.Crane.Sts
         {
             nextBoxScan = Time.unscaledTime + 2f;
             boxes.Clear();
-            foreach (var rb in FindObjectsByType<Rigidbody>(FindObjectsSortMode.None))
+            foreach (var rb in FindObjectsByType<Rigidbody>())
             {
                 if (rb.name.IndexOf("Container", System.StringComparison.OrdinalIgnoreCase) < 0) continue;
                 var r = rb.GetComponentsInChildren<Renderer>();
@@ -295,7 +295,7 @@ namespace AIXRCrane.Crane.Sts
             float k = 1f / StsConfig.ModelScale;   // 월드 바운즈 → 실척 m
             float len = Mathf.Max(b.size.x, b.size.z) * k, hgt = b.size.y * k;
             string holder = null;
-            foreach (var cr in FindObjectsByType<StsCrane>(FindObjectsSortMode.None))
+            foreach (var cr in FindObjectsByType<StsCrane>())
                 if (cr.Attach != null && cr.Attach.AttachedContainer == c) { holder = cr.name; id = cr.Attach.AttachedDisplayId ?? id; break; }
             var g = ContainerLoad.Grade(tons);
             sb.Clear();

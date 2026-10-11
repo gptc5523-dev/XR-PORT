@@ -34,7 +34,7 @@ namespace AIXRCrane.Crane.Flat
         StsCrane[] cranes = new StsCrane[0];
 
         /// <summary>STS 먼저, RTG 는 이름 순 — 아래 줄 순서이자 숫자 키 1·2·3 시점 순서(FlatPlayerRig).</summary>
-        internal static StsCrane[] Ordered() => FindObjectsByType<StsCrane>(FindObjectsSortMode.None)
+        internal static StsCrane[] Ordered() => FindObjectsByType<StsCrane>()
             .OrderBy(c => c.GetComponent<RtgBogieSteering>() != null).ThenBy(c => c.name, System.StringComparer.Ordinal).ToArray();
         string[] names = new string[0];
 

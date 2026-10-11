@@ -52,7 +52,7 @@ namespace AIXRCrane.EditorTools
         static void SpawnSingle(float length, string suffix)
         {
             // 이 메뉴로 만든 기존 컨테이너 모두 삭제(이름으로)
-            foreach (var t in Object.FindObjectsByType<Transform>(FindObjectsSortMode.None))
+            foreach (var t in Object.FindObjectsByType<Transform>())
                 if (t != null && t.parent == null && t.name.StartsWith("Container_Procedural")) Undo.DestroyObjectImmediate(t.gameObject);
 
             string name = string.IsNullOrEmpty(suffix) ? "Container_Procedural" : "Container_Procedural_" + suffix;

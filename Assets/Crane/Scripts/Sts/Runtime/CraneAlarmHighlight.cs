@@ -85,7 +85,7 @@ namespace AIXRCrane.Crane.Sts
         {
             want.Clear();
             boxes.Clear();
-            foreach (var crane in FindObjectsByType<StsCrane>(FindObjectsSortMode.None))
+            foreach (var crane in FindObjectsByType<StsCrane>())
             {
                 ActiveCodes(crane);
                 foreach (int code in codes)

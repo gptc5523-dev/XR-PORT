@@ -28,8 +28,6 @@ namespace AIXRCrane.Crane.Sts
         [SerializeField] bool logResults = true;
         [Tooltip("긴축(모델) 길이가 이 값을 넘으면 40ft로 인식 (20ft≈0.25 / 40ft≈0.51).")]
         [SerializeField] float fortyFtThreshold = YardGrid.Is40ThresholdU;
-        [Tooltip("Scene 뷰에 등급색 박스+라벨 표시.")]
-        [SerializeField] bool drawGizmos = true;
 
         readonly List<Recognized> found = new List<Recognized>();
 
@@ -122,7 +120,6 @@ namespace AIXRCrane.Crane.Sts
 #if UNITY_EDITOR
         void OnDrawGizmos()
         {
-            if (!drawGizmos) return;
             foreach (var r in found)
             {
                 if (r.t == null) continue;

@@ -76,7 +76,7 @@ namespace AIXRCrane.Crane.Sts
         void Scan()
         {
             nextScan = Time.unscaledTime + 1f;
-            foreach (var c in FindObjectsByType<StsCrane>(FindObjectsSortMode.None))
+            foreach (var c in FindObjectsByType<StsCrane>())
             {
                 if (rigs.Exists(r => r.crane == c)) continue;
                 var rig = new Rig { crane = c, attach = c.Attach, grabber = c.GetComponent<SpreaderGrabber>(),
