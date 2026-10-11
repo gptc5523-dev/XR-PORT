@@ -160,10 +160,13 @@ namespace AIXRCrane.Crane.Flat
         }
 
         // 공간 마우스 한 프레임 — 가장자리 회전은 여기서 yaw/pitch 에 바로 더하고, 비행 방향(없으면 0)을 돌려준다.
+        // 서버 관전은 자리 4개가 커서 하나를 같이 쓴다 — 가장자리에 남은 커서로 계속 돌던 것, 이동은 자리별 리모컨으로만.
+        static readonly bool SharedPointer = RemoteKeys.Port() > 0;
+
         Vector3 PointerStep(float dt)
         {
             var p = Pointer.current;
-            if (p == null || cam == null || !Application.isFocused) return Vector3.zero;
+            if (SharedPointer || p == null || cam == null || !Application.isFocused) return Vector3.zero;
 
             Vector2 pos = p.position.ReadValue();
             bool pressed = p.press.isPressed;
