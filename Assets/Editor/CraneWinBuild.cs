@@ -35,6 +35,8 @@ namespace AIXRCrane.EditorTools
 
             Debug.Log($"[CraneWinBuild] Win64 빌드 시작 — 씬 {scenes.Length}개 → {opts.locationPathName}");
             BuildReport report = BuildPipeline.BuildPlayer(opts);
+            // 빌드가 끝나면 GPU Resident Drawer 가 빌드 전 배치를 그대로 그려 'invalid BatchDrawCommand' 가 수천 줄 쌓였다 — 다시 만든다(internal 이라 리플렉션).
+            typeof(UnityEngine.Rendering.GPUResidentDrawer).GetMethod("Reinitialize", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic)?.Invoke(null, null);
             var s = report.summary;
             Debug.Log($"[CraneWinBuild] 결과: {s.result}, 시간 {s.totalTime}, 크기 {s.totalSize} bytes, 에러 {s.totalErrors}, 경고 {s.totalWarnings}");
 
