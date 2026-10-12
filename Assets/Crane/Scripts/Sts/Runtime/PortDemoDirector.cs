@@ -49,6 +49,12 @@ namespace AIXRCrane.Crane.Sts
             if (!UnityEditor.EditorPrefs.GetBool(EditorPrefKey, false)) return;
 #endif
             if (Plc.PlcLiveMode.On) return;   // 라이브 PLC 모드면 크레인은 PLC 데이터가 움직인다
+            Spawn();
+        }
+
+        /// <summary>시연 감독을 띄운다 — 시작 메뉴에서 '크레인 조종'을 고를 때도 쓴다.</summary>
+        public static void Spawn()
+        {
             if (FindAnyObjectByType<PortDemoDirector>() != null || FindAnyObjectByType<StsCrane>() == null) return;
             new GameObject("PortDemoDirector (auto)").AddComponent<PortDemoDirector>();
         }

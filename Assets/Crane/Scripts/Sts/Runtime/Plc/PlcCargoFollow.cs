@@ -40,7 +40,7 @@ namespace AIXRCrane.Crane.Sts.Plc
 
         void LateUpdate()
         {
-            if (crane == null || bridge == null || !bridge.Active || bridge.Measuring) return;
+            if (crane == null || bridge == null || !bridge.isActiveAndEnabled || !bridge.Active || bridge.Measuring || PortDemoDirector.Spectator) return;   // 관전자는 호스트가 보낸 화물을 따른다
             bool locked = bridge.Latest.TwistLockLocked;
             if (!primed)
             {

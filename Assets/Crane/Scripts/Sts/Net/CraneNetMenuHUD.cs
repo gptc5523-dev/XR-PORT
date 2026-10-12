@@ -25,6 +25,8 @@ namespace AIXRCrane.Crane.Sts.Net
         [SerializeField] float stickReset = 0.3f;
 
         static readonly string[] Options = { "호스트 시작", "참가" };
+        static readonly string[] PlcOptions = { "호스트 · PLC 모니터링", "호스트 · 크레인 조종", "참가" };   // 서버 VR(-plc -vr) — 호스트가 세션 모드를 고른다
+        static string[] Opts => Plc.PlcLiveMode.Pending ? PlcOptions : Options;
 
         Canvas canvas;
         Text text;
@@ -97,7 +99,7 @@ namespace AIXRCrane.Crane.Sts.Net
                 bool showResult = Time.unscaledTime - connectedAt < ResultSeconds;
                 SetVisible(showResult);
                 if (showResult) text.text = BuildConnectedText(nm);
-                RestoreController(forceEnable: nm.IsServer);
+                RestoreController(forceEnable: nm.IsServer && !Plc.PlcLiveMode.On);   // PLC 모니터링이면 조종기를 켜지 않는다 — 스틱이 PLC 와 같이 크레인을 민다
                 UnlockLocomotion();
                 return;
             }
@@ -130,10 +132,18 @@ namespace AIXRCrane.Crane.Sts.Net
             if (!ipEntryMode)
             {
                 // 선택 화면 — ↑↓ 이동, A 확정.
-                if (stepY != 0) selected = Mathf.Clamp(selected - stepY, 0, Options.Length - 1);  // ↑=위 항목
+                var opts = Opts;
+                if (stepY != 0) selected = Mathf.Clamp(selected - stepY, 0, opts.Length - 1);  // ↑=위 항목
                 if (aNow && !aPrev)
                 {
-                    if (selected == 0) ui.BeginHost();
+                    bool host = selected < opts.Length - 1;   // 마지막 항목이 '참가'
+                    if (opts == PlcOptions)
+                    {
+                        if (selected == 0) Plc.PlcLiveMode.ChooseLive();
+                        else if (selected == 1) Plc.PlcLiveMode.ChooseManual();
+                        else Plc.PlcLiveMode.ChooseJoin();
+                    }
+                    if (host) ui.BeginHost();
                     else if (ui.HostDiscovered)                     // 자동 발견됐으면 IP 입력 없이 접속
                     {
                         discoveredPrev = true;
@@ -252,7 +262,9 @@ namespace AIXRCrane.Crane.Sts.Net
             if (nm.IsServer)
             {
                 int joined = Mathf.Max(0, nm.ConnectedClientsIds.Count - 1);   // 호스트 자신 제외
-                sb.AppendLine("<color=#5FE0FF><b>호스트 중 · 운전 가능</b></color>");
+                sb.AppendLine(Plc.PlcLiveMode.On
+                    ? "<color=#5FE0FF><b>호스트 중 · PLC 모니터링</b></color>\n<size=17>크레인은 PLC 데이터로 움직입니다</size>"
+                    : "<color=#5FE0FF><b>호스트 중 · 크레인 조종</b></color>\n<size=17>크레인 앞 띠 안에 들어가면 운전할 수 있어요</size>");
                 sb.AppendLine($"<size=18>내 IP <b>{ui.IpLabel}</b> · 참가 {joined}/{Mathf.Max(0, ui.MaxPlayers - 1)}</size>");
                 sb.AppendLine();
                 sb.AppendLine("<size=16><color=#999999>참가자에게 이 IP 를 불러주세요</color></size>");
@@ -293,10 +305,11 @@ namespace AIXRCrane.Crane.Sts.Net
                 return sb.ToString();
             }
 
-            for (int i = 0; i < Options.Length; i++)
+            var opts = Opts;
+            for (int i = 0; i < opts.Length; i++)
             {
-                if (i == selected) sb.AppendLine($"<color=#5FE0FF><b>▸ {Options[i]} ◂</b></color>");
-                else               sb.AppendLine($"<color=#999999>{Options[i]}</color>");
+                if (i == selected) sb.AppendLine($"<color=#5FE0FF><b>▸ {opts[i]} ◂</b></color>");
+                else               sb.AppendLine($"<color=#999999>{opts[i]}</color>");
             }
             sb.AppendLine();
             // 호스트 시작 실패 — 한 머신에 인스턴스가 여럿이면 먼저 뜬 쪽이 포트를 쥔다.
@@ -307,7 +320,7 @@ namespace AIXRCrane.Crane.Sts.Net
                 sb.AppendLine("<size=16><color=#5FE0FF>'참가'를 고르면 그 세계에 들어갑니다 · 관전이라 운전은 호스트만 할 수 있어요.</color></size>");
                 sb.AppendLine();
             }
-            if (selected == 0)
+            if (selected < opts.Length - 1)
                 sb.AppendLine($"<size=16><color=#999999>내 IP <b>{ui.IpLabel}</b> · 최대 {ui.MaxPlayers}인</color></size>");
             else if (ui.HostDiscovered)
                 sb.AppendLine($"<size=16><color=#5FE0FF>호스트 발견됨 · A로 접속</color></size>");

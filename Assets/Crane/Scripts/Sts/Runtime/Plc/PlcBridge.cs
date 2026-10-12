@@ -110,16 +110,28 @@ namespace AIXRCrane.Crane.Sts.Plc
                 serverUrlFixed = UnityEditor.EditorPrefs.HasKey(PrefKey("serverUrl"));   // 측정 중엔 기기 설정보다 측정 도구가 먼저
             }
 #endif
-            if (PlcLiveMode.On && !measuring)   // 라이브 PLC — 씬의 재생 설정보다 먼저. 측정 도구가 정한 소스(로컬 서버·CSV)는 건드리지 않는다
-            {
-                sourceMode = SourceMode.Server; active = true;
-                if (!string.IsNullOrEmpty(PlcLiveMode.EditorUrl)) { serverUrl = PlcLiveMode.EditorUrl; serverUrlFixed = true; }
-            }
+            if (PlcLiveMode.On && !PlcLiveMode.Pending && !measuring) SetLive();   // 라이브 PLC — 씬의 재생 설정보다 먼저. 측정 도구가 정한 소스(로컬 서버·CSV)는 건드리지 않는다
             source = BuildSource();
             // CSV 재생이면 화물 재생도 붙인다 — 안 붙이면 '축은 재생되는데 스프레더는 빈손'. 작업 이력이 없으면 스스로 꺼진다.
             if (active && source is CsvReplaySource && GetComponent<PlcCargoReplay>() == null) gameObject.AddComponent<PlcCargoReplay>();
             Debug.Log($"[PlcBridge] init: mode={sourceMode} active={active} csvAsset={(csvAsset != null)} " +
                       $"csvPath='{csvPath}' → source={source?.Name} connected={source?.IsConnected}");
+        }
+
+        void SetLive()
+        {
+            sourceMode = SourceMode.Server; active = true;
+            if (!string.IsNullOrEmpty(PlcLiveMode.EditorUrl)) { serverUrl = PlcLiveMode.EditorUrl; serverUrlFixed = true; }
+        }
+
+        /// <summary>시작 메뉴에서 PLC 모니터링을 고르면 — 씬 기본(CSV 재생)으로 시작한 다리를 서버 소스로 바꾼다. CSV 화물 재생은 PlcCargoFollow 와 겹치니 뗀다.</summary>
+        public void UseLiveSource()
+        {
+            if (measuring) return;
+            if (TryGetComponent<PlcCargoReplay>(out var replay)) Destroy(replay);
+            SetLive();
+            source = BuildSource();
+            crane.OpMode.ResetAccelTracking();   // CSV 자리에서 서버 자리로 건너뛰는 순간을 가속으로 보지 않게
         }
 
         // 스캔주기 [1,100]ms 재클램프 — 과대값은 알람 지연, 0·음수는 0으로 나누기. [Range]는 슬라이더만 막는다.
@@ -225,8 +237,9 @@ namespace AIXRCrane.Crane.Sts.Plc
             if (source is VirtualPlcSource v) v.InjectAggressive = injectAggressive;
 
             // 직접조종이면 PlcDriven=false 유지(가속 오경보 차단).
-            crane.OpMode.PlcDriven = active;
-            SetFollowOnly(crane, active);
+            bool drive = active && !PortDemoDirector.Spectator;
+            crane.OpMode.PlcDriven = drive;
+            SetFollowOnly(crane, drive);
 
             // 고정 스캔 그리드 — dt를 누산해 scanPeriod 경계에서만 1스캔(입력 동결→평가→출력).
             float scanDt = Mathf.Max(0.001f, scanPeriodMs * 0.001f);
@@ -267,6 +280,7 @@ namespace AIXRCrane.Crane.Sts.Plc
             if (!active) return;
             if (!source.TryRead(out var s)) return;
             lastSnap = s; haveSnap = true;        // 이 스캔의 입력 스냅샷을 동결.
+            if (PortDemoDirector.Spectator) return;   // 세션에 든 관전자는 호스트 값만 따른다(CraneNetSync) — 둘이 같이 움직이면 호스트가 조종할 때 떨린다
             DriveAxis(crane.Gantry,   s.GtPosition, gtRangeM);
             DriveAxis(crane.Trolley,  s.TrPosition, trRangeM);
             DriveAxis(crane.Spreader, s.HoPosition, hoRangeM);
