@@ -37,6 +37,8 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             SessionState.SetBool(Key, true);
             SessionState.SetBool(PrevKey, EditorPrefs.GetBool(PortDemoDirector.EditorPrefKey, false));
             EditorPrefs.SetBool(PortDemoDirector.EditorPrefKey, true);   // 시연 감독이 크레인마다 조종기를 붙이고 가까운 한 대만 켠다
+            SessionState.SetBool(Key + ".PrevPlc", EditorPrefs.GetBool(AIXRCrane.Crane.Sts.Plc.PlcLiveMode.EditorPrefKey, false));
+            EditorPrefs.SetBool(AIXRCrane.Crane.Sts.Plc.PlcLiveMode.EditorPrefKey, false);   // 라이브 PLC 가 켜져 있으면 서버 데이터가 크레인을 움직이고 시연 감독도 안 뜬다 — 시험이 엉뚱하게 실패했다
             EditorSceneManager.OpenScene(StsPartNames.PortScenePath);
             EditorApplication.playModeStateChanged -= OnPlayMode;
             EditorApplication.playModeStateChanged += OnPlayMode;
@@ -240,6 +242,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
                       $"HUD STS {hudSts}→RTG {hudRtg} · 타이어 {wheelOk} · 운전실 {cabOk}\n{report}");
             EditorApplication.update -= Tick;
             EditorPrefs.SetBool(PortDemoDirector.EditorPrefKey, SessionState.GetBool(PrevKey, false));
+            EditorPrefs.SetBool(AIXRCrane.Crane.Sts.Plc.PlcLiveMode.EditorPrefKey, SessionState.GetBool(Key + ".PrevPlc", false));
             SessionState.EraseBool(Key);
             if (Application.isBatchMode) EditorApplication.Exit(pass ? 0 : 1);
             else EditorApplication.ExitPlaymode();

@@ -38,6 +38,8 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             SessionState.SetBool(Key, true);
             SessionState.SetBool(PrevKey, EditorPrefs.GetBool(PortDemoDirector.EditorPrefKey, false));
             EditorPrefs.SetBool(PortDemoDirector.EditorPrefKey, false);   // 시연 감독이 크레인을 움직이지 않게
+            SessionState.SetBool(Key + ".PrevPlc", EditorPrefs.GetBool(AIXRCrane.Crane.Sts.Plc.PlcLiveMode.EditorPrefKey, false));
+            EditorPrefs.SetBool(AIXRCrane.Crane.Sts.Plc.PlcLiveMode.EditorPrefKey, false);   // 라이브 PLC 가 켜져 있으면 서버 데이터가 크레인을 움직이고 시연 감독도 안 뜬다 — 시험이 엉뚱하게 실패했다
             EditorSceneManager.OpenScene(ScenePath);
             EditorApplication.playModeStateChanged -= OnPlay;
             EditorApplication.playModeStateChanged += OnPlay;
@@ -248,8 +250,10 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             Debug.Log($"[FloorClipProbe] {(pass ? "PASS" : "FAIL")} — 측정 {measured}, 실패 {fails}, 건너뜀 {skipped}");
             EditorApplication.update -= Tick;
             EditorPrefs.SetBool(PortDemoDirector.EditorPrefKey, SessionState.GetBool(PrevKey, false));
+            EditorPrefs.SetBool(AIXRCrane.Crane.Sts.Plc.PlcLiveMode.EditorPrefKey, SessionState.GetBool(Key + ".PrevPlc", false));
             SessionState.EraseBool(Key);
-            EditorApplication.Exit(pass ? 0 : 1);
+            if (Application.isBatchMode) EditorApplication.Exit(pass ? 0 : 1);
+            else EditorApplication.ExitPlaymode();
         }
     }
 }

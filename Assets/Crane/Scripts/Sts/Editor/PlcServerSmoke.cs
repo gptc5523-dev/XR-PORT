@@ -36,6 +36,8 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             EditorPrefs.SetBool(Pref("forceReplay"), false);   // 재생 복원이 서버보다 우선이라 끈다
             EditorPrefs.SetBool(Pref("forceServer"), true);
             EditorPrefs.SetBool(PortDemoDirector.EditorPrefKey, false);   // 시연 감독은 PlcBridge 를 끈다
+            SessionState.SetBool(Key + ".PrevPlc", EditorPrefs.GetBool(AIXRCrane.Crane.Sts.Plc.PlcLiveMode.EditorPrefKey, false));
+            EditorPrefs.SetBool(AIXRCrane.Crane.Sts.Plc.PlcLiveMode.EditorPrefKey, false);   // 라이브 PLC 가 켜져 있으면 서버 데이터가 크레인을 움직이고 시연 감독도 안 뜬다 — 시험이 엉뚱하게 실패했다
 
             EditorSceneManager.OpenScene(ScenePath);
             EditorApplication.playModeStateChanged -= OnPlayMode;
@@ -86,6 +88,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             EditorPrefs.SetBool(Pref("forceReplay"), prev[0] == "True");
             EditorPrefs.SetBool(Pref("forceServer"), prev.Length > 1 && prev[1] == "True");
             EditorPrefs.SetBool(PortDemoDirector.EditorPrefKey, prev.Length > 2 && prev[2] == "True");
+            EditorPrefs.SetBool(AIXRCrane.Crane.Sts.Plc.PlcLiveMode.EditorPrefKey, SessionState.GetBool(Key + ".PrevPlc", false));
             SessionState.EraseBool(Key);
             if (Application.isBatchMode) EditorApplication.Exit(pass ? 0 : 1);
             else EditorApplication.ExitPlaymode();

@@ -33,6 +33,10 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             SessionState.SetBool(Key, true);
             SessionState.SetBool(PrevKey, EditorPrefs.GetBool(PortDemoDirector.EditorPrefKey, false));
             EditorPrefs.SetBool(PortDemoDirector.EditorPrefKey, false);   // 시연 감독이 크레인을 움직이지 않게
+            SessionState.SetBool(Key + ".PrevPlc", EditorPrefs.GetBool(AIXRCrane.Crane.Sts.Plc.PlcLiveMode.EditorPrefKey, false));
+            EditorPrefs.SetBool(AIXRCrane.Crane.Sts.Plc.PlcLiveMode.EditorPrefKey, false);   // 라이브 PLC 가 켜져 있으면 서버 데이터가 크레인을 움직이고 시연 감독도 안 뜬다 — 시험이 엉뚱하게 실패했다
+            SessionState.SetInt(Key + ".PrevForce", PlayerPrefs.GetInt(AIXRCrane.Crane.Flat.FlatModeBootstrap.ForcePrefKey, 0));
+            PlayerPrefs.SetInt(AIXRCrane.Crane.Flat.FlatModeBootstrap.ForcePrefKey, 2);   // VR 강제 — 에디터는 XR 기기가 없어 모바일 관전으로 뜨고, 모바일은 호스트가 못 돼 '포트 정상' 단계가 늘 실패했다
             EditorSceneManager.OpenScene(ScenePath);
             EditorApplication.playModeStateChanged -= OnPlay;
             EditorApplication.playModeStateChanged += OnPlay;
@@ -163,6 +167,8 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             Debug.Log($"[HostStartProbe] {(pass ? "PASS" : "FAIL")} — 측정 {measured}, 실패 {fails}");
             EditorApplication.update -= Tick;
             EditorPrefs.SetBool(PortDemoDirector.EditorPrefKey, SessionState.GetBool(PrevKey, false));
+            EditorPrefs.SetBool(AIXRCrane.Crane.Sts.Plc.PlcLiveMode.EditorPrefKey, SessionState.GetBool(Key + ".PrevPlc", false));
+            PlayerPrefs.SetInt(AIXRCrane.Crane.Flat.FlatModeBootstrap.ForcePrefKey, SessionState.GetInt(Key + ".PrevForce", 0));
             SessionState.EraseBool(Key);
             if (Application.isBatchMode) EditorApplication.Exit(pass ? 0 : 1);
             else EditorApplication.ExitPlaymode();
