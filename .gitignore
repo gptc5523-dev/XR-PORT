@@ -65,3 +65,6 @@ ExportedObj/
 
 # 통합서버 실제 설정(토큰 등) — 예시는 Server/xrcrane.env.example
 Server/xrcrane.env
+
+# AI 데이터셋 v2 — PlcSim/gen_ai.py 로 재생성(고정 시드)
+PlcSim/ai_data/
