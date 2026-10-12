@@ -20,6 +20,9 @@ namespace AIXRCrane.Crane.Sts.Net
         NetLanUI ui;
         float nextBeacon;
         const string Tag = "STSCRANE";
+        const float StickS = 3f;   // 고른 세션의 비콘이 이만큼 끊겨야 다른 호스트로 넘어간다
+        string sessionId;          // 호스트일 때 내 세션 — 비콘에 싣는다
+        string stuck; float stuckSeen = float.NegativeInfinity;   // 관전자가 고른 세션
 
         void Awake() => ui = GetComponent<NetLanUI>();
 
@@ -78,8 +81,10 @@ namespace AIXRCrane.Crane.Sts.Net
             if (nm != null && nm.IsServer && Time.unscaledTime >= nextBeacon)
             {
                 nextBeacon = Time.unscaledTime + Mathf.Max(0.25f, beaconInterval);
-                Broadcast($"{Tag}|{Port(nm)}");
+                sessionId ??= System.DateTime.UtcNow.Ticks.ToString("x");
+                Broadcast($"{Tag}|{Port(nm)}|{sessionId}|{DeviceIdentity.LineText(DeviceIdentity.Label).Replace('|', ' ')}");   // 형식: 태그|포트|세션|호스트 이름
             }
+            else if (nm == null || !nm.IsServer) sessionId = null;
 
             // 미접속 상태면 비콘 수신 대기 → 호스트 IP 자동 입력
             bool idle = nm == null || (!nm.IsClient && !nm.IsServer);
@@ -90,8 +95,13 @@ namespace AIXRCrane.Crane.Sts.Net
                     IPEndPoint from = new IPEndPoint(IPAddress.Any, 0);
                     byte[] data = udp.Receive(ref from);
                     string msg = Encoding.UTF8.GetString(data);
-                    if (idle && msg.StartsWith(Tag) && ui != null)
-                        ui.SetDiscoveredHost(from.Address.ToString());
+                    if (!idle || !msg.StartsWith(Tag) || ui == null) continue;
+                    var f = msg.Split('|');
+                    string session = f.Length > 2 ? f[2] : from.Address.ToString();   // 옛 비콘(태그|포트)은 주소로 구분
+                    // 호스트가 여럿이면 처음 고른 세션에 머문다 — 비콘마다 주소가 바뀌어 엉뚱한 호스트로 붙을 수 있었다(WBS 5.4).
+                    if (stuck != null && session != stuck && Time.unscaledTime - stuckSeen < StickS) continue;
+                    stuck = session; stuckSeen = Time.unscaledTime;
+                    ui.SetDiscoveredHost(from.Address.ToString(), f.Length > 3 ? f[3] : "");
                 }
             }
             catch { /* 수신 오류 무시 */ }

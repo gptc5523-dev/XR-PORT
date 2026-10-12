@@ -46,11 +46,15 @@ namespace AIXRCrane.Crane.Sts.Net
                 ? NetworkManager.Singleton.GetComponent<UnityTransport>()
                 : null;
 
+        /// <summary>찾은 호스트의 이름(등록 사용자 문구) — 호스트가 여럿일 때 어느 쪽인지 보인다. 모르면 "".</summary>
+        public string HostLabel { get; private set; } = "";
+
         /// <summary>LanDiscovery가 호스트를 찾으면 호출 — 참가 IP 자동 입력.</summary>
-        public void SetDiscoveredHost(string ip)
+        public void SetDiscoveredHost(string ip, string label = null)
         {
             if (string.IsNullOrEmpty(ip)) return;
             joinIp = ip;
+            if (label != null) HostLabel = label;
             hostDiscovered = true;
             LastHostSeen = Time.unscaledTime;
         }

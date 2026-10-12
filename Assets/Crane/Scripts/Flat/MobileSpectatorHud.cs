@@ -170,7 +170,7 @@ namespace AIXRCrane.Crane.Flat
 
             var nm = NetworkManager.Singleton;
             bool connected = nm != null && nm.IsConnectedClient;
-            string role = connected ? "● 관전 중"
+            string role = connected ? "● 관전 중" + (net != null && net.HostLabel.Length > 0 ? " · 호스트 " + net.HostLabel : "")
                         : nm != null && nm.IsClient ? "◌ 호스트에 접속 중…"
                         : "○ 호스트 기다리는 중";
             var notice = CraneAlarmHUD.ActiveNotice;   // 나가는 존 카운트 등

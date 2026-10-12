@@ -292,7 +292,7 @@ namespace AIXRCrane.Crane.Sts.Net
                 sb.AppendLine();
                 if (ui.HostDiscovered)
                 {
-                    sb.AppendLine($"<size=18><color=#5FE0FF>호스트 발견 <b>{ui.JoinIp}</b> · 접속 중...</color></size>");
+                    sb.AppendLine($"<size=18><color=#5FE0FF>호스트 발견 <b>{ui.JoinIp}</b>{(ui.HostLabel.Length > 0 ? " · " + ui.HostLabel : "")} · 접속 중...</color></size>");
                 }
                 else
                 {
@@ -323,7 +323,7 @@ namespace AIXRCrane.Crane.Sts.Net
             if (selected < opts.Length - 1)
                 sb.AppendLine($"<size=16><color=#999999>내 IP <b>{ui.IpLabel}</b> · 최대 {ui.MaxPlayers}인</color></size>");
             else if (ui.HostDiscovered)
-                sb.AppendLine($"<size=16><color=#5FE0FF>호스트 발견됨 · A로 접속</color></size>");
+                sb.AppendLine($"<size=16><color=#5FE0FF>호스트 발견됨{(ui.HostLabel.Length > 0 ? " (" + ui.HostLabel + ")" : "")} · A로 접속</color></size>");
             else
                 sb.AppendLine($"<size=16><color=#999999>호스트를 자동으로 찾습니다</color></size>");
             sb.AppendLine();
