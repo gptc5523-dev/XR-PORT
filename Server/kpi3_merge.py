@@ -57,6 +57,7 @@ def main():
     ap.add_argument("--grace-s", type=float, default=0.5, help="허용 지연(초)")
     ap.add_argument("--tol-m", type=float, default=0.05, help="위치 허용오차(m, 지표2 와 같다)")
     ap.add_argument("--target", type=float, default=95.0, help="1차년도 목표(%)")
+    ap.add_argument("--settle-s", type=float, default=0.0, help="관전자마다 첫 기록 뒤 이 초만큼은 판정에서 뺀다(접속 직후 초기 정렬)")
     args = ap.parse_args()
 
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -64,6 +65,12 @@ def main():
     rows = [r for f in files for r in load(f)]
     host = host_index([r for r in rows if r["role"] == "host"])
     clients = [r for r in rows if r["role"] == "client"]
+    first = {}
+    for r in clients:
+        first[r["client_id"]] = min(first.get(r["client_id"], float("inf")), float(r["server_time_s"]))
+    settled = [r for r in clients if float(r["server_time_s"]) >= first[r["client_id"]] + args.settle_s]
+    skipped = len(clients) - len(settled)
+    clients = settled
     if not host or not clients:
         sys.exit(f"호스트·관전자 로그가 둘 다 있어야 한다 (파일 {len(files)}개, 호스트 {sum(len(v[1]) for v in host.values())}행, 관전자 {len(clients)}행)")
 
@@ -83,6 +90,7 @@ def main():
     pct = ok_n * 100 / n if n else 0
     summary = {"trials": n, "pass": ok_n, "percent": round(pct, 1), "target": args.target,
                "verdict": "PASS" if pct >= args.target else "FAIL", "grace_s": args.grace_s, "tol_m": args.tol_m,
+               "settle_s": args.settle_s, "skipped_settle": skipped,
                "clients": sorted({s["client_id"] for s in clients}), "logs": files, "csv": out}
     print(json.dumps(summary, ensure_ascii=False, indent=1))
     sys.exit(0 if summary["verdict"] == "PASS" else 1)
