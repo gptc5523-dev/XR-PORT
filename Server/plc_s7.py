@@ -21,11 +21,9 @@ import struct
 import time
 import urllib.request
 
-# 주소표 — (태그, DB, 바이트, 비트, 형식). 형식 R=REAL(4) I=INT(2) X=BOOL. S7 은 빅엔디언.
-# 가정 주소표 — ANCHORS 4개만 고정점, 나머지는 축 블록으로 채웠다.
-#   MBE-DOC-2026-XR-002(PLC 데이터 포인트 리스트, 05-26 수령)와 대조(2026-10-13): 44개 중 29개 일치, 나머지는 비트·바이트가 다르다
-#   (SP_TwistLock~Mismatch·OP_AntiSway 비트 +1, OP_Cycle_Count_Today DBD152, ENV_Wind_* DBD180~, ALM_Latest_Severity/Source DBW6/16).
-#   실 PLC 에 붙이기 전에 이 표만 XR-002 로 맞춘다.
+# 주소표 — (태그, DB, 바이트, 비트, 형식). 형식 R=REAL(4) D=DINT(4) I=INT(2) X=BOOL. S7 은 빅엔디언.
+# ㈜엠비이 MBE-DOC-2026-XR-002(PLC 데이터 포인트 리스트, 05-26 수령) 주소·형식 그대로(2026-10-13 맞춤).
+#   예외 HO_Motor_Alarm — XR-002 권상 축엔 없는 태그(PlcSim 이 낸다). 비어 있는 DBX68.5 에 둔다.
 LAYOUT = [
     ("GT_Position", 100, 0, 0, "R"), ("GT_Velocity", 100, 4, 0, "R"),
     ("GT_Direction", 100, 8, 0, "X"), ("GT_Running", 100, 8, 1, "X"),
@@ -37,31 +35,31 @@ LAYOUT = [
 
     ("HO_Position", 100, 60, 0, "R"), ("HO_Velocity", 100, 64, 0, "R"),
     ("HO_Direction", 100, 68, 0, "X"), ("HO_Overload_Alarm", 100, 68, 1, "X"), ("HO_Snag_Alarm", 100, 68, 2, "X"),
-    ("HO_Running", 100, 68, 3, "X"), ("HO_Brake_Released", 100, 68, 4, "X"), ("HO_Motor_Alarm", 100, 68, 5, "X"),
+    ("HO_Running", 100, 68, 3, "X"), ("HO_Brake_Released", 100, 68, 4, "X"), ("HO_Motor_Alarm", 100, 68, 5, "X"),  # XR-002 에 없음
     ("HO_Load", 100, 70, 0, "R"),
 
     ("SP_Mode", 100, 100, 0, "I"),
-    ("SP_TwistLock_Locked", 100, 102, 0, "X"), ("SP_TwistLock_Unlocked", 100, 102, 1, "X"),
-    ("SP_Landed", 100, 102, 2, "X"), ("SP_Container_Detected", 100, 102, 3, "X"), ("SP_Mismatch_Alarm", 100, 102, 4, "X"),
+    ("SP_TwistLock_Locked", 100, 102, 1, "X"), ("SP_TwistLock_Unlocked", 100, 102, 2, "X"),
+    ("SP_Landed", 100, 102, 3, "X"), ("SP_Container_Detected", 100, 102, 4, "X"), ("SP_Mismatch_Alarm", 100, 102, 5, "X"),
     ("SP_Telescopic_Position", 100, 104, 0, "R"),
 
     ("OP_Mode", 100, 130, 0, "I"),
     ("OP_Power_On", 100, 132, 0, "X"), ("OP_Ready", 100, 132, 1, "X"), ("OP_Running", 100, 132, 2, "X"),
-    ("OP_Standby", 100, 132, 3, "X"), ("OP_Emergency_Stop", 100, 132, 4, "X"), ("OP_AntiSway_Active", 100, 132, 5, "X"),
-    ("OP_Cycle_Count_Today", 100, 134, 0, "I"),
+    ("OP_Standby", 100, 132, 3, "X"), ("OP_Emergency_Stop", 100, 132, 4, "X"), ("OP_AntiSway_Active", 100, 132, 6, "X"),
+    ("OP_Cycle_Count_Today", 100, 152, 0, "D"),
 
-    ("ENV_Wind_Speed", 100, 160, 0, "R"), ("ENV_Wind_Direction", 100, 164, 0, "R"), ("ENV_Wind_Alarm", 100, 168, 0, "X"),
+    ("ENV_Wind_Speed", 100, 180, 0, "R"), ("ENV_Wind_Direction", 100, 184, 0, "R"), ("ENV_Wind_Alarm", 100, 188, 0, "X"),
 
     ("COM_Link_Status", 100, 200, 0, "X"),
 
-    ("ALM_Active", 101, 0, 0, "X"), ("ALM_Latest_Code", 101, 2, 0, "I"),
-    ("ALM_Latest_Severity", 101, 4, 0, "I"), ("ALM_Latest_Source", 101, 6, 0, "I"),
+    ("ALM_Active", 101, 0, 0, "X"), ("ALM_Latest_Code", 101, 2, 0, "D"),
+    ("ALM_Latest_Severity", 101, 6, 0, "I"), ("ALM_Latest_Source", 101, 16, 0, "I"),
 ]
 # 코드에 남아 있는 벤더 주소(IPlcSource.cs) — 표를 고쳐도 이건 어긋나면 안 된다.
 ANCHORS = {"HO_Load": (100, 70, 0), "SP_Mode": (100, 100, 0), "OP_Mode": (100, 130, 0), "COM_Link_Status": (100, 200, 0)}
 DBS = (100, 101)
 DB_SIZE = 256
-SIZE = {"R": 4, "I": 2, "X": 1}
+SIZE = {"R": 4, "D": 4, "I": 2, "X": 1}
 HERE = os.path.dirname(os.path.abspath(__file__))
 
 
@@ -72,6 +70,8 @@ def encode(row, dbs):
         b = dbs[db]
         if kind == "R":
             struct.pack_into(">f", b, byte, v)
+        elif kind == "D":
+            struct.pack_into(">i", b, byte, int(v))
         elif kind == "I":
             struct.pack_into(">h", b, byte, int(v))
         elif v:
@@ -87,6 +87,8 @@ def decode(dbs):
         b = dbs[db]
         if kind == "R":
             row[tag] = round(struct.unpack_from(">f", b, byte)[0], 4)
+        elif kind == "D":
+            row[tag] = struct.unpack_from(">i", b, byte)[0]
         elif kind == "I":
             row[tag] = struct.unpack_from(">h", b, byte)[0]
         else:
