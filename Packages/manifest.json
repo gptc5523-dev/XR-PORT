@@ -1,5 +1,6 @@
 {
   "dependencies": {
+    "com.coplaydev.unity-mcp": "https://github.com/CoplayDev/unity-mcp.git?path=/MCPForUnity#v10.2.0",
     "com.unity.ai.navigation": "2.0.12",
     "com.unity.cloud.gltfast": "6.10.1",
     "com.unity.collab-proxy": "2.12.4",
