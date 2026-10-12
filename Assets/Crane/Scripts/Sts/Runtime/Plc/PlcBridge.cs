@@ -119,6 +119,9 @@ namespace AIXRCrane.Crane.Sts.Plc
                       $"csvPath='{csvPath}' → source={source?.Name} connected={source?.IsConnected}");
         }
 
+        // 호스트가 동기화하지 않는 크레인(지금은 RTG)은 관전자도 PLC 로 직접 움직인다 — 안 그러면 관전 화면에서 멈춘다.
+        bool FollowsHost() => PortDemoDirector.Spectator && Net.CraneNetSync.Syncs(crane);
+
         void SetLive()
         {
             sourceMode = SourceMode.Server; active = true;
@@ -238,7 +241,7 @@ namespace AIXRCrane.Crane.Sts.Plc
             if (source is VirtualPlcSource v) v.InjectAggressive = injectAggressive;
 
             // 직접조종이면 PlcDriven=false 유지(가속 오경보 차단).
-            bool drive = active && !PortDemoDirector.Spectator;
+            bool drive = active && !FollowsHost();
             crane.OpMode.PlcDriven = drive;
             SetFollowOnly(crane, drive);
 
@@ -281,7 +284,7 @@ namespace AIXRCrane.Crane.Sts.Plc
             if (!active) return;
             if (!source.TryRead(out var s)) return;
             lastSnap = s; haveSnap = true;        // 이 스캔의 입력 스냅샷을 동결.
-            if (PortDemoDirector.Spectator) return;   // 세션에 든 관전자는 호스트 값만 따른다(CraneNetSync) — 둘이 같이 움직이면 호스트가 조종할 때 떨린다
+            if (FollowsHost()) return;   // 세션에 든 관전자는 호스트가 보내는 크레인이면 그 값만 따른다(CraneNetSync) — 둘이 같이 움직이면 호스트가 조종할 때 떨린다
             DriveAxis(crane.Gantry,   s.GtPosition, gtRangeM);
             DriveAxis(crane.Trolley,  s.TrPosition, trRangeM);
             DriveAxis(crane.Spreader, s.HoPosition, hoRangeM);
