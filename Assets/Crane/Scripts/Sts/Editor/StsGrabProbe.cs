@@ -13,7 +13,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
     [InitializeOnLoad]
     public static class StsGrabProbe
     {
-        const string Key = "StsGrabProbe", PrevKey = "StsGrabProbe.Prev", ScenePath = StsPartNames.PortScenePath;
+        const string Key = "StsGrabProbe", PrevKey = "StsGrabProbe.Prev", PrevPlcKey = "StsGrabProbe.PrevPlc", ScenePath = StsPartNames.PortScenePath;
         const float TolXZ = 0.015f, TolY = 0.003f, LiftU = 0.05f;
         // 케이스: 호버(안 잠겨야) · 안착(InsertDepthMeters ± 허용오차) · 과하강(클램프가 삽입깊이에서 세워야).
         //   허용오차 = min(InsertBandAbsM, 깊이 × InsertBandFrac).
@@ -84,6 +84,8 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             SessionState.SetBool(Key, true);
             SessionState.SetBool(PrevKey, EditorPrefs.GetBool(PortDemoDirector.EditorPrefKey, false));
             EditorPrefs.SetBool(PortDemoDirector.EditorPrefKey, false);   // 시연 감독이 크레인을 움직이지 않게
+            SessionState.SetBool(PrevPlcKey, EditorPrefs.GetBool(PlcLiveMode.EditorPrefKey, false));
+            EditorPrefs.SetBool(PlcLiveMode.EditorPrefKey, false);   // 라이브 PLC 도 — 서버 데이터가 축을 덮어쓰고 잠금 신호로 컨테이너를 놓아 RTG 40ft 를 '놓친' 것처럼 보였다
             EditorSceneManager.OpenScene(ScenePath);
             EditorApplication.playModeStateChanged -= OnPlay;
             EditorApplication.playModeStateChanged += OnPlay;
@@ -437,8 +439,10 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             Debug.Log($"[StsGrabProbe] {(pass ? "PASS" : "FAIL")} — 검사 {cases.Count}건, 측정 {measured}, 실패 {fails}, 건너뜀 {skipped}");
             EditorApplication.update -= Tick;
             EditorPrefs.SetBool(PortDemoDirector.EditorPrefKey, SessionState.GetBool(PrevKey, false));
+            EditorPrefs.SetBool(PlcLiveMode.EditorPrefKey, SessionState.GetBool(PrevPlcKey, false));
             SessionState.EraseBool(Key);
-            EditorApplication.Exit(pass ? 0 : 1);
+            if (Application.isBatchMode) EditorApplication.Exit(pass ? 0 : 1);
+            else EditorApplication.ExitPlaymode();
         }
     }
 }
