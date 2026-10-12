@@ -29,6 +29,8 @@ namespace AIXRCrane.Crane.Sts.Net
         /// <summary>이름표 문구·식별색(#RRGGBB) — 주인이 등록 정보로 쓰고 모두가 본다.</summary>
         public readonly NetworkVariable<Unity.Collections.FixedString128Bytes> Label = new(writePerm: NetworkVariableWritePermission.Owner);
         readonly NetworkVariable<Unity.Collections.FixedString32Bytes> colorHex = new(writePerm: NetworkVariableWritePermission.Owner);
+        /// <summary>이 참가자가 고른 것(CranePartPicker.SelectionKey) — 남의 화면에 이 사람 색 상자로 보인다. 빈 값 = 없음.</summary>
+        public readonly NetworkVariable<Unity.Collections.FixedString64Bytes> Selection = new(writePerm: NetworkVariableWritePermission.Owner);
 
         readonly List<Renderer> rends = new();
         Canvas nameTag;
@@ -133,6 +135,8 @@ namespace AIXRCrane.Crane.Sts.Net
         void LateUpdate()
         {
             if (!IsSpawned || !IsOwner) return;
+            string sel = AIXRCrane.Crane.Sts.CranePartPicker.SelectionKey;
+            if (Selection.Value.ToString() != sel) Selection.Value = sel;
             if (DeviceIdentity.Looked && Label.Value.Length == 0)
             {
                 Label.Value = DeviceIdentity.Label;

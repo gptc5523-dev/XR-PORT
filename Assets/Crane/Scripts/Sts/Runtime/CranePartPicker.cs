@@ -43,6 +43,12 @@ namespace AIXRCrane.Crane.Sts
         bool gripWas;
         Transform grabbedDuringGrip;   // 그립 중 잡힌 컨테이너 — 놓을 때 부품 대신 이것을 고른다
         Transform hand;   // 오른손 컨트롤러 — 찾는 데 씬 전체를 훑으니 한 번 찾으면 둔다
+        readonly Dictionary<Net.PlayerAvatarSync, LineRenderer> others = new();   // 남의 선택 상자(그 사람 색)
+        Net.PlayerAvatarSync[] avatars = System.Array.Empty<Net.PlayerAvatarSync>();
+        float nextAvatarScan;
+
+        /// <summary>내가 고른 것 — 부품 '크레인|부품ID', 컨테이너 'C'+ContainerRegistry 번호, 없으면 "". 남에게 보낸다(PlayerAvatarSync.Selection).</summary>
+        public static string SelectionKey { get; private set; } = "";
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void AutoSpawn() => CraneHud.EnsureSpawned<CranePartPicker>("PartPick");
@@ -51,6 +57,9 @@ namespace AIXRCrane.Crane.Sts
         {
             foreach (var l in new[] { box, laser })
                 if (l != null && l.sharedMaterial != null) Destroy(l.sharedMaterial);   // MakeLine 이 만든 인스턴스
+            foreach (var l in others.Values)
+                if (l != null && l.sharedMaterial != null) Destroy(l.sharedMaterial);
+            SelectionKey = "";
         }
 
         void Start()
@@ -78,6 +87,7 @@ namespace AIXRCrane.Crane.Sts
 
         void LateUpdate()
         {
+            DrawOthers();
             var head = Flat.XrealHeadTracker.Instance;
             reticle.enabled = Flat.FlatModeBootstrap.Active && (reticleOn || (head != null && head.Connected));
             bool show = Union(selected, out _);
@@ -179,6 +189,7 @@ namespace AIXRCrane.Crane.Sts
         void Select(Entry e)
         {
             selected = e;
+            SelectionKey = KeyOf(e);
             lastText = null;
             nextText = 0f;
             if (e != null) Debug.Log(e.box != null ? $"[PartPick] 선택 컨테이너 {SpreaderAttach.Identify(e.box, out _)} ({e.box.name})" : $"[PartPick] 선택 {e.part.id} ({e.part.name})");
@@ -367,6 +378,51 @@ namespace AIXRCrane.Crane.Sts
             }
         }
 
+        // ── 남의 선택 ─────────────────────────────────────────────────────────
+
+        static string KeyOf(Entry e)
+        {
+            if (e == null) return "";
+            if (e.box != null) { int i = ContainerRegistry.IndexOf(e.box); return i >= 0 ? "C" + i : ""; }
+            return e.part != null && e.crane != null ? e.crane.name + "|" + e.part.id : "";
+        }
+
+        Entry Resolve(string key)
+        {
+            if (string.IsNullOrEmpty(key)) return null;
+            if (key[0] == 'C' && int.TryParse(key.Substring(1), out int i)) { var t = ContainerRegistry.At(i); return t != null ? BoxEntry(t) : null; }
+            int bar = key.IndexOf('|');
+            if (bar < 0) return null;
+            string crane = key.Substring(0, bar), id = key.Substring(bar + 1);
+            foreach (var e in entries) if (e.crane != null && e.crane.name == crane && e.part.id == id) return e;
+            return null;
+        }
+
+        // 세션의 다른 참가자가 고른 것을 그 사람 식별색 상자로 — 같은 것을 보며 이야기할 수 있게(계획서 그림 5 '동일한 선택 표시').
+        void DrawOthers()
+        {
+            if (Time.unscaledTime >= nextAvatarScan) { nextAvatarScan = Time.unscaledTime + 1f; avatars = FindObjectsByType<Net.PlayerAvatarSync>(); }   // 씬 전체 검색은 1초에 한 번
+            foreach (var a in avatars)
+            {
+                if (a == null) continue;
+                if (a.IsOwner || !a.IsSpawned) continue;
+                if (!others.TryGetValue(a, out var l) || l == null) others[a] = l = MakeLine("OtherPick", 16, 0.003f, a.TintColor);
+                var e = Resolve(a.Selection.Value.ToString());
+                l.enabled = Union(e, out var b);
+                if (!l.enabled) continue;
+                l.startColor = l.endColor = a.TintColor;
+                DrawBox(l, b);
+            }
+            List<Net.PlayerAvatarSync> gone = null;
+            foreach (var kv in others) if (kv.Key == null || !kv.Key.IsSpawned) (gone ??= new()).Add(kv.Key);
+            if (gone != null)
+                foreach (var k in gone)
+                {
+                    if (others[k] != null) { Destroy(others[k].sharedMaterial); Destroy(others[k].gameObject); }
+                    others.Remove(k);
+                }
+        }
+
         // ── 그리기 ───────────────────────────────────────────────────────────
 
         LineRenderer MakeLine(string name, int n, float width, Color c)
@@ -411,7 +467,9 @@ namespace AIXRCrane.Crane.Sts
 
         // 상자 12모서리를 한 줄로(몇 모서리는 두 번 지난다).
         static readonly int[] BoxPath = { 0, 1, 2, 3, 0, 4, 5, 1, 5, 6, 2, 6, 7, 3, 7, 4 };
-        void DrawBox(Bounds b)
+        void DrawBox(Bounds b) => DrawBox(box, b);
+
+        static void DrawBox(LineRenderer box, Bounds b)
         {
             Vector3 mn = b.min, mx = b.max;
             for (int i = 0; i < BoxPath.Length; i++)
