@@ -1,0 +1,29 @@
+# 통합서버 설치본(WBS 8.2) — Server/install.sh 가 이 파일과 app/ 을 설치 폴더에 놓고 docker compose up -d 한다. 값은 같은 폴더의 .env(XRCRANE_TOKEN·XRCRANE_RETAIN_HOURS·XRCRANE_USERS_FILE).
+services:
+  xrcrane-db:
+    image: python:3.12-slim
+    container_name: xrcrane-db
+    restart: unless-stopped
+    command: ["python", "/app/xrcrane_db.py", "--db", "/data/xrcrane.db", "serve"]
+    ports: ["5006:5006"]
+    environment:
+      XRCRANE_USERS: /etc/xrcrane-users.json
+      XRCRANE_TOKEN: ${XRCRANE_TOKEN:-}
+      XRCRANE_RETAIN_HOURS: ${XRCRANE_RETAIN_HOURS:-3}
+    volumes:
+      - ./app:/app:ro
+      - ./data:/data
+      - ${XRCRANE_USERS_FILE:-./users.json}:/etc/xrcrane-users.json:ro
+
+  # 라이브 가상 PLC — 실 PLC(㈜엠비이)가 붙으면 이 서비스 대신 plc_s7.py adapter 를 띄운다.
+  xrcrane-plc:
+    image: python:3.12-slim
+    container_name: xrcrane-plc
+    restart: unless-stopped
+    network_mode: host
+    command: ["python", "-u", "/app/live.py", "--url", "http://127.0.0.1:5006", "--layout", "/app/live_layout.json"]
+    environment:
+      XRCRANE_TOKEN: ${XRCRANE_TOKEN:-}
+    volumes:
+      - ./app:/app:ro
+    depends_on: [xrcrane-db]
