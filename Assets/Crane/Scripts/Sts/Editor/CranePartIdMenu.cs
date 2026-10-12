@@ -102,8 +102,36 @@ namespace AIXRCrane.Crane.Sts.EditorTools
 
             string path = Path.Combine(Path.GetFullPath(Path.Combine(Application.dataPath, "..")), DocRel);
             File.WriteAllText(path, sb.ToString(), new UTF8Encoding(false));
-            Debug.Log($"[PartId] 매핑표 내보냄 → {DocRel} (부품 {CranePartId.Parts.Length}, 태그 {CranePartId.Tags.Length}, 알람 {AlarmCodebook.All.Length})");
+            File.WriteAllText(Path.Combine(Path.GetFullPath(Path.Combine(Application.dataPath, "..")), JsonRel), PartsJson(), new UTF8Encoding(false));
+            Debug.Log($"[PartId] 매핑표 내보냄 → {DocRel}, {JsonRel} (부품 {CranePartId.Parts.Length}, 태그 {CranePartId.Tags.Length}, 알람 {AlarmCodebook.All.Length})");
         }
+
+        const string JsonRel = "Server/parts.json";   // 통합서버 /parts 가 읽는다 — 서버가 XR 과 같은 표로 부품 상태를 낸다
+
+        static string PartsJson()
+        {
+            var sb = new StringBuilder("{\n  \"sts\": [");
+            AppendParts(sb, CranePartId.Parts);
+            sb.Append("],\n  \"rtg\": [");
+            AppendParts(sb, CranePartId.RtgParts);
+            sb.Append("],\n  \"rtgAbsent\": [");
+            for (int i = 0; i < CranePartId.RtgAbsent.Length; i++) sb.Append(i > 0 ? ", " : "").Append(Q(CranePartId.RtgAbsent[i]));
+            sb.Append("],\n  \"tags\": [");
+            for (int i = 0; i < CranePartId.Tags.Length; i++)
+            {
+                var t = CranePartId.Tags[i];
+                sb.Append(i > 0 ? "," : "").Append($"\n    {{\"tag\": {Q(t.tag)}, \"type\": {Q(t.type)}, \"part\": {Q(t.part)}, \"note\": {Q(t.note)}}}");
+            }
+            return sb.Append("\n  ]\n}\n").ToString();
+        }
+
+        static void AppendParts(StringBuilder sb, CranePartId.Part[] parts)
+        {
+            for (int i = 0; i < parts.Length; i++)
+                sb.Append(i > 0 ? "," : "").Append($"\n    {{\"id\": {Q(parts[i].id)}, \"note\": {Q(parts[i].note)}}}");
+        }
+
+        static string Q(string v) => "\"" + (v ?? "").Replace("\\", "\\\\").Replace("\"", "\\\"") + "\"";
 
         // 이 ID 를 가리키는 태그·알람 — 정확히 이 ID 이거나 부품 아닌 그룹 ID. 부품인 상위 ID(GT)는 자기 행에만.
         static bool Covers(string key, string id)

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-XR 크레인 통합서버 v0.5 — PLC 이력 수집·저장·조회. 파트ID 매핑·WebSocket 전파는 범위 밖(실 PLC 는 plc_s7.py 어댑터).
+XR 크레인 통합서버 v0.6 — PLC 이력 수집·저장·조회, 부품 ID 별 상태(/parts). WebSocket 전파는 범위 밖(실 PLC 는 plc_s7.py 어댑터).
 
 의존성 0 — 표준 라이브러리(http.server+sqlite3)만 쓴다. 이 규모 엔드포인트에 FastAPI 는 과투자.
 
@@ -21,6 +21,8 @@ XR 크레인 통합서버 v0.5 — PLC 이력 수집·저장·조회. 파트ID �
   GET  /since?crane=&after_id=                  크레인이 이어 받는 경로(CSV, X-Last-Id) — Unity ServerPlcSource
   GET/POST /users?all=&device=                  등록 사용자(기기 ID → 이름·자리), POST 는 API 로 추가·수정
   GET  /register                               등록 사용자 목록 페이지(읽기 전용)
+  GET  /parts?crane=                            부품별 상태(정상·주의·이상)·알람·태그 값, 크레인 운영 상태 — crane 없으면 전 크레인(WBS 2.19)
+  GET  /parts/history?crane=&part=&from_ms=&to_ms=   부품 상태가 바뀐 순간들(기본 최근 10분) — 2차년도 AI 학습·상태 요약의 입력
 
 접근 제어(WBS 9.2, 폐쇄망 전제 9.1)
   XRCRANE_ALLOW  허용 대역(쉼표 구분 CIDR). 기본 = 루프백 + 사설망(10/8, 172.16/12, 192.168/16) + Tailscale(100.64/10). 밖이면 403.
@@ -203,6 +205,85 @@ def rows_to_dicts(cur):
     return [dict(r) for r in cur.fetchall()]
 
 
+# 부품 상태(WBS 2.19) — 표는 Unity 메뉴 'PLC/부품 ID 매핑표 내보내기'가 쓴 parts.json, 코드북은 Unity 와 같은 AlarmCodebook.json.
+HERE = os.path.dirname(os.path.abspath(__file__))
+STATE = ("정상", "주의", "이상")
+ONLINE_MS = 5000   # 이보다 오래 새 행이 없으면 오프라인
+
+
+def load_partmap():
+    """parts.json 과 알람 코드북 — 코드북은 이 파일 옆(배포본)에 없으면 저장소의 Unity Resources 것을 읽는다."""
+    book_path = next(p for p in (os.path.join(HERE, "AlarmCodebook.json"),
+                                 os.path.join(HERE, "..", "Assets", "Crane", "Resources", "Sts", "AlarmCodebook.json")) if os.path.exists(p))
+    with open(os.path.join(HERE, "parts.json"), encoding="utf-8") as f:
+        parts = json.load(f)
+    with open(book_path, encoding="utf-8") as f:
+        book = {e["code"]: e for e in json.load(f)["entries"]}
+    return parts, book
+
+
+def covers(key, pid, ids):
+    """태그 part 가 이 부품을 가리키나 — 정확히 같거나, 표에 없는 그룹 ID(SP.TWL)의 하위. 문서 내보내기(CranePartIdMenu.Covers)와 같다."""
+    return key != "" and (pid == key or (pid.startswith(key + ".") and key not in ids))
+
+
+def part_states(crane, raw, parts, book):
+    """스냅샷 한 행(raw 태그) → 크레인 운영 상태·현재 알람·부품별 상태. 판정은 XR 의 지표4(Kpi4StatusAccuracy)와 같다 —
+    XR 대상 알람의 part 와 그 하위 부품 = 심각도 1 주의·2 이상, 운영 = 비상정지·심각도 2 이상이면 이상, 운전 비트면 운전, 그 외 정지."""
+    def on(tag):
+        return str(raw.get(tag, 0)).strip().lower() not in ("0", "0.0", "", "false")
+    rtg = "RTG" in crane.upper()
+    table = parts["rtg"] if rtg else parts["sts"]
+    ids = {p["id"] for p in table}
+    alarm = book.get(int(to_num(raw.get("ALM_Latest_Code")) or 0)) if on("ALM_Active") else None
+    if alarm is not None and not alarm.get("xr", True):
+        alarm = None   # XR 비대상 알람은 화면에 안 띄운다
+    sev = alarm["sev"] if alarm else 0
+    level = min(sev, 2)
+    apart = (alarm or {}).get("part") or ""
+    out = []
+    for p in table:
+        hit = apart != "" and (p["id"] == apart or p["id"].startswith(apart + "."))   # 강조와 같다(CranePartId.Find)
+        lv = level if hit else 0
+        tags = {t["tag"]: raw.get(t["tag"]) for t in parts["tags"] if covers(t["part"], p["id"], ids)}
+        out.append({"id": p["id"], "note": p["note"], "state": STATE[lv], "level": lv,
+                    "alarm": alarm["code"] if hit and lv else None, "tags": tags})
+    op = "이상" if on("OP_Emergency_Stop") or sev >= 2 else "운전" if on("OP_Running") else "정지"
+    return {
+        "crane": crane, "kind": "RTG" if rtg else "STS", "op_state": op, "link": on("COM_Link_Status"),
+        "alarm": None if alarm is None else {"code": alarm["code"], "sev": sev, "state": STATE[level], "ko": alarm.get("ko", ""),
+                                             "part": apart or None, "part_on_model": apart == "" or any(i == apart or i.startswith(apart + ".") for i in ids)},
+        "worst": STATE[max((p["level"] for p in out), default=0)],
+        "parts": out,
+    }
+
+
+def parts_view(row, parts, book, now_ms):
+    v = part_states(row["crane"], json.loads(row["raw"]), parts, book)
+    age = max(0, now_ms - row["recv_ms"])
+    v.update(t_ms=row["t_ms"], recv_ms=row["recv_ms"], age_ms=age, online=v.pop("link") and age <= ONLINE_MS)
+    return v
+
+
+def part_history(rows, crane, parts, book, part=None):
+    """행들을 차례로 보며 부품 상태가 바뀐 순간만 — {t_ms, part, state, level, alarm}. 첫 행이 정상이 아니면 그것도 낸다."""
+    prev, out, last = {}, [], None
+    for r in rows:
+        raw = json.loads(r["raw"])
+        sig = (raw.get("ALM_Active"), raw.get("ALM_Latest_Code"))   # 부품 상태는 알람 두 태그로만 정해진다 — 같으면 다시 셀 것 없다
+        if sig == last:
+            continue
+        last = sig
+        for p in part_states(crane, raw, parts, book)["parts"]:
+            if part and p["id"] != part:
+                continue
+            key = (p["level"], p["alarm"])
+            if prev.get(p["id"], (0, None)) != key:
+                out.append({"t_ms": r["t_ms"], "part": p["id"], "state": p["state"], "level": p["level"], "alarm": p["alarm"]})
+            prev[p["id"]] = key
+    return out
+
+
 class Handler(BaseHTTPRequestHandler):
     db_path = None
     allow = parse_allow(DEFAULT_ALLOW)
@@ -210,6 +291,7 @@ class Handler(BaseHTTPRequestHandler):
     lock = threading.Lock()
     local = threading.local()
     commands = {}   # 크레인 → 대기 중인 사고 지시(라이브 PLC 가 가져가면 비운다) — 시연 때 원하는 순간에 오류를 낸다
+    partmap = None   # (parts.json, 코드북) — /parts 첫 요청 때 읽는다
     cargo = {}   # 크레인 → 원래 자리에서 옮겨진 컨테이너 목록(라이브 PLC 가 올리고 XR 이 접속할 때 맞춘다) — 메모리만, 재시작하면 원래 배치
 
     @property
@@ -349,6 +431,36 @@ class Handler(BaseHTTPRequestHandler):
                 sql += (" AND" if "WHERE" in sql else " WHERE") + " device_id=?"; args.append(self.q("device"))
             return self.send_json({"users": rows_to_dicts(self.con.execute(sql, args))})
 
+        if path in ("/parts", "/parts/history"):
+            if Handler.partmap is None:
+                try:
+                    Handler.partmap = load_partmap()
+                except (OSError, StopIteration, ValueError, KeyError) as e:
+                    return self.send_json({"error": f"부품 표·코드북을 못 읽음: {e}"}, 503)
+            parts, book = Handler.partmap
+            if path == "/parts":
+                cranes = [crane] if crane else [r["crane"] for r in self.con.execute("SELECT DISTINCT crane FROM snapshot")]
+                now = int(time.time() * 1000)
+                views = []
+                for c in cranes:
+                    row = self.con.execute("SELECT crane, t_ms, recv_ms, raw FROM snapshot WHERE crane=? ORDER BY id DESC LIMIT 1", (c,)).fetchone()
+                    if row:
+                        views.append(parts_view(row, parts, book, now))
+                if crane:
+                    return self.send_json(views[0] if views else {"error": "no data"}, 200 if views else 404)
+                return self.send_json({"cranes": views})
+            if not crane:
+                return self.send_json({"error": "crane required"}, 400)
+            try:   # 기본 = 최근 10분, 한 번에 최대 5만 행(100ms 면 약 83분)
+                to_ms = int(float(self.q("to_ms", time.time() * 1000)))
+                from_ms = int(float(self.q("from_ms", to_ms - 600_000)))
+            except ValueError:
+                return self.send_json({"error": "from_ms/to_ms must be numbers"}, 400)
+            rows = self.con.execute("SELECT t_ms, raw FROM snapshot WHERE crane=? AND t_ms BETWEEN ? AND ? ORDER BY t_ms LIMIT 50000",
+                                    (crane, from_ms, to_ms)).fetchall()
+            return self.send_json({"crane": crane, "from_ms": from_ms, "to_ms": to_ms, "rows": len(rows),
+                                   "changes": part_history(rows, crane, parts, book, self.q("part"))[-limit:]})
+
         if path == "/runs":
             cur = self.con.execute(
                 "SELECT crane, source, COUNT(*) rows, MIN(t_ms) t_min, MAX(t_ms) t_max, "
@@ -357,7 +469,7 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json(rows_to_dicts(cur))
 
         return self.send_json({"error": "not found",
-                               "endpoints": ["/health", "/time", "/latest", "/history", "/alarms", "/runs", "/since", "/command", "/cargo", "/users", "/register", "POST /ingest", "POST /command", "POST /cargo", "POST /users"]}, 404)
+                               "endpoints": ["/health", "/time", "/latest", "/history", "/alarms", "/runs", "/since", "/command", "/cargo", "/users", "/register", "/parts", "/parts/history", "POST /ingest", "POST /command", "POST /cargo", "POST /users"]}, 404)
 
     def do_POST(self):
         if self.denied():
@@ -503,7 +615,7 @@ def cmd_feed(args):
 
 
 def main():
-    p = argparse.ArgumentParser(description="XR 크레인 통합서버 v0.5 (수집·저장·조회)")
+    p = argparse.ArgumentParser(description="XR 크레인 통합서버 v0.6 (수집·저장·조회·부품 상태)")
     p.add_argument("--db", default=DEFAULT_DB)
     sub = p.add_subparsers(dest="cmd", required=True)
 
