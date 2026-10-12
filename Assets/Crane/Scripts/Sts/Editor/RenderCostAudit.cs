@@ -82,7 +82,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             Mesh m = r switch
             {
                 SkinnedMeshRenderer s => s.sharedMesh,
-                _ => r.GetComponent<MeshFilter>()?.sharedMesh
+                _ => r.TryGetComponent(out MeshFilter f) ? f.sharedMesh : null   // ?. 는 에디터의 가짜 null 을 못 걸러 LineRenderer 에서 던진다
             };
             if (m == null) return 0;
             long t = 0;
