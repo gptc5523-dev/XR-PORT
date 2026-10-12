@@ -52,7 +52,7 @@ namespace AIXRCrane.Crane.Sts.Plc
             if (done || !(bridge.Source is ServerPlcSource src)) return;
             src.TryClock(out long off, out _);
             long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() + off;
-            int code = Net.CraneNetSync.ActiveAlarmCode(crane);
+            int code = CraneLink.ActiveAlarmCode(crane);
             if (seenCode.Count == 0 || seenCode[seenCode.Count - 1] != code) { seenT.Add(now); seenCode.Add(code); }
             if (Time.unscaledTime >= nextCheck) { nextCheck = Time.unscaledTime + 1f; TryJudge(now); }
         }

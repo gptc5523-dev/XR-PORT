@@ -255,7 +255,7 @@ namespace AIXRCrane.Crane.Sts
             bool spreader = L.kind == Kind.Spreader, trolley = !spreader && L.mover == c.Trolley;
             if (!PortDemoDirector.Spectator)
                 return spreader ? CraneFault.EvaluateSpreader(c) : trolley ? CraneFault.EvaluateTrolley(c) : CraneFault.EvaluateGantry(c);
-            int code = Net.CraneNetSync.Syncs(c) ? Net.CraneNetSync.ActiveAlarmCode(c) : 0;
+            int code = CraneLink.Syncs(c) ? CraneLink.ActiveAlarmCode(c) : 0;
             int src = code / 1000;   // 코드북 천 단위 = 소스(1=GT 2=TR 3=HO 4=SP)
             bool mine = spreader ? src == 3 || src == 4 : trolley ? src == 2 : src == 1;
             return mine ? CraneFault.FromCodebook(code) : default;

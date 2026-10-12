@@ -120,7 +120,7 @@ namespace AIXRCrane.Crane.Sts.Plc
         }
 
         // 호스트가 동기화하지 않는 크레인(지금은 RTG)은 관전자도 PLC 로 직접 움직인다 — 안 그러면 관전 화면에서 멈춘다.
-        bool FollowsHost() => PortDemoDirector.Spectator && Net.CraneNetSync.Syncs(crane);
+        bool FollowsHost() => PortDemoDirector.Spectator && CraneLink.Syncs(crane);
 
         void SetLive()
         {

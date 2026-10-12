@@ -8,7 +8,7 @@ namespace AIXRCrane.Crane.Sts.Net
     /// 메시는 발바닥이 원점이어야 하고, 리그가 1/24 로 축소돼 있어 프리팹 루트에 ModelScale 이 필요하다(NetLanSetup 이 넣는다).</summary>
     [AddComponentMenu("AI-XR Crane/Net/Player Avatar Sync")]
     [DisallowMultipleComponent]
-    public sealed class PlayerAvatarSync : NetworkBehaviour
+    public sealed class PlayerAvatarSync : NetworkBehaviour, IRemotePeer
     {
         [Tooltip("메시가 들어갈 자리. 비어 있어도 동작한다 — 위치 동기화는 그대로 돌고 화면에만 안 보인다.")]
         [SerializeField] Transform body;
@@ -82,12 +82,23 @@ namespace AIXRCrane.Crane.Sts.Net
             if (IsServer) Selection.OnValueChanged += (_, v) => SessionEventLog.Record("select", OwnerClientId, v.ToString());   // 선택 이력(빈 값 = 선택 해제)
             if (!IsOwner)
             {
+                CraneLink.Peers.Add(this);
                 RefreshTag();
                 UnityEngine.Rendering.RenderPipelineManager.beginCameraRendering += FaceCamera;
             }
         }
 
-        public override void OnNetworkDespawn() => UnityEngine.Rendering.RenderPipelineManager.beginCameraRendering -= FaceCamera;
+        public override void OnNetworkDespawn()
+        {
+            CraneLink.Peers.Remove(this);
+            UnityEngine.Rendering.RenderPipelineManager.beginCameraRendering -= FaceCamera;
+        }
+
+        Color IRemotePeer.Tint => TintColor;
+        string IRemotePeer.SelectionKey => Selection.Value.ToString();
+        bool IRemotePeer.PointerOn => Pointer.Value.On;
+        Vector3 IRemotePeer.PointerFrom => Pointer.Value.From;
+        Vector3 IRemotePeer.PointerTo => Pointer.Value.To;
 
         // 그리는 카메라마다 이름표를 그쪽으로 — Camera.main 이 보는 카메라와 다르면 글자가 뒤집혀 보였다. 좌우로만 돌려 서 있게.
         void FaceCamera(UnityEngine.Rendering.ScriptableRenderContext _, Camera c)

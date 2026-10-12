@@ -54,7 +54,7 @@ namespace AIXRCrane.Crane.Flat
         float yaw0, pitch0; bool zeroPending = true; // 정면 기준 — 첫 안정 자세, R 로 다시
         bool loggedMissing;
 
-        void Awake() => Instance = this;
+        void Awake() { Instance = this; CraneLink.GlassesConnected = () => Connected; }
 
         void Start()
         {
@@ -69,7 +69,7 @@ namespace AIXRCrane.Crane.Flat
         {
             running = false;
             try { client?.Close(); } catch { }
-            if (Instance == this) Instance = null;
+            if (Instance == this) { Instance = null; CraneLink.GlassesConnected = () => false; }
         }
 
         /// <summary>지금 보는 쪽을 정면으로 — 방위가 흘렀을 때, 자세를 바꿔 앉았을 때.</summary>

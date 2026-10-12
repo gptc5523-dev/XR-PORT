@@ -1,0 +1,27 @@
+{
+    "name": "AIXRCrane.Crane",
+    "rootNamespace": "",
+    "references": [
+        "AIXRCrane.Shared",
+        "AIXRCrane.Container",
+        "AIXRCrane.Ship",
+        "Unity.Netcode.Runtime",
+        "Unity.Collections",
+        "Unity.XR.Interaction.Toolkit",
+        "Unity.XR.CoreUtils",
+        "Unity.InputSystem",
+        "UnityEngine.UI",
+        "Unity.Networking.Transport",
+        "Unity.RenderPipelines.Core.Runtime",
+        "Unity.RenderPipelines.GPUDriven.Runtime"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

@@ -33,7 +33,7 @@ namespace AIXRCrane.Crane.Sts.Net
         void LateUpdate()
         {
             if (canvas == null || !CraneHud.Due(ref next, CraneHud.TextHz)) return;
-            if (Flat.FlatModeBootstrap.Active) { canvas.enabled = false; return; }
+            if (CraneLink.FlatMode) { canvas.enabled = false; return; }
             if (!attached)
             {
                 var cam = CraneHud.HudCamera(null);

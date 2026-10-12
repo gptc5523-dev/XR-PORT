@@ -48,6 +48,8 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             sb.AppendLine("# PLC ↔ 3D 부품 ID 매핑");
             sb.AppendLine();
             sb.AppendLine("> 자동 생성 — 직접 고치지 말고 `Assets/Crane/Scripts/Sts/Runtime/CranePartId.cs`(부품·태그)와 `Assets/Crane/Resources/Sts/AlarmCodebook.json`(알람 `part`)을 고친 뒤 Unity 메뉴 **PLC/부품 ID 매핑표 내보내기**.");
+            sb.AppendLine(">");
+            sb.AppendLine("> 내보내기는 `Server/parts.json` 도 같이 쓴다 — 바뀌면 aiserver `~/xrcrane-db/app` 에 복사한 뒤 `docker restart xrcrane-db`.");
             sb.AppendLine();
             sb.AppendLine("## ID 체계");
             sb.AppendLine();
@@ -98,7 +100,6 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             sb.AppendLine("- 태그 주소 27개 — 데이터 포인트 리스트 원본.");
             sb.AppendLine("- 로드셀 #1~#4(3015~3018)의 물리 위치 — 지금은 #1=L1, #2=L2, #3=S1, #4=S2로 가정.");
             sb.AppendLine("- `GT_Direction` 1=Stern 이 크레인 ±Z 중 어느 쪽인지 — 선박 접안 방향에 따름.");
-            sb.AppendLine("- RTG(FBX) 크레인 부품 ID — 아직 표 없음.");
 
             string path = Path.Combine(Path.GetFullPath(Path.Combine(Application.dataPath, "..")), DocRel);
             File.WriteAllText(path, sb.ToString(), new UTF8Encoding(false));

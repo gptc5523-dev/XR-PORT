@@ -66,7 +66,7 @@ namespace AIXRCrane.Crane.Sts.Plc
             sampleT = 0f;
 
             // A — 알람 HUD 가 띄우는 코드(CraneAlarmHUD 와 같은 출처)
-            int xrCode = Net.CraneNetSync.ActiveAlarmCode(crane);
+            int xrCode = CraneLink.ActiveAlarmCode(crane);
             bool codeOk = xrCode == truthCode;
 
             // B — 알람 부품이 그 심각도 이상으로 강조됐나. 부품이 없는 알람(통신·기상 등)·정상은 대상 아님 → 통과.
@@ -76,7 +76,7 @@ namespace AIXRCrane.Crane.Sts.Plc
             // C — 운전 상태: 비상정지·심각(Critical 이상) 알람 = 이상, 운전 비트 = 운전, 그 외 정지
             OpMode plcOp = s.EmergencyStop || (truth != null && truth.Severity >= FaultSeverity.Critical) ? OpMode.Fault
                          : s.OpRunning ? OpMode.Running : OpMode.Stopped;
-            OpMode xrOp = Net.CraneNetSync.ActiveOpMode(crane);
+            OpMode xrOp = CraneLink.ActiveOpMode(crane);
             bool opOk = plcOp == xrOp;
 
             // D — 하중: HUD 가 보여주는 값(CraneStatusHUD.DisplayLoadTons)

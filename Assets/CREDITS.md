@@ -63,7 +63,7 @@
 
 - **세트 10종** — `Asphalt012` · `Concrete034` · `CorrugatedSteel002` · `Metal032` · `Metal055A` ·
   `MetalPlates006` · `MetalWalkway010` · `PaintedMetal001` · `Rubber004` · `Rust004`
-- **사용처** — `StsCraneCreator.cs:3922~3980` 의 디테일 페인팅(도장 구조강 = `PaintedMetal001`, 기계실 외벽 = `CorrugatedSteel002` 등).
+- **사용처** — `StsCraneCreator.Materials.cs` 의 `GetMaterial`·`ApplyPbrDetail` 디테일 페인팅(도장 구조강 = `PaintedMetal001`, 기계실 외벽 = `CorrugatedSteel002` 등).
   라이브러리가 없으면 절차 강철로 폴백하도록 되어 있어, 최악의 경우 **제거해도 빌드는 깨지지 않는다**.
 - **라이선스 원문 확인 (2026-08-14)** — ambientCG 에셋 페이지:
   > "All assets are released under the Creative Commons CC0 license, making them free to use without attribution — even in commercial circumstances."

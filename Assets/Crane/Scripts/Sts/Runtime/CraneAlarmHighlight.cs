@@ -122,7 +122,7 @@ namespace AIXRCrane.Crane.Sts
             if (PortDemoDirector.Spectator)
             {
                 // 관전자는 그랩·충돌 판정이 꺼져 있다 — 호스트가 보낸 코드(최고 심각도 1건)만 믿는다.
-                int c = Net.CraneNetSync.Syncs(crane) ? Net.CraneNetSync.ActiveAlarmCode(crane) : 0;
+                int c = CraneLink.Syncs(crane) ? CraneLink.ActiveAlarmCode(crane) : 0;
                 if (c != 0) codes.Add(c);
                 return;
             }

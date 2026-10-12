@@ -11,9 +11,6 @@ namespace AIXRCrane.Crane.Flat
     [DisallowMultipleComponent]
     public sealed class FlatModeBootstrap : MonoBehaviour
     {
-        /// <summary>평면 모드(= VR 이 아닌 모든 실행 = 모바일 관전 화면)로 부팅됐는가.</summary>
-        public static bool Active { get; private set; }
-
         /// <summary>강제 모드 PlayerPrefs 키 — 0=자동, 1=평면 강제, 2=VR 강제. 에디터 메뉴가 이 값을 쓴다.</summary>
         public const string ForcePrefKey = "AIXRCrane.FlatMode.Force";
 
@@ -59,7 +56,7 @@ namespace AIXRCrane.Crane.Flat
 
         void EnterFlatMode(bool wasForced)
         {
-            Active = true;
+            CraneLink.FlatMode = true;
 
             // 프레임 상한 — 평면 모드엔 박자가 없고 vSyncCount도 0이라 1300 FPS로 GPU를 태웠다(스트림은 60, VR 몫을 뺏음).
             Application.targetFrameRate = FlatTargetFps;
@@ -94,15 +91,13 @@ namespace AIXRCrane.Crane.Flat
                 $"rootIsRig={(cam != null && cam.transform.root == rigGo.transform)}");
         }
 
-        /// <summary>씬의 XR Origin(있으면)을 비활성화하고 개수를 반환. XRI 어셈블리 직접참조 없이 리플렉션.</summary>
+        /// <summary>씬의 XR Origin(있으면)을 비활성화하고 개수를 반환.</summary>
         static int DisableXrRigs()
         {
-            var t = System.Type.GetType("Unity.XR.CoreUtils.XROrigin, Unity.XR.CoreUtils");
-            if (t == null) return 0;
             int n = 0;
-            foreach (var o in FindObjectsByType(t, FindObjectsInactive.Exclude))
+            foreach (var c in FindObjectsByType<Unity.XR.CoreUtils.XROrigin>(FindObjectsInactive.Exclude))
             {
-                if (o is not Component c || !c.gameObject.activeSelf) continue;
+                if (!c.gameObject.activeSelf) continue;
                 c.gameObject.SetActive(false);
                 n++;
             }

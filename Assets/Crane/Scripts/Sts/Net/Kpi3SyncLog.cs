@@ -45,7 +45,7 @@ namespace AIXRCrane.Crane.Sts.Net
                 locks.TryGetValue(c, out var la);
                 var at = c.Attach;
                 w.Write($"{t:F3},{(host ? "host" : "client")},{nm.LocalClientId},{c.name},{M(c.Gantry):F4},{M(c.Trolley):F4},{M(c.Spreader):F4}," +
-                        $"{CraneNetSync.ActiveAlarmCode(c)},{(int)CraneNetSync.ActiveOpMode(c)},{(la != null && la.Locked ? 1 : 0)}," +
+                        $"{CraneLink.ActiveAlarmCode(c)},{(int)CraneLink.ActiveOpMode(c)},{(la != null && la.Locked ? 1 : 0)}," +
                         $"{(at != null && at.HasContainer ? at.AttachedDisplayId : "")}\n");
             }
         }

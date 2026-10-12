@@ -1,0 +1,37 @@
+{
+    "name": "AIXRCrane.Crane.Editor",
+    "rootNamespace": "",
+    "references": [
+        "AIXRCrane.Shared",
+        "AIXRCrane.Container",
+        "AIXRCrane.Ship",
+        "AIXRCrane.Crane",
+        "AIXRCrane.Container.Editor",
+        "Unity.Netcode.Runtime",
+        "Unity.Collections",
+        "Unity.XR.Interaction.Toolkit",
+        "Unity.XR.CoreUtils",
+        "Unity.InputSystem",
+        "UnityEngine.UI",
+        "Unity.Splines",
+        "Unity.Mathematics",
+        "Unity.Formats.Fbx.Editor",
+        "Unity.Networking.Transport",
+        "Unity.RenderPipelines.Core.Runtime",
+        "Unity.RenderPipelines.GPUDriven.Runtime",
+        "Unity.ProBuilder",
+        "AIXRCrane.Crane.Net",
+        "AIXRCrane.Crane.Flat"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

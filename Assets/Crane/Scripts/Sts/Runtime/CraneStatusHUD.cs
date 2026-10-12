@@ -200,7 +200,7 @@ namespace AIXRCrane.Crane.Sts
             }
 
             // 운영상태(운전/정지/이상) — 지표4 핵심. 네트워크면 호스트 권위값(관전자도 동일), 아니면 로컬 판정.
-            var op = Net.CraneNetSync.ActiveOpMode(crane);
+            var op = CraneLink.ActiveOpMode(crane);
             string ophex = ColorUtility.ToHtmlStringRGB(CraneOpMode.ModeColor(op));
             sb.AppendLine($"운전모드 <b><color=#{ophex}>● {CraneOpMode.Label(op)}</color></b>");   // 라벨='운전모드'(크레인 운영상태), 값=정지/운전/이상
             // PLC 통신(COM_Link_Status) — PLC 구동 중 끊기면 아래 값은 마지막 수신값이다.

@@ -216,10 +216,8 @@ namespace AIXRCrane.Crane.Sts.Net
         void LockLocomotion()
         {
             if (lockedLoco.Count > 0) return;   // 이미 잠금
-            var locoType = LocomotionProviderType;
-            if (locoType == null) return;
-            foreach (var o in FindObjectsByType(locoType, FindObjectsInactive.Exclude))
-                if (o is Behaviour b && b.enabled) { b.enabled = false; lockedLoco.Add(b); }
+            foreach (var b in FindObjectsByType<UnityEngine.XR.Interaction.Toolkit.Locomotion.LocomotionProvider>(FindObjectsInactive.Exclude))
+                if (b.enabled) { b.enabled = false; lockedLoco.Add(b); }
         }
 
         void UnlockLocomotion()
@@ -227,21 +225,6 @@ namespace AIXRCrane.Crane.Sts.Net
             if (lockedLoco.Count == 0) return;
             foreach (var b in lockedLoco) if (b != null) b.enabled = true;
             lockedLoco.Clear();
-        }
-
-        static bool _locoSearched;
-        static System.Type _locoType;
-        static System.Type LocomotionProviderType
-        {
-            get
-            {
-                if (_locoSearched) return _locoType;
-                _locoSearched = true;
-                _locoType =
-                    System.Type.GetType("UnityEngine.XR.Interaction.Toolkit.Locomotion.LocomotionProvider, Unity.XR.Interaction.Toolkit")
-                    ?? System.Type.GetType("UnityEngine.XR.Interaction.Toolkit.LocomotionProvider, Unity.XR.Interaction.Toolkit");
-                return _locoType;
-            }
         }
 
         /// <summary>시작·접속 메뉴가 떠 있는가 — 다른 시야 고정 HUD 가 겹치지 않게 비켜 준다.</summary>

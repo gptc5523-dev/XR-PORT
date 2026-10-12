@@ -125,8 +125,8 @@ namespace AIXRCrane.Crane.Sts
             cam = Camera.main;
             Transform camRoot = cam != null ? cam.transform.root : null;
 
-            var t = GetXROriginType();
-            if (t != null && FindAnyObjectByType(t) is Component xrOrigin)
+            var xrOrigin = FindAnyObjectByType<Unity.XR.CoreUtils.XROrigin>();
+            if (xrOrigin != null)
             {
                 Transform origin = xrOrigin.transform;
                 if (cam == null) cam = xrOrigin.GetComponentInChildren<Camera>(true);
@@ -142,40 +142,17 @@ namespace AIXRCrane.Crane.Sts
             return camRoot;
         }
 
-        static bool xrTypeResolved;
-        static System.Type xrOriginType;
-        static System.Type GetXROriginType()
-        {
-            if (!xrTypeResolved)
-            {
-                xrOriginType = System.Type.GetType("Unity.XR.CoreUtils.XROrigin, Unity.XR.CoreUtils");
-                xrTypeResolved = true;
-            }
-            return xrOriginType;
-        }
-
         // XRI 이동을 CharacterController(충돌 캡슐) 우회 → XR Origin 직접 이동으로 전환 + 중력 끔.
-        //   1/24 축소 캡슐이 부두에 껴 전진이 막히는 문제 해결. XRI 어셈블리 직접참조 없이 리플렉션으로 안전하게.
+        //   1/24 축소 캡슐이 부두에 껴 전진이 막히는 문제 해결.
         static void BypassCharacterControllerLocomotion(Transform rig)
         {
             // XRBodyTransformer.constrainedBodyManipulator = null  → 이동이 CC 매니퓰레이터 대신 트랜스폼 직접 적용
-            var btType = System.Type.GetType(
-                "UnityEngine.XR.Interaction.Toolkit.Locomotion.XRBodyTransformer, Unity.XR.Interaction.Toolkit");
-            if (btType != null)
-            {
-                var bt = rig.GetComponentInChildren(btType, true);
-                if (bt != null)
-                {
-                    var prop = btType.GetProperty("constrainedBodyManipulator");
-                    if (prop != null && prop.CanWrite) prop.SetValue(bt, null);
-                }
-            }
+            var bt = rig.GetComponentInChildren<UnityEngine.XR.Interaction.Toolkit.Locomotion.XRBodyTransformer>(true);
+            if (bt != null) bt.constrainedBodyManipulator = null;
 
             // GravityProvider 끔 → CC 충돌이 없으면 중력이 바닥을 뚫으므로(평평한 부두라 고정 높이 유지로 충분).
-            var gpType = System.Type.GetType(
-                "UnityEngine.XR.Interaction.Toolkit.Locomotion.Gravity.GravityProvider, Unity.XR.Interaction.Toolkit");
-            if (gpType != null && rig.GetComponentInChildren(gpType, true) is Behaviour gp)
-                gp.enabled = false;
+            var gp = rig.GetComponentInChildren<UnityEngine.XR.Interaction.Toolkit.Locomotion.Gravity.GravityProvider>(true);
+            if (gp != null) gp.enabled = false;
         }
     }
 }

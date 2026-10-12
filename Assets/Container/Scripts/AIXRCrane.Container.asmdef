@@ -1,0 +1,16 @@
+{
+    "name": "AIXRCrane.Container",
+    "rootNamespace": "",
+    "references": [
+        "AIXRCrane.Shared"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

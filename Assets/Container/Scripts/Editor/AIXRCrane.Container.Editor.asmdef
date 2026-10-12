@@ -1,0 +1,21 @@
+{
+    "name": "AIXRCrane.Container.Editor",
+    "rootNamespace": "",
+    "references": [
+        "AIXRCrane.Shared",
+        "AIXRCrane.Container",
+        "AIXRCrane.Crane",
+        "Unity.XR.Interaction.Toolkit"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

@@ -109,7 +109,7 @@ namespace AIXRCrane.EditorTools
 
         /// <summary>없는 머티리얼만 만든다(최초 1회만 생성), 하나라도 만들었으면 true(→ 호출부가 FBX 재임포트).
         /// 야드 적재 등 외부 배치기도 컨테이너를 꺼내기 전에 호출해야 한다.</summary>
-        internal static bool EnsureMaterials()
+        public static bool EnsureMaterials()
         {
             var shader = Shader.Find("Universal Render Pipeline/Lit");
             if (shader == null) { Debug.LogError("[컨테이너] URP/Lit 셰이더를 찾지 못했습니다."); return false; }

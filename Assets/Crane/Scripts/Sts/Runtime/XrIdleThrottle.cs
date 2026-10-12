@@ -23,7 +23,7 @@ namespace AIXRCrane.Crane.Sts
         {
             if (Time.realtimeSinceStartup < StartDelayS || Time.unscaledTime < next) return;
             next = Time.unscaledTime + 1f;
-            if (Flat.FlatModeBootstrap.Active) { if (idle) Set(false); return; }
+            if (CraneLink.FlatMode) { if (idle) Set(false); return; }
             var nm = Unity.Netcode.NetworkManager.Singleton;
             bool hosting = nm != null && nm.IsServer && nm.ConnectedClientsIds.Count > 1;   // 방장이 쉬면 다른 사람 동기화가 끊긴다
             bool want = !hosting && !HeadsetInUse();

@@ -1,11 +1,10 @@
 using UnityEngine;
 using UnityEngine.UI;
-using AIXRCrane.Crane.Sts.Net;   // CraneNetSync(자식 네임스페이스) 참조
 
 namespace AIXRCrane.Crane.Sts
 {
     /// <summary>활성 알람 경보 배너(시야 상단, head-locked) — 안전 신호라 전원에게 보임. 없으면 자동 스폰.
-    /// 코드는 CraneNetSync.ActiveAlarmCode(네트워크=호스트 권위), 색은 AlarmCodebook(SSOT).</summary>
+    /// 코드는 CraneLink.ActiveAlarmCode(네트워크=호스트 권위), 색은 AlarmCodebook(SSOT).</summary>
     [AddComponentMenu("AI-XR Crane/STS Crane/Crane Alarm HUD")]
     [DisallowMultipleComponent]
     public sealed class CraneAlarmHUD : MonoBehaviour
@@ -121,13 +120,13 @@ namespace AIXRCrane.Crane.Sts
             CraneHud.SetTextIfChanged(text, ref lastText, "<b>⚠</b>");
         }
 
-        // 알람 코드는 CraneNetSync.ActiveAlarmCode(SSOT) — 부품 말풍선과 동일 값.
+        // 알람 코드는 CraneLink.ActiveAlarmCode(SSOT) — 부품 말풍선과 동일 값.
         int CurrentAlarmCode()
         {
             var active = StsCraneVRController.Active;   // 크레인이 여러 대면 조종기를 받는 크레인의 알람
             if (active != null) crane = active.GetComponent<StsCrane>();
             if (crane == null) crane = FindAnyObjectByType<StsCrane>();
-            return CraneNetSync.ActiveAlarmCode(crane);
+            return CraneLink.ActiveAlarmCode(crane);
         }
 
         // 순수 관전자(참가자)만 true. 호스트·단독 실행은 false(운전 HUD가 있어 위로 비킴).

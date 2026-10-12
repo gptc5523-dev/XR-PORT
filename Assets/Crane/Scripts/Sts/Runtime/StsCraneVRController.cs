@@ -9,7 +9,7 @@ namespace AIXRCrane.Crane.Sts
     [AddComponentMenu("AI-XR Crane/STS Crane/STS Crane VR Controller")]
     [RequireComponent(typeof(StsCrane))]
     [DisallowMultipleComponent]
-    public sealed class StsCraneVRController : MonoBehaviour
+    public sealed partial class StsCraneVRController : MonoBehaviour
     {
         public enum Mode { Move = 0, Crane = 1, Gantry = 2 }
         /// <summary>모드 목록 표시명(인덱스 = Mode 값). HUD가 공유.</summary>
@@ -97,37 +97,6 @@ namespace AIXRCrane.Crane.Sts
 
         // 시점 높이 조절은 별도 컴포넌트(CraneViewHeightAdjuster)가 담당 — 여기선 '조절 중' 상태만 참조.
         CraneViewHeightAdjuster viewHeight;
-
-        // XRI LocomotionProvider 타입을 리플렉션으로(컴파일 의존성 제거)
-        static System.Type _locoType;
-        static bool _locoSearched;
-        static System.Type LocomotionProviderType
-        {
-            get
-            {
-                if (_locoSearched) return _locoType;
-                _locoSearched = true;
-                _locoType =
-                    System.Type.GetType("UnityEngine.XR.Interaction.Toolkit.Locomotion.LocomotionProvider, Unity.XR.Interaction.Toolkit")
-                    ?? System.Type.GetType("UnityEngine.XR.Interaction.Toolkit.LocomotionProvider, Unity.XR.Interaction.Toolkit");
-                return _locoType;
-            }
-        }
-
-        // SnapTurnProvider 타입(45° 스냅 회전) — 로코모션 토글에서 제외/항상 끄기 위해 별도로 식별.
-        static System.Type _snapTurnType;
-        static bool _snapTurnSearched;
-        static System.Type SnapTurnProviderType
-        {
-            get
-            {
-                if (_snapTurnSearched) return _snapTurnType;
-                _snapTurnSearched = true;
-                _snapTurnType = System.Type.GetType(
-                    "UnityEngine.XR.Interaction.Toolkit.Locomotion.Turning.SnapTurnProvider, Unity.XR.Interaction.Toolkit");
-                return _snapTurnType;
-            }
-        }
 
         void Awake()
         {
@@ -333,110 +302,6 @@ namespace AIXRCrane.Crane.Sts
             if (debugLog) Debug.Log($"[Crane] 모드 → {ModeNames[(int)mode]}");
         }
 
-        // 운전실 시점 (카메라를 운전실 좌석 눈높이 앵커로 이동, 크기 변경 없음)
-        void EnterCabView()
-        {
-            var cam = Camera.main;
-            var trolleyT = (crane.Trolley as Component)?.transform;
-            if (cam == null || trolleyT == null)
-            {
-                if (debugLog) Debug.LogWarning("[Crane] 운전실 시점 실패 — Main 카메라 또는 트롤리를 못 찾음");
-                return;
-            }
-            cabAnchor = FindCabAnchor(trolleyT, out bool dedicated);
-            rig = cam.transform.root;          // XR Origin 루트 이동(카메라+컨트롤러 함께)
-            savedRigPos = rig.position;
-            savedRigRot = rig.rotation;
-            rigSaved = true;
-
-            // 리그가 크레인/컨테이너 속으로 들어가 물리적으로 밀어버리지 않도록, 리그 콜라이더(손·몸 충돌체)를 잠시 끔.
-            //   (CharacterController도 Collider 하위라 함께 꺼짐. 시점 나갈 때 복구.)
-            rigColliders.Clear();
-            foreach (var c in rig.GetComponentsInChildren<Collider>(true))
-                if (c.enabled) { c.enabled = false; rigColliders.Add(c); }
-
-            // 카메라를 운전실 시점으로 평행 이동. 전용 앵커(Cab_Viewpoint)면 바닥 패널 아래로 눈높이를 내려
-            // 발밑 화물을 보이게 하고, 레거시 앵커면 기준부품+오프셋. 바닥은 앵커 유무와 무관하게 찾는다.
-            Transform cabFloor = FindCabFloor(trolleyT, cabFloorAnchorName);
-            Transform eyeAnchor = cabFloor != null ? cabFloor : cabAnchor;
-            Vector3 target = cabFloor != null ? BelowCabFloor(cabFloor, cabFloorDropDown)             // 바닥 패널 '아래'
-                           : dedicated         ? cabAnchor.position                                    // 바닥 폴백 → 좌석 눈높이
-                                               : cabAnchor.position + trolleyT.rotation * cabLocalOffset;
-            // 시선(요) 정렬 — 전용 앵커면 운전실 전방, 앵커 없이 바닥만 있으면(RTG) 스프레더 쪽. 상하 피치는 머리에 맡김(고개 숙여 내려다봄).
-            Vector3 fwd = dedicated ? cabAnchor.forward
-                        : cabFloor != null && crane.Spreader is Component sp ? sp.transform.position - target
-                        : Vector3.zero;
-            fwd.y = 0f;
-            Vector3 camFwd = cam.transform.forward; camFwd.y = 0f;
-            if (fwd.sqrMagnitude > 1e-4f && camFwd.sqrMagnitude > 1e-4f)
-                rig.rotation = Quaternion.FromToRotation(camFwd.normalized, fwd.normalized) * rig.rotation;
-            rig.position += target - cam.transform.position;   // (회전 후) 카메라를 시점으로 정렬
-            lastTrolleyPos = trolleyT.position;
-
-            cabView = true;
-            Haptic(InputDevices.GetDeviceAtXRNode(XRNode.RightHand), 0.4f, 0.06f);
-            if (debugLog) Debug.Log($"[Crane] A → 운전실 시점 ON — 시선기준 '{cabAnchor.name}', 눈위치 '{eyeAnchor.name}'" +
-                (cabFloor != null ? $" (바닥 아래 {cabFloorDropDown:0.###} 드롭·시선 스프레더 정렬)"
-                 : dedicated       ? " (좌석 눈높이 폴백·시선 스프레더 정렬)"
-                                   : $", 오프셋 {cabLocalOffset}") + " (고개 숙여 아래를 보세요)");
-        }
-
-        // 시점 기준 부품 찾기 — 트롤리 하위에서 이름으로(재귀). 우선순위: Cab_Viewpoint → cabAnchorName → 트롤리 본체.
-        // 전용 앵커면 dedicated=true → EnterCabView 가 오프셋 0 + 전방(스프레더) 시선정렬 적용.
-        Transform FindCabAnchor(Transform trolleyT, out bool dedicated)
-        {
-            dedicated = false;
-            foreach (var t in trolleyT.GetComponentsInChildren<Transform>(true))
-                if (CraneHud.BaseName(t.name) == StsPartNames.CabViewpoint) { dedicated = true; return t; }
-            if (!string.IsNullOrEmpty(cabAnchorName))
-                foreach (var t in trolleyT.GetComponentsInChildren<Transform>(true))
-                    if (CraneHud.BaseName(t.name) == cabAnchorName) return t;
-            return trolleyT;
-        }
-
-        // 운전실 바닥 부품 찾기 — 눈 위치를 이 바닥 아래에 둬 발밑 화물을 보이게 한다.
-        // 우선순위: 직렬화 이름 → Cab_Fb_FloorRear → RTG 바닥. 못 찾으면 null(좌석 눈높이로 폴백).
-        static Transform FindCabFloor(Transform trolleyT, string preferredName)
-        {
-            Transform byName = null, byRear = null, byRtg = null;
-            foreach (var t in trolleyT.GetComponentsInChildren<Transform>(true))
-            {
-                string bn = CraneHud.BaseName(t.name);
-                if (byName == null && !string.IsNullOrEmpty(preferredName) && bn == preferredName) byName = t;
-                if (byRear == null && bn == StsPartNames.CabFloorRear) byRear = t;
-                if (byRtg == null && bn == StsPartNames.RtgCabFloor) byRtg = t;
-            }
-            return byName != null ? byName : byRear != null ? byRear : byRtg;
-        }
-
-        /// <summary>바닥 패널 중심에서 drop 만큼 아래 — 운전실 시점 눈 위치.
-        /// FBX RTG 는 피벗이 트롤리 원점이라 렌더러 바운즈 중심을 쓴다(STS 는 피벗=중심이라 값이 같다).</summary>
-        static Vector3 BelowCabFloor(Transform floor, float drop)
-        {
-            var r = floor.GetComponent<Renderer>();
-            return (r != null ? r.bounds.center : floor.position) + Vector3.down * drop;
-        }
-
-        // 트롤리가 움직인 만큼 시점도 같이 이동 — 운전실이 트롤리에 붙어 따라가게
-        void FollowTrolley()
-        {
-            var trolleyT = (crane.Trolley as Component)?.transform;
-            if (rig == null || trolleyT == null) return;
-            rig.position += trolleyT.position - lastTrolleyPos;
-            lastTrolleyPos = trolleyT.position;
-        }
-
-        void ExitCabView()
-        {
-            if (rigSaved && rig != null) { rig.position = savedRigPos; rig.rotation = savedRigRot; }
-            foreach (var c in rigColliders) if (c != null) c.enabled = true;
-            rigColliders.Clear();
-            cabView = false;
-            rigSaved = false;
-            if (debugLog) Debug.Log("[Crane] A → 운전실 시점 OFF (원위치 복귀)");
-        }
-
-
         // 컨트롤러 짧은 진동 — 모드 전환 피드백
         static void Haptic(UnityEngine.XR.InputDevice d, float amplitude, float seconds)
         {
@@ -447,73 +312,5 @@ namespace AIXRCrane.Crane.Sts
 
         static bool Btn(UnityEngine.XR.InputDevice d, InputFeatureUsage<bool> usage)
             => d.isValid && d.TryGetFeatureValue(usage, out bool v) && v;
-
-        // 로코모션은 '이동모드 + 높이조절 중 아님'일 때만 켠다. 캐시된 프로바이더에 매 프레임
-        // 목표 상태를 직접 강제하는 선언적 방식(토글 큐 방식은 상태가 어긋남).
-        void EnforceLocomotion()
-        {
-            EnsureLocoProviders();
-            bool locoOn = (mode == Mode.Move) && !ViewHeightActive();
-            foreach (var b in locoProviders)
-                if (b != null && b.enabled != locoOn) b.enabled = locoOn;
-            if (suppressWhileControlling != null)
-                foreach (var b in suppressWhileControlling)
-                    if (b != null && b.enabled != locoOn) b.enabled = locoOn;
-        }
-
-        // XR 로코모션 프로바이더를 한 번 찾아 캐시(리그가 늦게 뜰 수 있어 찾을 때까지 재시도).
-        void EnsureLocoProviders()
-        {
-            if (locoCached) return;
-            var locoType = LocomotionProviderType;
-            if (locoType == null) { locoCached = true; return; }   // XRI 없음 — 더 안 찾음
-            var snapType = SnapTurnProviderType;
-            foreach (var o in FindObjectsByType(locoType, FindObjectsInactive.Include))
-            {
-                if (o is not Behaviour b) continue;
-                // SnapTurn(45° 점프)은 항상 끄고 토글 목록에서도 제외 — 안 그러면 이동모드 진입마다 부활한다.
-                // 같은 오른손 스틱의 ContinuousTurn 이 부드러운 회전을 이어받는다.
-                if (snapType != null && snapType.IsInstanceOfType(b)) { b.enabled = false; continue; }
-                if (!locoProviders.Contains(b)) locoProviders.Add(b);
-            }
-            if (locoProviders.Count > 0) locoCached = true;
-        }
-
-        // CraneViewHeightAdjuster 가 높이 조절 중이면 걷기 정지 + 왼손 스틱 양보(입력 협조만).
-        bool ViewHeightActive()
-        {
-            if (viewHeight == null) viewHeight = FindAnyObjectByType<CraneViewHeightAdjuster>();
-            return viewHeight != null && viewHeight.HeightHold;
-        }
-
-        /// <summary>리그 스케일 변경 뒤 걷기 속도 재적용(호환용 — 스케일 무관, walkSpeed 그대로).</summary>
-        public void ReapplyWalkSpeed() => ApplyWalkSpeed();
-
-        // 'moveSpeed' 가진 로코모션 프로바이더(ContinuousMove 등)에 리플렉션으로 적용 — XRI 버전 무관.
-        void ApplyWalkSpeed()
-        {
-            if (walkSpeed <= 0f) return;
-            var locoType = LocomotionProviderType;
-            if (locoType == null) return;
-            // rigScale 을 곱하지 않는다 — XRI ContinuousMoveProvider 가 이미 리그 스케일을 곱한다.
-            // 또 곱하면 1/24 × 1/24 = 1/576 이라 걷기가 사실상 0 이 된다. walkSpeed 그대로 넣는다.
-            float effective = walkSpeed;
-            int n = 0;
-            foreach (var o in FindObjectsByType(locoType, FindObjectsInactive.Exclude))
-            {
-                var prop = o.GetType().GetProperty("moveSpeed");
-                if (prop != null && prop.CanWrite && prop.PropertyType == typeof(float))
-                {
-                    float old = (float)prop.GetValue(o);   // 설정 전 기존 속도(빠른지/느린지 판단용)
-                    prop.SetValue(o, effective);
-                    n++;
-                    if (debugLog)
-                        Debug.Log($"[Crane] 걷기 속도: '{o.name}' 기존 {old} → {effective} m/s (walkSpeed 그대로, 리그 스케일은 XRI가 반영)");
-                }
-            }
-            if (debugLog && n == 0)
-                Debug.LogWarning("[Crane] 걷기 속도 적용 실패 — moveSpeed 가진 프로바이더 없음(리그에 ContinuousMove/DynamicMoveProvider 확인).");
-        }
-
     }
 }

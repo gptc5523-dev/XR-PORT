@@ -6,7 +6,7 @@ namespace AIXRCrane.Crane.Sts
 {
     /// <summary>크레인 HUD 공용 생성 유틸 — 한글 폰트 후보·world-space Canvas+배경+Text 생성·자동 스폰을 한 곳에 모음.
     /// 각 HUD는 BuildText()와 배치 오프셋만 가지면 된다.</summary>
-    internal static class CraneHud
+    public static class CraneHud
     {
         // 디자인 토큰(HUD 공용 시각 언어) — 패널 배경 알파·의미색을 한 곳에 모아 여러 HUD가 같은 언어를 쓰게 한다.
         //   ColorUtility.ToHtmlStringRGB(=Hex)로 rich-text 인라인 색에도 같은 값을 끌어쓴다.

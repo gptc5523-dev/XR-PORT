@@ -54,9 +54,8 @@ namespace AIXRCrane.Crane.Sts
         {
             var cam = Camera.main;
             if (cam != null) return cam.transform.root;
-            var t = System.Type.GetType("Unity.XR.CoreUtils.XROrigin, Unity.XR.CoreUtils");
-            if (t != null && FindAnyObjectByType(t) is Component xr) return xr.transform.root;
-            return null;
+            var xr = FindAnyObjectByType<Unity.XR.CoreUtils.XROrigin>();
+            return xr != null ? xr.transform.root : null;
         }
     }
 }

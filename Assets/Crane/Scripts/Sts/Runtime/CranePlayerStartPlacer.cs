@@ -235,7 +235,7 @@ namespace AIXRCrane.Crane.Sts
 
         // 걷는 땅 = 데크 아래로 1m 넘게 뻗고 짧은 변 ≥2m 인 렌더러 합집합(윗면 y=0).
         //   레일·컨테이너 등 얹힌 것은 탈락, 바다는 조상 이름으로 제외.
-        internal static bool TryGetLand(out Bounds land)
+        public static bool TryGetLand(out Bounds land)
         {
             land = default;
             var quay = GameObject.Find(QuayName);
