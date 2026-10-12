@@ -1,0 +1,15 @@
+# 배치 반복시험 20261012_131808 · 커밋 ffc43cc · Unity 6000.4.5f1 · 서버 http://192.168.0.167:5006
+PASS Server/test_parts.py
+PASS Server/test_events.py
+PASS Remote/receiver.py test
+PASS RtgControlSmoke (33s) 걸어와서 받음 True · 토글 이어받음 True · 조종기 RTG True · HUD STS True→RTG True · 타이어 True · 운전실 True
+PASS HostStartProbe (23s) 측정 8, 실패 0
+PASS PlcReplaySmoke (240s) 이동 20, 집기 20, 놓기 20, 배에서 집기 20(씬 컨테이너 20), 트위스트락↔윗면 최대 0.180m(≤0.36), 예외 0, 게임 1730s · 벽 224s
+PASS StsGrabProbe (75s) 검사 24건, 측정 64, 실패 0, 건너뜀 0
+PASS FloorClipProbe (28s) 측정 4, 실패 0, 건너뜀 0
+PASS PlcServerSmoke (35s) 소스 Server 연결 True, 표본 123278, PLC 변화 GT 0.00 · TR 0.32 · HO 15.91m (≥0.5), 축 변화(model) GT 0.0000 · TR 0.0134 · HO 0.6631, 예외 0, 벽 20s
+FAIL Kpi1Measure exit=1 (415s) [Kpi1Measure] FAIL — 통과 0/0, 평균 0ms, 최대 0ms · 시간 초과 — 0시행까지만 진행(서버·대역 로그 확인)
+PASS Kpi2Measure (68s) 종합 충족률 100.0% (목표 90%)
+PASS Kpi4Measure (268s) 종합 충족률 100.0% (목표 90%)
+PASS Kpi6Measure (253s) 성공 99/100 (99.0%)
+# 결과: 실패 있음 — 로그 Logs/batch_20261012_131808
