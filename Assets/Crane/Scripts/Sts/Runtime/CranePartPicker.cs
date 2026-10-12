@@ -50,6 +50,13 @@ namespace AIXRCrane.Crane.Sts
         /// <summary>내가 고른 것 — 부품 '크레인|부품ID', 컨테이너 'C'+ContainerRegistry 번호, 없으면 "". 남에게 보낸다(PlayerAvatarSync.Selection).</summary>
         public static string SelectionKey { get; private set; } = "";
 
+        /// <summary>내가 가리키는 곳 — VR 은 그립 중 손 레이저, 안경은 조준점이 보일 때 시선. 남에게 보낸다(PlayerAvatarSync.Pointer).</summary>
+        public static bool PointerOn { get; private set; }
+        public static Vector3 PointerFrom { get; private set; }
+        public static Vector3 PointerTo { get; private set; }
+        float nextPointer;
+        readonly Dictionary<Net.PlayerAvatarSync, LineRenderer> otherRays = new();   // 남의 포인터 선(그 사람 색)
+
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void AutoSpawn() => CraneHud.EnsureSpawned<CranePartPicker>("PartPick");
 
@@ -59,7 +66,10 @@ namespace AIXRCrane.Crane.Sts
                 if (l != null && l.sharedMaterial != null) Destroy(l.sharedMaterial);   // MakeLine 이 만든 인스턴스
             foreach (var l in others.Values)
                 if (l != null && l.sharedMaterial != null) Destroy(l.sharedMaterial);
+            foreach (var l in otherRays.Values)
+                if (l != null && l.sharedMaterial != null) Destroy(l.sharedMaterial);
             SelectionKey = "";
+            PointerOn = false;
         }
 
         void Start()
@@ -90,6 +100,7 @@ namespace AIXRCrane.Crane.Sts
             DrawOthers();
             var head = Flat.XrealHeadTracker.Instance;
             reticle.enabled = Flat.FlatModeBootstrap.Active && (reticleOn || (head != null && head.Connected));
+            if (Flat.FlatModeBootstrap.Active && Time.unscaledTime >= nextPointer) { nextPointer = Time.unscaledTime + 0.1f; GazePointer(reticle.enabled); }
             bool show = Union(selected, out _);
             canvas.enabled = show;
             box.enabled = show || hovered != null;
@@ -161,6 +172,7 @@ namespace AIXRCrane.Crane.Sts
                 laser.enabled = true;
                 laser.SetPosition(0, ray.origin);
                 laser.SetPosition(1, ray.GetPoint(hovered != null && Union(hovered, out var hb) && hb.IntersectRay(ray, out float d) ? d : vrRayLength));
+                PointerOn = true; PointerFrom = ray.origin; PointerTo = laser.GetPosition(1);
             }
             else if (gripWas)
             {
@@ -168,6 +180,7 @@ namespace AIXRCrane.Crane.Sts
                 hovered = null;
                 grabbedDuringGrip = null;
                 laser.enabled = false;
+                PointerOn = false;
             }
             gripWas = grip;
         }
@@ -380,6 +393,17 @@ namespace AIXRCrane.Crane.Sts
 
         // ── 남의 선택 ─────────────────────────────────────────────────────────
 
+        // 안경 — 조준점이 보이는 동안 시선 광선이 맞힌 곳(없으면 광선 끝)을 가리킨다.
+        void GazePointer(bool on)
+        {
+            var cam = on ? CraneHud.HudCamera(null) : null;
+            if (cam == null) { PointerOn = false; return; }
+            var ray = cam.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0f));
+            var e = Pick(ray);
+            PointerOn = true; PointerFrom = ray.origin;
+            PointerTo = ray.GetPoint(e != null && Union(e, out var b) && b.IntersectRay(ray, out float d) ? d : vrRayLength);
+        }
+
         static string KeyOf(Entry e)
         {
             if (e == null) return "";
@@ -413,14 +437,29 @@ namespace AIXRCrane.Crane.Sts
                 l.startColor = l.endColor = a.TintColor;
                 DrawBox(l, b);
             }
+            foreach (var a in avatars)
+            {
+                if (a == null || a.IsOwner || !a.IsSpawned) continue;
+                if (!otherRays.TryGetValue(a, out var ray) || ray == null) otherRays[a] = ray = MakeLine("OtherPointer", 2, 0.002f, a.TintColor);
+                var p = a.Pointer.Value;
+                ray.enabled = p.On;
+                if (!p.On) continue;
+                ray.startColor = ray.endColor = a.TintColor;
+                ray.SetPosition(0, p.From);
+                ray.SetPosition(1, p.To);
+            }
             List<Net.PlayerAvatarSync> gone = null;
-            foreach (var kv in others) if (kv.Key == null || !kv.Key.IsSpawned) (gone ??= new()).Add(kv.Key);
-            if (gone != null)
+            foreach (var map in new[] { others, otherRays })
+            {
+                gone?.Clear();
+                foreach (var kv in map) if (kv.Key == null || !kv.Key.IsSpawned) (gone ??= new()).Add(kv.Key);
+                if (gone == null) continue;
                 foreach (var k in gone)
                 {
-                    if (others[k] != null) { Destroy(others[k].sharedMaterial); Destroy(others[k].gameObject); }
-                    others.Remove(k);
+                    if (map[k] != null) { Destroy(map[k].sharedMaterial); Destroy(map[k].gameObject); }
+                    map.Remove(k);
                 }
+            }
         }
 
         // ── 그리기 ───────────────────────────────────────────────────────────

@@ -32,6 +32,17 @@ namespace AIXRCrane.Crane.Sts.Net
         /// <summary>이 참가자가 고른 것(CranePartPicker.SelectionKey) — 남의 화면에 이 사람 색 상자로 보인다. 빈 값 = 없음.</summary>
         public readonly NetworkVariable<Unity.Collections.FixedString64Bytes> Selection = new(writePerm: NetworkVariableWritePermission.Owner);
 
+        /// <summary>가리키는 곳(CranePartPicker.Pointer*) — 남의 화면에 이 사람 색 선으로 보인다.</summary>
+        public struct PointerState : INetworkSerializable, System.IEquatable<PointerState>
+        {
+            public bool On; public Vector3 From, To;
+            public void NetworkSerialize<T>(BufferSerializer<T> s) where T : IReaderWriter { s.SerializeValue(ref On); s.SerializeValue(ref From); s.SerializeValue(ref To); }
+            public bool Equals(PointerState o) => On == o.On && From == o.From && To == o.To;
+        }
+        public readonly NetworkVariable<PointerState> Pointer = new(writePerm: NetworkVariableWritePermission.Owner);
+        float nextPointerSend;
+        const float PointerSendHz = 10f, PointerMoveU = 0.002f;   // 초당 10번까지, 끝점이 이만큼(모델 단위 ≈ 실척 5cm) 넘게 움직였을 때만
+
         readonly List<Renderer> rends = new();
         Canvas nameTag;
         UnityEngine.UI.Text tagText;
@@ -138,6 +149,16 @@ namespace AIXRCrane.Crane.Sts.Net
             if (!IsSpawned || !IsOwner) return;
             string sel = AIXRCrane.Crane.Sts.CranePartPicker.SelectionKey;
             if (Selection.Value.ToString() != sel) Selection.Value = sel;
+            if (Time.unscaledTime >= nextPointerSend)
+            {
+                var p = new PointerState { On = AIXRCrane.Crane.Sts.CranePartPicker.PointerOn, From = AIXRCrane.Crane.Sts.CranePartPicker.PointerFrom, To = AIXRCrane.Crane.Sts.CranePartPicker.PointerTo };
+                var o = Pointer.Value;
+                if (p.On != o.On || (p.On && ((p.To - o.To).sqrMagnitude > PointerMoveU * PointerMoveU || (p.From - o.From).sqrMagnitude > PointerMoveU * PointerMoveU)))
+                {
+                    Pointer.Value = p;
+                    nextPointerSend = Time.unscaledTime + 1f / PointerSendHz;
+                }
+            }
             if (DeviceIdentity.Looked && Label.Value.Length == 0)
             {
                 Label.Value = DeviceIdentity.Label;
