@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """상태 요약 추론 서비스 (WBS 6.4 → 6.5) — 통합서버 기록을 1초마다 읽어 크레인마다 정상·주의·이상과 요약문을 판정한다.
 
-GET /summary?crane=<이름> → {"crane","t","state","cause","code","text","activity","conf","model","rule":false}
+GET /summary?crane=<이름> → {"crane","t","state","cause","code","text","activity","conf","cause_ko","action","model","rule":false}
     404 = 아직 판정 없음(기록 60초 미만) · /health → {"ok", "cranes", "model"}
 통합서버(xrcrane_db.py)가 /summary 를 이리로 넘긴다(XRCRANE_AI_URL). 학습과 같은 특징(train_ai.features)·같은 문장(gen_ai.summary).
 환경변수: XRCRANE_DB_URL(http://xrcrane-db:5006) · XRCRANE_TOKEN · XRCRANE_AI_MODELS(모델 폴더) · XRCRANE_AI_SET(full|phys) · XRCRANE_AI_PORT(5007)
@@ -60,6 +60,7 @@ def judge(crane, b):
     act = T.activity(cols, -1)
     return {"crane": crane, "t": int(b[-1]["t_ms"]), "state": st, "cause": cause, "code": code,
             "text": G.summary(st, cause, code, crane, act), "activity": act, "conf": round(conf, 3),
+            "cause_ko": G.CAUSES[cause][0] if st else "", "action": G.CAUSES[cause][1] if st else "",
             "model": SET, "rule": False}
 
 

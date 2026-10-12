@@ -7,7 +7,7 @@ using UnityEngine;
 
 namespace AIXRCrane.EditorTools
 {
-    /// <summary>컨테이너 FBX 머티리얼 리맵 — 내장(무텍스처, LOD0 새까맘) 대신 Final4 .mat 을 이름 매칭으로 쓴다.</summary>
+    /// <summary>컨테이너 FBX 머티리얼 리맵(정밀본·LOD1) — 내장(무텍스처, 새까맘) 대신 Final4 .mat 을 이름 매칭으로 쓴다.</summary>
     internal static class ContainerMaterialRemap
     {
         const string ModelDir = "Assets/Container/Models";
@@ -19,7 +19,7 @@ namespace AIXRCrane.EditorTools
             var log = new List<string>();
             int files = 0, mapped = 0, missing = 0;
 
-            foreach (var path in Directory.GetFiles(ModelDir, "*.fbx").OrderBy(p => p))
+            foreach (var path in Directory.GetFiles(ModelDir, "*.fbx", SearchOption.AllDirectories).OrderBy(p => p))   // LOD1/ 포함 — 빠지면 원경이 내장 재질(검정)로 보인다
             {
                 if (AssetImporter.GetAtPath(path) is not ModelImporter imp) continue;
 
