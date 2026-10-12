@@ -80,11 +80,11 @@ namespace AIXRCrane.Crane.Sts
         {
             float longSide = Mathf.Max(b.size.x, b.size.z);
             var inst = t.GetComponentInParent<ContainerInstance>();
-            float tons = inst != null && inst.LoadTons > 0f ? inst.LoadTons : ContainerLoad.WeightTons(t.name);
+            float tons = inst != null && inst.LoadTons > 0f ? inst.LoadTons : ContainerLoad.WeightTons(ContainerRegistry.Seed(t, t.name));
             string id = inst != null && !string.IsNullOrEmpty(inst.DisplayId)
                 ? inst.DisplayId
                 : ContainerIdGenerator.FormatForDisplay(
-                      ContainerIdGenerator.GenerateDeterministic(CraneHud.BaseName(t.name)));
+                      ContainerIdGenerator.GenerateDeterministic(ContainerRegistry.Seed(t, CraneHud.BaseName(t.name))));
             return new Recognized
             {
                 t = t,

@@ -319,55 +319,14 @@ namespace AIXRCrane.Crane.Sts.Net
             return best;
         }
 
-        // 컨테이너 Rigidbody 결정적 목록. 부모로 거르지 않는다 — 잡혀서 자식이 돼도 인덱스 불변.
-        static readonly List<Transform> _containerBuf = new();
-        List<Transform> BuildContainerList()
-        {
-            _containerBuf.Clear();
-            foreach (var rb in FindObjectsByType<Rigidbody>(FindObjectsInactive.Exclude))
-            {
-                if (rb == null) continue;
-                if (rb.name.IndexOf("Container", System.StringComparison.OrdinalIgnoreCase) < 0) continue;
-                _containerBuf.Add(rb.transform);
-            }
-            _containerBuf.Sort((a, b) => string.CompareOrdinal(a.name, b.name));
-            return _containerBuf;
-        }
+        // 컨테이너는 NetworkObject 가 아니라 ContainerRegistry 번호로 식별 — 크레인 집기·손 핸드오프가 같은 번호를 쓴다(WBS 5.6).
+        static int IndexOfContainer(Transform t) => ContainerRegistry.IndexOf(t);
+        static Transform ContainerByIndex(int index) => ContainerRegistry.At(index);
 
-        int IndexOfContainer(Transform t)
-        {
-            var list = BuildContainerList();
-            return list.IndexOf(t);
-        }
-
-        Transform ContainerByIndex(int index)
-        {
-            if (index < 0) return null;
-            var list = BuildContainerList();
-            return (index < list.Count) ? list[index] : null;
-        }
-
-        // 컨테이너 핸드오프 — 마지막 집기 우선. 컨테이너는 NetworkObject가 아니라 결정적 인덱스로 식별.
-
-        static float RoundDm(float v) => Mathf.Round(v * 10f) / 10f;   // 0.1m 반올림(물리 지터 흡수)
-
-        // 초기 좌표로 정렬한 스냅샷 — 한 번 만들고 고정.
+        // 컨테이너 핸드오프 — 마지막 집기 우선.
         void SubscribeContainers()
         {
-            var found = new List<Transform>();
-            foreach (var rb in FindObjectsByType<Rigidbody>(FindObjectsInactive.Exclude))
-            {
-                if (rb == null) continue;
-                if (rb.name.IndexOf("Container", System.StringComparison.OrdinalIgnoreCase) < 0) continue;
-                found.Add(rb.transform);
-            }
-            found.Sort((a, b) =>
-            {
-                Vector3 pa = a.position, pb = b.position;
-                int c = RoundDm(pa.x).CompareTo(RoundDm(pb.x)); if (c != 0) return c;
-                c = RoundDm(pa.y).CompareTo(RoundDm(pb.y));     if (c != 0) return c;
-                return RoundDm(pa.z).CompareTo(RoundDm(pb.z));
-            });
+            var found = new List<Transform>(ContainerRegistry.All);   // 접속 순간의 위치로 정렬하면 늦게 들어온 참가자는 크레인이 옮긴 뒤라 순서가 달랐다
             containerSnapshot = found;
 
             containerGrabs.Clear(); grabHooks.Clear();

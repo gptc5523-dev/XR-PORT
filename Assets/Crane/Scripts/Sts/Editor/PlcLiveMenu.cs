@@ -68,9 +68,9 @@ namespace AIXRCrane.Crane.Sts.EditorTools
                     float longM = Mathf.Max(b.size.x, b.size.z) / c.ModelScale;
                     int ft = longM > 13f ? 45 : longM > 9f ? 40 : 20;
                     var inst = ct.GetComponentInParent<ContainerInstance>();   // 하중은 SpreaderAttach 와 같은 출처 — 화면 하중과 PLC HO_Load 가 맞게
-                    float tons = inst != null && inst.LoadTons > 0f ? inst.LoadTons : ContainerLoad.WeightTons(ct.name);
+                    float tons = inst != null && inst.LoadTons > 0f ? inst.LoadTons : ContainerLoad.WeightTons(ContainerRegistry.Seed(ct, ct.name));
                     sb.Append(first ? "" : ",").Append(string.Format(inv, "{{\"id\":\"{0}\",\"gt\":{1:F3},\"tr\":{2:F3},\"ho_top\":{3:F3},\"ft\":{4},\"t\":{5:F1},\"h\":{6:F3} }}",
-                        ct.name, gt, tr, ho, ft, tons, b.size.y / c.ModelScale));
+                        ContainerRegistry.Seed(ct, ct.name), gt, tr, ho, ft, tons, b.size.y / c.ModelScale));
                     first = false;
                     total++;
                 }

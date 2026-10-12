@@ -41,10 +41,10 @@ namespace AIXRCrane.Crane.Sts
         {
             var inst = container.GetComponentInParent<ContainerInstance>();   // 부두 배치 등 없을 수 있음
             tons = inst != null ? inst.LoadTons : 0f;
-            if (tons <= 0f) tons = ContainerLoad.WeightTons(container.name);
+            if (tons <= 0f) tons = ContainerLoad.WeightTons(ContainerRegistry.Seed(container, container.name));   // 배 컨테이너 238개가 이름이 같아 하중·번호가 모두 같았다
             return inst != null && !string.IsNullOrEmpty(inst.DisplayId)
                 ? inst.DisplayId
-                : ContainerIdGenerator.FormatForDisplay(ContainerIdGenerator.GenerateDeterministic(CraneHud.BaseName(container.name)));
+                : ContainerIdGenerator.FormatForDisplay(ContainerIdGenerator.GenerateDeterministic(ContainerRegistry.Seed(container, CraneHud.BaseName(container.name))));
         }
 
         /// <summary>컨테이너 결합(이미 잡고 있으면 무시). 월드 자세 유지한 채 부착점 자식으로만 — 정렬은 호출자 몫.</summary>
