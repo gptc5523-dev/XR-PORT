@@ -8,52 +8,87 @@ ModelImporter:
       type: UnityEngine:Material
       assembly: UnityEngine.CoreModule
       name: MH_Body_Grey
-    second: {fileID: 2100000, guid: 054af51f90b904581b098491ac60ca9c, type: 2}
+    second: {fileID: 2100000, guid: f5c67b680fa3e4d49befa56bff76ef11, type: 2}
   - first:
       type: UnityEngine:Material
       assembly: UnityEngine.CoreModule
       name: MH_Roof_Grey
-    second: {fileID: 2100000, guid: e4c620fca68dd47ed8ac04c4aea22078, type: 2}
+    second: {fileID: 2100000, guid: 518089d86d24c45f2b3a9106ffe3a2bf, type: 2}
   - first:
       type: UnityEngine:Material
       assembly: UnityEngine.CoreModule
       name: MH_Trim_Grey
-    second: {fileID: 2100000, guid: 555332740f1fe48e1a4ba20c4f976922, type: 2}
+    second: {fileID: 2100000, guid: f33c4b5fe7ace4e32ab76266fe434315, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: RTG_CabWhite
+    second: {fileID: 2100000, guid: 6e46b564677b543efab8bae8cd23522c, type: 2}
   - first:
       type: UnityEngine:Material
       assembly: UnityEngine.CoreModule
       name: RTG_DarkMetal
-    second: {fileID: 2100000, guid: 0ae78a042bcb04885bc74c0a93ee23ea, type: 2}
+    second: {fileID: 2100000, guid: 39266c1657f4e422ebdd8fba2663a857, type: 2}
   - first:
       type: UnityEngine:Material
       assembly: UnityEngine.CoreModule
       name: RTG_DecalBlack
-    second: {fileID: 2100000, guid: 63f89e99b8b334f2aaaf356feb12c0da, type: 2}
+    second: {fileID: 2100000, guid: 8f7f047979b754a7680231930e33cb23, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: RTG_EHouse_Body
+    second: {fileID: 2100000, guid: ea4378e0b239e46428feb47ae3f61eac, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: RTG_EHouse_Roof
+    second: {fileID: 2100000, guid: d99598b3ff7e9412bb774ee13357942a, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: RTG_EHouse_Trim
+    second: {fileID: 2100000, guid: f2db96e2c4acd4932bb02b4427b5bce5, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: RTG_EquipBlueGrey
+    second: {fileID: 2100000, guid: 41eda8148a06e42378cca953530b7683, type: 2}
   - first:
       type: UnityEngine:Material
       assembly: UnityEngine.CoreModule
       name: RTG_Glass
-    second: {fileID: 2100000, guid: 2569b4378401e487f8f3903630a7483c, type: 2}
+    second: {fileID: 2100000, guid: 402dbfd997d5b42b1aab509d5732e4b8, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: RTG_HazardRed
+    second: {fileID: 2100000, guid: 952223b34b40c4213a3df554df24d801, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: RTG_HazardWhite
+    second: {fileID: 2100000, guid: fe8d215f292a34addaa29f7bd9bec860, type: 2}
   - first:
       type: UnityEngine:Material
       assembly: UnityEngine.CoreModule
       name: RTG_Lens
-    second: {fileID: 2100000, guid: 69969e97164d04388b9466827bf0551d, type: 2}
+    second: {fileID: 2100000, guid: 63b5c8792857943d7b1e8b7a40c1757f, type: 2}
   - first:
       type: UnityEngine:Material
       assembly: UnityEngine.CoreModule
       name: RTG_Rubber
-    second: {fileID: 2100000, guid: 86a3ceab5e4054b72bc0a0bc00d0efb8, type: 2}
+    second: {fileID: 2100000, guid: 08fc552d143e0408cb3529f2673ba543, type: 2}
   - first:
       type: UnityEngine:Material
       assembly: UnityEngine.CoreModule
       name: RTG_Steel
-    second: {fileID: 2100000, guid: 4eb84c11a4b794a0bba380c0670cf50c, type: 2}
+    second: {fileID: 2100000, guid: 9ca0f0085e31842e2ada9c25c2b2709d, type: 2}
   - first:
       type: UnityEngine:Material
       assembly: UnityEngine.CoreModule
       name: RTG_StructureYellow
-    second: {fileID: 2100000, guid: a3569554ae33045e3882ecefa494b9d1, type: 2}
+    second: {fileID: 2100000, guid: aa6ad9c044a2d4864b09b67326d4a565, type: 2}
   - first:
       type: UnityEngine:Material
       assembly: UnityEngine.CoreModule
@@ -68,7 +103,7 @@ ModelImporter:
     materialImportMode: 1
     materialName: 0
     materialSearch: 1
-    materialLocation: 0
+    materialLocation: 1
   animations:
     legacyGenerateAnimations: 4
     bakeSimulation: 0
