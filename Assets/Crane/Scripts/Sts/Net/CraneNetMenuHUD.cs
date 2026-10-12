@@ -227,12 +227,9 @@ namespace AIXRCrane.Crane.Sts.Net
             lockedLoco.Clear();
         }
 
-        /// <summary>시작·접속 메뉴가 떠 있는가 — 다른 시야 고정 HUD 가 겹치지 않게 비켜 준다.</summary>
-        public static bool MenuOpen { get; private set; }
-
         void SetVisible(bool v)
         {
-            MenuOpen = v;
+            CraneLink.MenuOpen = v;
             if (canvas != null && canvas.gameObject.activeSelf != v) canvas.gameObject.SetActive(v);
         }
 

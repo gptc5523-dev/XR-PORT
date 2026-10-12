@@ -48,6 +48,8 @@ import sqlite3
 import sys
 import threading
 import time
+import urllib.error
+import urllib.parse
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs
@@ -56,6 +58,7 @@ DEFAULT_DB = os.environ.get("XRCRANE_DB", "/data/xrcrane.db")
 DEFAULT_PORT = int(os.environ.get("XRCRANE_PORT", "5006"))
 DEFAULT_ALLOW = os.environ.get("XRCRANE_ALLOW", "127.0.0.0/8,::1/128,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,100.64.0.0/10")   # 100.64/10 = Tailscale(서버는 VPN 으로만 닿는다)
 TOKEN_HEADER = "X-Auth-Token"
+DEFAULT_AI = os.environ.get("XRCRANE_AI_URL", "http://xrcrane-ai:5007")   # 6.4 추론 서비스(compose 내부) — /summary 를 여기로 넘긴다
 
 
 def auth_headers(extra=None):
@@ -314,6 +317,17 @@ def part_history(rows, crane, parts, book, part=None):
     return out
 
 
+def ai_summary(crane, base=DEFAULT_AI):
+    """상태 요약(WBS 6.5) — 추론 서비스 /summary 를 그대로 넘긴다. 404 = 아직 판정 없음, 그 밖의 실패·1초 초과 = 503(클라이언트는 둘 다 로컬 규칙)."""
+    try:
+        with urllib.request.urlopen(f"{base}/summary?crane={urllib.parse.quote(crane or '')}", timeout=1) as r:
+            return json.loads(r.read()), 200
+    except urllib.error.HTTPError as e:
+        return {"error": "no verdict" if e.code == 404 else "ai error"}, 404 if e.code == 404 else 503
+    except Exception:
+        return {"error": "ai offline"}, 503
+
+
 class Handler(BaseHTTPRequestHandler):
     db_path = None
     allow = parse_allow(DEFAULT_ALLOW)
@@ -386,6 +400,9 @@ class Handler(BaseHTTPRequestHandler):
             limit = max(1, min(int(self.q("limit", "500")), 10000))
         except ValueError:
             limit = 500
+
+        if path == "/summary":
+            return self.send_json(*ai_summary(crane))
 
         if path == "/time":
             return self.send_json({"server_ms": int(time.time() * 1000)})

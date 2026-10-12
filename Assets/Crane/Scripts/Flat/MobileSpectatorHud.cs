@@ -194,6 +194,8 @@ namespace AIXRCrane.Crane.Flat
                     ? $"<color=#{CraneHud.Hex(CraneHud.HudColor.Ok)}>체결 {c.Attach.AttachedLoadTons:0.#} t</color>"
                     : $"<color=#{CraneHud.Hex(CraneHud.HudColor.IdleDim)}>없음</color>";
                 lines[i] = $"<b>{names[i],-5}</b>  트롤리 {Pct(c.Trolley)}    호이스트 {Pct(c.Spreader)}    갠트리 {Pct(c.Gantry)}    화물 {cargo}";
+                string summary = CraneStateSummary.LineFor(c);   // 정상·주의·이상 요약(WBS 6.5)
+                if (summary.Length > 0) lines[i] += "\n      " + summary;
             }
             return string.Join("\n", lines);
         }

@@ -42,7 +42,7 @@ namespace AIXRCrane.Crane.Sts.Net
                 attached = true;
             }
             string body = PlayerAvatarSync.ListText();
-            canvas.enabled = body.Length > 0 && !CraneNetMenuHUD.MenuOpen;
+            canvas.enabled = body.Length > 0 && !CraneLink.MenuOpen;
             CraneHud.SetTextIfChanged(text, ref last, body);
         }
     }

@@ -28,6 +28,9 @@ namespace AIXRCrane.Crane.Sts
         /// <summary>평면 모드(= VR 이 아닌 모든 실행 = 모바일 관전 화면)로 부팅됐는가 — FlatModeBootstrap 이 쓴다.</summary>
         public static bool FlatMode;
 
+        /// <summary>시작·접속 메뉴가 떠 있는가 — CraneNetMenuHUD 가 쓰고, 다른 시야 고정 HUD 는 겹치지 않게 비켜 준다.</summary>
+        public static bool MenuOpen;
+
         /// <summary>XREAL 안경 머리 추적이 붙어 있는가 — XrealHeadTracker 가 자기 Connected 를 건다.</summary>
         public static System.Func<bool> GlassesConnected = () => false;
 
