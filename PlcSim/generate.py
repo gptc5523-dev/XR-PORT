@@ -704,7 +704,7 @@ CRANE = {"S16": "RTG"}
 RANGES = {"STS": RANGE, "RTG": RTG_RANGE}
 
 # 벤더 부록C 회차 — 정상 각10/주의 각5/이상 각5/정비 3 = 83. 기본은 샘플(축소), --full로 전체.
-FULL_RUNS = {"정상": 10, "주의": 5, "이상": 5, "정비(제외)": 3}
+FULL_RUNS = {"정상": 10, "주의": 30, "이상": 30, "정비(제외)": 3}   # 주의·이상 시나리오 3종씩 ×30 = 클래스마다 90런(정상 9종 ×10) — 정상 73%로 쏠려 있었다(WBS 6.2)
 SAMPLE_RUNS = {"정상": 2, "주의": 2, "이상": 2, "정비(제외)": 1}
 
 
@@ -735,7 +735,7 @@ def write_run(out_dir, sid, name, label, idx, sim, crane):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--full", action="store_true", help="벤더 부록C 전체 회차(83런) 생성")
+    ap.add_argument("--full", action="store_true", help="전체 회차 생성(정상·주의·이상 각 90런 + 정비 3)")
     ap.add_argument("--out", default=os.path.join(os.path.dirname(__file__), "output"))
     args = ap.parse_args()
     runs_per = FULL_RUNS if args.full else SAMPLE_RUNS

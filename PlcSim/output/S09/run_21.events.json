@@ -1,0 +1,17 @@
+{
+  "scenario": "S09",
+  "name": "비상정지",
+  "label": "이상",
+  "duration_s": 26.3,
+  "rows": 263,
+  "events": [
+    {
+      "t_ms": 20000,
+      "kind": "alarm",
+      "code": 5001,
+      "severity": 3,
+      "source": 5,
+      "description": "운전실 비상정지 버튼 작동"
+    }
+  ]
+}
