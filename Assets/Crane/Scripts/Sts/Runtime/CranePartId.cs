@@ -221,6 +221,39 @@ namespace AIXRCrane.Crane.Sts
             return sb.ToString();
         }
 
+        /// <summary>태그·알람의 part 키가 이 부품을 가리키나 — 같은 ID 이거나, 표에 없는 그룹 ID(SP.TWL)의 하위. 서버 covers() 와 같다.</summary>
+        public static bool Covers(string key, string id, Part[] table)
+        {
+            if (string.IsNullOrEmpty(key)) return false;
+            if (id == key) return true;
+            if (!id.StartsWith(key + ".")) return false;
+            foreach (var p in table) if (p.id == key) return false;
+            return true;
+        }
+
+        // 자동 설명(WBS 6.6) 점검 — 씬에 있는 부품은 설명·축이 나와야 하고, 위치 말은 손으로 쓴 note 와 같아야 한다.
+        static void CheckDescriptions(Transform root)
+        {
+            var table = PartsFor(root);
+            var bad = new StringBuilder();
+            int placeChecked = 0, kindInNote = 0;
+            foreach (var p in table)
+            {
+                var d = PartDescriber.Describe(root, p, table);
+                bool inScene = Find(root, p.id).Exists(x => x.id == p.id);
+                if (string.IsNullOrEmpty(d.desc)) bad.Append($"{p.id}:설명없음 ");
+                if (inScene && d.axis == "") bad.Append($"{p.id}:축없음 ");
+                string place = PartDescriber.Place(p.at, table == RtgParts);
+                if (place != "") { placeChecked++; if (!p.note.Contains(place)) bad.Append($"{p.id}:위치'{place}'≠note "); }
+                int sp = d.desc.IndexOf(" — ");
+                string head = d.desc.Substring(0, sp > 0 ? sp : d.desc.IndexOf('.'));
+                string kindWord = head.Substring(head.LastIndexOf(' ') + 1);
+                if (p.note.Contains(kindWord)) kindInNote++;
+            }
+            QaLog.Check("PARTDESC", "selfcheck", bad.Length == 0,
+                $"crane={root.name} parts={table.Length} place={placeChecked} kindInNote={kindInNote}/{table.Length} {bad}");
+        }
+
         static bool Absent(string id) { foreach (var a in RtgAbsent) if (id == a || id.StartsWith(a + ".")) return true; return false; }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
@@ -230,6 +263,7 @@ namespace AIXRCrane.Crane.Sts
             {
                 string why = Verify(c.transform);
                 QaLog.Check("PARTID", "selfcheck", why == "", $"crane={c.name} parts={PartsFor(c.transform).Length} tags={Tags.Length} {why}");
+                CheckDescriptions(c.transform);
             }
         }
     }

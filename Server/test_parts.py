@@ -16,6 +16,15 @@ def state(v, pid):
     return next(p for p in v["parts"] if p["id"] == pid)
 
 
+# 자동 태그·설명(WBS 6.6) — 부품마다 desc·tags, 알람 목록은 서버 covers() 와 같은 규칙이어야 한다(Unity CranePartId.Covers).
+from xrcrane_db import covers
+for key in ("sts", "rtg"):
+    ids = {p["id"] for p in parts[key]}
+    for p in parts[key]:
+        assert p["desc"] and p["tags"]["system"] == p["id"].split(".")[0], p["id"]
+        want = sorted(c for c, e in book.items() if covers(e.get("part") or "", p["id"], ids))
+        assert p["tags"]["alarms"] == want, (key, p["id"], p["tags"]["alarms"], want)
+
 v = view()   # 알람 없음 → 전부 정상, 운전
 assert v["worst"] == "정상" and v["op_state"] == "운전" and v["alarm"] is None and len(v["parts"]) == 31
 

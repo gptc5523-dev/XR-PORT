@@ -12,9 +12,12 @@ namespace AIXRCrane.Crane.Sts
             if (e.box != null) return BoxText(e);
             string id = e.part.id;
             sb.Clear();
+            var root = e.crane != null ? e.crane.transform : null;
             string note = "";
-            foreach (var p in CranePartId.PartsFor(e.crane != null ? e.crane.transform : null)) if (p.id == id) { note = p.note; break; }
+            foreach (var p in CranePartId.PartsFor(root)) if (p.id == id) { note = p.note; break; }
             sb.Append("<b>").Append(note).Append("</b>\n<color=#999999>").Append(id).Append("</color>");
+            string desc = AutoDesc(root, id);
+            if (desc != "") sb.Append("\n<color=#AAAAAA>").Append(desc).Append("</color>");
 
             var crane = e.crane;
             PlcBridge bridge = null;
@@ -52,6 +55,19 @@ namespace AIXRCrane.Crane.Sts
             }
             if (!any) sb.Append("\n<color=#7FFF7F>알람 없음</color>");
             return sb.ToString();
+        }
+
+        // 자동 설명(WBS 6.6)은 정적이라 크레인·부품마다 한 번만 만든다.
+        readonly System.Collections.Generic.Dictionary<(Transform, string), string> descCache = new();
+
+        string AutoDesc(Transform root, string id)
+        {
+            if (descCache.TryGetValue((root, id), out var d)) return d;
+            var table = CranePartId.PartsFor(root);
+            d = "";
+            foreach (var p in table) if (p.id == id) { d = PartDescriber.Describe(root, p, table).desc; break; }
+            descCache[(root, id)] = d;
+            return d;
         }
 
         string BoxText(Entry e)

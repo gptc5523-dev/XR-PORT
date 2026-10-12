@@ -105,6 +105,8 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             File.WriteAllText(path, sb.ToString(), new UTF8Encoding(false));
             File.WriteAllText(Path.Combine(Path.GetFullPath(Path.Combine(Application.dataPath, "..")), JsonRel), PartsJson(), new UTF8Encoding(false));
             Debug.Log($"[PartId] 매핑표 내보냄 → {DocRel}, {JsonRel} (부품 {CranePartId.Parts.Length}, 태그 {CranePartId.Tags.Length}, 알람 {AlarmCodebook.All.Length})");
+            string drift = CauseDrift();
+            QaLog.Check("PARTDESC", "causes", drift == "", $"gen_ai CAUSES ↔ PartDescriber.CauseByCode {drift}");
         }
 
         const string JsonRel = "Server/parts.json";   // 통합서버 /parts 가 읽는다 — 서버가 XR 과 같은 표로 부품 상태를 낸다
@@ -112,9 +114,9 @@ namespace AIXRCrane.Crane.Sts.EditorTools
         static string PartsJson()
         {
             var sb = new StringBuilder("{\n  \"sts\": [");
-            AppendParts(sb, CranePartId.Parts);
+            AppendParts(sb, CranePartId.Parts, SceneRoot(false));
             sb.Append("],\n  \"rtg\": [");
-            AppendParts(sb, CranePartId.RtgParts);
+            AppendParts(sb, CranePartId.RtgParts, SceneRoot(true));
             sb.Append("],\n  \"rtgAbsent\": [");
             for (int i = 0; i < CranePartId.RtgAbsent.Length; i++) sb.Append(i > 0 ? ", " : "").Append(Q(CranePartId.RtgAbsent[i]));
             sb.Append("],\n  \"tags\": [");
@@ -126,23 +128,50 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             return sb.Append("\n  ]\n}\n").ToString();
         }
 
-        static void AppendParts(StringBuilder sb, CranePartId.Part[] parts)
+        // 부품 행 = 손으로 쓴 note + 자동 설명·태그(WBS 6.6). 씬에 크레인이 없으면 축·크기만 빈다.
+        static void AppendParts(StringBuilder sb, CranePartId.Part[] parts, Transform root)
         {
             for (int i = 0; i < parts.Length; i++)
-                sb.Append(i > 0 ? "," : "").Append($"\n    {{\"id\": {Q(parts[i].id)}, \"note\": {Q(parts[i].note)}}}");
+            {
+                var d = PartDescriber.Describe(root, parts[i], parts);
+                sb.Append(i > 0 ? "," : "").Append($"\n    {{\"id\": {Q(d.id)}, \"note\": {Q(parts[i].note)}, \"desc\": {Q(d.desc)}, \"tags\": {{")
+                  .Append($"\"system\": {Q(d.system)}, \"kind\": {Q(d.kind)}, \"at\": {Q(d.at)}, \"axis\": {Q(d.axis)}, ")
+                  .Append($"\"size_m\": [{F(d.sizeM.x)}, {F(d.sizeM.y)}, {F(d.sizeM.z)}], ")
+                  .Append($"\"plc\": [{string.Join(", ", d.plc.ConvertAll(Q))}], \"alarms\": [{string.Join(", ", d.alarms)}], ")
+                  .Append($"\"causes\": [{string.Join(", ", d.causes.ConvertAll(Q))}]}}}}");
+            }
+        }
+
+        static string F(float v) => v.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+
+        // 씬의 첫 STS / RTG 크레인 루트(부품 ID 부여된 것).
+        static Transform SceneRoot(bool rtg)
+        {
+            foreach (var c in Object.FindObjectsByType<StsCrane>())
+                if ((CranePartId.PartsFor(c.transform) == CranePartId.RtgParts) == rtg && c.GetComponentInChildren<CranePartId>(true) != null) return c.transform;
+            return null;
+        }
+
+        // 6.4 원인 키 대조 — PartDescriber.CauseByCode 가 PlcSim/gen_ai.py CAUSES(코드 있는 것)와 같아야 한다.
+        static string CauseDrift()
+        {
+            string py = Path.Combine(Path.GetFullPath(Path.Combine(Application.dataPath, "..")), "PlcSim/gen_ai.py");
+            if (!File.Exists(py)) return "gen_ai.py 없음";
+            var want = new Dictionary<int, string>();
+            foreach (System.Text.RegularExpressions.Match m in System.Text.RegularExpressions.Regex.Matches(File.ReadAllText(py), "^\\s*\"(\\w+)\":\\s*\\(\"[^\"]*\",\\s*\"[^\"]*\",\\s*(\\d+),", System.Text.RegularExpressions.RegexOptions.Multiline))
+            {
+                int code = int.Parse(m.Groups[2].Value);
+                if (code != 0) want[code] = m.Groups[1].Value;
+            }
+            var sb = new StringBuilder();
+            foreach (var kv in want) if (!PartDescriber.CauseByCode.TryGetValue(kv.Key, out var k) || k != kv.Value) sb.Append($"{kv.Key}={kv.Value}? ");
+            foreach (var kv in PartDescriber.CauseByCode) if (!want.ContainsKey(kv.Key)) sb.Append($"{kv.Key} 남음 ");
+            return want.Count == 0 ? "CAUSES 못 읽음" : sb.ToString();
         }
 
         static string Q(string v) => "\"" + (v ?? "").Replace("\\", "\\\\").Replace("\"", "\\\"") + "\"";
 
-        // 이 ID 를 가리키는 태그·알람 — 정확히 이 ID 이거나 부품 아닌 그룹 ID. 부품인 상위 ID(GT)는 자기 행에만.
-        static bool Covers(string key, string id)
-        {
-            if (key == "") return false;
-            if (id == key) return true;
-            if (!id.StartsWith(key + ".")) return false;
-            foreach (var p in CranePartId.Parts) if (p.id == key) return false;
-            return true;
-        }
+        static bool Covers(string key, string id) => CranePartId.Covers(key, id, CranePartId.Parts);
 
         static List<string> TagsFor(Dictionary<string, List<string>> m, string id)
         {
