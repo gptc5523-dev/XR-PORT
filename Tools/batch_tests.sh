@@ -1,11 +1,14 @@
 #!/usr/bin/env bash
-# 배치 반복시험(WBS 7.2) — Tools/batch_tests.sh [도구 ...]: 서버 자체 시험 + Unity 배치 점검을 돌려 KPI/batch_<시각>.txt 에 요약, 실패 있으면 종료 코드 1(에디터는 닫고).
+# 배치 반복시험(WBS 7.2) — Tools/batch_tests.sh [--kpi] [도구 ...]: 서버 자체 시험 + Unity 배치 점검(--kpi 면 지표 1·2·4·6 측정까지)을 돌려 KPI/batch_<시각>.txt 에 요약, 실패 있으면 종료 코드 1(에디터는 닫고).
 set -uo pipefail
 cd "$(dirname "$0")/.."
 P="$PWD"
 VER=$(sed -n 's/^m_EditorVersion: //p' ProjectSettings/ProjectVersion.txt)
 U="/Applications/Unity/Hub/Editor/$VER/Unity.app/Contents/MacOS/Unity"
-TOOLS=("$@"); [ ${#TOOLS[@]} -eq 0 ] && TOOLS=(RtgControlSmoke HostStartProbe PlcReplaySmoke StsGrabProbe FloorClipProbe PlcServerSmoke)
+KPI=0; TOOLS=()
+for a in "$@"; do [ "$a" = --kpi ] && KPI=1 || TOOLS+=("$a"); done
+[ ${#TOOLS[@]} -eq 0 ] && TOOLS=(RtgControlSmoke HostStartProbe PlcReplaySmoke StsGrabProbe FloorClipProbe PlcServerSmoke)
+[ $KPI -eq 1 ] && TOOLS+=(Kpi1Measure Kpi2Measure Kpi4Measure Kpi6Measure)   # 100시행씩이라 오래 걸린다 — 지표1·6 은 로컬 서버·PLC 대역을 스스로 띄운다
 export XRCRANE_SERVER_URL="${XRCRANE_SERVER_URL:-http://192.168.0.167:5006}"   # 서버 구동 점검용 — 씬 기본값(Tailscale)은 이 Mac 에서 안 닿을 수 있다
 STAMP=$(date +%Y%m%d_%H%M%S); OUT="KPI/batch_$STAMP.txt"; LOGS="Logs/batch_$STAMP"; mkdir -p KPI "$LOGS"
 [ -x "$U" ] || { echo "Unity $VER 없음: $U"; exit 2; }
