@@ -62,11 +62,14 @@ for name, (n, by) in want.items():
     check(len(cases) == n, f"기준셋 {name} {len(cases)}건 ≠ {n}")
     for st, k in by.items(): check(sum(c["state_ko"] == st for c in cases) == k, f"기준셋 {name} {st} 개수")
     check(sum(c["hard"] for c in cases) >= 0.25 * n, f"기준셋 {name} 어려운 사례 25% 미만")
+    for st in (1, 2):   # 원인이 한쪽에 쏠리지 않게 — 한 원인이 그 상태의 40% 를 넘지 않는다
+        cs = [c["cause"] for c in cases if c["state"] == st]
+        check(max(cs.count(x) for x in set(cs)) <= 0.4 * len(cs), f"기준셋 {name} {st} 원인 쏠림")
     for c in cases:
         with gzip.open(os.path.join(d, c["clip"]), "rb") as f: data = f.read()
         check(hashlib.sha256(data).hexdigest() == c["sha256"], f"{c['id']} 해시 불일치")
         rows = list(csv.DictReader(data.decode("utf-8").splitlines()))
-        check(len(rows) == G.CLIP, f"{c['id']} 클립 길이 {len(rows)}")
+        check(len(rows) == min(c["row"] + 1, G.CLIP_MAX) >= G.CLIP_MIN, f"{c['id']} 클립 길이 {len(rows)}")
         check(int(rows[-1]["y_state"]) == c["state"], f"{c['id']} 라벨 불일치")
     if name == "ext": check(sum(c["profile"] == "B" for c in cases) == 300, "ext B 프로파일 300건 아님")
 ids = [c["source"] + str(c["row"]) for name in want for c in

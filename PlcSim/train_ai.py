@@ -21,7 +21,7 @@ D = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, D)
 import gen_ai as G  # noqa: E402
 
-W, S, L = 100, 30, 600          # 창 10초 · 짧은 창 3초 · 긴 창 60초(권상 최고속도처럼 긴 이동에서만 보이는 것)
+W, S, L, L5 = 100, 30, 600, 3000   # 창 10초 · 짧은 창 3초 · 긴 창 60초·5분(권상 최고속도처럼 긴 이동에서만 보이는 것)
 STEP = {"train": 10, "val": 20, "test": 20}   # 판정 시각 간격(행)
 CONT = ["GT_Velocity", "TR_Velocity", "HO_Velocity", "HO_Load", "ENV_Wind_Speed", "HO_Position"]
 BIN = ["GT_Running", "TR_Running", "HO_Running", "GT_Brake_Released", "TR_Brake_Released", "HO_Brake_Released",
@@ -57,6 +57,9 @@ def features(cols, ends):
         add(swv(pad, L)[ends].max(1), c + ".absmax60")
     ho_max = swv(np.concatenate([np.zeros(L - 1, np.float32), np.abs(cols["HO_Velocity"])]), L)[ends].max(1)
     add(ho_max / G.g.VMAX["ho"], "HO.speed_ratio60")
+    for c in ("GT_Velocity", "TR_Velocity", "HO_Velocity"):   # 앞 기록이 짧으면 있는 만큼(0 으로 채움) — 실시간 추론 초기와 같다
+        x = np.abs(cols[c]); m5 = swv(np.concatenate([np.zeros(L5 - 1, np.float32), x]), L5)[ends].max(1)
+        add(m5 / G.g.VMAX[c[:2].lower()], c + ".ratio300")
     add(cols["HO_Load"][ends] / G.SWL, "HO.load_ratio")
     add(swv(cols["HO_Load"], S)[ends - S + 1].max(1) / G.SWL, "HO.load_ratio_max3")
     landed_unlocked = (cols["SP_Landed"] > 0.5) & (cols["SP_TwistLock_Locked"] < 0.5)
@@ -89,7 +92,6 @@ def load_run(path):
 def run_feats(job):
     path, step = job
     cols = load_run(path); n = len(cols["y_state"])
-    if n < L: return None
     ends = np.arange(W - 1, n, step)
     ends = ends[cols["y_state"][ends] >= 0]
     if len(ends) == 0: return None

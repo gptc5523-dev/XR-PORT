@@ -27,3 +27,21 @@ services:
     volumes:
       - ./app:/app:ro
     depends_on: [xrcrane-db]
+
+  # 상태 요약 추론(WBS 6.4) — xrcrane-db 기록을 1초마다 읽어 판정, xrcrane-db 의 /summary 가 이리로 넘긴다(포트는 내부만).
+  #   모델·휠은 학습 폴더(~/xrcrane-ai: models/·wheels/)를 그대로 쓴다 — 폐쇄망이라 pip 은 휠 폴더에서만 설치.
+  xrcrane-ai:
+    image: python:3.12-slim
+    container_name: xrcrane-ai
+    restart: unless-stopped
+    command: ["sh", "-c", "pip install -q --no-index --find-links /wheels numpy==2.2.6 scikit-learn==1.7.2 && exec python -u /app/serve_ai.py"]
+    environment:
+      XRCRANE_DB_URL: http://xrcrane-db:5006
+      XRCRANE_TOKEN: ${XRCRANE_TOKEN:-}
+      XRCRANE_AI_MODELS: /models
+      XRCRANE_AI_SET: ${XRCRANE_AI_SET:-full}
+    volumes:
+      - ./app:/app:ro
+      - ${XRCRANE_AI_DIR:-../xrcrane-ai}/models:/models:ro
+      - ${XRCRANE_AI_DIR:-../xrcrane-ai}/wheels:/wheels:ro
+    depends_on: [xrcrane-db]

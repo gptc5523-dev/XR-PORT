@@ -26,7 +26,8 @@ sys.path.insert(0, D)
 import generate as g  # noqa: E402
 
 DT = g.DT
-CODEBOOK = os.path.join(D, "..", "Assets", "Crane", "Resources", "Sts", "AlarmCodebook.json")
+CODEBOOK = os.environ.get("XRCRANE_CODEBOOK") or next(p for p in (os.path.join(D, "..", "Assets", "Crane", "Resources", "Sts", "AlarmCodebook.json"),
+                                                               os.path.join(D, "AlarmCodebook.json")) if os.path.exists(p))   # 저장소 · 서버 app/
 _cb = {e["code"]: e for e in json.load(open(CODEBOOK, encoding="utf-8"))["entries"]}
 for _c, _e in _cb.items():   # 시나리오가 쓰는 코드를 생성기 표에 보탠다(심각도·출처·한글은 코드북 그대로)
     g.ALM.setdefault(_c, (_e["sev"], _c // 1000, _e["ko"]))
@@ -530,26 +531,47 @@ def worker(spec):
 
 
 # ═══════════════ 기준 데이터셋(지표 5·7) ═══════════════
-CLIP = 600   # 60초 창(학습 특징의 긴 창과 같다) — 판정 시각 = 창의 마지막 행
+CLIP_MIN, CLIP_MAX = 600, 3000   # 판정 시각 앞 기록 60초~5분(있는 만큼) — 학습 특징의 가장 긴 창이 5분
 
 
-def summary(state, cause, code, crane, act):
+def summary(state, cause, code, crane, act):   # crane = 크레인 이름(종류명 STS·RTG 도 됨)
     if state == 0: return f"[정상] {crane} — {ACT_KO[act]}"
     ko, action = CAUSES[cause][:2]
     return f"[{STATE_KO[state]}] {crane} — {ko}" + (f" (코드 {code})" if code else "") + f". 조치: {action}"
 
 
 def candidates(rows, spec):
-    """판정 후보 — 같은 런에서 최소 60초 간격. 상태가 바뀐 지 5초 안이거나 경계 런이면 '어려움'."""
-    out, nxt, lc = [], CLIP, 0
-    for i in range(1, len(rows)):
-        if rows[i]["y_state"] != rows[i - 1]["y_state"]: lc = i
-        if i < nxt or rows[i]["y_state"] < 0: continue
-        if rows[i]["y_state"] == 0 and i % 37: continue   # 정상은 성기게
-        r = rows[i]
-        out.append({"i": i, "state": r["y_state"], "cause": r["y_cause"], "code": r["y_code"], "act": r["y_activity"],
-                    "hard": spec["kind"] == "boundary" or (i - lc) <= 50})
-        nxt = i + 600
+    """판정 후보 — 같은 상태·원인이 이어진 구간마다 한 건(짧은 이상 사건도 빠지지 않게), 정상은 60초마다.
+    상태가 바뀐 지 5초 안이거나 경계 런이면 '어려움'."""
+    rng = random.Random(spec["seed"] * 13 + 5)
+    key = lambda r: (r["y_state"], r["y_cause"])
+    segs, a = [], 0
+    for i in range(1, len(rows) + 1):
+        if i == len(rows) or key(rows[i]) != key(rows[a]): segs.append((a, i - 1)); a = i
+    out = []
+    def add(j, a):
+        r = rows[j]
+        out.append({"i": j, "state": r["y_state"], "cause": r["y_cause"], "code": r["y_code"], "act": r["y_activity"],
+                    "hard": spec["kind"] == "boundary" or (j - a) <= 50})
+    for a, b in segs:
+        lo = max(a, CLIP_MIN)
+        if rows[a]["y_state"] < 0 or b < lo: continue
+        if rows[a]["y_state"] > 0:
+            add(rng.randint(lo, b), a)
+        else:
+            if a > 0 and lo <= a + 50 <= b: add(rng.randint(lo, min(b, a + 50)), a)   # 사건이 끝난 직후의 정상
+            for j in range(lo + 300, b + 1, 600): add(j, a)
+    return out
+
+
+def interleave(xs):
+    """원인(정상은 동작)별로 돌아가며 하나씩 — 기준셋이 오래 가는 원인 하나에 쏠리지 않게."""
+    buckets = {}
+    for x in xs: buckets.setdefault(x[1]["cause"] or x[1]["act"], []).append(x)
+    keys, out = sorted(buckets), []
+    while any(buckets.values()):
+        for k in keys:
+            if buckets[k]: out.append(buckets[k].pop(0))
     return out
 
 
@@ -569,7 +591,7 @@ def build_bench(out, metas):
         cases = []
         for prof, st, n in quota:
             cand = [x for x in pool.get((prof, st), []) if (x[0]["id"], x[1]["i"]) not in used]
-            hard = [x for x in cand if x[1]["hard"]]; easy = [x for x in cand if not x[1]["hard"]]
+            hard = interleave([x for x in cand if x[1]["hard"]]); easy = interleave([x for x in cand if not x[1]["hard"]])
             nh = min(len(hard), max(int(n * 0.3), n - len(easy)))
             pick = hard[:nh] + easy[:n - nh]
             if len(pick) < n: raise SystemExit(f"[gen_ai] 기준셋 {name} {STATE_KO[st]}/{prof} 후보 부족 {len(pick)}/{n}")
@@ -582,7 +604,7 @@ def build_bench(out, metas):
             if m["id"] not in cache:
                 with gzip.open(os.path.join(out, m["csv"]), "rt", encoding="utf-8") as f:
                     cache[m["id"]] = list(csv.DictReader(f))
-            clip = cache[m["id"]][c["i"] - CLIP + 1: c["i"] + 1]
+            clip = cache[m["id"]][max(0, c["i"] - CLIP_MAX + 1): c["i"] + 1]
             cid = f"{name}_{k:03d}"
             sha = write_csv_gz(os.path.join(d, "clips", cid + ".csv.gz"), clip)
             lines.append({"id": cid, "clip": f"clips/{cid}.csv.gz", "sha256": sha, "source": m["id"], "row": c["i"],
