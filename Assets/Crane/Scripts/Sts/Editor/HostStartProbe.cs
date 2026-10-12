@@ -169,6 +169,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             EditorPrefs.SetBool(PortDemoDirector.EditorPrefKey, SessionState.GetBool(PrevKey, false));
             EditorPrefs.SetBool(AIXRCrane.Crane.Sts.Plc.PlcLiveMode.EditorPrefKey, SessionState.GetBool(Key + ".PrevPlc", false));
             PlayerPrefs.SetInt(AIXRCrane.Crane.Flat.FlatModeBootstrap.ForcePrefKey, SessionState.GetInt(Key + ".PrevForce", 0));
+            PlayerPrefs.Save();   // 배치 모드는 바로 Exit 해 저장 전에 끝나 VR 강제가 남았다
             SessionState.EraseBool(Key);
             if (Application.isBatchMode) EditorApplication.Exit(pass ? 0 : 1);
             else EditorApplication.ExitPlaymode();

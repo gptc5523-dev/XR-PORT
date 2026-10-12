@@ -239,6 +239,8 @@ namespace AIXRCrane.Crane.Sts.Net
                     g.GrabWorld   = attach.AttachedContainer.position;
                     g.AttachLocal = attach.AttachedContainer.localPosition;
                 }
+                SessionEventLog.Record(has ? "crane_pick" : "crane_place", NetworkManager.LocalClientId, crane.name,
+                    (has ? "C" + g.Index : "C" + nGrab.Value.Index) + (Plc.PlcLiveMode.On ? " PLC" : ""));
                 nGrab.Value = g;
             }
 
@@ -489,6 +491,7 @@ namespace AIXRCrane.Crane.Sts.Net
             var e = new HeldContainer { Index = idx, Owner = sender, Pos = pos, Rot = rot };
             int li = FindHeld(idx);
             if (li >= 0) nHeld[li] = e; else nHeld.Add(e);   // 마지막 집기 우선(핸드오프)
+            SessionEventLog.Record("hand_grab", sender, "C" + idx);
         }
 
         [ServerRpc(RequireOwnership = false)]
@@ -506,6 +509,7 @@ namespace AIXRCrane.Crane.Sts.Net
             int li = FindHeld(idx); if (li < 0) return;
             if (nHeld[li].Owner != p.Receive.SenderClientId) return;   // 이미 남이 가져갔으면 무시
             nHeld.RemoveAt(li);
+            SessionEventLog.Record("hand_release", p.Receive.SenderClientId, "C" + idx);
         }
     }
 }

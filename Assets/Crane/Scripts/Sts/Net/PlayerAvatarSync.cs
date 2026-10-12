@@ -68,6 +68,7 @@ namespace AIXRCrane.Crane.Sts.Net
             SetVisible(!IsOwner);
             Label.OnValueChanged += (_, _) => RefreshTag();
             colorHex.OnValueChanged += (_, _) => { ApplyTint(); RefreshTag(); };
+            if (IsServer) Selection.OnValueChanged += (_, v) => SessionEventLog.Record("select", OwnerClientId, v.ToString());   // 선택 이력(빈 값 = 선택 해제)
             if (!IsOwner)
             {
                 RefreshTag();

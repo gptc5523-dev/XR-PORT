@@ -23,6 +23,7 @@ XR 크레인 통합서버 v0.6 — PLC 이력 수집·저장·조회, 부품 ID 
   GET  /register                               등록 사용자 목록 페이지(읽기 전용)
   GET  /parts?crane=                            부품별 상태(정상·주의·이상)·알람·태그 값, 크레인 운영 상태 — crane 없으면 전 크레인(WBS 2.19)
   GET  /parts/history?crane=&part=&from_ms=&to_ms=   부품 상태가 바뀐 순간들(기본 최근 10분) — 2차년도 AI 학습·상태 요약의 입력
+  GET/POST /events?session=&type=&after_id=        세션 조작·선택 이력 — 호스트가 매긴 순서(seq)로 저장, (세션, seq) 중복은 무시(계획서 그림 5 '이벤트 순서 제어')
 
 접근 제어(WBS 9.2, 폐쇄망 전제 9.1)
   XRCRANE_ALLOW  허용 대역(쉼표 구분 CIDR). 기본 = 루프백 + 사설망(10/8, 172.16/12, 192.168/16) + Tailscale(100.64/10). 밖이면 403.
@@ -92,6 +93,17 @@ CREATE TABLE IF NOT EXISTS snapshot (
 CREATE INDEX IF NOT EXISTS ix_snap_crane_t ON snapshot(crane, t_ms);
 CREATE INDEX IF NOT EXISTS ix_snap_recv    ON snapshot(recv_ms);   -- 보존 기간 삭제용
 CREATE INDEX IF NOT EXISTS ix_snap_alarm   ON snapshot(crane, alarm_code) WHERE alarm_code IS NOT NULL AND alarm_code != 0;
+CREATE TABLE IF NOT EXISTS events (
+  id        INTEGER PRIMARY KEY AUTOINCREMENT,   -- 서버 저장 순서
+  session   TEXT    NOT NULL,                    -- 호스트 세션(시작 시각 epoch ms 문자열)
+  seq       INTEGER NOT NULL,                    -- 호스트가 처리한 순서(세션 안 1부터) — 이벤트 순서의 기준
+  t_ms      INTEGER NOT NULL,                    -- 호스트 시각(epoch ms)
+  recv_ms   INTEGER NOT NULL,
+  actor_id  INTEGER, actor TEXT,                 -- Netcode 클라이언트 ID · 등록 정보 문구
+  type      TEXT    NOT NULL, target TEXT, detail TEXT,
+  UNIQUE(session, seq)                           -- 다시 보내도 한 번만(재전송으로 순서가 꼬이지 않게)
+);
+CREATE INDEX IF NOT EXISTS ix_events_type ON events(type, id);
 CREATE TABLE IF NOT EXISTS users (
   device_id     TEXT PRIMARY KEY,          -- 'SLOT:1'(VR 자리) · 'MAC:aa:bb:…' · 'SN:…' · 'BEAM:…'
   device_type   TEXT NOT NULL,
@@ -203,6 +215,24 @@ def insert_rows(con, lock, rows):
 
 def rows_to_dicts(cur):
     return [dict(r) for r in cur.fetchall()]
+
+
+def insert_events(con, lock, body):
+    """세션 이벤트(조작·선택 이력) 적재 — {"session", "events":[{seq,t_ms,actor_id,actor,type,target,detail}]}. (세션, seq) 가 이미 있으면 건너뛴다."""
+    session = str(body.get("session") or "").strip()
+    events = body.get("events")
+    if not session or not isinstance(events, list):
+        raise ValueError("session 과 events 배열 필요")
+    now = int(time.time() * 1000)
+    rows = [(session, int(e["seq"]), int(e.get("t_ms") or now), now, e.get("actor_id"), str(e.get("actor") or ""),
+             str(e["type"]), str(e.get("target") or ""), str(e.get("detail") or "")) for e in events]
+    with lock:
+        before = con.total_changes
+        con.executemany("INSERT OR IGNORE INTO events(session,seq,t_ms,recv_ms,actor_id,actor,type,target,detail) VALUES (?,?,?,?,?,?,?,?,?)", rows)
+        con.commit()
+        stored = con.total_changes - before
+    last = con.execute("SELECT MAX(seq) m FROM events WHERE session=?", (session,)).fetchone()["m"]
+    return stored, last
 
 
 # 부품 상태(WBS 2.19) — 표는 Unity 메뉴 'PLC/부품 ID 매핑표 내보내기'가 쓴 parts.json, 코드북은 Unity 와 같은 AlarmCodebook.json.
@@ -461,6 +491,20 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json({"crane": crane, "from_ms": from_ms, "to_ms": to_ms, "rows": len(rows),
                                    "changes": part_history(rows, crane, parts, book, self.q("part"))[-limit:]})
 
+        if path == "/events":
+            sql, args = "SELECT * FROM events WHERE 1=1", []
+            for key, col in (("session", "session"), ("type", "type")):
+                if self.q(key):
+                    sql += f" AND {col}=?"; args.append(self.q(key))
+            try:
+                if self.q("after_id") is not None:
+                    sql += " AND id>?"; args.append(int(self.q("after_id")))
+            except ValueError:
+                return self.send_json({"error": "after_id must be an integer"}, 400)
+            sql += " ORDER BY session, seq LIMIT ?" if self.q("session") else " ORDER BY id LIMIT ?"
+            args.append(limit)
+            return self.send_json({"events": rows_to_dicts(self.con.execute(sql, args))})
+
         if path == "/runs":
             cur = self.con.execute(
                 "SELECT crane, source, COUNT(*) rows, MIN(t_ms) t_min, MAX(t_ms) t_max, "
@@ -469,12 +513,12 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json(rows_to_dicts(cur))
 
         return self.send_json({"error": "not found",
-                               "endpoints": ["/health", "/time", "/latest", "/history", "/alarms", "/runs", "/since", "/command", "/cargo", "/users", "/register", "/parts", "/parts/history", "POST /ingest", "POST /command", "POST /cargo", "POST /users"]}, 404)
+                               "endpoints": ["/health", "/time", "/latest", "/history", "/alarms", "/runs", "/since", "/command", "/cargo", "/users", "/register", "/parts", "/parts/history", "/events", "POST /ingest", "POST /events", "POST /command", "POST /cargo", "POST /users"]}, 404)
 
     def do_POST(self):
         if self.denied():
             return
-        if urlparse(self.path).path not in ("/ingest", "/cargo", "/command", "/users"):
+        if urlparse(self.path).path not in ("/ingest", "/cargo", "/command", "/users", "/events"):
             return self.send_json({"error": "not found"}, 404)
         try:
             n = int(self.headers.get("Content-Length", "0"))
@@ -488,6 +532,14 @@ class Handler(BaseHTTPRequestHandler):
             with self.lock:
                 self.commands.setdefault(crane, []).append(body)
             return self.send_json({"ok": True, "queued": body["do"]})
+        if urlparse(self.path).path == "/events":
+            if not isinstance(body, dict):
+                return self.send_json({"error": "session 과 events 배열 필요"}, 400)
+            try:
+                stored, last = insert_events(self.con, self.lock, body)
+            except (ValueError, KeyError, TypeError) as e:
+                return self.send_json({"error": str(e)}, 400)
+            return self.send_json({"ok": True, "stored": stored, "last_seq": last})
         if urlparse(self.path).path == "/users":
             err = user_error(body)
             if err:

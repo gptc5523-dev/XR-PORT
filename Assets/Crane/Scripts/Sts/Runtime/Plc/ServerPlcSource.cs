@@ -41,7 +41,7 @@ namespace AIXRCrane.Crane.Sts.Plc
         }
 
         // 서버 공유 토큰(WBS 9.2) — 환경변수 XRCRANE_TOKEN, 없으면 기기의 persistentDataPath/xrcrane_token.txt. 씬·저장소에는 두지 않는다.
-        static string Token()
+        public static string Token()
         {
             string t = Environment.GetEnvironmentVariable("XRCRANE_TOKEN");
             if (!string.IsNullOrEmpty(t)) return t.Trim();
