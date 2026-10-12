@@ -3,7 +3,7 @@ using UnityEngine;
 
 namespace AIXRCrane.Crane.Sts
 {
-    /// <summary>씬 컨테이너의 고유 번호(WBS 5.6) — 씬 로드 순간의 계층 순서(씬 파일 순서라 모든 기기가 같다)로 한 번 매긴다. 배 컨테이너 238개가 모두 'ShipContainer' 라 이름순 번호가 기기마다 달랐다.</summary>
+    /// <summary>씬 컨테이너의 고유 번호(WBS 5.6) — 씬 로드 순간 '부모/이름#같은 부모 안 순번' 키를 매기고 키 순으로 번호를 준다. 최상위 객체 순서는 에디터와 빌드가 달라(야드가 앞·뒤로 바뀌어 번호가 20씩 밀렸다) 쓰지 않는다.</summary>
     public static class ContainerRegistry
     {
         const string YardRoot = "Yard_Containers";   // 야드 정적 배치(강체 없음) — PlcCargoFollow 와 같은 이름
@@ -21,6 +21,13 @@ namespace AIXRCrane.Crane.Sts
             list = new List<Transform>(); keys = new List<string>(); index = new Dictionary<Transform, int>();
             var seen = new Dictionary<string, int>();
             foreach (var root in UnityEngine.SceneManagement.SceneManager.GetActiveScene().GetRootGameObjects()) Walk(root.transform, seen);
+            var order = new List<int>(list.Count);
+            for (int i = 0; i < list.Count; i++) order.Add(i);
+            order.Sort((a, b) => string.CompareOrdinal(keys[a], keys[b]));
+            var l2 = new List<Transform>(list.Count); var k2 = new List<string>(list.Count);
+            foreach (int i in order) { index[list[i]] = l2.Count; l2.Add(list[i]); k2.Add(keys[i]); }
+            list = l2; keys = k2;
+            if (list.Count > 0) Debug.Log($"[ContainerRegistry] {list.Count}개 · 첫 {keys[0]} · 끝 {keys[keys.Count - 1]}");   // 기기 사이 번호 비교용
         }
 
         static void Walk(Transform t, Dictionary<string, int> seen)
@@ -31,7 +38,6 @@ namespace AIXRCrane.Crane.Sts
                 string path = (t.parent != null ? t.parent.name : "") + "/" + t.name;
                 seen.TryGetValue(path, out int n);
                 seen[path] = n + 1;
-                index[t] = list.Count;
                 list.Add(t);
                 keys.Add(path + "#" + n);
                 return;   // 컨테이너 안(LOD·문)은 보지 않는다

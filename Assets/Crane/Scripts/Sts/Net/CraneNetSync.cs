@@ -6,8 +6,7 @@ using UnityEngine.XR.Interaction.Toolkit.Interactables;
 
 namespace AIXRCrane.Crane.Sts.Net
 {
-    /// <summary>STS 크레인 상태를 호스트(조종자) → 클라이언트(관전자)로 단방향 동기화.
-    /// 클라이언트는 조종 컴포넌트를 끄고 네트워크 값으로 MoveTo만 호출해 시각만 재현한다.</summary>
+    /// <summary>크레인 상태(STS·RTG 전부)를 호스트(조종자) → 관전자로 단방향 동기화 — 크레인마다 구조체 하나를 이름순 목록으로 보내고, 관전자는 조종·자동 운전을 끈 채 그 값으로 시각만 재현한다.</summary>
     [AddComponentMenu("AI-XR Crane/Net/Crane Net Sync")]
     [DisallowMultipleComponent]
     public sealed class CraneNetSync : NetworkBehaviour
@@ -17,6 +16,7 @@ namespace AIXRCrane.Crane.Sts.Net
         {
             "StsCraneVRController", "SpreaderGrabber"
         };
+        static readonly string[] AlwaysDisableOnClient = { "CraneDemoRunner" };   // 관전자 쪽 시연 자동 운전이 동기화 값과 같은 크레인을 같이 움직였다(씬 값과 무관하게 끈다)
         [Tooltip("네트워크 수신값으로의 보간 속도(클수록 즉각적·지연↓). 0이면 즉시 스냅.")]
         [SerializeField] float smooth = 30f;
         [Tooltip("컨테이너 매칭 허용 반경(m) — 잡힌 컨테이너를 클라이언트에서 위치로 찾을 때.")]
@@ -24,42 +24,29 @@ namespace AIXRCrane.Crane.Sts.Net
         [Tooltip("연속 축 값(갠트리/트롤리/호이스트) 전송 주기(Hz). 매 프레임(72~90Hz) 전송 시 Quest Wi-Fi가 포화되므로 제한. 클라이언트는 보간하므로 20~30이면 충분. 0이면 매 프레임.")]
         [SerializeField] float sendRate = 25f;
 
-        // 서버 write / 모두 read 권한 — 호스트(조종자)만 값을 쓴다.
-        static NetworkVariableWritePermission S => NetworkVariableWritePermission.Server;
-        static NetworkVariableReadPermission E => NetworkVariableReadPermission.Everyone;
-
-        readonly NetworkVariable<float> nGantry  = new(0f, E, S);
-        readonly NetworkVariable<float> nTrolley = new(0f, E, S);
-        readonly NetworkVariable<float> nHoist   = new(0f, E, S);
-        readonly NetworkVariable<float> nHoistFloor = new(0f, E, S);
-        readonly NetworkVariable<bool>  nIs40    = new(false, E, S);
-        readonly NetworkVariable<bool>  nLocked  = new(false, E, S);
-        readonly NetworkVariable<int>   nAlarmCode = new(0, E, S);   // 활성 알람 코드(최고 심각도 1건). 0=이상 없음
-        readonly NetworkVariable<int>   nOpMode    = new(0, E, S);   // (int)OpMode — 호스트 판정
-
-        // 적재 4필드를 한 구조체로 원자 전송 — 분리 전송하면 수신 순서 역전으로 부분 갱신된다.
-        readonly NetworkVariable<GrabState> nGrab = new(default, E, S);
-
-        /// <summary>적재 상태 4필드를 원자적으로 동기화하는 단일 구조체(unmanaged → NetworkVariable 가능).</summary>
-        struct GrabState : INetworkSerializable, System.IEquatable<GrabState>
+        /// <summary>크레인 한 대 상태 — 한 구조체로 원자 전송(나눠 보내면 수신 순서가 뒤집혀 일부만 갱신된다).</summary>
+        struct CraneState : INetworkSerializable, System.IEquatable<CraneState>
         {
-            public bool    Has;          // 컨테이너를 잡고 있는가
-            public int     Index;        // 결정적 인덱스. 미상=-1
-            public Vector3 GrabWorld;    // 잡는 순간 월드 위치(인덱스 실패 시 폴백)
-            public Vector3 AttachLocal;  // attach 기준 로컬 위치
+            public float Gantry, Trolley, Hoist, HoistFloor;
+            public bool Is40, Locked;
+            public int Alarm, OpMode;      // 활성 알람(최고 심각도 1건, 0=없음) · (int)OpMode — 호스트 판정
+            public bool Has;               // 컨테이너를 매달았는가
+            public int Index;              // ContainerRegistry 번호, 미상 −1
+            public Vector3 GrabWorld;      // 잡는 순간 월드 위치(번호 실패 시 폴백)
+            public Vector3 AttachLocal;    // 부착점 기준 로컬 위치
 
             public void NetworkSerialize<T>(BufferSerializer<T> s) where T : IReaderWriter
             {
-                s.SerializeValue(ref Has);
-                s.SerializeValue(ref Index);
-                s.SerializeValue(ref GrabWorld);
-                s.SerializeValue(ref AttachLocal);
+                s.SerializeValue(ref Gantry); s.SerializeValue(ref Trolley); s.SerializeValue(ref Hoist); s.SerializeValue(ref HoistFloor);
+                s.SerializeValue(ref Is40); s.SerializeValue(ref Locked); s.SerializeValue(ref Alarm); s.SerializeValue(ref OpMode);
+                s.SerializeValue(ref Has); s.SerializeValue(ref Index); s.SerializeValue(ref GrabWorld); s.SerializeValue(ref AttachLocal);
             }
 
-            // dirty 감지를 GC 없이 값비교로.
-            public bool Equals(GrabState o) =>
-                Has == o.Has && Index == o.Index && GrabWorld == o.GrabWorld && AttachLocal == o.AttachLocal;
+            public bool Equals(CraneState o) =>
+                Gantry == o.Gantry && Trolley == o.Trolley && Hoist == o.Hoist && HoistFloor == o.HoistFloor && Is40 == o.Is40 && Locked == o.Locked
+                && Alarm == o.Alarm && OpMode == o.OpMode && Has == o.Has && Index == o.Index && GrabWorld == o.GrabWorld && AttachLocal == o.AttachLocal;
         }
+        readonly NetworkList<CraneState> nCranes = new();   // 서버만 쓴다 — 순서 = rigs(이름순)
 
         // 컨테이너 핸드오프(누구나 손으로 옮기고 전원이 봄) 동기화
         [Tooltip("핸드오프(소유권 이전) 후 같은 손이 즉시 되집는 핑퐁을 막는 쿨다운(초).")]
@@ -67,8 +54,7 @@ namespace AIXRCrane.Crane.Sts.Net
         [Tooltip("들고 있는 컨테이너 포즈 전송 주기(Hz). 매 프레임이면 인원·개수만큼 대역폭 폭증 → 제한. 0이면 매 프레임.")]
         [SerializeField] float containerSendRate = 25f;
 
-        /// <summary>지금 손에 들린 컨테이너만 올리는 활성 목록(정지한 것은 전송 0).
-        /// Owner = 마지막에 집은 사람(핸드오프), Pos/Rot = 월드 포즈.</summary>
+        /// <summary>지금 손에 들린 컨테이너만 올리는 활성 목록(정지한 것은 전송 0). Owner = 마지막에 집은 사람(핸드오프), Pos/Rot = 월드 포즈.</summary>
         struct HeldContainer : INetworkSerializable, System.IEquatable<HeldContainer>
         {
             public int Index; public ulong Owner; public Vector3 Pos; public Quaternion Rot;
@@ -81,7 +67,6 @@ namespace AIXRCrane.Crane.Sts.Net
         }
         readonly NetworkList<HeldContainer> nHeld = new();
 
-        // 결정적 컨테이너 스냅샷 — 초기 좌표(0.1m 반올림) 정렬. 이름이 전부 같아 이름 정렬은 불안정.
         List<Transform> containerSnapshot;
         readonly List<XRGrabInteractable> containerGrabs = new();   // snapshot과 인덱스 정렬
         readonly List<(UnityEngine.Events.UnityAction<SelectEnterEventArgs> on, UnityEngine.Events.UnityAction<SelectExitEventArgs> off)> grabHooks = new();   // 내가 단 리스너만 뗀다
@@ -92,63 +77,70 @@ namespace AIXRCrane.Crane.Sts.Net
         readonly List<int> _tmpA = new(); readonly List<int> _tmpB = new(); readonly HashSet<int> _activeNow = new();
         float nextContainerSend;
 
-        StsCrane crane;
-        SpreaderHoist hoist;
-        SpreaderTelescope telescope;
-        SpreaderLockAnimator lockAnim;
-        SpreaderAttach attach;
-
-        // 호스트 송신 스로틀(연속 축 값만 제한 — 이산 그랩/릴리스는 즉시)
-        float nextSend;
-
-        // 클라이언트 보간 상태
-        float gantryCur, trolleyCur, hoistCur;
-        bool clientConfigured;
-        bool clientHasContainer;   // 클라이언트가 마지막으로 반영한 적재 상태(전환 감지용)
-        Transform clientHeld;   // 클라이언트가 시각적으로 매단 컨테이너
+        /// <summary>크레인 한 대의 참조와 관전자 쪽 재현 상태.</summary>
+        sealed class Rig
+        {
+            public StsCrane crane;
+            public SpreaderHoist hoist;
+            public SpreaderTelescope telescope;
+            public SpreaderLockAnimator lockAnim;
+            public SpreaderAttach attach;
+            public float nextSend;                 // 호스트 송신 스로틀(연속 축 값만 — 이산 값은 즉시)
+            public float gCur, tCur, hCur;         // 관전자 보간 상태
+            public bool configured, clientHas;
+            public Transform clientHeld;           // 관전자가 시각적으로 매단 컨테이너
+        }
+        readonly List<Rig> rigs = new();
 
         // 클라이언트에서 끈 조종 컴포넌트 — 세션 종료 시 복원.
         readonly List<Behaviour> disabledOnClient = new();
 
-        /// <summary>호스트가 판정한 활성 알람 코드(최고 심각도 1건). 0=이상 없음(스폰 전 포함).</summary>
-        public int NetAlarmCode => nAlarmCode.Value;
-
-        /// <summary>호스트가 판정한 운영상태 정수값. 0=정지.</summary>
-        public int NetOpMode => nOpMode.Value;
-
         // 스폰된 활성 인스턴스 캐시 — HUD가 매 프레임 Find 하지 않게.
         static CraneNetSync _instance;
 
-        /// <summary>이 크레인이 네트워크로 동기화되는 크레인인가 — 관전자 말풍선이 호스트 알람을 붙일지 판단.</summary>
-        public static bool Syncs(StsCrane c) => _instance != null && _instance.crane == c;
+        int IndexOf(StsCrane c) { for (int i = 0; i < rigs.Count; i++) if (rigs[i].crane == c) return i; return -1; }
 
-        /// <summary>활성 알람 코드 SSOT — 접속 중이면 호스트 권위값, 아니면 로컬 판정. 0=이상 없음.</summary>
+        bool TryState(StsCrane c, out CraneState s)
+        {
+            int i = IndexOf(c);
+            if (i >= 0 && i < nCranes.Count) { s = nCranes[i]; return true; }
+            s = default; return false;
+        }
+
+        /// <summary>이 크레인이 네트워크로 동기화되는 크레인인가 — 관전자 말풍선이 호스트 알람을 붙일지·PLC 를 직접 돌릴지 판단.</summary>
+        public static bool Syncs(StsCrane c) => _instance != null && _instance.IsSpawned && _instance.IndexOf(c) >= 0;
+
+        /// <summary>활성 알람 코드 SSOT — 접속 중이면 그 크레인의 호스트 권위값, 아니면 로컬 판정. 0=이상 없음.</summary>
         public static int ActiveAlarmCode(StsCrane crane)
         {
             var nm = NetworkManager.Singleton;
-            if (nm != null && (nm.IsClient || nm.IsServer) && _instance != null)
-                return _instance.NetAlarmCode;
+            if (nm != null && (nm.IsClient || nm.IsServer) && _instance != null && _instance.TryState(crane, out var s))
+                return s.Alarm;
             var f = CraneFault.Evaluate(crane);   // 단독/미접속 — 로컬 판정(호스트 시점과 동일)
             return f.IsValid ? f.Code : 0;
         }
 
-        /// <summary>운영상태 SSOT — 접속 중이면 호스트 권위값, 아니면 로컬 판정.</summary>
+        /// <summary>운영상태 SSOT — 접속 중이면 그 크레인의 호스트 권위값, 아니면 로컬 판정.</summary>
         public static OpMode ActiveOpMode(StsCrane crane)
         {
             var nm = NetworkManager.Singleton;
-            if (nm != null && (nm.IsClient || nm.IsServer) && _instance != null)
-                return (OpMode)_instance.NetOpMode;
+            if (nm != null && (nm.IsClient || nm.IsServer) && _instance != null && _instance.TryState(crane, out var s))
+                return (OpMode)s.OpMode;
             return crane != null ? crane.OpMode.Current : OpMode.Stopped;   // 단독/미접속 — 로컬 판정
         }
 
         public override void OnNetworkSpawn()
         {
             _instance = this;
-            EnsureRefs();
-            if (!IsServer)
-                DisableControlOnClient();   // 관전자: 조종 입력/로직 정지
+            BuildRigs();
+            if (IsServer)
+            {
+                nCranes.Clear();
+                foreach (var r in rigs) nCranes.Add(Read(r, new CraneState { Index = -1 }));
+                NetworkManager.OnClientDisconnectCallback += DropHeldOf;
+            }
+            else DisableControlOnClient();   // 관전자: 조종 입력·자동 운전 정지
             SubscribeContainers();          // 호스트·관전자 모두: 손 집기/놓기 후킹(핸드오프)
-            if (IsServer) NetworkManager.OnClientDisconnectCallback += DropHeldOf;
         }
 
         // 컨테이너를 든 채 나간 참가자 — 놓기 RPC 가 안 오므로 서버가 놓는다(안 하면 모두에게 kinematic 으로 언 채 남는다).
@@ -163,41 +155,43 @@ namespace AIXRCrane.Crane.Sts.Net
         {
             if (_instance == this) _instance = null;
             if (IsServer && NetworkManager != null) NetworkManager.OnClientDisconnectCallback -= DropHeldOf;
-            if (clientHeld != null) ClientDetach();   // 들고 있던 컨테이너 놓아 물리 복원
+            foreach (var r in rigs)
+            {
+                if (r.clientHeld != null) ClientDetach(r);   // 들고 있던 컨테이너 놓아 물리 복원
+                r.clientHas = false; r.configured = false;
+            }
             foreach (var b in disabledOnClient)
                 if (b != null) b.enabled = true;       // 끈 조종 컴포넌트 복원
             disabledOnClient.Clear();
-            clientHasContainer = false;
-            clientConfigured = false;
             UnsubscribeContainers();   // 핸드오프 후킹/물리 복원
         }
 
-        void EnsureRefs()
+        // 크레인 목록 — 이름순이라 모든 기기가 같은 순서(목록 번호 = 크레인).
+        void BuildRigs()
         {
-            if (crane == null)   // STS 우선 — 아무 크레인이나 잡으면 RTG 가 동기화돼 관전자 STS 가 멈춘다
-            {
-                var sts = GameObject.Find(StsPartNames.StsCraneRoot);
-                crane = sts != null ? sts.GetComponent<StsCrane>() : FindAnyObjectByType<StsCrane>();
-            }
-            if (crane == null) return;
-            hoist     = crane.Spreader as SpreaderHoist;
-            attach    = crane.Attach;
-            telescope = crane.GetComponentInChildren<SpreaderTelescope>(true);
-            lockAnim  = crane.GetComponentInChildren<SpreaderLockAnimator>(true);
+            rigs.Clear();
+            var cranes = new List<StsCrane>(FindObjectsByType<StsCrane>());
+            cranes.Sort((a, b) => string.CompareOrdinal(a.name, b.name));
+            foreach (var c in cranes)
+                rigs.Add(new Rig
+                {
+                    crane = c, hoist = c.Spreader as SpreaderHoist, attach = c.Attach,
+                    telescope = c.GetComponentInChildren<SpreaderTelescope>(true),
+                    lockAnim = c.GetComponentInChildren<SpreaderLockAnimator>(true),
+                });
         }
 
         void DisableControlOnClient()
         {
-            if (crane == null) return;
-            foreach (var name in disableOnClient)
-            {
-                foreach (var b in crane.GetComponentsInChildren<Behaviour>(true))
-                    if (b != null && b.enabled && b.GetType().Name == name)
-                    {
-                        b.enabled = false;
-                        disabledOnClient.Add(b);   // 종료 시 되살리기 위해 기록
-                    }
-            }
+            foreach (var r in rigs)
+                foreach (var b in r.crane.GetComponentsInChildren<Behaviour>(true))
+                {
+                    if (b == null || !b.enabled) continue;
+                    string n = b.GetType().Name;
+                    if (System.Array.IndexOf(disableOnClient, n) < 0 && System.Array.IndexOf(AlwaysDisableOnClient, n) < 0) continue;
+                    b.enabled = false;
+                    disabledOnClient.Add(b);   // 종료 시 되살리기 위해 기록
+                }
         }
 
         void Update()
@@ -205,107 +199,112 @@ namespace AIXRCrane.Crane.Sts.Net
             // 스폰 전(혼자 플레이)엔 아무것도 안 한다 — 가드 없으면 ClientApply가 크레인을 0으로 덮어쓴다.
             if (!IsSpawned) return;
 
-            if (crane == null) { EnsureRefs(); if (crane == null) return; }
-
             if (IsServer) ServerWrite();
             else ClientApply();
 
             ContainerTick();   // 호스트·관전자 모두: 컨테이너 핸드오프 송신/적용
         }
 
-        // 호스트: 현재 크레인 상태를 네트워크 변수에 기록
-        void ServerWrite()
+        // 지금 크레인 상태 — 매단 컨테이너의 잡은 순간 위치는 같은 컨테이너를 매단 동안 처음 값을 유지한다.
+        CraneState Read(Rig r, CraneState prev)
         {
-            // 연속 축 값은 sendRate(Hz)로 제한 — 매 프레임(72~90Hz) 쓰면 Wi-Fi 포화. 정지 중엔 전송 0.
-            if (sendRate <= 0f || Time.unscaledTime >= nextSend)
+            var c = r.crane;
+            var fault = CraneFault.Evaluate(c);
+            var s = new CraneState
             {
-                if (sendRate > 0f) nextSend = Time.unscaledTime + 1f / sendRate;
-                if (crane.Gantry  != null) nGantry.Value  = crane.Gantry.Current;
-                if (crane.Trolley != null) nTrolley.Value = crane.Trolley.Current;
-                if (crane.Spreader != null) nHoist.Value  = crane.Spreader.Current;
-                if (hoist != null) nHoistFloor.Value = hoist.FloorOffset;
-                if (telescope != null) nIs40.Value = telescope.Is40;
-                if (lockAnim != null) nLocked.Value = lockAnim.Locked;
-            }
-
-            // 그랩/릴리스는 즉시, GrabState로 원자 전송.
-            bool has = attach != null && attach.HasContainer;
-            if (has != nGrab.Value.Has)
+                Gantry = c.Gantry != null ? c.Gantry.Current : 0f,
+                Trolley = c.Trolley != null ? c.Trolley.Current : 0f,
+                Hoist = c.Spreader != null ? c.Spreader.Current : 0f,
+                HoistFloor = r.hoist != null ? r.hoist.FloorOffset : 0f,
+                Is40 = r.telescope != null && r.telescope.Is40,
+                Locked = r.lockAnim != null && r.lockAnim.Locked,
+                Alarm = fault.IsValid ? fault.Code : 0,
+                OpMode = (int)c.OpMode.Current,
+                Has = r.attach != null && r.attach.HasContainer,
+                Index = -1,
+            };
+            if (s.Has && r.attach.AttachedContainer != null)
             {
-                var g = new GrabState { Has = has, Index = -1 };
-                if (has && attach.AttachedContainer != null)
-                {
-                    g.Index       = IndexOfContainer(attach.AttachedContainer);
-                    g.GrabWorld   = attach.AttachedContainer.position;
-                    g.AttachLocal = attach.AttachedContainer.localPosition;
-                }
-                SessionEventLog.Record(has ? "crane_pick" : "crane_place", NetworkManager.LocalClientId, crane.name,
-                    (has ? "C" + g.Index : "C" + nGrab.Value.Index) + (Plc.PlcLiveMode.On ? " PLC" : ""));
-                nGrab.Value = g;
+                s.Index = IndexOfContainer(r.attach.AttachedContainer);
+                if (prev.Has && prev.Index == s.Index) { s.GrabWorld = prev.GrabWorld; s.AttachLocal = prev.AttachLocal; }
+                else { s.GrabWorld = r.attach.AttachedContainer.position; s.AttachLocal = r.attach.AttachedContainer.localPosition; }
             }
-
-            // 알람 코드 — 안전 신호라 throttle 없이. 관전자는 판정 상태가 없어 호스트 결과를 권위값으로 쓴다.
-            var fault = CraneFault.Evaluate(crane);
-            int alarm = fault.IsValid ? fault.Code : 0;
-            if (alarm != nAlarmCode.Value) nAlarmCode.Value = alarm;
-
-            // 운영상태 — throttle 없이 즉시.
-            int opm = (int)crane.OpMode.Current;
-            if (opm != nOpMode.Value) nOpMode.Value = opm;
+            return s;
         }
 
-        // 관전자: 네트워크 값으로 크레인 시각 재현
+        // 호스트: 크레인마다 상태를 목록에 기록 — 연속 축 값은 sendRate 로 제한(Wi-Fi 포화), 집기·알람·운영 상태는 즉시. 그대로면 전송 0.
+        void ServerWrite()
+        {
+            float now = Time.unscaledTime;
+            for (int i = 0; i < rigs.Count && i < nCranes.Count; i++)
+            {
+                var r = rigs[i];
+                if (r.crane == null) continue;
+                var prev = nCranes[i];
+                var s = Read(r, prev);
+                bool discrete = s.Has != prev.Has || s.Index != prev.Index || s.Alarm != prev.Alarm || s.OpMode != prev.OpMode
+                                || s.Locked != prev.Locked || s.Is40 != prev.Is40;
+                bool due = sendRate <= 0f || now >= r.nextSend;
+                if (!discrete && (!due || s.Equals(prev))) continue;
+                if (due && sendRate > 0f) r.nextSend = now + 1f / sendRate;
+                if (s.Has != prev.Has)
+                    SessionEventLog.Record(s.Has ? "crane_pick" : "crane_place", NetworkManager.LocalClientId, r.crane.name,
+                        "C" + (s.Has ? s.Index : prev.Index) + (Plc.PlcLiveMode.On ? " PLC" : ""));
+                nCranes[i] = s;
+            }
+        }
+
+        // 관전자: 크레인마다 네트워크 값으로 시각 재현
         void ClientApply()
         {
             float k = smooth <= 0f ? 1f : 1f - Mathf.Exp(-smooth * Time.deltaTime);
-
-            if (!clientConfigured)
+            for (int i = 0; i < rigs.Count && i < nCranes.Count; i++)
             {
-                gantryCur = nGantry.Value; trolleyCur = nTrolley.Value; hoistCur = nHoist.Value;
-                clientConfigured = true;
-            }
-            gantryCur  = Mathf.Lerp(gantryCur,  nGantry.Value,  k);
-            trolleyCur = Mathf.Lerp(trolleyCur, nTrolley.Value, k);
-            hoistCur   = Mathf.Lerp(hoistCur,   nHoist.Value,   k);
+                var r = rigs[i];
+                if (r.crane == null) continue;
+                var s = nCranes[i];
+                if (!r.configured) { r.gCur = s.Gantry; r.tCur = s.Trolley; r.hCur = s.Hoist; r.configured = true; }
+                r.gCur = Mathf.Lerp(r.gCur, s.Gantry, k);
+                r.tCur = Mathf.Lerp(r.tCur, s.Trolley, k);
+                r.hCur = Mathf.Lerp(r.hCur, s.Hoist, k);
 
-            if (hoist != null) hoist.SetFloorOffset(nHoistFloor.Value);   // 동일 하강 한계 재현
-            crane.Gantry?.MoveTo(gantryCur);
-            crane.Trolley?.MoveTo(trolleyCur);
-            crane.Spreader?.MoveTo(hoistCur);
-            telescope?.Set40(nIs40.Value);
-            lockAnim?.SetLocked(nLocked.Value);
+                if (r.hoist != null) r.hoist.SetFloorOffset(s.HoistFloor);   // 동일 하강 한계 재현
+                r.crane.Gantry?.MoveTo(r.gCur);
+                r.crane.Trolley?.MoveTo(r.tCur);
+                r.crane.Spreader?.MoveTo(r.hCur);
+                r.telescope?.Set40(s.Is40);
+                r.lockAnim?.SetLocked(s.Locked);
 
-            // 콜백 아닌 폴링 — 늦게 접속한 관전자도 현재 상태로 수렴(OnValueChanged는 가입 후 변경분만).
-            var grab = nGrab.Value;
-            if (grab.Has != clientHasContainer)
-            {
-                clientHasContainer = grab.Has;
-                if (grab.Has) ClientAttach(grab);
-                else ClientDetach();
+                // 콜백 아닌 폴링 — 늦게 접속한 관전자도 현재 상태로 수렴(OnListChanged 는 가입 후 변경분만).
+                if (s.Has != r.clientHas)
+                {
+                    r.clientHas = s.Has;
+                    if (s.Has) ClientAttach(r, s);
+                    else ClientDetach(r);
+                }
             }
         }
 
-        void ClientAttach(GrabState grab)
+        void ClientAttach(Rig r, CraneState s)
         {
-            if (attach == null) return;
-            // 결정적 인덱스로 매칭, 실패 시 좌표 근접 폴백.
-            Transform target = ContainerByIndex(grab.Index)
-                            ?? FindNearestRigidbody(grab.GrabWorld, containerMatchRadius);
+            if (r.attach == null) return;
+            // 결정적 번호로 매칭, 실패 시 좌표 근접 폴백.
+            Transform target = ContainerByIndex(s.Index) ?? FindNearestRigidbody(s.GrabWorld, containerMatchRadius);
             if (target == null) return;
 
             // 호스트와 같은 SpreaderAttach 로 매단다 — 하중·컨테이너 번호가 관전자 말풍선에도 같게 나온다.
-            if (!attach.Attach(target)) return;
-            target.localPosition = grab.AttachLocal;   // 위치만(회전 바꾸면 컨테이너가 돈다)
-            clientHeld = target;
+            if (!r.attach.Attach(target)) return;
+            target.localPosition = s.AttachLocal;   // 위치만(회전 바꾸면 컨테이너가 돈다)
+            r.clientHeld = target;
         }
 
-        void ClientDetach()
+        void ClientDetach(Rig r)
         {
-            if (clientHeld == null) return;
-            attach.Detach();
-            var rb = clientHeld.GetComponent<Rigidbody>();
+            if (r.clientHeld == null) return;
+            r.attach.Detach();
+            var rb = r.clientHeld.GetComponent<Rigidbody>();
             if (rb != null && !Plc.PlcLiveMode.On) { rb.isKinematic = false; rb.useGravity = true; }   // 라이브 PLC 면 놓은 자리 고정(PlcCargoFollow)
-            clientHeld = null;
+            r.clientHeld = null;
         }
 
         Transform FindNearestRigidbody(Vector3 world, float maxDist)
@@ -314,7 +313,9 @@ namespace AIXRCrane.Crane.Sts.Net
             foreach (var rb in FindObjectsByType<Rigidbody>(FindObjectsInactive.Exclude))
             {
                 if (rb == null) continue;
-                if (crane != null && rb.transform.IsChildOf(crane.transform)) continue;
+                bool onCrane = false;
+                foreach (var r in rigs) if (r.crane != null && rb.transform.IsChildOf(r.crane.transform)) { onCrane = true; break; }
+                if (onCrane) continue;
                 float d = Vector3.Distance(world, rb.transform.position);
                 if (d < bestD) { bestD = d; best = rb.transform; }
             }
@@ -369,8 +370,8 @@ namespace AIXRCrane.Crane.Sts.Net
         bool IsCraneHeld(int idx)
         {
             var t = CSnap(idx); if (t == null) return false;
-            if (clientHeld != null && clientHeld == t) return true;
-            if (attach != null && attach.AttachedContainer == t) return true;
+            foreach (var r in rigs)
+                if (r.clientHeld == t || (r.attach != null && r.attach.AttachedContainer == t)) return true;
             return false;
         }
 

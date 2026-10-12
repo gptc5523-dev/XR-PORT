@@ -146,6 +146,8 @@ namespace AIXRCrane.Crane.Flat
             catch (System.Net.Sockets.SocketException) { return true; }
         }
 
+        static bool IsLoopback(string ip) => System.Net.IPAddress.TryParse(ip, out var a) && System.Net.IPAddress.IsLoopback(a);
+
         void EnsureParticipant()
         {
             var nm = NetworkManager.Singleton;
@@ -153,7 +155,7 @@ namespace AIXRCrane.Crane.Flat
             if (LocalHost != null && Time.unscaledTime >= nextProbe)
             {
                 nextProbe = Time.unscaledTime + 1f;
-                if (HostPortTaken()) net.SetDiscoveredHost(LocalHost);
+                if (!IsLoopback(LocalHost) || HostPortTaken()) net.SetDiscoveredHost(LocalHost);   // 다른 PC 주소면 그 호스트로 바로 — 비콘을 못 받는 서버(Wine)에서도 붙는다
             }
             if (!net.HostDiscovered || Time.unscaledTime - net.LastHostSeen > joinRetrySeconds) return;
             if (Time.unscaledTime < nextJoinTry) return;
