@@ -18,10 +18,11 @@ namespace AIXRCrane.Ship.EditorTools
         // relativeHeight = D_bound / (d × 2 × tan(FOV_v/2)), D_bound=12.70m(40ft 대각), FOV_v=96°(Quest3)
         //   상대 높이라 단위 무관 — 거리(m)를 그대로 넣지 말 것.
         //   2단(정밀본 → 원저자 LOD1 배경본 → 컬링) 임계 — LOD1 은 배경 최적화(2026-09-08 결정)라 3밴드 사다리(8/16 m)·0.95 px
-        //   판정 대상이 아니다(문서/컨테이너_통합.md Part 6.3). 15.1 m 는 옛 사다리 값과 같지만 16 m 와 1 m 차이·LOD1 차이 ≈1.4 px 라
-        //   그대로 둔다(2026-10-13 결정). 바꾸면 QuayPartsPlacer.ContLod0/1Height 도 같이.
-        const float CargoLod0Height = 0.3787f;   // ≈15.1m 이내 원본
-        const float CargoLod1Height = 0.0229f;   // ≈250m 밖 컬링
+        //   판정 대상이 아니다(문서/컨테이너_통합.md Part 6.3). 전환이 멀수록 정밀본이 오래 보이는 안전측이라 그대로 둔다
+        //   (2026-10-13 결정). 아래 거리는 40ft·lodBias 1 기준 — 서버 Win 빌드(PC 품질 lodBias 2)에선 약 2배(≈30/500m).
+        //   바꾸면 QuayPartsPlacer.ContLod0/1Height 도 같이.
+        const float CargoLod0Height = 0.3787f;   // ≈15.1m 이내 원본(lodBias 1)
+        const float CargoLod1Height = 0.0229f;   // ≈250m 밖 컬링(lodBias 1)
 
         // ── 통일 도장 팔레트 (네이비 선체 기준 실선 livery) ──
         // 선체: 토프사이드 네이비 / 선저 적방오 / 부트탑 흑 / 갑판 녹색

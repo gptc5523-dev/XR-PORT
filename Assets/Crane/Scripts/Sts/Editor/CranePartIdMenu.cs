@@ -49,7 +49,7 @@ namespace AIXRCrane.Crane.Sts.EditorTools
             sb.AppendLine();
             sb.AppendLine("> 자동 생성 — 직접 고치지 말고 `Assets/Crane/Scripts/Sts/Runtime/CranePartId.cs`(부품·태그)와 `Assets/Crane/Resources/Sts/AlarmCodebook.json`(알람 `part`)을 고친 뒤 Unity 메뉴 **PLC/부품 ID 매핑표 내보내기**.");
             sb.AppendLine(">");
-            sb.AppendLine("> 내보내기는 `Server/parts.json` 도 같이 쓴다 — 바뀌면 aiserver `~/xrcrane-db/app` 에 복사한 뒤 `docker restart xrcrane-db`.");
+            sb.AppendLine("> 내보내기는 `Server/parts.json` 도 같이 쓴다 — 바뀌면 `Server/install.sh aiserver-lan` 으로 통합서버에 올린다(파일 업로드·자체 시험·재기동).");
             sb.AppendLine();
             sb.AppendLine("## ID 체계");
             sb.AppendLine();

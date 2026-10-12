@@ -17,8 +17,8 @@ namespace AIXRCrane.Crane.Sts
         public bool IsValid => Code != 0;
     }
 
-    /// <summary>STS 크레인 알람 코드 — ㈜엠비이 알람 코드북(MBE-DOC-2026-XR-002 #65) 기준, 임의 정의 금지.
-    /// 1차년도: 우리 데이터로 자연 발생하는 8개만 활성(전체 170개·시나리오 주입은 2차년도).</summary>
+    /// <summary>STS 크레인 알람 코드 — ㈜엠비이 알람 코드북(MBE-DOC-2026-XR-003, 코드 태그 = XR-002 #65 ALM_Latest_Code) 기준, 임의 정의 금지.
+    /// 1차년도: 우리 데이터로 자연 발생하는 10개 + PLC 구동 때만 판정하는 가속도 3개만 활성(전체 170개·시나리오 주입은 2차년도).</summary>
     public static class CraneFault
     {
         // 1차년도 활성 알람 코드(코드북 실제 코드만 상수로 보관).

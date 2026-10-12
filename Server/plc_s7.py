@@ -22,8 +22,10 @@ import time
 import urllib.request
 
 # 주소표 — (태그, DB, 바이트, 비트, 형식). 형식 R=REAL(4) I=INT(2) X=BOOL. S7 은 빅엔디언.
-# 가정 주소표 — 벤더 확정 전 값. ANCHORS 4개만 고정점, 나머지는 축 블록으로 채웠다.
-#   MBE-DOC-2026-XR-002(PLC 데이터 포인트 리스트)가 오면 이 표만 바꾼다.
+# 가정 주소표 — ANCHORS 4개만 고정점, 나머지는 축 블록으로 채웠다.
+#   MBE-DOC-2026-XR-002(PLC 데이터 포인트 리스트, 05-26 수령)와 대조(2026-10-13): 44개 중 29개 일치, 나머지는 비트·바이트가 다르다
+#   (SP_TwistLock~Mismatch·OP_AntiSway 비트 +1, OP_Cycle_Count_Today DBD152, ENV_Wind_* DBD180~, ALM_Latest_Severity/Source DBW6/16).
+#   실 PLC 에 붙이기 전에 이 표만 XR-002 로 맞춘다.
 LAYOUT = [
     ("GT_Position", 100, 0, 0, "R"), ("GT_Velocity", 100, 4, 0, "R"),
     ("GT_Direction", 100, 8, 0, "X"), ("GT_Running", 100, 8, 1, "X"),

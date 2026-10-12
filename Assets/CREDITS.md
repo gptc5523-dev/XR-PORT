@@ -1,7 +1,7 @@
 # 자산 출처 · 라이선스 대장 (Third-Party Asset Credits)
 
-> **작업 환경 — [Unity 작업]** · 대상 리포 `~/Container` (Unity 프로젝트 루트)
-> **갱신 2026-08-14** — 전수 조사 후 재작성. `.blend` 무관(Blender 작업 아님).
+> **작업 환경 — [Unity 작업]** · 대상 리포 = Unity 프로젝트 루트(`~/00. Project/00. AI-XR-Crane/00. AI-XR-Crane`)
+> **갱신 2026-10-13** — §7 조사 재실행, 컨테이너 FBX 해시·LOD1·부두 FBX·배경 반영(2026-08-14 전수 조사 후 재작성). `.blend` 무관(Blender 작업 아님).
 > 이 파일이 **"이 프로젝트에 외부 저작물이 무엇이 들어 있는가"의 단일 출처(SSOT)** 다.
 > 외부 에셋을 새로 가져오면 **가져온 그 커밋에서** 아래 표에 행을 추가한다.
 
@@ -26,25 +26,30 @@
 
 | 파일 | md5 | 크기 | 원본 `.blend` |
 |---|---|---|---|
-| `Container_20ft.fbx` | `06806bf508be1df85f38f0b79277344e` | 6.6 MB | `~/New Final/Container_20ft.blend` |
-| `Container_40ft.fbx` | `57f07e5d3f169b0782c8526a687cfe74` | 4.7 MB | `~/New Final/Container_40ft.blend` |
-| `Container_40ftHC.fbx` | `24b627d50b89fe775f6ebb8fbf7a0b21` | 4.2 MB | `~/New Final/Container_40ftHC.blend` |
-| `Container_45ftHC.fbx` | `ad8f956a4ce4227d5798c01548a82c86` | 4.9 MB | `~/New Final/Container_45ftHC.blend` |
+| `Container_20ft.fbx` | `5f48897a0953c631cbf7054fb60e9003` | 6.1 MB | `~/3D Model/Container/Container_20ft.blend` |
+| `Container_40ft.fbx` | `f5ba405f5cff1a2b17f7b788620b1b33` | 3.6 MB | `~/3D Model/Container/Container_40ft.blend` |
+| `Container_40ftHC.fbx` | `4dfe56b875560de438cdce72940a5825` | 3.7 MB | `~/3D Model/Container/Container_40ftHC.blend` |
+| `Container_45ftHC.fbx` | `3664f4fcefe4e590ee3f7bab49e92e82` | 3.7 MB | `~/3D Model/Container/Container_45ftHC.blend` |
+| `LOD1/Container_{20ft,40ft,40ftHC,45ftHC}_LOD1.fbx` | — | — | 같은 `.blend` 의 원저자 LOD1 컬렉션(`문서/스크립트/컨테이너_LOD1_내보내기.py`) |
+
+<sub>해시·크기는 2026-09-08 메시 합치기(782d226) 이후 값(2026-10-13 확인).</sub>
 
 - **제작자 메타데이터** — 4종 모두 FBX 헤더 Creator 가 `Blender (stable FBX IO) - 5.1.2 - 5.15.0` (Blender Foundation).
   구매 모델이면 상용 DCC(Autodesk Maya/3ds Max) 또는 재배포 도구 흔적이 남는데, 그런 흔적이 **0건**이다.
 - **형상 근거** — ISO 668 / 1496-1 / 1161 및 CIMC·Bullbox 사양서의 **치수를 읽고 자체 모델링**했다.
   치수·규격 수치는 저작물이 아니므로, 이 경로로 만든 결과물에 규격 발행처의 권리가 미치지 않는다. 다만 §4 참조.
-- **텍스처 25종** (`Assets/Container/Textures/`) — `*_BaseColor` · `*_MetalSmooth` · `*_Normal` 전량 자체 베이크 산출물.
+- **텍스처 13종** (`Assets/Container/Textures/`) — `*_BaseColor` · `*_MetalSmooth` · `CSC_Plate_Normal` 전량 자체 베이크 산출물.
 
 ### 1.2 크레인 · 선박 · 부두
 
 | 자산 | 경로 | 제작 방식 |
 |---|---|---|
 | RTG 크레인 | `Assets/Crane/Models/RTG_Crane.fbx` (md5 `c81e0d8e2f1841422d19863f8b8bb98d`) | Blender 자체 제작 → FBX |
-| STS 크레인 | `Assets/Crane/Scripts/Sts/Editor/StsCraneCreator.cs` | **에디터 절차 생성** (메시 원본이 코드) |
+| STS 크레인 | `Assets/Crane/Scripts/Sts/Editor/StsCraneCreator*.cs` | **에디터 절차 생성** (메시 원본이 코드) |
 | 컨테이너선 | `Assets/Ship/Scripts/Procedural*.cs` | 에디터 절차 생성 |
-| 부두 · 야드 | `Assets/Crane/Scripts/Sts/Editor/StsQuayGroundCreator.cs` | 에디터 절차 생성 |
+| 부두 · 야드 · 바다 | `Assets/Crane/Models/{Quay_*,Yard_*,Sea}.fbx` (배치 `QuayPartsPlacer*.cs`) | Blender 스크립트 자체 제작 → FBX (`문서/스크립트/`) |
+| 시작 마커 · 나가는 문 표지판 | `Assets/Crane/Models/StartMarker_Pawn.fbx` · `Assets/Crane/Resources/Models/ExitSign.fbx` | Blender 스크립트 자체 제작 → FBX |
+| 배후 항만 배경 | `Assets/Crane/Scripts/Sts/Runtime/PortBackdrop.cs` | 런타임 절차 생성 |
 | 절차 컨테이너 | `Assets/Container/Scripts/ProceduralContainer*.cs` | 런타임/에디터 절차 생성 |
 
 ---
@@ -55,7 +60,7 @@
 |---|---|---|---|---|---|
 | 1 | **ambientCG PBR 텍스처 10 세트** | `Assets/PBR_Library/` | **CC0 1.0** (퍼블릭 도메인) | 가능 | **없음** |
 | 2 | **Unity 공식 패키지** (URP · XRI · XR Hands · OpenXR · Netcode 등) | `Packages/manifest.json` | Unity Companion License / Unity EULA | 가능 (Unity 로 만든 제품 한정) | 없음 |
-| 3 | **Unity 패키지 샘플 에셋** (XRI Starter Assets · Hands Interaction Demo · XR Hands HandVisualizer) | `Assets/Samples/` | 상동 (패키지에 종속) | 가능 | 없음 |
+| 3 | **Unity 패키지 샘플 에셋** (XRI Starter Assets · Hands Interaction Demo · XR Hands HandVisualizer · Gestures) | `Assets/Samples/` | 상동 (패키지에 종속) | 가능 | 없음 |
 | 4 | **TextMesh Pro 기본 폰트** LiberationSans | `Assets/TextMesh Pro/Fonts/` | SIL OFL 1.1 | 가능 | 없음 (폰트 파일 재배포 시 라이선스 동봉) |
 | 5 | **나눔고딕** (한글 HUD) | `Assets/Crane/Resources/Fonts/NanumGothic-Regular.ttf` | SIL OFL 1.1 | 가능 | 없음 (동일 조건) |
 
@@ -135,7 +140,7 @@ OFL 1.1 은 **상업적 사용·임베딩을 허용**하지만 두 가지 제약
 
 | 항목 | 위험 | 내용 |
 |---|---|---|
-| 실존 선사 소유자 코드 — `ContainerIdGenerator.cs:14-28` | 중 | `MAEU`(Maersk) · `MSCU`(MSC) · `HLXU`(Hapag-Lloyd) · `EGHU`(Evergreen) · `TCLU`(Triton) 등 **BIC 등록 실제 기업 식별자**. `ContainerColorPalette.cs:23-28` 의 선사 컬러와 겹치면 야드 박스가 **특정 실존 선사 컨테이너로 읽힌다** |
+| 실존 선사 소유자 코드 — `ContainerIdGenerator.OwnerCodes` | 중 | `MAEU`(Maersk) · `MSCU`(MSC) · `HLXU`(Hapag-Lloyd) · `EGHU`(Evergreen) · `TCLU`(Triton) 등 **BIC 등록 실제 기업 식별자**. `ContainerColorPalette.cs` 의 선사 컬러와 겹치면 야드 박스가 **특정 실존 선사 컨테이너로 읽힌다** |
 | 명판 승인번호의 `BV` (`KR / BV / 2026 / 0715`) | 낮음 | Bureau Veritas(실존 선급)가 하지 않은 승인 표기. 게임 에셋에선 통상 넘어가는 수준 |
 
 - **사내 시뮬레이션·훈련용**이면 현행 유지 가능. **상용 배포·홍보물**이면 가상 코드 교체 권장.
@@ -175,7 +180,7 @@ OFL 1.1 은 **상업적 사용·임베딩을 허용**하지만 두 가지 제약
 이 대장을 다시 검증할 때 쓸 명령이다.
 
 ```bash
-cd ~/Container
+cd "~/00. Project/00. AI-XR-Crane/00. AI-XR-Crane"
 # 1) 모델 제작자 메타데이터 — 자체 제작이면 Blender 만 나온다
 for f in $(find Assets -name "*.fbx" ! -path "*/Samples/*"); do
   echo "=== $f"; head -c 2000 "$f" | strings | grep -iE "blender|autodesk|maya|sketchfab" | head -3
@@ -190,5 +195,5 @@ find Assets -type f \( -iname "*.fbx" -o -iname "*.gltf" -o -iname "*.glb" -o -i
   -o -iname "*.blend" -o -iname "*.ttf" -o -iname "*.otf" -o -iname "*.wav" \) ! -name "*.meta"
 ```
 
-**2026-08-14 실행 결과** — 위 3개 모두 통과. `Assets/Samples/`(Unity 공식) 외의 외부 유래 파일은
+**2026-10-13 재실행 결과** — 위 3개 모두 통과(FBX 19개 전부 Blender, 라이선스 흔적은 이 파일뿐). `Assets/Samples/`(Unity 공식) 외의 외부 유래 파일은
 `Assets/PBR_Library/`(CC0) 와 나눔고딕(OFL) **둘뿐**이며, 컨테이너·크레인·선박·부두 모델은 전량 자체 제작이다.
