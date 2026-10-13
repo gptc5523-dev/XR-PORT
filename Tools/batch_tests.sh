@@ -18,7 +18,7 @@ fail=0
 row() { echo "$1" | tee -a "$OUT"; }
 row "# 배치 반복시험 $STAMP · 커밋 $(git rev-parse --short HEAD) · Unity $VER · 서버 $XRCRANE_SERVER_URL"
 
-for t in test_parts.py test_events.py test_summary.py; do
+for t in test_parts.py test_events.py test_summary.py test_license.py; do
   if (cd Server && python3 "$t" >/dev/null 2>&1); then row "PASS Server/$t"; else row "FAIL Server/$t"; fail=1; fi
 done
 if python3 Remote/receiver.py test >/dev/null 2>&1; then row "PASS Remote/receiver.py test"; else row "FAIL Remote/receiver.py test"; fail=1; fi

@@ -14,6 +14,7 @@ services:
       - ./app:/app:ro
       - ./data:/data
       - ${XRCRANE_USERS_FILE:-./users.json}:/etc/xrcrane-users.json:ro
+      - ${XRCRANE_LICENSE_FILE:-./license.json}:/etc/xrcrane-license.json:ro   # 서버 라이선스(WBS 8.3) — 공급사 서명본, 없으면 '{}' = 평가판(크레인 1대)
 
   # 라이브 가상 PLC — 실 PLC(㈜엠비이)가 붙으면 이 서비스 대신 plc_s7.py adapter 를 띄운다.
   xrcrane-plc:

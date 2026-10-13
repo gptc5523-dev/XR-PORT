@@ -11,7 +11,8 @@ XR 크레인 통합서버 v0.6 — PLC 이력 수집·저장·조회, 부품 ID 
 엔드포인트
   GET  /health                                  살아있는지 + 적재 행 수
   GET  /time                                    서버 벽시계(epoch ms) — 기기 간 시계 차 추정용(지표1)
-  POST /ingest                                  스냅샷 1건 또는 배열 적재(JSON)
+  POST /ingest                                  스냅샷 1건 또는 배열 적재(JSON) — 라이선스 크레인 수를 넘는 크레인은 403, 만료·유예 지나면 402
+  GET  /license                                 서버 라이선스 상태(정식·평가판, 허용 크레인 수, 자리 받은 크레인, 만료)
   GET  /latest?crane=STS_Crane                  가장 최근 스냅샷 1건
   GET  /history?crane=&from_ms=&to_ms=&limit=   구간 조회(기본 최근 500)
   GET  /alarms?crane=&limit=                    알람 코드가 0이 아닌 행만
@@ -54,10 +55,14 @@ import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import xrcrane_license as lic  # noqa: E402   서버 라이선스(WBS 8.3) — 같은 app/ 폴더
+
 DEFAULT_DB = os.environ.get("XRCRANE_DB", "/data/xrcrane.db")
 DEFAULT_PORT = int(os.environ.get("XRCRANE_PORT", "5006"))
 DEFAULT_ALLOW = os.environ.get("XRCRANE_ALLOW", "127.0.0.0/8,::1/128,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,100.64.0.0/10")   # 100.64/10 = Tailscale(서버는 VPN 으로만 닿는다)
 TOKEN_HEADER = "X-Auth-Token"
+DEFAULT_LICENSE = os.environ.get("XRCRANE_LICENSE", "/etc/xrcrane-license.json")
 DEFAULT_AI = os.environ.get("XRCRANE_AI_URL", "http://xrcrane-ai:5007")   # 6.4 추론 서비스(compose 내부) — /summary 를 여기로 넘긴다
 
 
@@ -336,6 +341,12 @@ class Handler(BaseHTTPRequestHandler):
     local = threading.local()
     commands = {}   # 크레인 → 대기 중인 사고 지시(라이브 PLC 가 가져가면 비운다) — 시연 때 원하는 순간에 오류를 낸다
     partmap = None   # (parts.json, 코드북) — /parts 첫 요청 때 읽는다
+    lic_doc, lic_err, slots = None, "미설정", None   # 서버 라이선스 — cmd_serve 가 채운다
+
+    def license(self):
+        st = lic.status(self.lic_doc, self.lic_err)   # 날짜가 바뀌면 만료·유예가 바로 반영되게 매번 계산
+        st["used"] = sorted(self.slots.held) if self.slots else []
+        return st
     cargo = {}   # 크레인 → 원래 자리에서 옮겨진 컨테이너 목록(라이브 PLC 가 올리고 XR 이 접속할 때 맞춘다) — 메모리만, 재시작하면 원래 배치
 
     @property
@@ -409,7 +420,12 @@ class Handler(BaseHTTPRequestHandler):
 
         if path == "/health":
             n = self.con.execute("SELECT COUNT(*) c FROM snapshot").fetchone()["c"]
-            return self.send_json({"ok": True, "rows": n, "db": self.server.db_path})
+            st = self.license()
+            return self.send_json({"ok": True, "rows": n, "db": self.server.db_path,
+                                   "license": {k: st[k] for k in ("mode", "state", "cranes", "used")}})
+
+        if path == "/license":
+            return self.send_json(self.license())
 
         if path == "/latest":
             sql = "SELECT * FROM snapshot"
@@ -530,7 +546,7 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json(rows_to_dicts(cur))
 
         return self.send_json({"error": "not found",
-                               "endpoints": ["/health", "/time", "/latest", "/history", "/alarms", "/runs", "/since", "/command", "/cargo", "/users", "/register", "/parts", "/parts/history", "/events", "POST /ingest", "POST /events", "POST /command", "POST /cargo", "POST /users"]}, 404)
+                               "endpoints": ["/health", "/time", "/latest", "/history", "/alarms", "/runs", "/since", "/command", "/cargo", "/users", "/register", "/parts", "/parts/history", "/events", "/license", "POST /ingest", "POST /events", "POST /command", "POST /cargo", "POST /users"]}, 404)
 
     def do_POST(self):
         if self.denied():
@@ -576,11 +592,18 @@ class Handler(BaseHTTPRequestHandler):
             body = [body]
         if not isinstance(body, list) or not body:
             return self.send_json({"error": "expected object or non-empty array"}, 400)
+        st = self.license()
+        if not st["accept"]:
+            return self.send_json({"error": "license expired", "license": st}, 402)
+        now = int(time.time() * 1000)
+        ok = [r for r in body if self.slots.allowed(str(r.get("crane", "unknown")), now)]   # 크레인 단위 과금 — 자리 없는 크레인은 버린다
+        if not ok:
+            return self.send_json({"error": "license crane limit", "cranes": st["cranes"], "used": st["used"]}, 403)
         try:
-            count = insert_rows(self.con, self.lock, body)
+            count = insert_rows(self.con, self.lock, ok)
         except sqlite3.Error as e:
             return self.send_json({"error": f"db: {e}"}, 500)
-        return self.send_json({"ok": True, "inserted": count})
+        return self.send_json({"ok": True, "inserted": count, **({"rejected": len(body) - len(ok)} if len(ok) < len(body) else {})})
 
 
 def prune_loop(db, retain_hours, every_s):
@@ -604,6 +627,11 @@ def cmd_serve(args):
     Handler.db_path = args.db
     Handler.allow = parse_allow(args.allow)
     Handler.token = os.environ.get("XRCRANE_TOKEN", "")
+    Handler.lic_doc, Handler.lic_err = lic.load(args.license)
+    st = lic.status(Handler.lic_doc, Handler.lic_err)
+    Handler.slots = lic.Slots(connect(args.db, schema=False), Handler.lock, st["license_id"], st["cranes"])
+    print(f"[xrcrane-db] 라이선스 {st['mode']} {st['license_id']} · 크레인 {st['cranes']}대 · {st['state']}"
+          + (f" · {st['note']}" if st.get("note") else ""), flush=True)
     srv = ThreadingHTTPServer((args.host, args.port), Handler)
     srv.db_path = args.db
     if args.retain_hours > 0:
@@ -695,6 +723,7 @@ def main():
     s.add_argument("--retain-hours", type=float, default=float(os.environ.get("XRCRANE_RETAIN_HOURS", "3")),
                    help="이보다 오래된 행 삭제(개발 중 기본 3시간 ≈ 450MB, 0=무기한). 크레인 3대 100ms 면 시간당 약 150MB")
     s.add_argument("--prune-every", type=float, default=600, help="보존 삭제 주기(초)")
+    s.add_argument("--license", default=DEFAULT_LICENSE, help="라이선스 파일(공급사 서명) — 없으면 평가판(크레인 1대)")
     s.set_defaults(func=cmd_serve)
 
     i = sub.add_parser("import", help="PlcSim CSV 적재")
