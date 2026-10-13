@@ -46,6 +46,7 @@ namespace AIXRCrane.Crane.Sts
         // 가속도 추적은 FixedUpdate에서 — 실척 위치(m) 링버퍼, 길이 2W+1(W = 창 틱 수).
         Vector3[] ring;
         int head, filled;
+        const float JumpMargin = 3f;   // 틱 이동이 정격 속도×dt 의 이 배를 넘으면 불연속으로 본다
 
         // 축별 트립 상태머신(raw 가속도 기준). trip=현재 트립, over=연속 초과 틱, under=연속 복귀 틱.
         bool tripG, tripT, tripH;
@@ -119,7 +120,15 @@ namespace AIXRCrane.Crane.Sts
             // 틱 단위 2차 미분이면 100ms 행 선형보간 위치에서 가속이 행 경계 1틱 스파이크로만 보여 3틱 연속을 못 채운다(WBS 9.5).
             int w = Mathf.Max(1, Mathf.RoundToInt(accelWindowS / dt));
             if (ring == null || ring.Length != 2 * w + 1) { ring = new Vector3[2 * w + 1]; filled = 0; }
-            ring[head] = new Vector3(g * rG, t * rT, h * rH);
+            var x = new Vector3(g * rG, t * rT, h * rH);
+            // 한 틱에 정격 속도로 못 가는 거리를 건너뛰면 가속이 아니라 데이터 불연속(시나리오 전환·재접속) — 창을 새로 채운다.
+            if (filled > 0)
+            {
+                Vector3 d = x - ring[(head + ring.Length - 1) % ring.Length];
+                if (Mathf.Abs(d.x) > CraneAxisProfile.GantryMaxSpeed * dt * JumpMargin || Mathf.Abs(d.y) > CraneAxisProfile.TrolleyMaxSpeed * dt * JumpMargin
+                    || Mathf.Abs(d.z) > CraneAxisProfile.HoistEmptySpeed * dt * JumpMargin) filled = 0;
+            }
+            ring[head] = x;
             head = (head + 1) % ring.Length;
             if (filled < ring.Length) { filled++; return; }
 
