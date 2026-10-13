@@ -46,11 +46,19 @@ namespace AIXRCrane.Crane.Sts
         static void AutoSpawn() => CraneHud.EnsureSpawned<CraneStateSummary>("SUMMARY");
 
         /// <summary>모바일 관전 화면용 한 줄(색 점 + 요약문 + 출처). 아직 판정 전이면 "".</summary>
-        public static string LineFor(StsCrane c)
+        /// <summary>한 줄 배치용 — badge = "● AI"(정상은 색만)·"● 이상 AI"(주의·이상은 색약 대비 글자도), detail = 주의·이상의 원인·코드·조치. 판정 전이면 false.</summary>
+        public static bool PartsFor(StsCrane c, out string badge, out string detail)
         {
             foreach (var e in entries)
-                if (e.crane == c && e.state >= 0) return Line(e);
-            return "";
+                if (e.crane == c && e.state >= 0)
+                {
+                    badge = $"<color=#{CraneHud.Hex(StateColor(e.state))}>●</color> " + (e.state == 0 ? "" : $"<color=#{CraneHud.Hex(StateColor(e.state))}>{StateKo[e.state]}</color> ") + Source(e);
+                    int cut = e.text.IndexOf("] ");
+                    detail = e.state == 0 ? "" : cut >= 0 ? e.text.Substring(cut + 2) : e.text;
+                    return true;
+                }
+            badge = detail = "";
+            return false;
         }
 
         void Start()
@@ -145,7 +153,9 @@ namespace AIXRCrane.Crane.Sts
         }
 
         static string Line(Entry e) =>
-            $"<color=#{CraneHud.Hex(StateColor(e.state))}>●</color> {e.text}  <color=#{CraneHud.Hex(CraneHud.HudColor.IdleDim)}>{(e.ai ? "AI" : "규칙")}</color>";
+            $"<color=#{CraneHud.Hex(StateColor(e.state))}>●</color> {e.text}  {Source(e)}";
+
+        static string Source(Entry e) => $"<color=#{CraneHud.Hex(CraneHud.HudColor.IdleDim)}>{(e.ai ? "AI" : "규칙")}</color>";
 
         static Color StateColor(int s) => s >= 2 ? CraneHud.HudColor.Danger : s == 1 ? CraneFault.SevColor(FaultSeverity.Warning) : CraneHud.HudColor.Ok;
     }
