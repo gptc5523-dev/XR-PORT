@@ -60,7 +60,7 @@ import xrcrane_license as lic  # noqa: E402   서버 라이선스(WBS 8.3) — �
 
 DEFAULT_DB = os.environ.get("XRCRANE_DB", "/data/xrcrane.db")
 DEFAULT_PORT = int(os.environ.get("XRCRANE_PORT", "5006"))
-DEFAULT_ALLOW = os.environ.get("XRCRANE_ALLOW", "127.0.0.0/8,::1/128,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,100.64.0.0/10")   # 100.64/10 = Tailscale(서버는 VPN 으로만 닿는다)
+DEFAULT_ALLOW = os.environ.get("XRCRANE_ALLOW") or "127.0.0.0/8,::1/128,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,100.64.0.0/10"   # 100.64/10 = Tailscale(서버는 VPN 으로만 닿는다)
 TOKEN_HEADER = "X-Auth-Token"
 DEFAULT_LICENSE = os.environ.get("XRCRANE_LICENSE", "/etc/xrcrane-license.json")
 DEFAULT_AI = os.environ.get("XRCRANE_AI_URL", "http://xrcrane-ai:5007")   # 6.4 추론 서비스(compose 내부) — /summary 를 여기로 넘긴다

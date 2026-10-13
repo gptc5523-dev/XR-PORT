@@ -1,4 +1,4 @@
-# 통합서버 설치본(WBS 8.2) — Server/install.sh 가 이 파일과 app/ 을 설치 폴더에 놓고 docker compose up -d 한다. 값은 같은 폴더의 .env(XRCRANE_TOKEN·XRCRANE_RETAIN_HOURS·XRCRANE_USERS_FILE).
+# 통합서버 설치본(WBS 8.2) — Server/install.sh 가 이 파일과 app/ 을 설치 폴더에 놓고 docker compose up -d 한다. 값은 같은 폴더의 .env(XRCRANE_ALLOW·XRCRANE_RETAIN_HOURS·XRCRANE_USERS_FILE, 개발용 XRCRANE_TOKEN — 납품본은 토큰 없음).
 services:
   xrcrane-db:
     image: python:3.12-slim
@@ -8,6 +8,7 @@ services:
     ports: ["5006:5006"]
     environment:
       XRCRANE_USERS: /etc/xrcrane-users.json
+      XRCRANE_ALLOW: ${XRCRANE_ALLOW:-}   # 비면 코드 기본(사설망+Tailscale) — 납품본은 install.sh --allow 로 현장 대역만
       XRCRANE_TOKEN: ${XRCRANE_TOKEN:-}
       XRCRANE_RETAIN_HOURS: ${XRCRANE_RETAIN_HOURS:-3}
     volumes:
