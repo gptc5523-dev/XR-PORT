@@ -1,0 +1,677 @@
+{
+ "date": "2026-10-13 08:32",
+ "windows": {
+  "train": 2935479,
+  "val": 315811,
+  "test": 309512
+ },
+ "train_used": 1360717,
+ "features": {
+  "phys": [
+   "GT_Velocity.last",
+   "GT_Velocity.mean",
+   "GT_Velocity.std",
+   "GT_Velocity.min",
+   "GT_Velocity.max",
+   "GT_Velocity.mean3",
+   "GT_Velocity.max3",
+   "GT_Velocity.delta",
+   "GT_Velocity.jump",
+   "TR_Velocity.last",
+   "TR_Velocity.mean",
+   "TR_Velocity.std",
+   "TR_Velocity.min",
+   "TR_Velocity.max",
+   "TR_Velocity.mean3",
+   "TR_Velocity.max3",
+   "TR_Velocity.delta",
+   "TR_Velocity.jump",
+   "HO_Velocity.last",
+   "HO_Velocity.mean",
+   "HO_Velocity.std",
+   "HO_Velocity.min",
+   "HO_Velocity.max",
+   "HO_Velocity.mean3",
+   "HO_Velocity.max3",
+   "HO_Velocity.delta",
+   "HO_Velocity.jump",
+   "HO_Load.last",
+   "HO_Load.mean",
+   "HO_Load.std",
+   "HO_Load.min",
+   "HO_Load.max",
+   "HO_Load.mean3",
+   "HO_Load.max3",
+   "HO_Load.delta",
+   "HO_Load.jump",
+   "ENV_Wind_Speed.last",
+   "ENV_Wind_Speed.mean",
+   "ENV_Wind_Speed.std",
+   "ENV_Wind_Speed.min",
+   "ENV_Wind_Speed.max",
+   "ENV_Wind_Speed.mean3",
+   "ENV_Wind_Speed.max3",
+   "ENV_Wind_Speed.delta",
+   "ENV_Wind_Speed.jump",
+   "HO_Position.last",
+   "HO_Position.mean",
+   "HO_Position.std",
+   "HO_Position.min",
+   "HO_Position.max",
+   "HO_Position.mean3",
+   "HO_Position.max3",
+   "HO_Position.delta",
+   "HO_Position.jump",
+   "GT_Velocity.absmax60",
+   "TR_Velocity.absmax60",
+   "HO_Velocity.absmax60",
+   "HO.speed_ratio60",
+   "GT_Velocity.ratio300",
+   "TR_Velocity.ratio300",
+   "HO_Velocity.ratio300",
+   "HO.load_ratio",
+   "HO.load_ratio_max3",
+   "SP.landed_unlocked_run",
+   "COM.down_run",
+   "AX.still_run",
+   "GT_Running.last",
+   "GT_Running.mean",
+   "TR_Running.last",
+   "TR_Running.mean",
+   "HO_Running.last",
+   "HO_Running.mean",
+   "GT_Brake_Released.last",
+   "GT_Brake_Released.mean",
+   "TR_Brake_Released.last",
+   "TR_Brake_Released.mean",
+   "HO_Brake_Released.last",
+   "HO_Brake_Released.mean",
+   "SP_TwistLock_Locked.last",
+   "SP_TwistLock_Locked.mean",
+   "SP_Landed.last",
+   "SP_Landed.mean",
+   "SP_Container_Detected.last",
+   "SP_Container_Detected.mean",
+   "OP_Power_On.last",
+   "OP_Power_On.mean",
+   "OP_Ready.last",
+   "OP_Ready.mean",
+   "OP_Running.last",
+   "OP_Running.mean",
+   "OP_Standby.last",
+   "OP_Standby.mean",
+   "OP_Emergency_Stop.last",
+   "OP_Emergency_Stop.mean",
+   "OP_AntiSway_Active.last",
+   "OP_AntiSway_Active.mean",
+   "COM_Link_Status.last",
+   "COM_Link_Status.mean",
+   "OP_Mode.last",
+   "SP_Mode.last"
+  ],
+  "alarm": [
+   "GT_Motor_Alarm.last",
+   "GT_Motor_Alarm.max",
+   "TR_Motor_Alarm.last",
+   "TR_Motor_Alarm.max",
+   "HO_Overload_Alarm.last",
+   "HO_Overload_Alarm.max",
+   "HO_Snag_Alarm.last",
+   "HO_Snag_Alarm.max",
+   "HO_Motor_Alarm.last",
+   "HO_Motor_Alarm.max",
+   "SP_Mismatch_Alarm.last",
+   "SP_Mismatch_Alarm.max",
+   "ENV_Wind_Alarm.last",
+   "ENV_Wind_Alarm.max",
+   "ALM_Active.last",
+   "ALM_Active.max",
+   "ALM_Latest_Severity.last",
+   "ALM_Latest_Severity.max",
+   "ALM_Latest_Source.last",
+   "ALM_Latest_Source.max",
+   "ALM_1001",
+   "ALM_1012",
+   "ALM_2001",
+   "ALM_3001",
+   "ALM_3002",
+   "ALM_3003",
+   "ALM_3012",
+   "ALM_3013",
+   "ALM_4003",
+   "ALM_4006",
+   "ALM_5001",
+   "ALM_5023",
+   "ALM_6001",
+   "ALM_6002"
+  ]
+ },
+ "sets": {
+  "phys": {
+   "fit_s": 120,
+   "iters": {
+    "state": 400,
+    "cause": 133
+   },
+   "val": {
+    "acc": 0.9778,
+    "macro_f1": 0.9516,
+    "per_class": {
+     "정상": {
+      "P": 0.9841,
+      "R": 0.9898,
+      "n": 260552
+     },
+     "주의": {
+      "P": 0.904,
+      "R": 0.857,
+      "n": 27933
+     },
+     "이상": {
+      "P": 0.9888,
+      "R": 0.9874,
+      "n": 27326
+     }
+    },
+    "confusion": [
+     [
+      257888,
+      2442,
+      222
+     ],
+     [
+      3910,
+      23939,
+      84
+     ],
+     [
+      245,
+      99,
+      26982
+     ]
+    ],
+    "cause_acc_nonnormal": 0.9166
+   },
+   "test": {
+    "acc": 0.9795,
+    "macro_f1": 0.9521,
+    "per_class": {
+     "정상": {
+      "P": 0.9849,
+      "R": 0.9914,
+      "n": 260855
+     },
+     "주의": {
+      "P": 0.9123,
+      "R": 0.8507,
+      "n": 25640
+     },
+     "이상": {
+      "P": 0.9877,
+      "R": 0.9874,
+      "n": 23017
+     }
+    },
+    "confusion": [
+     [
+      258624,
+      2020,
+      211
+     ],
+     [
+      3756,
+      21813,
+      71
+     ],
+     [
+      212,
+      77,
+      22728
+     ]
+    ],
+    "cause_acc_nonnormal": 0.9083
+   },
+   "kpi5": {
+    "acc": 0.82,
+    "macro_f1": 0.8222,
+    "per_class": {
+     "정상": {
+      "P": 0.6957,
+      "R": 0.9412,
+      "n": 34
+     },
+     "주의": {
+      "P": 0.8519,
+      "R": 0.697,
+      "n": 33
+     },
+     "이상": {
+      "P": 1.0,
+      "R": 0.8182,
+      "n": 33
+     }
+    },
+    "confusion": [
+     [
+      32,
+      2,
+      0
+     ],
+     [
+      10,
+      23,
+      0
+     ],
+     [
+      4,
+      2,
+      27
+     ]
+    ],
+    "summary_acc": 0.78,
+    "acc_hard": 0.8214
+   },
+   "kpi5_errors": [
+    {
+     "id": "kpi5_007",
+     "ref": "[주의] STS — 권상 하중 급변. 조치: 걸림·간섭 여부 육안 확인",
+     "pred": "[주의] STS — 인양 하중 정격 근접(105% 이상). 조치: 감속 인양, 화물 중량 재확인"
+    },
+    {
+     "id": "kpi5_011",
+     "ref": "[이상] RTG — 갠트리 충돌방지 센서 작동 (코드 1012). 조치: 주행로 장애물 확인 후 재기동",
+     "pred": "[정상] RTG — 대기 중"
+    },
+    {
+     "id": "kpi5_016",
+     "ref": "[이상] RTG — 갠트리 모터 과전류 (코드 1001). 조치: 주행 정지, 구동부 점검 후 재기동",
+     "pred": "[이상] RTG — 갠트리 충돌방지 센서 작동 (코드 1012). 조치: 주행로 장애물 확인 후 재기동"
+    },
+    {
+     "id": "kpi5_018",
+     "ref": "[정상] RTG — 공차 이동 중",
+     "pred": "[주의] RTG — 권상 속도 저하. 조치: 권상 모터·인버터 점검 예약"
+    },
+    {
+     "id": "kpi5_019",
+     "ref": "[이상] RTG — 갠트리 충돌방지 센서 작동 (코드 1012). 조치: 주행로 장애물 확인 후 재기동",
+     "pred": "[정상] RTG — 대기 중"
+    },
+    {
+     "id": "kpi5_022",
+     "ref": "[주의] RTG — 권상 속도 저하. 조치: 권상 모터·인버터 점검 예약",
+     "pred": "[정상] RTG — 공차 이동 중"
+    },
+    {
+     "id": "kpi5_026",
+     "ref": "[주의] RTG — 권상 베어링 온도 상승 (코드 3003). 조치: 운전 계속, 온도 추이 감시",
+     "pred": "[정상] RTG — 공차 이동 중"
+    },
+    {
+     "id": "kpi5_027",
+     "ref": "[주의] RTG — 권상 베어링 온도 상승 (코드 3003). 조치: 운전 계속, 온도 추이 감시",
+     "pred": "[정상] RTG — 컨테이너 이송 중"
+    },
+    {
+     "id": "kpi5_033",
+     "ref": "[주의] RTG — 권상 베어링 온도 상승 (코드 3003). 조치: 운전 계속, 온도 추이 감시",
+     "pred": "[정상] RTG — 대기 중"
+    },
+    {
+     "id": "kpi5_038",
+     "ref": "[이상] STS — 갠트리 모터 과전류 (코드 1001). 조치: 주행 정지, 구동부 점검 후 재기동",
+     "pred": "[정상] STS — 공차 이동 중"
+    },
+    {
+     "id": "kpi5_044",
+     "ref": "[주의] STS — 권상 베어링 온도 상승 (코드 3003). 조치: 운전 계속, 온도 추이 감시",
+     "pred": "[정상] STS — 대기 중"
+    },
+    {
+     "id": "kpi5_052",
+     "ref": "[주의] STS — 권상 베어링 온도 상승 (코드 3003). 조치: 운전 계속, 온도 추이 감시",
+     "pred": "[정상] STS — 컨테이너 이송 중"
+    },
+    {
+     "id": "kpi5_060",
+     "ref": "[주의] STS — 권상 속도 저하. 조치: 권상 모터·인버터 점검 예약",
+     "pred": "[정상] STS — 공차 이동 중"
+    },
+    {
+     "id": "kpi5_061",
+     "ref": "[이상] STS — 권상 모터 권선 온도 초과 (코드 3002). 조치: 권상 정지, 냉각 후 정비",
+     "pred": "[이상] STS — 트롤리 모터 과전류 (코드 2001). 조치: 횡행 정지, 구동부 점검 후 재기동"
+    },
+    {
+     "id": "kpi5_069",
+     "ref": "[주의] STS — 권상 베어링 온도 상승 (코드 3003). 조치: 운전 계속, 온도 추이 감시",
+     "pred": "[정상] STS — 공차 이동 중"
+    },
+    {
+     "id": "kpi5_071",
+     "ref": "[이상] STS — 트롤리 모터 과전류 (코드 2001). 조치: 횡행 정지, 구동부 점검 후 재기동",
+     "pred": "[주의] STS — 풍속 주의 (코드 6001). 조치: 70% 감속 운전, 풍속 추이 확인"
+    },
+    {
+     "id": "kpi5_073",
+     "ref": "[주의] STS — 권상 속도 저하. 조치: 권상 모터·인버터 점검 예약",
+     "pred": "[정상] STS — 컨테이너 이송 중"
+    },
+    {
+     "id": "kpi5_075",
+     "ref": "[이상] STS — 스프레더 안착 미검출 (코드 4006). 조치: 살짝 들었다가 재안착",
+     "pred": "[주의] STS — 권상 속도 저하. 조치: 권상 모터·인버터 점검 예약"
+    },
+    {
+     "id": "kpi5_079",
+     "ref": "[이상] STS — 갠트리 모터 과전류 (코드 1001). 조치: 주행 정지, 구동부 점검 후 재기동",
+     "pred": "[이상] STS — 권상 모터 권선 온도 초과 (코드 3002). 조치: 권상 정지, 냉각 후 정비"
+    },
+    {
+     "id": "kpi5_082",
+     "ref": "[이상] STS — 스프레더 안착 미검출 (코드 4006). 조치: 살짝 들었다가 재안착",
+     "pred": "[정상] STS — 컨테이너 체결·해제 중"
+    },
+    {
+     "id": "kpi5_088",
+     "ref": "[주의] STS — 권상 베어링 온도 상승 (코드 3003). 조치: 운전 계속, 온도 추이 감시",
+     "pred": "[정상] STS — 공차 이동 중"
+    },
+    {
+     "id": "kpi5_091",
+     "ref": "[정상] STS — 컨테이너 이송 중",
+     "pred": "[주의] STS — 풍속 주의 (코드 6001). 조치: 70% 감속 운전, 풍속 추이 확인"
+    }
+   ],
+   "kpi7": {
+    "acc": 0.89,
+    "macro_f1": 0.8686,
+    "per_class": {
+     "정상": {
+      "P": 0.7353,
+      "R": 1.0,
+      "n": 25
+     },
+     "주의": {
+      "P": 0.9,
+      "R": 0.72,
+      "n": 25
+     },
+     "이상": {
+      "P": 1.0,
+      "R": 0.92,
+      "n": 50
+     }
+    },
+    "confusion": [
+     [
+      25,
+      0,
+      0
+     ],
+     [
+      7,
+      18,
+      0
+     ],
+     [
+      2,
+      2,
+      46
+     ]
+    ],
+    "summary_acc": 0.83,
+    "acc_hard": 0.8276
+   },
+   "ext": {
+    "acc": 0.9017,
+    "macro_f1": 0.9013,
+    "per_class": {
+     "정상": {
+      "P": 0.8058,
+      "R": 0.975,
+      "n": 200
+     },
+     "주의": {
+      "P": 0.9571,
+      "R": 0.78,
+      "n": 200
+     },
+     "이상": {
+      "P": 0.9744,
+      "R": 0.95,
+      "n": 200
+     }
+    },
+    "confusion": [
+     [
+      195,
+      3,
+      2
+     ],
+     [
+      41,
+      156,
+      3
+     ],
+     [
+      6,
+      4,
+      190
+     ]
+    ],
+    "summary_acc": 0.8383,
+    "acc_A": 0.9067,
+    "acc_B": 0.8967,
+    "acc_hard": 0.8778
+   }
+  },
+  "full": {
+   "fit_s": 166,
+   "iters": {
+    "state": 400,
+    "cause": 189
+   },
+   "val": {
+    "acc": 0.9923,
+    "macro_f1": 0.9841,
+    "per_class": {
+     "정상": {
+      "P": 0.9964,
+      "R": 0.9943,
+      "n": 260552
+     },
+     "주의": {
+      "P": 0.9482,
+      "R": 0.9665,
+      "n": 27933
+     },
+     "이상": {
+      "P": 0.9997,
+      "R": 0.9998,
+      "n": 27326
+     }
+    },
+    "confusion": [
+     [
+      259069,
+      1475,
+      8
+     ],
+     [
+      935,
+      26998,
+      0
+     ],
+     [
+      5,
+      0,
+      27321
+     ]
+    ],
+    "cause_acc_nonnormal": 0.9796
+   },
+   "test": {
+    "acc": 0.9929,
+    "macro_f1": 0.9843,
+    "per_class": {
+     "정상": {
+      "P": 0.9962,
+      "R": 0.9953,
+      "n": 260855
+     },
+     "주의": {
+      "P": 0.9526,
+      "R": 0.9617,
+      "n": 25640
+     },
+     "이상": {
+      "P": 0.9998,
+      "R": 1.0,
+      "n": 23017
+     }
+    },
+    "confusion": [
+     [
+      259626,
+      1226,
+      3
+     ],
+     [
+      981,
+      24658,
+      1
+     ],
+     [
+      1,
+      0,
+      23016
+     ]
+    ],
+    "cause_acc_nonnormal": 0.9763
+   },
+   "kpi5": {
+    "acc": 0.95,
+    "macro_f1": 0.9501,
+    "per_class": {
+     "정상": {
+      "P": 0.8919,
+      "R": 0.9706,
+      "n": 34
+     },
+     "주의": {
+      "P": 0.9667,
+      "R": 0.8788,
+      "n": 33
+     },
+     "이상": {
+      "P": 1.0,
+      "R": 1.0,
+      "n": 33
+     }
+    },
+    "confusion": [
+     [
+      33,
+      1,
+      0
+     ],
+     [
+      4,
+      29,
+      0
+     ],
+     [
+      0,
+      0,
+      33
+     ]
+    ],
+    "summary_acc": 0.92,
+    "acc_hard": 0.9643
+   },
+   "kpi7": {
+    "acc": 0.99,
+    "macro_f1": 0.9867,
+    "per_class": {
+     "정상": {
+      "P": 0.9615,
+      "R": 1.0,
+      "n": 25
+     },
+     "주의": {
+      "P": 1.0,
+      "R": 0.96,
+      "n": 25
+     },
+     "이상": {
+      "P": 1.0,
+      "R": 1.0,
+      "n": 50
+     }
+    },
+    "confusion": [
+     [
+      25,
+      0,
+      0
+     ],
+     [
+      1,
+      24,
+      0
+     ],
+     [
+      0,
+      0,
+      50
+     ]
+    ],
+    "summary_acc": 0.96,
+    "acc_hard": 0.9655
+   },
+   "ext": {
+    "acc": 0.9717,
+    "macro_f1": 0.9716,
+    "per_class": {
+     "정상": {
+      "P": 0.9336,
+      "R": 0.985,
+      "n": 200
+     },
+     "주의": {
+      "P": 0.9841,
+      "R": 0.93,
+      "n": 200
+     },
+     "이상": {
+      "P": 1.0,
+      "R": 1.0,
+      "n": 200
+     }
+    },
+    "confusion": [
+     [
+      197,
+      3,
+      0
+     ],
+     [
+      14,
+      186,
+      0
+     ],
+     [
+      0,
+      0,
+      200
+     ]
+    ],
+    "summary_acc": 0.945,
+    "acc_A": 0.9667,
+    "acc_B": 0.9767,
+    "acc_hard": 0.9667
+   }
+  }
+ }
+}

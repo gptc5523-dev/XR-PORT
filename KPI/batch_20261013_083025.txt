@@ -1,0 +1,12 @@
+# 배치 반복시험 20261013_083025 · 커밋 477cb94 · Unity 6000.4.5f1 · 서버 http://192.168.0.167:5006
+PASS Server/test_parts.py
+PASS Server/test_events.py
+PASS Server/test_summary.py
+PASS Remote/receiver.py test
+PASS RtgControlSmoke (31s) 걸어와서 받음 True · 토글 이어받음 True · 조종기 RTG True · HUD STS True→RTG True · 타이어 True · 운전실 True
+PASS HostStartProbe (23s) 측정 8, 실패 0
+PASS PlcReplaySmoke (242s) 이동 20, 집기 20, 놓기 20, 배에서 집기 20(씬 컨테이너 20), 트위스트락↔윗면 최대 0.168m(≤0.36), 예외 0, 게임 1730s · 벽 226s
+PASS StsGrabProbe (76s) 검사 24건, 측정 64, 실패 0, 건너뜀 0
+PASS FloorClipProbe (30s) 측정 4, 실패 0, 건너뜀 0
+PASS PlcServerSmoke (35s) 소스 Server 연결 True, 표본 119077, PLC 변화 GT 0.00 · TR 19.42 · HO 6.30m (≥0.5), 축 변화(model) GT 0.0001 · TR 0.8093 · HO 0.2623, 예외 0, 벽 20s
+# 결과: 전부 PASS — 로그 Logs/batch_20261013_083025
