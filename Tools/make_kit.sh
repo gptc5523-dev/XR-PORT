@@ -38,7 +38,7 @@ cat > "$K/README.md" <<'EOF'
    - 실 PLC 가 있으면 compose 의 xrcrane-plc 대신 `Server/plc_s7.py` adapter.
 3. 크레인 앱: `rsync -rlt app/ <서버>:AI-XR-Crane/` (Windows 빌드 — 서버에선 Proton 으로 실행), `remote_receiver.py` 도 같은 폴더에.
 4. 스트리밍(헤드리스 NVIDIA Xorg :1 · WiVRn 26.9 flatpak · Sunshine 자리 1~4 · keepalive)은 공급사 기술자가 구축한다 — 절차는 공급사 문서 「빌드·인프라 가이드」 §3·§4.
-5. 보안: 통합서버는 허용 대역(XRCRANE_ALLOW, 기본 사설망)만 받는다. 토큰이 필요하면 서버 `xrcrane-db/.env` 의 `XRCRANE_TOKEN` 과 단말 `xrcrane_token.txt` 에 같은 값.
+5. 보안: 통합서버는 허용 대역(XRCRANE_ALLOW, 기본 사설망)만 받는다. **납품 때 토큰 켜기** — 같은 망 누구나 /command 로 사고 지시를 낼 수 있어서: 서버 `~/xrcrane-db/.env` 의 `XRCRANE_TOKEN` 과 단말 `xrcrane_token.txt`(크레인 앱 persistentDataPath)에 같은 값. 개발·시연 중엔 끔. AI(로컬 모델)는 토큰과 무관.
 
 ## 2. Quest (VR 운전석) — quest/
 - WiVRn 클라이언트 26.9 를 설치(서버와 같은 버전, APK 는 공급사가 함께 전달) → 수동 추가: 주소 = 서버 IP, 포트 9757.
