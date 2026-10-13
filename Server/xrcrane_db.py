@@ -28,6 +28,7 @@ XR 크레인 통합서버 v0.6 — PLC 이력 수집·저장·조회, 부품 ID 
 
 접근 제어(WBS 9.2, 폐쇄망 전제 9.1)
   XRCRANE_ALLOW  허용 대역(쉼표 구분 CIDR). 기본 = 루프백 + 사설망(10/8, 172.16/12, 192.168/16) + Tailscale(100.64/10). 밖이면 403.
+  XRCRANE_ALLOW_EXTRA  기본에 더할 현장 대역(사설망 밖 대역일 때만).
   XRCRANE_TOKEN  공유 토큰. 설정하면 모든 요청에 X-Auth-Token 헤더가 같아야 한다(아니면 401). 비우면 토큰 검사 안 함.
   클라이언트(feed·plc_s7·load_test·Unity ServerPlcSource)는 같은 환경변수(Unity 는 파일)에서 토큰을 읽어 보낸다.
 
@@ -60,7 +61,8 @@ import xrcrane_license as lic  # noqa: E402   서버 라이선스(WBS 8.3) — �
 
 DEFAULT_DB = os.environ.get("XRCRANE_DB", "/data/xrcrane.db")
 DEFAULT_PORT = int(os.environ.get("XRCRANE_PORT", "5006"))
-DEFAULT_ALLOW = os.environ.get("XRCRANE_ALLOW") or "127.0.0.0/8,::1/128,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,100.64.0.0/10"   # 100.64/10 = Tailscale(서버는 VPN 으로만 닿는다)
+DEFAULT_ALLOW = ",".join(filter(None, [os.environ.get("XRCRANE_ALLOW") or "127.0.0.0/8,::1/128,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,100.64.0.0/10",   # 100.64/10 = Tailscale VPN(기본 접속 경로 — 항상 허용)
+                                         os.environ.get("XRCRANE_ALLOW_EXTRA")]))   # 현장 추가 대역(install.sh --allow)
 TOKEN_HEADER = "X-Auth-Token"
 DEFAULT_LICENSE = os.environ.get("XRCRANE_LICENSE", "/etc/xrcrane-license.json")
 DEFAULT_AI = os.environ.get("XRCRANE_AI_URL", "http://xrcrane-ai:5007")   # 6.4 추론 서비스(compose 내부) — /summary 를 여기로 넘긴다
