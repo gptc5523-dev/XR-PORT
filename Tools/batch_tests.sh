@@ -22,6 +22,13 @@ for t in test_parts.py test_events.py test_summary.py test_license.py; do
   if (cd Server && python3 "$t" >/dev/null 2>&1); then row "PASS Server/$t"; else row "FAIL Server/$t"; fail=1; fi
 done
 if python3 Remote/receiver.py test >/dev/null 2>&1; then row "PASS Remote/receiver.py test"; else row "FAIL Remote/receiver.py test"; fail=1; fi
+# 지표1 은 렌더가 필요해 배치로 못 잰다 — 마지막 에디터 측정(KPI/kpi1_*.csv)을 참고 줄로 붙인다(판정에 안 들어감)
+k1=$(ls -t KPI/kpi1_*.csv 2>/dev/null | head -1)
+if [ -n "$k1" ]; then
+  k1d=${k1#KPI/kpi1_}; k1d="${k1d:0:4}-${k1d:4:2}-${k1d:6:2}"
+  k1s=$(python3 -c 'import csv,sys; r=list(csv.DictReader(open(sys.argv[1],encoding="utf-8-sig"))); ms=[int(x["plc_to_xr_ms"]) for x in r]; print("통과 %d/%d · 평균 %.0fms · 최대 %dms" % (sum(x["pass"]=="1" for x in r), len(r), sum(ms)/len(ms), max(ms)))' "$k1")
+  row "INFO 지표1(에디터 측정 참고, $k1d) $k1s — $k1"
+fi
 
 for t in "${TOOLS[@]}"; do
   start=$(date +%s)
