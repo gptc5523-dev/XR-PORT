@@ -278,6 +278,9 @@ namespace AIXRCrane.Crane.Sts
             last = s;
         }
 
+        /// <summary>화면용 짧은 크레인 이름 — STS, RTG1·RTG2(GameObject 이름 끝 번호). 모바일 크레인 줄·상태 요약·배너가 같이 쓴다.</summary>
+        public static string ShortName(StsCrane c) => c.GetComponent<RtgBogieSteering>() == null ? "STS" : "RTG" + c.name.Substring(c.name.LastIndexOf('_') + 1);
+
         /// <summary>파츠 이름 끝의 "_번호" 접미사를 떼고 원래 이름을 반환(StsCraneCreator가 부품을 _1,_2…로 번호매김 →
         /// 이름 '==' 비교가 깨지지 않게). "Twistlock_Cone_3" → "Twistlock_Cone". 숫자 접미사가 없으면 그대로 반환.</summary>
         public static string BaseName(string n)

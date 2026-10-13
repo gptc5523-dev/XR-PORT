@@ -24,12 +24,12 @@ namespace AIXRCrane.Crane.Sts
 
         /// <summary>서버 /summary 응답 — 6.4 추론과 맞춘 계약, JsonUtility 용 필드 이름 그대로.</summary>
         [System.Serializable]
-        sealed class AiJson { public string crane; public long t; public int state; public string cause; public int code; public string text; public float conf; public string model; public string activity; public bool rule; }
+        sealed class AiJson { public string crane; public long t; public int state; public string cause; public int code; public string text; public float conf; public string model; public string activity; public bool rule; public string cause_ko; public string action; }
 
         sealed class Entry
         {
-            public StsCrane crane; public string name;
-            public int state = -1; public string text = ""; public bool ai;
+            public StsCrane crane; public string label;   // 짧은 이름(STS·RTG1) — VR 패널·배너용, 모바일은 크레인 줄에 이미 있다
+            public int state = -1; public string text = ""; public bool ai;   // text = 상태 + 원인·코드·조치(크레인 이름·동작은 뺌)
             public volatile AiJson inbox;          // 폴링 스레드가 넣고 메인 스레드가 꺼낸다
             public long aiT; public float aiFreshAt = -999f; public AiJson last;
             public volatile bool polling; public float nextPoll;
@@ -77,7 +77,7 @@ namespace AIXRCrane.Crane.Sts
             {
                 nextScan = Time.unscaledTime + 2f;
                 foreach (var c in FindObjectsByType<StsCrane>(FindObjectsSortMode.None).OrderBy(c => c.name))
-                    entries.Add(new Entry { crane = c, name = c.name });   // 서버 AI 문장도 GameObject 이름을 쓴다(계약)
+                    entries.Add(new Entry { crane = c, label = CraneHud.ShortName(c) });
             }
 
             sb.Clear();
@@ -87,7 +87,7 @@ namespace AIXRCrane.Crane.Sts
                 Poll(e);
                 Evaluate(e);
                 if (sb.Length > 0) sb.Append('\n');
-                sb.Append(Line(e));
+                sb.Append("<b>").Append(e.label).Append("</b>  ").Append(Line(e));
             }
             canvas.enabled = !CraneLink.FlatMode && !CraneLink.MenuOpen && sb.Length > 0;   // 모바일은 머리 고정 캔버스가 안 보여 MobileSpectatorHud 가 띄운다
             CraneHud.SetTextIfChanged(text, ref lastText, sb.ToString());
@@ -104,11 +104,11 @@ namespace AIXRCrane.Crane.Sts
             int state; string line;
             bool fresh = e.last != null && Time.unscaledTime - e.aiFreshAt < AiStaleS;
             bool ai = fresh && !e.last.rule;   // 서버가 규칙으로 낸 판정도 문장은 쓰되 출처는 '규칙'
-            if (fresh) { state = Mathf.Clamp(e.last.state, 0, 2); line = e.last.text; }
+            if (fresh) { state = Mathf.Clamp(e.last.state, 0, 2); line = Short(state, e.last.cause_ko, e.last.code, e.last.action, e.last.cause); }
             else RuleSummary(e, out state, out line);
 
             if (e.state >= 0 && state > e.state && Time.timeSinceLevelLoad > AlertGraceS)   // 나빠질 때만 — 좋아지는 건 패널 색으로 충분
-                CraneAlarmHUD.Notify(line, StateColor(state), alertSeconds);
+                CraneAlarmHUD.Notify($"{e.label} {line}", StateColor(state), alertSeconds);
             e.state = state; e.text = line; e.ai = ai;
         }
 
@@ -118,15 +118,15 @@ namespace AIXRCrane.Crane.Sts
             int code = CraneLink.ActiveAlarmCode(e.crane);
             var a = code != 0 ? AlarmCodebook.Get(code) : null;
             state = a == null ? 0 : a.sev >= 2 ? 2 : a.sev;
-            line = state == 0 ? $"[정상] {e.name} — {Activity(e.crane)}" : $"[{StateKo[state]}] {e.name} — {a.ko} (코드 {code})";
+            line = Short(state, a?.ko, code, null, null);
         }
 
-        // gen_ai.ACT_KO 와 같은 말 — AI 문장과 섞여 보여도 어색하지 않게.
-        static string Activity(StsCrane c)
+        // "정상" 또는 "[이상] 권상 과부하 (3012) — 인양 중지…" — 크레인 이름·동작은 패널 다른 줄과 겹쳐 뺀다. 원인은 서버 cause_ko, 없으면 코드북, 그것도 없으면 원인 키.
+        static string Short(int state, string ko, int code, string action, string cause)
         {
-            bool loaded = c.Attach != null && c.Attach.HasContainer;
-            if (c.OpMode != null && c.OpMode.Current == OpMode.Running) return loaded ? "컨테이너 이송 중" : "공차 이동 중";
-            return "대기 중";
+            if (state == 0) return "정상";
+            if (string.IsNullOrEmpty(ko)) ko = code != 0 ? AlarmCodebook.Get(code)?.ko ?? cause : cause;
+            return $"[{StateKo[state]}] {ko}" + (code != 0 ? $" ({code})" : "") + (string.IsNullOrEmpty(action) ? "" : $" — {action}");
         }
 
         // 서버 모드 PLC 를 쓰는 크레인만 — 같은 주소·토큰으로 /summary 를 묻는다. 404(판정 전)·503(AI 꺼짐)·끊김은 조용히 규칙으로.
