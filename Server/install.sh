@@ -1,15 +1,14 @@
 #!/usr/bin/env bash
-# 통합서버 설치(WBS 8.2) — Server/install.sh <ssh 호스트> [설치 폴더=xrcrane-db] [--adopt] [--ai 폴더] [--image tar] [--license 파일] [--allow 현장 대역]: 파일을 올리고 대상 자체 시험이 통과하면 docker compose 로 띄운다(--adopt = 손으로 띄운 같은 이름 컨테이너 교체, 나머지는 새 현장 설치 — 외부 다운로드 없이 — 설치 키트 Tools/make_kit.sh 가 채운다).
+# 통합서버 설치(WBS 8.2) — Server/install.sh <ssh 호스트> [설치 폴더=xrcrane-db] [--adopt] [--ai 폴더] [--image tar] [--license 파일]: 파일을 올리고 대상 자체 시험이 통과하면 docker compose 로 띄운다(--adopt = 손으로 띄운 같은 이름 컨테이너 교체, 나머지는 새 현장 설치 — 외부 다운로드 없이 — 설치 키트 Tools/make_kit.sh 가 채운다).
 set -euo pipefail
 cd "$(dirname "$0")/.."
-ADOPT=0; AI=""; IMAGE=""; LIC=""; ALLOW=""; ARGS=()
+ADOPT=0; AI=""; IMAGE=""; LIC=""; ARGS=()
 while [ $# -gt 0 ]; do
   case "$1" in
     --adopt) ADOPT=1 ;;
     --ai) AI=$2; shift ;;          # models/·wheels/ 가 든 폴더 → 대상 ~/xrcrane-ai (compose 기본 XRCRANE_AI_DIR=../xrcrane-ai)
     --image) IMAGE=$2; shift ;;    # docker save 한 python:3.12-slim — 대상에 이미지가 없을 때만 load(현장에서 외부 다운로드 없이)
     --license) LIC=$2; shift ;;    # 공급사가 발급한 license.json(없으면 평가판 1대)
-    --allow) ALLOW=$2; shift ;;    # 기본(루프백·사설망·Tailscale VPN)에 더할 현장 대역 — 사설망 밖 대역을 쓰는 현장만
     *) ARGS+=("$1") ;;
   esac; shift
 done
@@ -21,7 +20,6 @@ FILES=(Server/xrcrane_db.py Server/xrcrane_license.py Server/ed25519.py Server/t
 ssh "$H" "mkdir -p $D/app $D/data && cd $D && { [ -f users.json ] || echo '[]' > users.json; } && { [ -f license.json ] || echo '{}' > license.json; } && { [ -f .env ] || printf 'XRCRANE_RETAIN_HOURS=3\nXRCRANE_USERS_FILE=./users.json\n' > .env; }"
 rsync -a "${FILES[@]}" "$H:$D/app/"
 rsync -a Server/docker-compose.yml "$H:$D/"
-[ -n "$ALLOW" ] && ssh "$H" "cd $D && sed -i '/^XRCRANE_ALLOW_EXTRA=/d' .env && echo 'XRCRANE_ALLOW_EXTRA=$ALLOW' >> .env" && echo "[install] 허용 대역 → 기본(루프백·사설망·VPN) + $ALLOW"
 [ -n "$LIC" ] && rsync -a "$LIC" "$H:$D/license.json" && echo "[install] 라이선스 → $H:$D/license.json"
 [ -n "$AI" ] && ssh "$H" "mkdir -p xrcrane-ai" && rsync -a "$AI/models" "$AI/wheels" "$H:xrcrane-ai/" && echo "[install] AI 모델·휠 → $H:xrcrane-ai"
 if [ -n "$IMAGE" ] && ! ssh "$H" "docker image inspect python:3.12-slim >/dev/null 2>&1"; then

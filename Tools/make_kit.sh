@@ -33,12 +33,12 @@ VPN(Tailscale) 내부망 현장용 — 설치 중 외부에서 내려받는 것 
 
 ## 1. 서버 (Ubuntu 22.04 + NVIDIA GPU, docker·python3·rsync)
 1. 공급사에게 `license.json` 을 받는다(크레인 대수·만료 — 없으면 평가판 1대). 공급사 발급: `python3 Server/xrcrane_license.py issue ...`(개인키는 공급사 맥에만).
-2. 이 PC에서: `cd server && Server/install.sh <서버 ssh> xrcrane-db --ai xrcrane-ai --image python-3.12-slim.tar.gz --license <license.json>`(사설망 밖 대역을 쓰는 현장만 `--allow <대역>` 추가)
+2. 이 PC에서: `cd server && Server/install.sh <서버 ssh> xrcrane-db --ai xrcrane-ai --image python-3.12-slim.tar.gz --license <license.json>`
    - 통합서버(:5006)·가상 PLC·AI 추론(xrcrane-ai)이 docker compose 로 뜬다. 끝에 `[install] 완료`·`AI 추론 서비스 기동` 이 나오면 성공.
    - 실 PLC 가 있으면 compose 의 xrcrane-plc 대신 `Server/plc_s7.py` adapter.
 3. 크레인 앱: `rsync -rlt app/ <서버>:AI-XR-Crane/` (Windows 빌드 — 서버에선 Proton 으로 실행), `remote_receiver.py` 도 같은 폴더에.
 4. 스트리밍(헤드리스 NVIDIA Xorg :1 · WiVRn 26.9 flatpak · Sunshine 자리 1~4 · keepalive)은 공급사 기술자가 구축한다 — 절차는 공급사 문서 「빌드·인프라 가이드」 §3·§4.
-5. 보안: 통합서버는 허용 대역만 받는다 — 루프백·사설망·Tailscale VPN(100.64/10) + `--allow` 추가 대역, 그 밖은 403. 납품본은 토큰 없이 쓴다 — VPN 내부망 안에서만 쓰고 외부 서비스·사용권이 없다. AI 는 서버 안의 로컬 모델(xrcrane-ai).
+5. 접속: VPN(Tailscale) 내부망 자체가 접근 제어 — 통합서버는 루프백·사설망·VPN(100.64/10) 단말을 받고 토큰은 쓰지 않는다. AI 는 서버 안의 로컬 모델(xrcrane-ai).
 
 ## 2. Quest (VR 운전석) — quest/
 - WiVRn 클라이언트 26.9 를 설치(서버와 같은 버전, APK 는 공급사가 함께 전달) → 수동 추가: 주소 = 서버 IP, 포트 9757.
